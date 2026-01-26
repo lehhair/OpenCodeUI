@@ -22,17 +22,23 @@ const INITIAL_MESSAGE_LIMIT = 20
 
 interface UseSessionManagerOptions {
   sessionId: string | null
+  directory?: string  // 当前项目目录
   onLoadComplete?: () => void
   onError?: (error: Error) => void
 }
 
 export function useSessionManager({
   sessionId,
+  directory,
   onLoadComplete,
   onError,
 }: UseSessionManagerOptions) {
   const loadingRef = useRef(false)
   const fullHistoryRef = useRef<Map<string, ApiMessageWithParts[]>>(new Map())
+  
+  // 使用 ref 保存 directory，避免依赖变化
+  const directoryRef = useRef(directory)
+  directoryRef.current = directory
 
   // ============================================
   // Load Session
@@ -44,16 +50,18 @@ export function useSessionManager({
 
     messageStore.setLoadState(sid, 'loading')
 
+    const dir = directoryRef.current
+
     try {
-      // 并行加载 session 信息和消息
+      // 并行加载 session 信息和消息（传递 directory）
       const [sessionInfo, apiMessages] = await Promise.all([
-        getSession(sid).catch(() => null),
-        getSessionMessages(sid, INITIAL_MESSAGE_LIMIT),
+        getSession(sid, dir).catch(() => null),
+        getSessionMessages(sid, INITIAL_MESSAGE_LIMIT, dir),
       ])
 
       // 设置消息到 store
       messageStore.setMessages(sid, apiMessages, {
-        directory: sessionInfo?.directory ?? '',
+        directory: sessionInfo?.directory ?? dir ?? '',
         hasMoreHistory: apiMessages.length >= INITIAL_MESSAGE_LIMIT,
         revertState: sessionInfo?.revert ?? null,
       })
@@ -78,11 +86,13 @@ export function useSessionManager({
     const state = messageStore.getSessionState(sessionId)
     if (!state || !state.hasMoreHistory) return
 
+    const dir = state.directory || directoryRef.current
+
     try {
       // 获取或缓存完整历史
       let allMessages = fullHistoryRef.current.get(sessionId)
       if (!allMessages) {
-        allMessages = await getSessionMessages(sessionId)
+        allMessages = await getSessionMessages(sessionId, undefined, dir)
         fullHistoryRef.current.set(sessionId, allMessages)
       }
 
@@ -124,15 +134,15 @@ export function useSessionManager({
   const handleUndo = useCallback(async (userMessageId: string) => {
     if (!sessionId) return
 
-    // 获取当前 session 的 directory
+    // 获取当前 session 的 directory（优先用 store 中的，其次用传入的）
     const state = messageStore.getSessionState(sessionId)
     if (!state) return
 
-    const directory = state.directory || undefined
+    const dir = state.directory || directoryRef.current
 
     try {
       // 调用 API 设置 revert 点（传递 directory）
-      await revertMessage(sessionId, userMessageId, undefined, directory)
+      await revertMessage(sessionId, userMessageId, undefined, dir)
 
       // 找到 revert 点的索引
       const revertIndex = state.messages.findIndex(m => m.info.id === userMessageId)
@@ -179,7 +189,7 @@ export function useSessionManager({
     const { history } = state.revertState
     if (history.length === 0) return
 
-    const directory = state.directory || undefined
+    const dir = state.directory || directoryRef.current
 
     try {
       // 移除第一条历史记录（最早撤销的）
@@ -188,7 +198,7 @@ export function useSessionManager({
       if (newHistory.length > 0) {
         // 还有更多历史，设置新的 revert 点
         const newRevertMessageId = newHistory[0].messageId
-        await revertMessage(sessionId, newRevertMessageId, undefined, directory)
+        await revertMessage(sessionId, newRevertMessageId, undefined, dir)
 
         messageStore.setRevertState(sessionId, {
           messageId: newRevertMessageId,
@@ -196,7 +206,7 @@ export function useSessionManager({
         })
       } else {
         // 没有更多历史，完全清除 revert 状态
-        await unrevertSession(sessionId, directory)
+        await unrevertSession(sessionId, dir)
         messageStore.setRevertState(sessionId, null)
       }
     } catch (error) {
@@ -212,10 +222,10 @@ export function useSessionManager({
     if (!sessionId) return
 
     const state = messageStore.getSessionState(sessionId)
-    const directory = state?.directory || undefined
+    const dir = state?.directory || directoryRef.current
 
     try {
-      await unrevertSession(sessionId, directory)
+      await unrevertSession(sessionId, dir)
       messageStore.setRevertState(sessionId, null)
     } catch (error) {
       console.error('[SessionManager] Redo all failed:', error)

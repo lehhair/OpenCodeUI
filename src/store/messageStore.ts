@@ -265,8 +265,8 @@ class MessageStore {
    * 处理消息创建/更新事件
    */
   handleMessageUpdated(apiMsg: ApiMessage) {
-    const state = this.sessions.get(apiMsg.sessionID)
-    if (!state) return
+    // 确保 session 存在（SSE 事件可能在 loadSession 之前到达）
+    const state = this.ensureSession(apiMsg.sessionID)
 
     const existing = state.messages.find(m => m.info.id === apiMsg.id)
     
@@ -295,11 +295,15 @@ class MessageStore {
    * 处理 Part 更新事件
    */
   handlePartUpdated(apiPart: ApiPart & { sessionID: string; messageID: string }) {
-    const state = this.sessions.get(apiPart.sessionID)
-    if (!state) return
+    // 确保 session 存在
+    const state = this.ensureSession(apiPart.sessionID)
 
     const message = state.messages.find(m => m.info.id === apiPart.messageID)
-    if (!message) return
+    if (!message) {
+      // 消息还不存在，可能是顺序问题，暂时忽略
+      console.warn('[MessageStore] Part received for unknown message:', apiPart.messageID)
+      return
+    }
 
     const existingIndex = message.parts.findIndex(p => p.id === apiPart.id)
     

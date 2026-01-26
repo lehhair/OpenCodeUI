@@ -63,6 +63,7 @@ function App() {
     clearRevert,
   } = useSessionManager({
     sessionId: routeSessionId,
+    directory: currentDirectory,
     onLoadComplete: () => {
       setTimeout(() => {
         chatAreaRef.current?.scrollToBottom(true)
@@ -229,6 +230,8 @@ function App() {
       if (!sessionId) {
         const newSession = await createSession()
         sessionId = newSession.id
+        // 立即设置当前 session，不等待 useEffect
+        messageStore.setCurrentSession(sessionId)
         navigateToSession(sessionId)
       }
 
