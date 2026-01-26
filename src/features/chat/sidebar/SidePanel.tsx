@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState, useEffect } from 'react'
 import { SessionList } from '../../sessions'
+import { ProjectSelector } from '../../sessions/ProjectSelector'
 import { useDirectory } from '../../../hooks'
 import { useSessionContext } from '../../../contexts/SessionContext'
 import { updateSession, subscribeToConnectionState, type ApiSession, type ConnectionInfo } from '../../../api'
@@ -9,6 +10,7 @@ interface SidePanelProps {
   onSelectSession: (session: ApiSession) => void
   onCloseMobile?: () => void
   selectedSessionId: string | null
+  onAddProject: () => void
 }
 
 export function SidePanel({
@@ -16,8 +18,9 @@ export function SidePanel({
   onSelectSession,
   onCloseMobile,
   selectedSessionId,
+  onAddProject,
 }: SidePanelProps) {
-  const { currentDirectory, savedDirectories } = useDirectory()
+  const { currentDirectory, savedDirectories, setCurrentDirectory, removeDirectory } = useDirectory()
   const [connectionState, setConnectionState] = useState<ConnectionInfo | null>(null)
   
   // 监听 SSE 连接状态
@@ -38,11 +41,50 @@ export function SidePanel({
     refresh,
   } = useSessionContext()
 
-  const contextName = useMemo(() => {
-    if (!currentDirectory) return 'Global'
-    const saved = savedDirectories.find(d => d.path === currentDirectory)
-    return saved?.name || currentDirectory.split(/[/\\]/).pop() || currentDirectory
-  }, [currentDirectory, savedDirectories])
+  // 构建项目列表数据供 Selector 使用
+  // 这里我们需要把 Global 和 Saved Directories 统一格式
+  const projects = useMemo(() => {
+    const list = []
+    // Global
+    list.push({
+      id: 'global',
+      worktree: 'All projects',
+      name: 'Global',
+      icon: { color: 'blue' }
+    })
+    // Saved
+    savedDirectories.forEach(d => {
+      list.push({
+        id: d.path, // 使用 path 作为 ID
+        worktree: d.path,
+        name: d.name,
+        icon: { color: 'indigo' } // 默认颜色
+      })
+    })
+    return list
+  }, [savedDirectories])
+
+  const currentProject = useMemo(() => {
+    if (!currentDirectory) return projects[0]
+    return projects.find(p => p.id === currentDirectory) || {
+      id: currentDirectory,
+      worktree: currentDirectory,
+      name: currentDirectory.split(/[/\\]/).pop() || currentDirectory,
+      icon: { color: 'gray' }
+    }
+  }, [currentDirectory, projects])
+
+  const handleSelectProject = useCallback((projectId: string) => {
+    if (projectId === 'global') {
+      setCurrentDirectory(undefined)
+    } else {
+      setCurrentDirectory(projectId)
+    }
+  }, [setCurrentDirectory])
+
+  const handleRemoveProject = useCallback((projectId: string) => {
+    removeDirectory(projectId)
+  }, [removeDirectory])
 
   const handleSelect = useCallback((session: ApiSession) => {
     onSelectSession(session)
@@ -61,34 +103,38 @@ export function SidePanel({
   }, [currentDirectory, refresh])
 
   return (
-    <div className="flex flex-col h-full bg-bg-000 border-r border-border-200">
-      {/* Header Info */}
-      <div className="px-4 pt-4 pb-3 flex-shrink-0">
-        <div className="flex items-center justify-between">
-          <h2 className="text-base font-semibold text-text-100 truncate" title={contextName}>
-            {contextName}
-          </h2>
-          {/* Connection Status Indicator */}
-          <ConnectionIndicator state={connectionState?.state || 'disconnected'} />
+    <div className="flex flex-col h-full overflow-hidden border-r border-border-200/30">
+      {/* Top Section: Project & New Chat */}
+      <div className="flex flex-col gap-2 p-3 flex-shrink-0">
+        {/* Project Switcher */}
+        <div className="relative z-20">
+          <ProjectSelector
+            currentProject={currentProject as any}
+            projects={projects as any}
+            isLoading={false}
+            onSelectProject={handleSelectProject}
+            onAddProject={onAddProject}
+            onRemoveProject={handleRemoveProject}
+          />
         </div>
-        <div className="text-[11px] text-text-400 font-mono truncate mt-0.5" title={currentDirectory || 'Global Environment'}>
-          {currentDirectory || 'Global Environment'}
-        </div>
-      </div>
 
-      {/* New Chat Button */}
-      <div className="px-3 pb-3 flex-shrink-0">
+        {/* New Chat Button */}
         <button
           onClick={onNewSession}
-          className="w-full flex items-center justify-center gap-2 py-2 bg-accent-main-100 hover:bg-accent-main-200 text-white rounded-lg transition-colors text-sm font-medium shadow-sm"
+          className="relative group w-full flex items-center justify-between px-3 py-2 bg-bg-200/40 hover:bg-bg-200/80 text-text-200 rounded-lg transition-all duration-200"
         >
-          <PlusIcon />
-          <span>New Session</span>
+          <div className="flex items-center gap-2.5">
+            <PlusIcon className="w-4 h-4 text-text-400 group-hover:text-text-100 transition-colors" />
+            <span className="text-sm font-medium">New Chat</span>
+          </div>
+          <span className="text-[10px] font-mono text-text-400 opacity-0 group-hover:opacity-100 transition-opacity translate-x-2 group-hover:translate-x-0 bg-bg-000/50 px-1.5 py-0.5 rounded">
+            Ctrl+N
+          </span>
         </button>
       </div>
 
-      {/* Divider */}
-      <div className="border-b border-border-200/30" />
+      {/* Divider - Subtle fade */}
+      <div className="h-px bg-gradient-to-r from-transparent via-border-200/50 to-transparent mx-4 mb-2 flex-shrink-0" />
 
       {/* List */}
       <div className="flex-1 overflow-hidden">
@@ -106,6 +152,15 @@ export function SidePanel({
           onLoadMore={loadMore}
           onNewChat={onNewSession}
         />
+      </div>
+      
+      {/* Bottom Bar: Connection & Settings */}
+      <div className="px-4 py-3 border-t border-border-200/30 flex items-center justify-between text-xs text-text-400">
+        <div className="flex items-center gap-2">
+          <ConnectionIndicator state={connectionState?.state || 'disconnected'} />
+          <span className="opacity-70">{connectionState?.state === 'connected' ? 'Online' : 'Offline'}</span>
+        </div>
+        {/* Settings button could go here */}
       </div>
     </div>
   )
@@ -141,9 +196,9 @@ function ConnectionIndicator({ state }: { state: string }) {
 // Icons
 // ============================================
 
-function PlusIcon() {
+function PlusIcon({ className }: { className?: string }) {
   return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
       <path d="M12 5v14M5 12h14" />
     </svg>
   )

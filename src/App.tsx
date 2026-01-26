@@ -344,8 +344,8 @@ function App() {
   } : undefined
 
   return (
-    <div className="relative h-screen flex">
-      {/* Sidebar */}
+    <div className="relative h-screen flex bg-bg-100 overflow-hidden">
+      {/* Sidebar - 使用半透明背景以融入整体 */}
       <Sidebar
         isOpen={sidebarExpanded}
         selectedSessionId={routeSessionId}
@@ -354,10 +354,10 @@ function App() {
         onClose={() => setSidebarExpanded(false)}
       />
 
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col h-screen bg-bg-100 relative overflow-hidden">
+      {/* Main Content - 移除独立背景色，共享父容器背景 */}
+      <div className="flex-1 flex flex-col h-screen relative overflow-hidden transition-all duration-300">
         <div className="flex-1 relative overflow-hidden flex flex-col">
-          {/* Header Overlay */}
+          {/* Header Overlay - 增加顶部内边距或调整 z-index 确保与侧边栏协调 */}
           <div className="absolute top-0 left-0 right-0 z-20 pointer-events-none">
             <div className="pointer-events-auto">
               <Header

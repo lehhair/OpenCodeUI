@@ -107,13 +107,14 @@ export function Header({
   }
 
   return (
-    <div className="flex justify-between items-center px-4 py-3 bg-bg-100/80 backdrop-blur-md border-b border-border-200/50 z-20">
-      <div className="flex items-center gap-2">
+    <div className="h-14 flex justify-between items-center px-4 z-20 pointer-events-none">
+      <div className="flex items-center gap-2 pointer-events-auto">
         {/* Sidebar Toggle */}
         <IconButton
           aria-label="Toggle sidebar"
           onClick={onToggleSidebar}
           size="sm"
+          className="hover:bg-bg-200/50" // 增加轻微的 hover 背景
         >
           <SidebarIcon />
         </IconButton>
@@ -126,17 +127,19 @@ export function Header({
               setModelMenuOpen(!modelMenuOpen)
               setSettingsMenuOpen(false)
             }}
-            className="flex items-center gap-1 px-2 py-1.5 text-text-200 rounded-md transition-all duration-150 hover:bg-bg-300 hover:text-text-100 active:scale-95 cursor-pointer"
+            className="flex items-center gap-1 px-2 py-1.5 text-text-200 rounded-lg transition-all duration-150 hover:bg-bg-200/50 hover:text-text-100 active:scale-95 cursor-pointer"
             aria-label="Model selector"
             aria-haspopup="menu"
             aria-expanded={modelMenuOpen}
             disabled={modelsLoading}
           >
-            <span className="font-ui-serif text-sm">{displayName}</span>
-            <ChevronDownIcon />
+            <span className="font-medium text-sm opacity-90">{displayName}</span>
+            <span className="opacity-60">
+              <ChevronDownIcon />
+            </span>
           </button>
 
-          {/* Model Menu */}
+          {/* Model Menu (保持不变，但要确保 z-index 够高) */}
           <DropdownMenu
             triggerRef={modelTriggerRef}
             isOpen={modelMenuOpen}
@@ -144,6 +147,7 @@ export function Header({
             align="left"
             width={320}
           >
+            {/* ... */}
             <div ref={modelMenuRef}>
               {/* Search Input */}
               <div className="p-2 border-b border-border-300/20">
@@ -193,12 +197,13 @@ export function Header({
         </div>
       </div>
 
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-1 pointer-events-auto">
         {/* New Chat Button */}
         <IconButton
           aria-label="New chat"
           onClick={onNewChat}
           size="sm"
+          className="hover:bg-bg-200/50"
         >
           <NewChatIcon />
         </IconButton>
@@ -213,6 +218,7 @@ export function Header({
               setModelMenuOpen(false)
             }}
             size="sm"
+            className="hover:bg-bg-200/50"
           >
             <MenuDotsIcon />
           </IconButton>
@@ -225,6 +231,7 @@ export function Header({
             align="right"
             width={220}
           >
+            {/* ... (保持不变) ... */}
             <div ref={settingsMenuRef}>
               <div className="px-3 py-2">
                 <p className="text-xs text-text-400 mb-2">Theme</p>

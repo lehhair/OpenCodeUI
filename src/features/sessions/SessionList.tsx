@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback, useState } from 'react'
+import { useRef, useEffect, useCallback, useState, useMemo } from 'react'
 import { SearchIcon, PencilIcon, TrashIcon } from '../../components/Icons'
 import type { ApiSession } from '../../api'
 
@@ -17,6 +17,9 @@ interface SessionListProps {
   onNewChat: () => void
 }
 
+// 时间分组类型
+type TimeGroup = 'Today' | 'Yesterday' | 'Previous 7 Days' | 'Previous 30 Days' | 'Older'
+
 export function SessionList({
   sessions,
   selectedId,
@@ -34,13 +37,12 @@ export function SessionList({
   const listRef = useRef<HTMLDivElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
 
-  // 滚动到底部时加载更多
+  // 滚动加载
   const handleScroll = useCallback(() => {
     const el = listRef.current
     if (!el || isLoadingMore || !hasMore) return
 
     const { scrollTop, scrollHeight, clientHeight } = el
-    // 距离底部 100px 时触发
     if (scrollHeight - scrollTop - clientHeight < 100) {
       onLoadMore()
     }
@@ -49,29 +51,60 @@ export function SessionList({
   useEffect(() => {
     const el = listRef.current
     if (!el) return
-
     el.addEventListener('scroll', handleScroll)
     return () => el.removeEventListener('scroll', handleScroll)
   }, [handleScroll])
 
-  // 自动聚焦搜索框
-  useEffect(() => {
-    searchInputRef.current?.focus()
-  }, [])
+  // 分组逻辑
+  const groupedSessions = useMemo(() => {
+    const groups: Record<TimeGroup, ApiSession[]> = {
+      'Today': [],
+      'Yesterday': [],
+      'Previous 7 Days': [],
+      'Previous 30 Days': [],
+      'Older': []
+    }
+
+    const now = new Date()
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
+    const yesterday = today - 86400000
+    const weekAgo = today - 86400000 * 7
+    const monthAgo = today - 86400000 * 30
+
+    sessions.forEach(session => {
+      const updated = session.time.updated
+      if (updated >= today) {
+        groups['Today'].push(session)
+      } else if (updated >= yesterday) {
+        groups['Yesterday'].push(session)
+      } else if (updated >= weekAgo) {
+        groups['Previous 7 Days'].push(session)
+      } else if (updated >= monthAgo) {
+        groups['Previous 30 Days'].push(session)
+      } else {
+        groups['Older'].push(session)
+      }
+    })
+
+    return groups
+  }, [sessions])
+
+  // 只有非搜索状态才显示分组
+  const showGroups = !search
 
   return (
     <div className="flex flex-col h-full">
-      {/* Search */}
-      <div className="p-2 flex-shrink-0">
-        <div className="relative">
-          <SearchIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-400" />
+      {/* Search Bar - Minimalist */}
+      <div className="px-3 pb-2 flex-shrink-0">
+        <div className="relative group">
+          <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-text-400 w-3.5 h-3.5 group-focus-within:text-accent-main-100 transition-colors" />
           <input
             ref={searchInputRef}
             type="text"
             value={search}
             onChange={(e) => onSearchChange(e.target.value)}
-            placeholder="Search sessions..."
-            className="w-full bg-bg-200 border border-border-300/30 rounded-lg py-1.5 pl-8 pr-3 text-sm text-text-100 placeholder:text-text-400 focus:outline-none focus:border-border-300/60 transition-colors"
+            placeholder="Search chats..."
+            className="w-full bg-bg-200/40 hover:bg-bg-200/80 focus:bg-bg-000 border border-transparent focus:border-border-200 rounded-lg py-2 pl-9 pr-3 text-xs text-text-100 placeholder:text-text-400/70 focus:outline-none focus:shadow-sm transition-all duration-200"
           />
         </div>
       </div>
@@ -79,28 +112,45 @@ export function SessionList({
       {/* Session List */}
       <div
         ref={listRef}
-        className="flex-1 overflow-y-auto custom-scrollbar"
+        className="flex-1 overflow-y-auto custom-scrollbar px-2 pb-4 space-y-4"
       >
-        {isLoading ? (
+        {isLoading && sessions.length === 0 ? (
           <div className="flex items-center justify-center py-8">
             <LoadingSpinner />
           </div>
         ) : sessions.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-8 text-text-400">
-            <p className="text-sm">
-              {search ? 'No sessions found' : 'No sessions yet'}
+          <div className="flex flex-col items-center justify-center py-12 text-text-400 opacity-60">
+            <p className="text-xs">
+              {search ? 'No matches found' : 'No chats yet'}
             </p>
-            {!search && (
-              <button
-                onClick={onNewChat}
-                className="mt-2 text-xs text-accent-main-100 hover:underline"
-              >
-                Start a new session
-              </button>
-            )}
           </div>
+        ) : showGroups ? (
+          // Grouped View
+          Object.entries(groupedSessions).map(([group, groupSessions]) => {
+            if (groupSessions.length === 0) return null
+            return (
+              <div key={group}>
+                <h3 className="px-3 mb-1.5 mt-2 text-[10px] font-bold text-text-400/60 uppercase tracking-widest select-none">
+                  {group}
+                </h3>
+                <div className="space-y-0.5">
+                  {groupSessions.map(session => (
+                    <SessionItem
+                      key={session.id}
+                      session={session}
+                      isSelected={session.id === selectedId}
+                      onSelect={() => onSelect(session)}
+                      onDelete={() => onDelete(session.id)}
+                      onRename={(newTitle) => onRename(session.id, newTitle)}
+                    />
+                  ))}
+                </div>
+              </div>
+            )
+          })
         ) : (
-          <>
+          // Flat View (Search)
+          <div className="space-y-0.5 mt-1">
             {sessions.map((session) => (
               <SessionItem
                 key={session.id}
@@ -111,17 +161,13 @@ export function SessionList({
                 onRename={(newTitle) => onRename(session.id, newTitle)}
               />
             ))}
-            {isLoadingMore && (
-              <div className="flex items-center justify-center py-4">
-                <LoadingSpinner size="sm" />
-              </div>
-            )}
-            {!hasMore && sessions.length > 0 && (
-              <div className="text-center py-4 text-xs text-text-500">
-                No more sessions
-              </div>
-            )}
-          </>
+          </div>
+        )}
+        
+        {isLoadingMore && (
+          <div className="flex items-center justify-center py-2">
+            <LoadingSpinner size="sm" />
+          </div>
         )}
       </div>
     </div>
@@ -147,7 +193,7 @@ function SessionItem({ session, isSelected, onSelect, onDelete, onRename }: Sess
 
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation()
-    if (confirm('Delete this session?')) {
+    if (confirm('Delete this chat?')) {
       onDelete()
     }
   }
@@ -179,7 +225,6 @@ function SessionItem({ session, isSelected, onSelect, onDelete, onRename }: Sess
     }
   }
 
-  // Auto-focus input when editing starts
   useEffect(() => {
     if (isEditing && inputRef.current) {
       inputRef.current.focus()
@@ -187,93 +232,59 @@ function SessionItem({ session, isSelected, onSelect, onDelete, onRename }: Sess
     }
   }, [isEditing])
 
+  if (isEditing) {
+    return (
+      <div className="px-3 py-2">
+        <input
+          ref={inputRef}
+          type="text"
+          value={editTitle}
+          onChange={(e) => setEditTitle(e.target.value)}
+          onBlur={handleSaveEdit}
+          onKeyDown={handleKeyDown}
+          onClick={(e) => e.stopPropagation()}
+          className="w-full bg-bg-000 border border-accent-main-100/50 rounded px-2 py-0.5 text-sm text-text-100 focus:outline-none focus:ring-1 focus:ring-accent-main-100/30 leading-relaxed"
+        />
+      </div>
+    )
+  }
+
   return (
     <div
-      onClick={isEditing ? undefined : onSelect}
-      className={`group flex items-center gap-2 px-3 py-2.5 cursor-pointer transition-colors ${
+      onClick={onSelect}
+      className={`group relative flex items-center px-3 py-2 rounded-lg cursor-pointer transition-all duration-200 border border-transparent ${
         isSelected
-          ? 'bg-bg-300/70'
-          : 'hover:bg-bg-200/50'
+          ? 'bg-bg-000 shadow-sm text-text-100 font-medium ring-1 ring-border-200/50' 
+          : 'text-text-400 hover:bg-bg-200/50 hover:text-text-200'
       }`}
     >
-      <div className="flex-1 min-w-0">
-        {isEditing ? (
-          <input
-            ref={inputRef}
-            type="text"
-            value={editTitle}
-            onChange={(e) => setEditTitle(e.target.value)}
-            onBlur={handleSaveEdit}
-            onKeyDown={handleKeyDown}
-            onClick={(e) => e.stopPropagation()}
-            className="w-full bg-bg-200 border border-accent-main-100/50 rounded px-1.5 py-0.5 text-sm text-text-100 focus:outline-none focus:border-accent-main-100"
-          />
-        ) : (
-          <p className={`text-sm truncate ${isSelected ? 'text-text-100' : 'text-text-200'}`}>
-            {session.title || 'Untitled'}
-          </p>
-        )}
-        <p className="text-xs text-text-500 truncate">
-          {formatRelativeTime(session.time.updated)}
-          {session.summary && session.summary.files > 0 && (
-            <span className="ml-2">
-              {session.summary.files} files
-              {session.summary.additions > 0 && (
-                <span className="text-success-100/70 ml-1">+{session.summary.additions}</span>
-              )}
-              {session.summary.deletions > 0 && (
-                <span className="text-danger-100/70 ml-1">-{session.summary.deletions}</span>
-              )}
-            </span>
-          )}
+      <div className="flex-1 min-w-0 pr-6">
+        <p className="text-sm truncate leading-relaxed">
+          {session.title || 'Untitled Chat'}
         </p>
       </div>
-      {!isEditing && (
-        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-          <button
-            onClick={handleStartEdit}
-            className="p-1 rounded hover:bg-bg-300 text-text-400 hover:text-text-100 transition-colors"
-            title="Rename session"
-          >
-            <PencilIcon />
-          </button>
-          <button
-            onClick={handleDelete}
-            className="p-1 rounded hover:bg-bg-300 text-text-400 hover:text-danger-100 transition-colors"
-            title="Delete session"
-          >
-            <TrashIcon />
-          </button>
-        </div>
-      )}
+      
+      {/* Actions (Rename/Delete) - only show on hover */}
+      <div className={`absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-0.5 transition-opacity ${
+        isSelected ? 'opacity-0 group-hover:opacity-100' : 'opacity-0 group-hover:opacity-100'
+      }`}>
+        <button
+          onClick={handleStartEdit}
+          className="p-1 rounded-md hover:bg-bg-200 text-text-400 hover:text-text-100"
+          title="Rename"
+        >
+          <PencilIcon className="w-3 h-3" />
+        </button>
+        <button
+          onClick={handleDelete}
+          className="p-1 rounded-md hover:bg-bg-200 text-text-400 hover:text-danger-100"
+          title="Delete"
+        >
+          <TrashIcon className="w-3 h-3" />
+        </button>
+      </div>
     </div>
   )
-}
-
-// ============================================
-// Helper Functions
-// ============================================
-
-function formatRelativeTime(timestamp: number): string {
-  const now = Date.now()
-  const diff = now - timestamp
-
-  const seconds = Math.floor(diff / 1000)
-  const minutes = Math.floor(seconds / 60)
-  const hours = Math.floor(minutes / 60)
-  const days = Math.floor(hours / 24)
-
-  if (days > 7) {
-    return new Date(timestamp).toLocaleDateString()
-  } else if (days > 0) {
-    return `${days}d ago`
-  } else if (hours > 0) {
-    return `${hours}h ago`
-  } else if (minutes > 0) {
-    return `${minutes}m ago`
-  } else {
-    return 'Just now'
-  }
 }
 
 // ============================================
@@ -281,7 +292,7 @@ function formatRelativeTime(timestamp: number): string {
 // ============================================
 
 function LoadingSpinner({ size = 'md' }: { size?: 'sm' | 'md' }) {
-  const sizeClass = size === 'sm' ? 'w-4 h-4' : 'w-6 h-6'
+  const sizeClass = size === 'sm' ? 'w-3 h-3' : 'w-5 h-5'
   return (
     <svg
       className={`animate-spin text-text-400 ${sizeClass}`}

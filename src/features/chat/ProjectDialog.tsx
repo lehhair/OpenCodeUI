@@ -1,6 +1,6 @@
-import { useEffect, useRef, useMemo, useCallback, useReducer } from 'react'
-import { listDirectory, searchDirectories, getPath, type FileNode, type ApiPath } from '../../api'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { createPortal } from 'react-dom'
+import { listDirectory, getPath } from '../../api'
 
 // ============================================
 // Types
@@ -13,219 +13,42 @@ interface ProjectDialogProps {
   initialPath?: string
 }
 
-interface DisplayItem {
-  type: 'current' | 'folder' | 'result' | 'quick'
-  path: string
+interface FileItem {
   name: string
-  icon?: 'home' | 'folder' | 'folder-open' | 'drive' | 'recent'
+  path: string
+  type: 'file' | 'directory'
 }
-
-interface State {
-  query: string
-  currentPath: string
-  items: FileNode[]
-  searchResults: string[]
-  selectedIndex: number
-  isLoading: boolean
-  error: string | null
-  pathInfo: ApiPath | null
-  recentPaths: string[]
-}
-
-type Action =
-  | { type: 'SET_QUERY'; query: string }
-  | { type: 'SET_PATH'; path: string }
-  | { type: 'SET_ITEMS'; items: FileNode[] }
-  | { type: 'SET_SEARCH_RESULTS'; results: string[] }
-  | { type: 'SET_SELECTED_INDEX'; index: number }
-  | { type: 'SET_LOADING'; loading: boolean }
-  | { type: 'SET_ERROR'; error: string | null }
-  | { type: 'SET_PATH_INFO'; info: ApiPath }
-  | { type: 'NAVIGATE_TO'; path: string }
-  | { type: 'RESET'; initialPath: string }
-  | { type: 'ADD_RECENT'; path: string }
 
 // ============================================
 // Utils
 // ============================================
 
-const STORAGE_KEY = 'project-dialog-recent'
-const MAX_RECENT = 5
+const isWindows = typeof navigator !== 'undefined' && navigator.platform?.toLowerCase().includes('win')
+const PATH_SEP = isWindows ? '\\' : '/'
 
-function loadRecentPaths(): string[] {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY)
-    return stored ? JSON.parse(stored) : []
-  } catch {
-    return []
-  }
-}
-
-function saveRecentPaths(paths: string[]) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(paths.slice(0, MAX_RECENT)))
-  } catch { /* ignore */ }
-}
-
-// 平台检测
-function detectPlatform(): 'windows' | 'unix' {
-  // 通过多种方式检测
-  if (typeof navigator !== 'undefined') {
-    const platform = navigator.platform?.toLowerCase() || ''
-    if (platform.includes('win')) return 'windows'
-  }
-  // 默认假设 Unix
-  return 'unix'
-}
-
-const platform = detectPlatform()
-const isWindows = platform === 'windows'
-const pathSep = isWindows ? '\\' : '/'
-
-// 路径处理工具
 function normalizePath(p: string): string {
-  if (!p) return p
-  // 统一分隔符
+  if (!p) return ''
   return isWindows ? p.replace(/\//g, '\\') : p.replace(/\\/g, '/')
 }
 
+function getDirectoryPath(path: string): string {
+  const normalized = normalizePath(path)
+  if (normalized.endsWith(PATH_SEP)) return normalized
+  const lastSep = normalized.lastIndexOf(PATH_SEP)
+  if (lastSep < 0) return '.' + PATH_SEP
+  return normalized.substring(0, lastSep + 1)
+}
+
+function getFilterText(path: string): string {
+  const normalized = normalizePath(path)
+  if (normalized.endsWith(PATH_SEP)) return ''
+  const lastSep = normalized.lastIndexOf(PATH_SEP)
+  return normalized.substring(lastSep + 1)
+}
+
 function joinPath(base: string, name: string): string {
-  if (!base) return name
-  const normalized = normalizePath(base)
-  if (normalized.endsWith(pathSep)) {
-    return normalized + name
-  }
-  return normalized + pathSep + name
-}
-
-function getParentPath(p: string): string | null {
-  const normalized = normalizePath(p)
-  
-  // Windows 根目录 (C:\)
-  if (isWindows && /^[a-zA-Z]:\\?$/.test(normalized)) {
-    return null
-  }
-  
-  // Unix 根目录
-  if (!isWindows && normalized === '/') {
-    return null
-  }
-  
-  const lastSep = normalized.lastIndexOf(pathSep)
-  if (lastSep <= 0) {
-    // Unix: /foo -> /
-    if (!isWindows && normalized.startsWith('/')) return '/'
-    return null
-  }
-  
-  // Windows: C:\foo -> C:\
-  if (isWindows && lastSep === 2 && /^[a-zA-Z]:/.test(normalized)) {
-    return normalized.substring(0, 3)
-  }
-  
-  return normalized.substring(0, lastSep)
-}
-
-function isAbsolutePath(p: string): boolean {
-  if (!p) return false
-  if (isWindows) {
-    return /^[a-zA-Z]:/.test(p)
-  }
-  return p.startsWith('/')
-}
-
-function getPathParts(p: string): string[] {
-  if (!p) return []
-  const normalized = normalizePath(p)
-  const parts = normalized.split(pathSep).filter(Boolean)
-  
-  // Windows: 保留盘符
-  if (isWindows && parts.length > 0 && /^[a-zA-Z]:$/.test(parts[0])) {
-    parts[0] = parts[0] + pathSep
-  }
-  // Unix: 保留根目录
-  if (!isWindows && normalized.startsWith('/')) {
-    parts.unshift('/')
-  }
-  
-  return parts
-}
-
-function buildPathFromParts(parts: string[], index: number): string {
-  if (index < 0) return ''
-  
-  const selected = parts.slice(0, index + 1)
-  
-  // Unix 根目录
-  if (!isWindows && selected.length === 1 && selected[0] === '/') {
-    return '/'
-  }
-  
-  // Windows 盘符
-  if (isWindows && selected.length === 1 && /^[a-zA-Z]:\\$/.test(selected[0])) {
-    return selected[0]
-  }
-  
-  return selected.join(pathSep).replace(/^\/\\/, '/').replace(/\\\\/g, '\\')
-}
-
-// ============================================
-// Reducer
-// ============================================
-
-function reducer(state: State, action: Action): State {
-  switch (action.type) {
-    case 'SET_QUERY':
-      return { ...state, query: action.query, selectedIndex: 0 }
-    case 'SET_PATH':
-      return { ...state, currentPath: action.path }
-    case 'SET_ITEMS':
-      return { ...state, items: action.items, searchResults: [], error: null }
-    case 'SET_SEARCH_RESULTS':
-      return { ...state, searchResults: action.results, error: null }
-    case 'SET_SELECTED_INDEX':
-      return { ...state, selectedIndex: action.index }
-    case 'SET_LOADING':
-      return { ...state, isLoading: action.loading }
-    case 'SET_ERROR':
-      return { ...state, error: action.error, isLoading: false }
-    case 'SET_PATH_INFO':
-      return { ...state, pathInfo: action.info }
-    case 'NAVIGATE_TO':
-      return { ...state, currentPath: action.path, query: '', selectedIndex: 0 }
-    case 'RESET':
-      return {
-        ...state,
-        query: '',
-        currentPath: action.initialPath,
-        selectedIndex: 0,
-        error: null,
-        items: [],
-        searchResults: [],
-      }
-    case 'ADD_RECENT': {
-      const filtered = state.recentPaths.filter(p => p !== action.path)
-      const updated = [action.path, ...filtered].slice(0, MAX_RECENT)
-      saveRecentPaths(updated)
-      return { ...state, recentPaths: updated }
-    }
-    default:
-      return state
-  }
-}
-
-function createInitialState(initialPath: string): State {
-  return {
-    query: '',
-    currentPath: initialPath,
-    items: [],
-    searchResults: [],
-    selectedIndex: 0,
-    isLoading: false,
-    error: null,
-    pathInfo: null,
-    recentPaths: loadRecentPaths(),
-  }
+  const cleanBase = base.endsWith(PATH_SEP) ? base : base + PATH_SEP
+  return cleanBase + name
 }
 
 // ============================================
@@ -233,455 +56,331 @@ function createInitialState(initialPath: string): State {
 // ============================================
 
 export function ProjectDialog({ isOpen, onClose, onSelect, initialPath = '' }: ProjectDialogProps) {
-  const [state, dispatch] = useReducer(reducer, initialPath, createInitialState)
-  const { query, currentPath, items, searchResults, selectedIndex, isLoading, error, pathInfo, recentPaths } = state
+  const [inputValue, setInputValue] = useState('')
+  const [items, setItems] = useState<FileItem[]>([])
+  const [selectedIndex, setSelectedIndex] = useState(0)
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   
+  const loadedPathRef = useRef<string>('')
   const inputRef = useRef<HTMLInputElement>(null)
-  const listRef = useRef<HTMLDivElement>(null)
+  const pendingSelectionRef = useRef<string | null>(null)
 
-  // 获取系统路径信息
-  useEffect(() => {
-    if (isOpen && !pathInfo) {
-      getPath()
-        .then(info => dispatch({ type: 'SET_PATH_INFO', info }))
-        .catch(console.error)
-    }
-  }, [isOpen, pathInfo])
-
-  // 初始化
+  // Initialize
   useEffect(() => {
     if (isOpen) {
-      dispatch({ type: 'RESET', initialPath: normalizePath(initialPath) })
+      if (initialPath) {
+        let path = normalizePath(initialPath)
+        if (!path.endsWith(PATH_SEP)) path += PATH_SEP
+        setInputValue(path)
+      } else {
+        getPath().then(p => {
+          let path = normalizePath(p.home)
+          if (!path.endsWith(PATH_SEP)) path += PATH_SEP
+          setInputValue(path)
+        }).catch(() => {})
+      }
+      setSelectedIndex(0)
+      pendingSelectionRef.current = null
       setTimeout(() => inputRef.current?.focus(), 50)
     }
   }, [isOpen, initialPath])
 
-  // 加载目录内容
-  useEffect(() => {
-    if (!isOpen) return
+  const currentDir = useMemo(() => getDirectoryPath(inputValue), [inputValue])
+  const filterText = useMemo(() => getFilterText(inputValue), [inputValue])
 
-    const normalizedQuery = normalizePath(query)
+  // Load directory
+  useEffect(() => {
+    if (!isOpen || !currentDir) return
     
-    // 1. 绝对路径输入 - 直接列出该路径
-    if (isAbsolutePath(normalizedQuery)) {
-      dispatch({ type: 'SET_LOADING', loading: true })
-      listDirectory(normalizedQuery)
-        .then(nodes => {
-          const dirs = nodes
-            .filter(n => n.type === 'directory')
-            .sort((a, b) => a.name.localeCompare(b.name))
-          dispatch({ type: 'SET_ITEMS', items: dirs })
-        })
-        .catch(err => dispatch({ type: 'SET_ERROR', error: err.message }))
-        .finally(() => dispatch({ type: 'SET_LOADING', loading: false }))
-      return
+    // 如果仅仅是 filter 变化，不需要重新加载 listDirectory
+    // 但我们需要确保当 currentDir 变化时（进入/退出目录），重新加载
+    // 这里我们简单起见，每次 currentDir 变了就加载
+    // 注意：如果 items 已经包含了 currentDir 的内容，是否可以复用？
+    // 现在的逻辑是：loadedPathRef.current 记录上次加载的目录
+    
+    if (currentDir === loadedPathRef.current && items.length > 0) {
+       // 目录没变，只是 filter 变了，不需要重新 listDirectory
+       // 但如果之前有 pendingSelection，可能需要处理？
+       // 不，pendingSelection 只在目录变更（回退）时设置
+       return
     }
+
+    setIsLoading(true)
+    setError(null)
     
-    // 2. 搜索模式
-    if (normalizedQuery.trim().length > 0) {
-      dispatch({ type: 'SET_LOADING', loading: true })
-      const timer = setTimeout(async () => {
-        try {
-          const results = await searchDirectories(normalizedQuery, currentPath, 20)
-          dispatch({ type: 'SET_SEARCH_RESULTS', results })
-        } catch (e) {
-          dispatch({ type: 'SET_ERROR', error: e instanceof Error ? e.message : 'Search failed' })
-        } finally {
-          dispatch({ type: 'SET_LOADING', loading: false })
-        }
-      }, 200)
-      return () => clearTimeout(timer)
-    }
-    
-    // 3. 浏览模式
-    dispatch({ type: 'SET_LOADING', loading: true })
-    listDirectory(currentPath)
+    listDirectory(currentDir)
       .then(nodes => {
-        const dirs = nodes
-          .filter(n => n.type === 'directory')
+        const fileItems = nodes
+          .filter(n => n.type === 'directory' && !n.name.startsWith('.'))
           .sort((a, b) => a.name.localeCompare(b.name))
-        dispatch({ type: 'SET_ITEMS', items: dirs })
-      })
-      .catch(err => dispatch({ type: 'SET_ERROR', error: err.message }))
-      .finally(() => dispatch({ type: 'SET_LOADING', loading: false }))
-  }, [isOpen, currentPath, query])
-
-  // 滚动选中项到可视区域
-  useEffect(() => {
-    if (listRef.current) {
-      const el = listRef.current.children[selectedIndex] as HTMLElement
-      el?.scrollIntoView({ block: 'nearest' })
-    }
-  }, [selectedIndex])
-
-  // 构建显示列表
-  const displayItems = useMemo<DisplayItem[]>(() => {
-    const list: DisplayItem[] = []
-    const isSearching = searchResults.length > 0
-    const isAbsInput = isAbsolutePath(query)
-    
-    // 快捷入口 (仅在浏览模式且无搜索时显示)
-    if (!isSearching && !isAbsInput && !query.trim()) {
-      // Home 目录
-      if (pathInfo?.home) {
-        list.push({
-          type: 'quick',
-          path: normalizePath(pathInfo.home),
-          name: 'Home',
-          icon: 'home',
-        })
-      }
-      
-      // 最近访问
-      recentPaths.slice(0, 3).forEach(p => {
-        if (p !== currentPath && p !== pathInfo?.home) {
-          const parts = getPathParts(p)
-          list.push({
-            type: 'quick',
-            path: p,
-            name: parts[parts.length - 1] || p,
-            icon: 'recent',
-          })
+          .map(n => ({
+            name: n.name,
+            path: joinPath(currentDir, n.name),
+            type: n.type
+          }))
+        
+        setItems(fileItems)
+        loadedPathRef.current = currentDir
+        
+        // 恢复选中位置
+        if (pendingSelectionRef.current) {
+          const idx = fileItems.findIndex(item => item.name === pendingSelectionRef.current)
+          if (idx !== -1) {
+            setSelectedIndex(idx)
+          } else {
+            setSelectedIndex(0)
+          }
+          pendingSelectionRef.current = null
+        } else {
+          setSelectedIndex(0)
         }
       })
-    }
-    
-    // 当前目录选择项 (非绝对路径输入时)
-    if (!isAbsInput && currentPath) {
-      list.push({
-        type: 'current',
-        path: currentPath,
-        name: '选择当前目录',
-        icon: 'folder-open',
+      .catch(err => {
+        console.error(err)
+        setError(err.message)
+        setItems([])
       })
-    }
-    
-    // 搜索结果或目录列表
-    if (isSearching) {
-      list.push(...searchResults.map(path => ({
-        type: 'result' as const,
-        path,
-        name: path,
-        icon: 'folder' as const,
-      })))
-    } else {
-      list.push(...items.map(node => ({
-        type: 'folder' as const,
-        path: joinPath(currentPath, node.name),
-        name: node.name,
-        icon: 'folder' as const,
-      })))
-    }
-    
-    return list
-  }, [items, searchResults, currentPath, query, pathInfo, recentPaths])
+      .finally(() => setIsLoading(false))
+  }, [isOpen, currentDir])
 
-  // 导航到目录
-  const navigateTo = useCallback((path: string) => {
-    dispatch({ type: 'NAVIGATE_TO', path: normalizePath(path) })
-  }, [])
+  const filteredItems = useMemo(() => {
+    if (!filterText) return items
+    const lowerFilter = filterText.toLowerCase()
+    return items.filter(item => item.name.toLowerCase().startsWith(lowerFilter))
+  }, [items, filterText])
 
-  // 选择目录
-  const selectPath = useCallback((path: string) => {
-    dispatch({ type: 'ADD_RECENT', path })
+  // 滚动逻辑优化
+  useEffect(() => {
+    const targetId = selectedIndex === -1 ? 'project-item-up' : `project-item-${selectedIndex}`
+    const el = document.getElementById(targetId)
+    if (el) {
+      el.scrollIntoView({ block: 'nearest' })
+    }
+  }, [selectedIndex, filteredItems])
+
+  // Handlers
+  const handleSelectFolder = (folderName: string) => {
+    const fullPath = joinPath(currentDir, folderName)
+    onSelect(fullPath)
+    onClose()
+  }
+
+  const handleConfirmCurrent = () => {
+    const path = inputValue.endsWith(PATH_SEP) ? inputValue.slice(0, -1) : inputValue
     onSelect(path)
     onClose()
-  }, [onSelect, onClose])
+  }
 
-  // 返回上级目录
-  const goUp = useCallback(() => {
-    const parent = getParentPath(currentPath)
-    if (parent !== null) {
-      navigateTo(parent)
+  const handleItemClick = (item: FileItem) => {
+    setInputValue(item.path + PATH_SEP)
+    inputRef.current?.focus()
+  }
+
+  const handleGoBack = () => {
+    // 只有当是目录视图时才回退，或者输入框为空（可选）
+    // 这里我们遵循：如果以分隔符结尾，或者是“..”点击
+    let current = inputValue
+    if (!current.endsWith(PATH_SEP)) {
+       // 如果正在过滤，Backspace 是删除字符，不触发回退逻辑
+       // 但如果是 ArrowLeft 且光标在左边，可能需要特殊处理
+       // 这里 handleGoBack 主要给 ArrowLeft/.. 使用
+       current = getDirectoryPath(current) // 回到当前目录视图
+    } else {
+       // 去掉末尾分隔符
+       current = current.slice(0, -1)
     }
-  }, [currentPath, navigateTo])
-
-  // 处理键盘事件
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    const total = displayItems.length
     
+    // 获取上一级
+    const parent = getDirectoryPath(current)
+    if (parent && parent !== current + PATH_SEP) { // 简单防死循环
+        // 记录离开的文件夹名
+        const folderName = current.split(PATH_SEP).pop()
+        if (folderName) pendingSelectionRef.current = folderName
+        
+        setInputValue(parent)
+    }
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
     switch (e.key) {
       case 'ArrowDown':
         e.preventDefault()
-        if (total > 0) {
-          dispatch({ type: 'SET_SELECTED_INDEX', index: (selectedIndex + 1) % total })
-        }
+        setSelectedIndex(prev => Math.min(prev + 1, filteredItems.length - 1))
         break
-        
       case 'ArrowUp':
         e.preventDefault()
-        if (total > 0) {
-          dispatch({ type: 'SET_SELECTED_INDEX', index: (selectedIndex - 1 + total) % total })
-        }
+        setSelectedIndex(prev => Math.max(prev - 1, 0))
         break
-        
+      case 'ArrowRight':
       case 'Tab':
-        // Tab 进入目录 (和 → 相同效果)
-        e.preventDefault()
-        if (total > 0) {
-          const item = displayItems[selectedIndex]
-          if (item.type === 'folder' || item.type === 'result' || item.type === 'quick') {
-            navigateTo(item.path)
-          }
+        if (filteredItems.length > 0) {
+          e.preventDefault()
+          const selected = filteredItems[selectedIndex]
+          setInputValue(selected.path + PATH_SEP)
+          setSelectedIndex(0)
         }
         break
-        
+      case 'ArrowLeft':
+        const inputEl = e.currentTarget as HTMLInputElement
+        const isAtStart = inputEl.selectionStart === 0 && inputEl.selectionEnd === 0
+        const isDirectoryView = inputValue.endsWith(PATH_SEP)
+
+        if (isAtStart || isDirectoryView) {
+           e.preventDefault()
+           handleGoBack()
+        }
+        break
       case 'Enter':
         e.preventDefault()
-        // Ctrl+Enter 或 Cmd+Enter: 选择当前选中项
-        if (e.ctrlKey || e.metaKey) {
-          if (total > 0) {
-            selectPath(displayItems[selectedIndex].path)
-          }
-          return
-        }
-        
-        // 普通 Enter:
-        // - 如果是绝对路径输入，选择该路径
-        // - 如果选中的是 'current'，选择当前目录
-        // - 否则进入目录
-        const normalizedQuery = normalizePath(query)
-        if (isAbsolutePath(normalizedQuery) && normalizedQuery.length > 1) {
-          selectPath(normalizedQuery)
-          return
-        }
-        
-        if (total === 0) return
-        
-        const item = displayItems[selectedIndex]
-        if (item.type === 'current') {
-          selectPath(item.path)
+        // 回车即选中（添加为项目）
+        if (filteredItems.length > 0) {
+          onSelect(filteredItems[selectedIndex].path)
         } else {
-          navigateTo(item.path)
+          const path = inputValue.endsWith(PATH_SEP) ? inputValue.slice(0, -1) : inputValue
+          onSelect(path)
         }
+        onClose()
         break
-        
-      case 'Backspace':
-        // 输入框为空时，返回上级目录
-        if (!query) {
-          e.preventDefault()
-          goUp()
-        }
-        break
-        
       case 'Escape':
         e.preventDefault()
         onClose()
         break
     }
-  }, [displayItems, selectedIndex, query, navigateTo, selectPath, goUp, onClose])
-
-  // 处理列表项点击
-  const handleItemClick = useCallback((item: DisplayItem, e: React.MouseEvent) => {
-    // Ctrl+Click 或双击选择
-    if (e.ctrlKey || e.metaKey || e.detail === 2) {
-      selectPath(item.path)
-      return
-    }
-    
-    // 单击进入目录
-    if (item.type === 'current') {
-      selectPath(item.path)
-    } else {
-      navigateTo(item.path)
-    }
-  }, [navigateTo, selectPath])
-
-  // 面包屑导航
-  const pathParts = useMemo(() => getPathParts(currentPath), [currentPath])
-  
-  const handleBreadcrumbClick = useCallback((index: number) => {
-    const path = buildPathFromParts(pathParts, index)
-    navigateTo(path)
-  }, [pathParts, navigateTo])
+  }
 
   if (!isOpen) return null
 
   return createPortal(
     <div 
-      className="fixed inset-0 z-[100] flex items-start justify-center pt-[15vh] bg-black/60 backdrop-blur-sm transition-opacity" 
-      onClick={onClose}
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-[2px] transition-opacity p-4"
+      onMouseDown={onClose}
     >
       <div 
-        className="w-[640px] max-w-[90vw] bg-bg-000 rounded-xl shadow-2xl border border-border-200 flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200"
-        onClick={e => e.stopPropagation()}
+        className="w-[600px] max-w-full bg-bg-100/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-border-200/50 flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+        style={{ height: '500px' }}
+        onMouseDown={e => e.stopPropagation()}
       >
-        {/* Header - 面包屑导航 */}
-        <div className="flex items-center gap-2 px-4 py-3 border-b border-border-200 bg-bg-100">
-          <button 
-            onClick={goUp} 
-            disabled={getParentPath(currentPath) === null}
-            className="p-1.5 hover:bg-bg-200 rounded text-text-400 hover:text-text-100 transition-colors disabled:opacity-30 disabled:cursor-not-allowed" 
-            title="返回上级 (Backspace)"
-          >
-            <ArrowUpIcon />
-          </button>
-          
-          {/* 面包屑 */}
-          <div className="flex-1 flex items-center gap-1 min-w-0 overflow-x-auto scrollbar-none">
-            {pathParts.length === 0 ? (
-              <span className="text-sm text-text-400">/</span>
-            ) : (
-              pathParts.map((part, i) => (
-                <span key={i} className="flex items-center shrink-0">
-                  {i > 0 && <ChevronRightIcon className="text-text-500 mx-0.5" />}
-                  <button
-                    onClick={() => handleBreadcrumbClick(i)}
-                    className={`text-sm px-1.5 py-0.5 rounded hover:bg-bg-200 transition-colors ${
-                      i === pathParts.length - 1 ? 'text-text-100 font-medium' : 'text-text-300'
-                    }`}
-                  >
-                    {part}
-                  </button>
-                </span>
-              ))
-            )}
-          </div>
-          
-          <button onClick={onClose} className="text-text-400 hover:text-text-200 p-1 transition-colors">
-            <CloseIcon />
-          </button>
-        </div>
-
-        {/* 搜索输入框 */}
-        <div className="p-3 border-b border-border-200">
-          <div className="relative group">
-            <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-text-400" />
+        {/* Header / Input Area */}
+        <div className="flex-shrink-0 p-4 pb-2">
+          <div className="relative group bg-bg-000 rounded-xl shadow-sm border border-border-200 focus-within:border-accent-main-100/50 focus-within:ring-2 focus-within:ring-accent-main-100/20 transition-all duration-200 flex items-center px-3 py-2.5">
+            <FolderIcon className="text-text-400 w-5 h-5 flex-shrink-0 mr-3" />
             <input
               ref={inputRef}
               type="text"
-              value={query}
-              onChange={e => dispatch({ type: 'SET_QUERY', query: e.target.value })}
+              value={inputValue}
+              onChange={e => {
+                setInputValue(e.target.value)
+                setSelectedIndex(0)
+              }}
               onKeyDown={handleKeyDown}
-              placeholder={isWindows ? "搜索或输入路径 (如 C:\\Users\\...)" : "搜索或输入路径 (如 /home/...)"}
-              className="w-full bg-bg-200 text-text-100 text-sm rounded-lg py-2.5 pl-10 pr-4 outline-none border border-transparent focus:border-accent-main-100 transition-all placeholder:text-text-400"
+              placeholder="Type path..."
+              className="flex-1 bg-transparent border-none outline-none text-sm text-text-100 placeholder:text-text-400 font-mono leading-relaxed"
+              autoComplete="off"
+              spellCheck={false}
             />
+            {/* Enter Hint */}
+            <div className="flex items-center gap-2">
+               {isLoading && <LoadingSpinner />}
+               <span className="text-[10px] text-text-400 bg-bg-100 px-1.5 py-0.5 rounded border border-border-200/50">Enter</span>
+            </div>
           </div>
         </div>
 
-        {/* 目录列表 */}
-        <div ref={listRef} className="flex-1 overflow-y-auto max-h-[400px] min-h-[300px] p-2 custom-scrollbar">
-          {isLoading ? (
-            <div className="flex justify-center py-8 text-text-400">
-              <LoadingSpinner />
-            </div>
-          ) : error ? (
-            <div className="text-center py-12">
-              <div className="text-red-400 text-sm mb-2">加载失败</div>
-              <div className="text-text-500 text-xs">{error}</div>
-            </div>
-          ) : displayItems.length === 0 ? (
-            <div className="text-center py-12 text-text-400 text-sm">
-              {query.trim() ? '没有找到匹配的文件夹' : '空文件夹'}
+        {/* List Area */}
+        <div className="flex-1 overflow-y-auto px-2 py-2 custom-scrollbar">
+          {error ? (
+            <div className="flex items-center justify-center h-full text-danger-100 text-xs px-4 text-center">
+              {error}
             </div>
           ) : (
-            displayItems.map((item, index) => {
-              const isSelected = index === selectedIndex
-              
-              // 快捷入口样式
-              if (item.type === 'quick') {
-                return (
-                  <div
-                    key={`quick-${item.path}`}
-                    onClick={e => handleItemClick(item, e)}
-                    onMouseEnter={() => dispatch({ type: 'SET_SELECTED_INDEX', index })}
-                    className={`flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition-colors mb-0.5 ${
-                      isSelected 
-                        ? 'bg-bg-200 text-text-100' 
-                        : 'text-text-300 hover:bg-bg-100'
-                    }`}
-                  >
-                    <div className={`w-5 h-5 flex-shrink-0 flex items-center justify-center ${isSelected ? 'text-accent-main-100' : 'text-text-400'}`}>
-                      {item.icon === 'home' ? <HomeIcon /> : <ClockIcon />}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm truncate">{item.name}</div>
-                      <div className="text-xs text-text-500 truncate">{item.path}</div>
-                    </div>
-                    <span className="text-[10px] text-text-500 uppercase tracking-wider">
-                      {item.icon === 'home' ? 'Home' : '最近'}
-                    </span>
-                  </div>
-                )
-              }
-              
-              // 当前目录选择项
-              if (item.type === 'current') {
-                return (
-                  <div
-                    key="current"
-                    onClick={e => handleItemClick(item, e)}
-                    onMouseEnter={() => dispatch({ type: 'SET_SELECTED_INDEX', index })}
-                    className={`flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer mb-2 border transition-colors ${
-                      isSelected 
-                        ? 'bg-accent-main-100 text-white border-accent-main-100' 
-                        : 'bg-accent-main-100/5 text-accent-main-100 border-accent-main-100/20 hover:bg-accent-main-100/10'
-                    }`}
-                  >
-                    <div className="w-5 h-5 flex items-center justify-center">
-                      <FolderOpenIcon />
-                    </div>
-                    <span className="text-sm font-medium flex-1">{item.name}</span>
-                    <span className="text-[10px] uppercase tracking-wider opacity-70 flex items-center gap-1">
-                      <span className="opacity-50">Enter</span>
-                    </span>
-                  </div>
-                )
-              }
-
-              // 普通文件夹
-              return (
+            <div className="space-y-1">
+              {/* Go Up Option */}
+              {inputValue.split(PATH_SEP).filter(Boolean).length > 0 && (
                 <div
-                  key={item.path}
-                  onClick={e => handleItemClick(item, e)}
-                  onMouseEnter={() => dispatch({ type: 'SET_SELECTED_INDEX', index })}
-                  className={`flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition-colors mb-0.5 ${
-                    isSelected 
-                      ? 'bg-accent-main-100 text-white' 
-                      : 'text-text-200 hover:bg-bg-100'
+                  id="project-item-up"
+                  onClick={() => {
+                    handleGoBack()
+                    inputRef.current?.focus()
+                  }}
+                  className={`group flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition-all duration-200 ${
+                    selectedIndex === -1 
+                      ? 'bg-bg-000 shadow-sm ring-1 ring-border-200/50 text-text-100' 
+                      : 'text-text-400 hover:bg-bg-200/50 hover:text-text-200'
                   }`}
+                  onMouseEnter={() => setSelectedIndex(-1)}
                 >
-                  <div className={`w-5 h-5 flex-shrink-0 flex items-center justify-center ${isSelected ? 'text-white' : 'text-text-400'}`}>
-                    <FolderIcon />
+                  <div className={`w-5 h-5 flex items-center justify-center rounded-md transition-colors ${
+                    selectedIndex === -1 ? 'bg-bg-100 text-text-100' : 'bg-transparent'
+                  }`}>
+                    <ArrowUpIcon className="w-4 h-4" />
                   </div>
-                  <div className="flex-1 min-w-0 text-sm truncate" title={item.path}>
-                    {item.type === 'result' ? item.path : item.name}
-                  </div>
-                  {isSelected && (
-                    <span className="text-xs opacity-60 flex items-center gap-1">
-                      <span>Tab</span>
-                      <span className="opacity-50">进入</span>
-                    </span>
-                  )}
+                  <span className="text-sm font-medium">.. (Parent Directory)</span>
                 </div>
-              )
-            })
+              )}
+
+              {filteredItems.length === 0 && !isLoading && (
+                <div className="flex flex-col items-center justify-center h-32 text-text-400 text-xs gap-3 opacity-60">
+                  <FolderIcon className="w-8 h-8 opacity-20" />
+                  <span>{filterText ? 'No matching folders' : 'Empty folder'}</span>
+                </div>
+              )}
+
+              {filteredItems.map((item, index) => {
+                const isSelected = index === selectedIndex
+                return (
+                  <div
+                    key={item.name}
+                    id={`project-item-${index}`}
+                    onClick={() => handleItemClick(item)}
+                    onMouseEnter={() => setSelectedIndex(index)}
+                    className={`group flex items-center justify-between px-3 py-2 rounded-lg cursor-pointer transition-all duration-200 border border-transparent ${
+                      isSelected 
+                        ? 'bg-bg-000 shadow-sm border-border-200/50 text-text-100 z-10 scale-[1.01]' 
+                        : 'text-text-300 hover:bg-bg-200/50 hover:text-text-200'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <FolderIcon className={`w-4 h-4 flex-shrink-0 transition-colors ${
+                        isSelected ? 'text-accent-main-100' : 'text-text-400 group-hover:text-text-300'
+                      }`} />
+                      <span className="text-sm truncate font-medium">{item.name}</span>
+                    </div>
+                    
+                    {isSelected && (
+                      <div className="flex items-center gap-2 animate-in fade-in slide-in-from-left-2 duration-200">
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleSelectFolder(item.name)
+                          }}
+                          className="flex items-center gap-1.5 text-[10px] bg-accent-main-100 hover:bg-accent-main-200 px-2 py-1 rounded-md text-white font-medium transition-colors shadow-sm"
+                        >
+                          <PlusIcon className="w-3 h-3" />
+                          Add Project
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
           )}
         </div>
-        
-        {/* Footer - 快捷键提示 */}
-        <div className="px-4 py-2 border-t border-border-200 flex justify-between text-[11px] text-text-400 bg-bg-100">
-          <div className="flex gap-4">
-            <span className="flex items-center gap-1">
-              <Kbd>Enter</Kbd>
-              <Kbd>Tab</Kbd>
-              进入
-            </span>
-            <span className="flex items-center gap-1">
-              <Kbd>{isWindows ? 'Ctrl' : '⌘'}+Enter</Kbd>
-              选择
-            </span>
+
+        {/* Footer (Confirm Current) */}
+        <div className="flex-shrink-0 p-3 bg-bg-50/80 border-t border-border-200/50 flex justify-between items-center backdrop-blur-md">
+          <div className="text-[10px] text-text-400 px-1">
+            <span className="opacity-70">Current: </span>
+            <span className="font-mono text-text-300">{inputValue}</span>
           </div>
-          <div className="flex gap-4">
-            <span className="flex items-center gap-1">
-              <Kbd>Backspace</Kbd>
-              返回
-            </span>
-            <span className="flex items-center gap-1">
-              <Kbd>Esc</Kbd>
-              关闭
-            </span>
-          </div>
+          <button
+            onClick={handleConfirmCurrent}
+            className="flex items-center gap-2 px-4 py-2 bg-bg-000 hover:bg-accent-main-100/10 border border-border-200 hover:border-accent-main-100/30 text-text-100 hover:text-accent-main-100 rounded-xl transition-all duration-200 text-xs font-medium shadow-sm hover:shadow-md active:scale-95"
+          >
+            <PlusIcon className="w-3.5 h-3.5" />
+            Add current directory
+          </button>
         </div>
       </div>
     </div>,
@@ -690,88 +389,38 @@ export function ProjectDialog({ isOpen, onClose, onSelect, initialPath = '' }: P
 }
 
 // ============================================
-// Icons & Components
+// Icons
 // ============================================
 
-function Kbd({ children }: { children: React.ReactNode }) {
+function FolderIcon({ className }: { className?: string }) { 
   return (
-    <span className="bg-bg-200 px-1.5 py-0.5 rounded border border-border-300 font-mono text-[10px]">
-      {children}
-    </span>
-  )
-}
-
-function CloseIcon() { 
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path d="M18 6L6 18M6 6l12 12"/>
-    </svg>
-  ) 
-}
-
-function SearchIcon({ className }: { className?: string }) { 
-  return (
-    <svg className={className} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <circle cx="11" cy="11" r="8"/>
-      <path d="M21 21l-4.35-4.35"/>
-    </svg>
-  ) 
-}
-
-function FolderIcon() { 
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+    <svg className={className} width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
       <path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/>
     </svg>
   ) 
 }
 
-function FolderOpenIcon() { 
+function ArrowUpIcon({ className }: { className?: string }) { 
   return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-      <path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10z"/>
-    </svg>
-  ) 
-}
-
-function ArrowUpIcon() { 
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <svg className={className} width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
       <path d="M12 19V5M5 12l7-7 7 7"/>
     </svg>
   ) 
 }
 
-function ChevronRightIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path d="M9 18l6-6-6-6"/>
-    </svg>
-  )
-}
-
-function HomeIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-      <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
-    </svg>
-  )
-}
-
-function ClockIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <circle cx="12" cy="12" r="10"/>
-      <path d="M12 6v6l4 2"/>
-    </svg>
-  )
-}
-
 function LoadingSpinner() { 
   return (
-    <svg className="animate-spin" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <svg className="animate-spin text-text-400" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
       <circle cx="12" cy="12" r="10" strokeOpacity="0.25"/>
       <path d="M12 2a10 10 0 0 1 10 10"/>
     </svg>
   ) 
+}
+
+function PlusIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 5v14M5 12h14" />
+    </svg>
+  )
 }

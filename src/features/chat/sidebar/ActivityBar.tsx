@@ -55,7 +55,7 @@ export function ActivityBar({ onAddClick }: ActivityBarProps) {
   }, [removeDirectory, closeContextMenu])
 
   return (
-    <div className="w-[60px] h-full flex flex-col items-center py-3 gap-2 bg-bg-100 border-r border-border-200 select-none z-20">
+    <div className="w-[60px] h-full flex flex-col items-center py-4 gap-3 select-none z-10">
       {/* Global Context */}
       <ContextItem
         active={currentDirectory === undefined}
@@ -63,13 +63,13 @@ export function ActivityBar({ onAddClick }: ActivityBarProps) {
         label="G"
         name="Global"
         path="All projects"
-        color="bg-accent-blue-100"
+        color="bg-accent-main-100"
       />
 
-      <div className="w-8 border-t border-border-200/50 my-1" />
+      <div className="w-6 border-t border-border-200/50 my-1" />
 
       {/* Saved Projects */}
-      <div className="flex-1 w-full flex flex-col gap-2 items-center overflow-y-auto custom-scrollbar px-1">
+      <div className="flex-1 w-full flex flex-col gap-3 items-center overflow-y-auto custom-scrollbar px-1">
         {savedDirectories.map((dir) => (
           <ContextItem
             key={dir.path}
@@ -85,7 +85,7 @@ export function ActivityBar({ onAddClick }: ActivityBarProps) {
         {/* Add Project Button */}
         <button
           onClick={onAddClick}
-          className="w-10 h-10 flex items-center justify-center rounded-xl transition-all duration-200 text-text-400 hover:text-text-100 hover:bg-bg-200 group relative"
+          className="w-10 h-10 flex items-center justify-center rounded-xl border border-dashed border-border-300 text-text-400 hover:text-accent-main-100 hover:border-accent-main-100 hover:bg-accent-main-100/10 transition-all duration-200 group relative"
           title="Add project folder"
         >
           <PlusIcon />
@@ -134,7 +134,7 @@ function ContextItem({
   name,
   path,
   onContextMenu,
-  color = 'bg-bg-200'
+  color = 'bg-bg-300'
 }: ContextItemProps) {
   const [showTooltip, setShowTooltip] = useState(false)
   const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -158,20 +158,18 @@ function ContextItem({
       onMouseLeave={handleMouseLeave}
     >
       {/* Active Indicator */}
-      <div 
-        className={`absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-text-100 rounded-r-full transition-all duration-200
-          ${active ? 'opacity-100 scale-y-100' : 'opacity-0 scale-y-50 group-hover:opacity-50'}
-        `} 
-      />
+      {active && (
+        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-3 bg-accent-main-100 rounded-r-full" />
+      )}
       
       <button
         onClick={onClick}
         onContextMenu={onContextMenu}
         className={`
-          w-10 h-10 flex items-center justify-center rounded-xl transition-all duration-200 text-sm font-bold shadow-sm
+          w-10 h-10 flex items-center justify-center rounded-xl transition-all duration-300 text-sm font-bold shadow-sm
           ${active 
-            ? `${color} text-white` 
-            : 'bg-bg-200 text-text-400 hover:bg-bg-300 hover:text-text-100 hover:rounded-lg'
+            ? `${color} text-white shadow-md scale-105` 
+            : 'bg-bg-200/50 text-text-400 hover:bg-bg-300 hover:text-text-100 hover:scale-105'
           }
         `}
       >

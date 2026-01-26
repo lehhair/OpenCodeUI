@@ -1,5 +1,4 @@
-import { useState, useCallback } from 'react'
-import { ActivityBar } from './sidebar/ActivityBar'
+import { useState, useCallback, useEffect } from 'react'
 import { SidePanel } from './sidebar/SidePanel'
 import { ProjectDialog } from './ProjectDialog'
 import { useDirectory } from '../../hooks'
@@ -22,27 +21,54 @@ export function Sidebar({
 }: SidebarProps) {
   const [isProjectDialogOpen, setIsProjectDialogOpen] = useState(false)
   const { addDirectory, pathInfo } = useDirectory()
+  const [isMobile, setIsMobile] = useState(false)
 
   const handleAddProject = useCallback((path: string) => {
     addDirectory(path)
   }, [addDirectory])
 
-  // 如果不打开，渲染为宽度0的占位符
-  if (!isOpen) return <div className="w-0 border-r-0 transition-all duration-300" />
+  // 检测移动端
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768)
+    checkMobile()
+    window.addEventListener('resize', checkMobile)
+    return () => window.removeEventListener('resize', checkMobile)
+  }, [])
+
+  // 移动端遮罩点击
+  const handleBackdropClick = useCallback(() => {
+    if (isMobile && isOpen) {
+      onClose()
+    }
+  }, [isMobile, isOpen, onClose])
 
   return (
     <>
-      <div className="flex h-full transition-all duration-300 bg-bg-000 border-r border-border-200">
-        {/* Left: Activity Bar */}
-        <ActivityBar onAddClick={() => setIsProjectDialogOpen(true)} />
+      {/* Mobile Backdrop */}
+      {isMobile && isOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-30 transition-opacity animate-in fade-in duration-200"
+          onClick={handleBackdropClick}
+        />
+      )}
 
-        {/* Right: Side Panel */}
-        <div className="w-64 h-full">
+      <div 
+        className={`
+          flex flex-col h-full bg-bg-50/50 backdrop-blur-xl
+          transition-all duration-300 ease-[cubic-bezier(0.25,1,0.5,1)] overflow-hidden 
+          ${isMobile 
+            ? `fixed inset-y-0 left-0 z-40 shadow-2xl w-[280px] ${isOpen ? 'translate-x-0' : '-translate-x-full'}`
+            : `relative ${isOpen ? 'w-[280px] translate-x-0 opacity-100' : 'w-0 -translate-x-full opacity-0 pointer-events-none'}`
+          }
+        `}
+      >
+        <div className="w-[280px] h-full flex flex-col">
           <SidePanel
             onNewSession={onNewSession}
             onSelectSession={onSelectSession}
             onCloseMobile={onClose}
             selectedSessionId={selectedSessionId}
+            onAddProject={() => setIsProjectDialogOpen(true)}
           />
         </div>
       </div>

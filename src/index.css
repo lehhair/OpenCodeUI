@@ -506,3 +506,11 @@ body {
   animation: border-pulse 2s ease-in-out infinite;
 }
 
+
+/* ============================================
+ * Utility: Linear Fade Mask
+ * ============================================ */
+.mask-linear-fade {
+  mask-image: linear-gradient(to right, transparent, black 10px, black 90%, transparent);
+  -webkit-mask-image: linear-gradient(to right, transparent, black 10px, black 90%, transparent);
+}

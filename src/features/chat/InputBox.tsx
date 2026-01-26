@@ -449,7 +449,7 @@ export function InputBox({
 
   return (
     <div className="w-full">
-      <div className="mx-auto max-w-5xl px-4 pb-4 pointer-events-auto">
+      <div className="mx-auto max-w-3xl px-4 pb-4 pointer-events-auto">
         <div className="flex flex-col gap-2">
           {/* Revert Status Bar */}
           <UndoStatus 
