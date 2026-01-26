@@ -198,7 +198,7 @@ export const ChatArea = memo(forwardRef<ChatAreaHandle, ChatAreaProps>(({
             overscan={{ main: 500, reverse: 500 }}
             components={{
               Header: () => <div className="h-20" />,
-              Footer: () => <div className="h-32" />
+              Footer: () => <div className="h-64" />
             }}
             itemContent={(_, msg) => renderMessage(msg)}
           />

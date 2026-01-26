@@ -31,6 +31,8 @@ export interface RevertHistoryItem {
   messageId: string
   text: string
   attachments: unknown[]
+  model?: { providerID: string; modelID: string }
+  variant?: string
 }
 
 export interface SessionState {
@@ -96,9 +98,18 @@ class MessageStore {
    */
   getVisibleMessages(): Message[] {
     const state = this.getCurrentSessionState()
-    if (!state) return []
+    if (!state) {
+      console.log('[MessageStore] getVisibleMessages: no current session state, currentSessionId=', this.currentSessionId)
+      return []
+    }
 
     const { messages, revertState } = state
+    
+    console.log('[MessageStore] getVisibleMessages:', {
+      currentSessionId: this.currentSessionId,
+      messagesCount: messages.length,
+      hasRevertState: !!revertState,
+    })
 
     if (!revertState) {
       return messages
@@ -209,14 +220,19 @@ class MessageStore {
           .slice(revertIndex)
           .filter(m => m.info.role === 'user')
 
-        state.revertState = {
-          messageId: options.revertState.messageID,
-          history: revertedUserMessages.map(m => ({
-            messageId: m.info.id,
-            text: this.extractUserText(m),
-            attachments: [], // TODO: 提取附件
-          })),
-        }
+          state.revertState = {
+            messageId: options.revertState.messageID,
+            history: revertedUserMessages.map(m => {
+              const userInfo = m.info as any
+              return {
+                messageId: m.info.id,
+                text: this.extractUserText(m),
+                attachments: [], // TODO: 提取附件
+                model: userInfo.model,
+                variant: userInfo.variant,
+              }
+            }),
+          }
       }
     } else {
       state.revertState = null
@@ -265,14 +281,29 @@ class MessageStore {
    * 处理消息创建/更新事件
    */
   handleMessageUpdated(apiMsg: ApiMessage) {
-    // 确保 session 存在（SSE 事件可能在 loadSession 之前到达）
+    console.log('[MessageStore] handleMessageUpdated:', {
+      msgId: apiMsg.id,
+      sessionID: apiMsg.sessionID,
+      currentSessionId: this.currentSessionId,
+      isCurrentSession: apiMsg.sessionID === this.currentSessionId,
+      role: apiMsg.role,
+    })
+    
+    // 确保 session 存在
     const state = this.ensureSession(apiMsg.sessionID)
 
-    const existing = state.messages.find(m => m.info.id === apiMsg.id)
+    const existingIndex = state.messages.findIndex(m => m.info.id === apiMsg.id)
     
-    if (existing) {
-      // 更新现有消息的 info
-      existing.info = apiMsg as MessageInfo
+    if (existingIndex >= 0) {
+      // 更新现有消息的 info (Immutable update)
+      const oldMessage = state.messages[existingIndex]
+      const newMessage = { ...oldMessage, info: apiMsg as MessageInfo }
+      
+      state.messages = [
+        ...state.messages.slice(0, existingIndex),
+        newMessage,
+        ...state.messages.slice(existingIndex + 1)
+      ]
     } else {
       // 创建新消息
       const newMsg: Message = {
@@ -280,7 +311,10 @@ class MessageStore {
         parts: [],
         isStreaming: apiMsg.role === 'assistant',
       }
-      state.messages.push(newMsg)
+      // Immutable push
+      state.messages = [...state.messages, newMsg]
+      
+      console.log('[MessageStore] New message added, total messages:', state.messages.length)
       
       // 新的 assistant 消息表示开始 streaming
       if (apiMsg.role === 'assistant') {
@@ -293,28 +327,40 @@ class MessageStore {
 
   /**
    * 处理 Part 更新事件
+   * 支持流式追加和状态合并
    */
   handlePartUpdated(apiPart: ApiPart & { sessionID: string; messageID: string }) {
     // 确保 session 存在
     const state = this.ensureSession(apiPart.sessionID)
 
-    const message = state.messages.find(m => m.info.id === apiPart.messageID)
-    if (!message) {
-      // 消息还不存在，可能是顺序问题，暂时忽略
+    const msgIndex = state.messages.findIndex(m => m.info.id === apiPart.messageID)
+    if (msgIndex === -1) {
       console.warn('[MessageStore] Part received for unknown message:', apiPart.messageID)
       return
     }
 
-    const existingIndex = message.parts.findIndex(p => p.id === apiPart.id)
+    // Immutable update: Copy message and parts array
+    const oldMessage = state.messages[msgIndex]
+    const newMessage = { ...oldMessage, parts: [...oldMessage.parts] }
     
-    if (existingIndex >= 0) {
-      // 更新现有 part
-      message.parts[existingIndex] = apiPart as Part
+    const existingPartIndex = newMessage.parts.findIndex(p => p.id === apiPart.id)
+    
+    if (existingPartIndex >= 0) {
+      // === 更新现有 part ===
+      // 这里直接替换即可，因为 apiPart 已经是新的对象引用
+      newMessage.parts[existingPartIndex] = apiPart as Part
     } else {
-      // 添加新 part
-      message.parts.push(apiPart as Part)
+      // === 添加新 part ===
+      newMessage.parts.push(apiPart as Part)
     }
-
+    
+    // Immutable update of messages array
+    state.messages = [
+      ...state.messages.slice(0, msgIndex),
+      newMessage,
+      ...state.messages.slice(msgIndex + 1)
+    ]
+    
     this.notify()
   }
 
@@ -325,10 +371,21 @@ class MessageStore {
     const state = this.sessions.get(data.sessionID)
     if (!state) return
 
-    const message = state.messages.find(m => m.info.id === data.messageID)
-    if (!message) return
+    const msgIndex = state.messages.findIndex(m => m.info.id === data.messageID)
+    if (msgIndex === -1) return
 
-    message.parts = message.parts.filter(p => p.id !== data.id)
+    const oldMessage = state.messages[msgIndex]
+    const newMessage = {
+      ...oldMessage,
+      parts: oldMessage.parts.filter(p => p.id !== data.id)
+    }
+
+    state.messages = [
+      ...state.messages.slice(0, msgIndex),
+      newMessage,
+      ...state.messages.slice(msgIndex + 1)
+    ]
+
     this.notify()
   }
 
@@ -340,10 +397,15 @@ class MessageStore {
     if (!state) return
 
     state.isStreaming = false
-    // 标记所有消息为非 streaming
-    state.messages.forEach(m => {
-      if (m.isStreaming) m.isStreaming = false
-    })
+    
+    // Immutable update for messages
+    // 只有当有消息状态改变时才更新引用
+    const hasStreamingMessage = state.messages.some(m => m.isStreaming)
+    if (hasStreamingMessage) {
+      state.messages = state.messages.map(m => 
+        m.isStreaming ? { ...m, isStreaming: false } : m
+      )
+    }
 
     this.notify()
   }
@@ -356,9 +418,14 @@ class MessageStore {
     if (!state) return
 
     state.isStreaming = false
-    state.messages.forEach(m => {
-      if (m.isStreaming) m.isStreaming = false
-    })
+    
+    // Immutable update for messages
+    const hasStreamingMessage = state.messages.some(m => m.isStreaming)
+    if (hasStreamingMessage) {
+      state.messages = state.messages.map(m => 
+        m.isStreaming ? { ...m, isStreaming: false } : m
+      )
+    }
 
     this.notify()
   }
@@ -366,6 +433,36 @@ class MessageStore {
   // ============================================
   // Undo/Redo (本地操作，不调用 API)
   // ============================================
+
+  /**
+   * 截断 Revert 点之后的消息（用于发送新消息时）
+   * 并清除 Revert 状态
+   */
+  truncateAfterRevert(sessionId: string) {
+    const state = this.sessions.get(sessionId)
+    if (!state || !state.revertState) return
+
+    const revertIndex = state.messages.findIndex(m => m.info.id === state.revertState!.messageId)
+    
+    if (revertIndex !== -1) {
+      // 保留 revertIndex 之前的消息（即 0 到 revertIndex-1）
+      // 这里的语义是：revertMessageId 是要被撤销的第一条消息，还是保留的最后一条？
+      // 根据 handleUndo 中的逻辑：revertIndex 是找到的 userMessageId。
+      // Undo 通常意味着撤销这条消息及其之后的所有消息。
+      // 所以我们应该保留 0 到 revertIndex。
+      
+      // 等等，handleUndo 逻辑是：
+      // const revertIndex = state.messages.findIndex(m => m.info.id === userMessageId)
+      // revertedUserMessages = state.messages.slice(revertIndex)
+      // 看来 revertIndex 是要被撤销的消息。
+      
+      // 所以截断点应该是 revertIndex。
+      state.messages = state.messages.slice(0, revertIndex)
+    }
+
+    state.revertState = null
+    this.notify()
+  }
 
   /**
    * 设置 revert 状态（由外部 API 调用后触发）

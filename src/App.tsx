@@ -181,8 +181,23 @@ function App() {
     })
   }, [routeSessionId, resetPendingRequests, setPendingPermissionRequests, setPendingQuestionRequests])
 
-  // 恢复模型选择（从最后一条用户消息）
+  // 恢复模型选择（从最后一条用户消息或撤销内容）
   useEffect(() => {
+    // 1. 优先从 revertedContent 恢复（Undo/Redo 场景）
+    if (revertedContent?.model) {
+      const modelSelection = restoreModelSelection(
+        revertedContent.model, 
+        revertedContent.variant ?? null, // variant 可能是 undefined
+        models
+      )
+      if (modelSelection) {
+        setSelectedModelId(modelSelection.modelId)
+        setSelectedVariant(modelSelection.variant)
+        return // 优先满足
+      }
+    }
+
+    // 2. 其次从历史消息恢复
     if (messages.length === 0) return
     
     const lastUserMsg = [...messages].reverse().find(m => m.info.role === 'user')
@@ -198,7 +213,7 @@ function App() {
         setSelectedVariant(modelSelection.variant)
       }
     }
-  }, [messages, models])
+  }, [messages, models, revertedContent])
 
   // ============================================
   // Handlers
@@ -215,23 +230,27 @@ function App() {
       return
     }
 
-    // 清除 revert 状态
+    // 清除 revert 状态并截断旧消息
     if (routeSessionId) {
-      clearRevert()
+      messageStore.truncateAfterRevert(routeSessionId)
     }
 
-    // 设置为 streaming
+    // 设置为 streaming（如果已有 session）
     if (routeSessionId) {
       messageStore.setStreaming(routeSessionId, true)
     }
 
+    // 提前声明 sessionId 以便 catch 块可以访问
+    let sessionId = routeSessionId
+
     try {
-      let sessionId = routeSessionId
       if (!sessionId) {
         const newSession = await createSession()
         sessionId = newSession.id
-        // 立即设置当前 session，不等待 useEffect
+        // 立即设置当前 session 和 streaming 状态
+        // 这样 loadSession 会知道跳过加载，避免覆盖 SSE 数据
         messageStore.setCurrentSession(sessionId)
+        messageStore.setStreaming(sessionId, true)
         navigateToSession(sessionId)
       }
 
@@ -249,8 +268,8 @@ function App() {
       })
     } catch (error) {
       handleError('send message', error)
-      if (routeSessionId) {
-        messageStore.setStreaming(routeSessionId, false)
+      if (sessionId) {
+        messageStore.setStreaming(sessionId, false)
       }
     }
   }, [models, selectedModelId, routeSessionId, currentDirectory, navigateToSession, createSession, clearRevert])
@@ -266,12 +285,12 @@ function App() {
   const handleAbort = useCallback(async () => {
     if (!routeSessionId) return
     try {
-      await abortSession(routeSessionId)
+      await abortSession(routeSessionId, currentDirectory)
       messageStore.handleSessionIdle(routeSessionId)
     } catch (error) {
       handleError('abort session', error)
     }
-  }, [routeSessionId])
+  }, [routeSessionId, currentDirectory])
 
   // Undo with animation
   const handleUndoWithAnimation = useCallback(async (userMessageId: string) => {

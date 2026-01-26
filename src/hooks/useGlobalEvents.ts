@@ -53,9 +53,20 @@ export function useGlobalEvents(callbacks?: GlobalEventsCallbacks) {
       },
 
       onPartUpdated: (apiPart: ApiPart) => {
+        console.log('[GlobalEvents] onPartUpdated received:', {
+          id: apiPart.id,
+          type: apiPart.type,
+          hasSessionID: 'sessionID' in apiPart,
+          hasMessageID: 'messageID' in apiPart,
+          sessionID: (apiPart as any).sessionID,
+          messageID: (apiPart as any).messageID,
+        })
+        
         if ('sessionID' in apiPart && 'messageID' in apiPart) {
           messageStore.handlePartUpdated(apiPart as ApiPart & { sessionID: string; messageID: string })
           scheduleScroll()
+        } else {
+          console.warn('[GlobalEvents] Part missing sessionID or messageID, skipping')
         }
       },
 

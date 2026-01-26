@@ -416,25 +416,34 @@ function extractData(part: ToolPart): ExtractedData {
   
   // Output (不是 diff 时)
   // 注意：如果有了 files 或 diff，通常就不需要显示纯文本 output 了
-  if (!result.files && !result.diff && state.output) {
-    if (tool === 'read') {
-      const str = String(state.output)
-      const match = str.match(/<file[^>]*>([\s\S]*?)<\/file>/i)
-      result.output = match ? match[1] : str
-    } else if (tool === 'write' && inputObj?.content) {
-      result.output = String(inputObj.content)
-    } else {
-      result.output = typeof state.output === 'string' 
-        ? state.output 
-        : JSON.stringify(state.output, null, 2)
-    }
-    
-    // 推断语言
-    if (!result.outputLang && result.output) {
-      const trimmed = result.output.trim()
-      if ((trimmed.startsWith('{') && trimmed.endsWith('}')) ||
-          (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
-        result.outputLang = 'json'
+  if (!result.files && !result.diff) {
+    // 增强 Edit 工具的展示：如果 metadata 中没有 diff，尝试从 input 中构造
+    if ((lowerTool === 'edit' || lowerTool === 'replace') && inputObj?.oldString && inputObj?.newString) {
+      result.diff = {
+        before: String(inputObj.oldString),
+        after: String(inputObj.newString)
+      }
+    } 
+    else if (state.output) {
+      if (tool === 'read') {
+        const str = String(state.output)
+        const match = str.match(/<file[^>]*>([\s\S]*?)<\/file>/i)
+        result.output = match ? match[1] : str
+      } else if (tool === 'write' && inputObj?.content) {
+        result.output = String(inputObj.content)
+      } else {
+        result.output = typeof state.output === 'string' 
+          ? state.output 
+          : JSON.stringify(state.output, null, 2)
+      }
+      
+      // 推断语言
+      if (!result.outputLang && result.output) {
+        const trimmed = result.output.trim()
+        if ((trimmed.startsWith('{') && trimmed.endsWith('}')) ||
+            (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
+          result.outputLang = 'json'
+        }
       }
     }
   }

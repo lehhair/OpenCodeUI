@@ -16,6 +16,7 @@ import {
   unrevertSession,
   extractUserMessageContent,
   type ApiMessageWithParts,
+  type ApiUserMessage,
 } from '../api'
 
 const INITIAL_MESSAGE_LIMIT = 20
@@ -48,9 +49,21 @@ export function useSessionManager({
     if (loadingRef.current) return
     loadingRef.current = true
 
-    messageStore.setLoadState(sid, 'loading')
-
     const dir = directoryRef.current
+
+    // 检查是否已有消息（SSE 可能已经推送了）
+    const existingState = messageStore.getSessionState(sid)
+    const hasExistingMessages = existingState && existingState.messages.length > 0
+    
+    // 如果已经有消息且正在 streaming，跳过加载避免覆盖 SSE 数据
+    if (hasExistingMessages && existingState.isStreaming) {
+      console.log('[SessionManager] Skipping load - session already has messages and is streaming')
+      loadingRef.current = false
+      onLoadComplete?.()
+      return
+    }
+
+    messageStore.setLoadState(sid, 'loading')
 
     try {
       // 并行加载 session 信息和消息（传递 directory）
@@ -58,6 +71,17 @@ export function useSessionManager({
         getSession(sid, dir).catch(() => null),
         getSessionMessages(sid, INITIAL_MESSAGE_LIMIT, dir),
       ])
+
+      // 再次检查：加载期间 SSE 可能已经推送了更多消息
+      const currentState = messageStore.getSessionState(sid)
+      if (currentState && currentState.messages.length > apiMessages.length) {
+        // SSE 推送的消息比 API 返回的多，说明有新消息，跳过覆盖
+        console.log('[SessionManager] Skipping setMessages - SSE has newer data')
+        messageStore.setLoadState(sid, 'loaded')
+        onLoadComplete?.()
+        loadingRef.current = false
+        return
+      }
 
       // 设置消息到 store
       messageStore.setMessages(sid, apiMessages, {
@@ -158,10 +182,13 @@ export function useSessionManager({
           info: m.info as any,
           parts: m.parts as any[],
         })
+        const userInfo = m.info as unknown as ApiUserMessage
         return {
           messageId: m.info.id,
           text: content.text,
           attachments: content.attachments,
+          model: userInfo.model,
+          variant: userInfo.variant,
         }
       })
 
