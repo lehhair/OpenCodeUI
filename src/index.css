@@ -496,6 +496,11 @@ body {
   animation-name: fade-in;
 }
 
+/* Session 切换淡入动画 */
+.animate-fade-in {
+  animation: fade-in 200ms ease-out;
+}
+
 .slide-in-from-bottom-2 {
   animation-name: slide-in-from-bottom;
 }

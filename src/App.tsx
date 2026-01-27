@@ -60,7 +60,7 @@ function App() {
   // Hooks
   // ============================================
   const { resetPermissions } = usePermissions()
-  const { mode: themeMode, setTheme, setThemeWithAnimation } = useTheme()
+  const { mode: themeMode, setThemeWithAnimation } = useTheme()
   const { models, isLoading: modelsLoading } = useModels()
   const { sessionId: routeSessionId, navigateToSession, navigateHome } = useRouter()
   const { currentDirectory, sidebarExpanded, setSidebarExpanded } = useDirectory()
@@ -424,7 +424,8 @@ function App() {
           <div className="absolute inset-0">
               <ChatArea 
                 ref={chatAreaRef} 
-                messages={messages} 
+                messages={messages}
+                sessionId={routeSessionId}
                 prependedCount={prependedCount}
                 onLoadMore={loadMoreHistory}
                 onUndo={handleUndoWithAnimation}

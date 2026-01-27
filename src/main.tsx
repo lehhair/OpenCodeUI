@@ -16,7 +16,7 @@ window.addEventListener('unhandledrejection', (event) => {
 })
 
 // 调试：追踪页面刷新来源
-window.addEventListener('beforeunload', (event) => {
+window.addEventListener('beforeunload', (_event) => {
   console.error('[beforeunload] Page is about to reload! Stack trace:')
   console.trace()
 })

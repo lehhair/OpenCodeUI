@@ -1,6 +1,7 @@
 import { memo, useState, useRef, useEffect } from 'react'
 import { ChevronDownIcon } from '../../../components/Icons'
 import { ScrollArea } from '../../../components/ui'
+import { useSmoothStream } from '../../../hooks/useSmoothStream'
 import type { ReasoningPart } from '../../../types/message'
 
 function ThinkingIcon() {
@@ -50,6 +51,13 @@ export const ReasoningPartView = memo(function ReasoningPartView({ part, isStrea
   
   const isPartStreaming = isStreaming && !part.time?.end
   const hasContent = !!part.text?.trim()
+  
+  // 使用 smooth streaming 实现打字机效果
+  const { displayText } = useSmoothStream(
+    part.text || '',
+    !!isPartStreaming,
+    { charDelay: 6 }  // 稍快一点，因为是思考过程
+  )
   const [expanded, setExpanded] = useState(false)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
   
@@ -107,11 +115,11 @@ export const ReasoningPartView = memo(function ReasoningPartView({ part, isStrea
         expanded ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
       }`}>
         <div className="overflow-hidden">
-          <ScrollArea ref={scrollAreaRef} maxHeight={192} className="border-t border-border-300/20 bg-bg-200/30">
-            <div className="px-3 py-2 text-text-300 text-xs font-mono whitespace-pre-wrap">
-              {part.text}
-            </div>
-          </ScrollArea>
+<ScrollArea ref={scrollAreaRef} maxHeight={192} className="border-t border-border-300/20 bg-bg-200/30">
+                            <div className="px-3 py-2 text-text-300 text-xs font-mono whitespace-pre-wrap">
+                              {displayText}
+                            </div>
+                          </ScrollArea>
         </div>
       </div>
     </div>

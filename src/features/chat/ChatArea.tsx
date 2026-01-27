@@ -9,6 +9,8 @@ import type { Message } from '../../types/message'
 
 interface ChatAreaProps {
   messages: Message[]
+  /** 当前 session ID，用于检测 session 切换并触发过渡动画 */
+  sessionId?: string | null
   /** 累计向前加载的消息数量，用于计算 Virtuoso 的 firstItemIndex */
   prependedCount?: number
   onLoadMore?: () => void
@@ -53,6 +55,7 @@ const START_INDEX = 1000000
 
 export const ChatArea = memo(forwardRef<ChatAreaHandle, ChatAreaProps>(({ 
   messages, 
+  sessionId,
   prependedCount = 0,
   onLoadMore,
   onUndo,
@@ -70,6 +73,10 @@ export const ChatArea = memo(forwardRef<ChatAreaHandle, ChatAreaProps>(({
   // 用户正在滚动的标志 - 滚动期间不触发自动滚动
   const isUserScrollingRef = useRef(false)
   const scrollingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  
+  // Session 切换过渡：简单的淡入效果
+  // 使用 sessionId 作为 key，切换时会触发组件重新挂载从而产生 CSS 动画
+  const transitionKey = sessionId || 'empty'
   
   // 过滤空消息
   const visibleMessages = messages.filter(messageHasContent)
@@ -180,8 +187,9 @@ export const ChatArea = memo(forwardRef<ChatAreaHandle, ChatAreaProps>(({
   return (
     <div className="h-full overflow-hidden">
       <div 
+        key={transitionKey}
         ref={setScrollParent} 
-        className="h-full overflow-y-auto custom-scrollbar"
+        className="h-full overflow-y-auto custom-scrollbar animate-fade-in"
       >
         {scrollParent && (
           <Virtuoso
