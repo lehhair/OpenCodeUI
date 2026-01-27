@@ -62,6 +62,10 @@ export function ProjectDialog({ isOpen, onClose, onSelect, initialPath = '' }: P
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   
+  // 动画状态
+  const [shouldRender, setShouldRender] = useState(false)
+  const [isVisible, setIsVisible] = useState(false)
+
   const loadedPathRef = useRef<string>('')
   const inputRef = useRef<HTMLInputElement>(null)
   const pendingSelectionRef = useRef<string | null>(null)
@@ -249,16 +253,43 @@ export function ProjectDialog({ isOpen, onClose, onSelect, initialPath = '' }: P
     }
   }
 
-  if (!isOpen) return null
+  // 动画控制 - 分两步：先渲染 DOM，再触发动画
+  useEffect(() => {
+    if (isOpen) {
+      setShouldRender(true)
+    } else {
+      setIsVisible(false)
+      const timer = setTimeout(() => setShouldRender(false), 200)
+      return () => clearTimeout(timer)
+    }
+  }, [isOpen])
+
+  // 当 DOM 渲染后再触发入场动画
+  useEffect(() => {
+    if (shouldRender && isOpen) {
+      const timer = setTimeout(() => setIsVisible(true), 10)
+      return () => clearTimeout(timer)
+    }
+  }, [shouldRender, isOpen])
+
+  if (!shouldRender) return null
 
   return createPortal(
     <div 
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-[2px] transition-opacity p-4"
+      className="fixed inset-0 z-[100] flex items-center justify-center p-4 transition-all duration-200 ease-out"
+      style={{
+        backgroundColor: isVisible ? 'rgba(0,0,0,0.4)' : 'rgba(0,0,0,0)',
+        backdropFilter: isVisible ? 'blur(2px)' : 'blur(0px)',
+      }}
       onMouseDown={onClose}
     >
       <div 
-        className="w-[600px] max-w-full bg-bg-100/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-border-200/50 flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150"
-        style={{ height: '500px' }}
+        className="w-[600px] max-w-full bg-bg-100/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-border-200/50 flex flex-col overflow-hidden transition-all duration-200 ease-out"
+        style={{ 
+          height: '500px',
+          opacity: isVisible ? 1 : 0,
+          transform: isVisible ? 'scale(1) translateY(0)' : 'scale(0.95) translateY(8px)',
+        }}
         onMouseDown={e => e.stopPropagation()}
       >
         {/* Header / Input Area */}

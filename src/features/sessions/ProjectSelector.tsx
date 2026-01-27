@@ -76,69 +76,75 @@ export function ProjectSelector({
         </span>
       </button>
 
-      {/* Dropdown */}
-      {isOpen && (
-        <div className="absolute top-full left-0 right-0 mt-2 bg-bg-000/95 backdrop-blur-md border border-border-200 rounded-xl shadow-xl overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-100 origin-top">
-          <div className="max-h-[300px] overflow-y-auto custom-scrollbar p-1.5">
-            <div className="px-2 py-1.5 text-[10px] font-bold text-text-400 uppercase tracking-wider">
-              Switch Project
+      {/* Dropdown - 使用 grid 实现平滑展开动画 */}
+      <div 
+        className={`absolute top-full left-0 right-0 mt-2 z-50 grid transition-[grid-template-rows,opacity] duration-300 ease-out ${
+          isOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0 pointer-events-none'
+        }`}
+      >
+        <div className="overflow-hidden">
+          <div className="bg-bg-000/95 backdrop-blur-md border border-border-200 rounded-xl shadow-xl overflow-hidden">
+            <div className="max-h-[300px] overflow-y-auto custom-scrollbar p-1.5">
+              <div className="px-2 py-1.5 text-[10px] font-bold text-text-400 uppercase tracking-wider">
+                Switch Project
+              </div>
+              
+              {/* Global (if not current) */}
+              {projects.find(p => p.id === 'global' && p.id !== currentProject?.id) && (
+                <ProjectItem
+                  project={projects.find(p => p.id === 'global')!}
+                  onClick={() => {
+                    onSelectProject('global')
+                    setIsOpen(false)
+                  }}
+                  getDisplayName={getDisplayName}
+                  getFullPath={getFullPath}
+                />
+              )}
+
+              {/* Other Projects */}
+              {otherProjects.filter(p => p.id !== 'global').map((project) => (
+                <ProjectItem
+                  key={project.id}
+                  project={project}
+                  onClick={() => {
+                    onSelectProject(project.id)
+                    setIsOpen(false)
+                  }}
+                  onRemove={(e) => {
+                    e.stopPropagation()
+                    if (confirm('Remove this project from list?')) {
+                      onRemoveProject(project.id)
+                    }
+                  }}
+                  getDisplayName={getDisplayName}
+                  getFullPath={getFullPath}
+                />
+              ))}
+              
+              {otherProjects.length === 0 && !projects.find(p => p.id === 'global' && p.id !== currentProject?.id) && (
+                <div className="px-3 py-4 text-center text-xs text-text-400">
+                  No other projects
+                </div>
+              )}
             </div>
             
-            {/* Global (if not current) */}
-            {projects.find(p => p.id === 'global' && p.id !== currentProject?.id) && (
-              <ProjectItem
-                project={projects.find(p => p.id === 'global')!}
+            {/* Footer Actions */}
+            <div className="p-1.5 border-t border-border-200 bg-bg-50/50">
+              <button
                 onClick={() => {
-                  onSelectProject('global')
+                  onAddProject()
                   setIsOpen(false)
                 }}
-                getDisplayName={getDisplayName}
-                getFullPath={getFullPath}
-              />
-            )}
-
-            {/* Other Projects */}
-            {otherProjects.filter(p => p.id !== 'global').map((project) => (
-              <ProjectItem
-                key={project.id}
-                project={project}
-                onClick={() => {
-                  onSelectProject(project.id)
-                  setIsOpen(false)
-                }}
-                onRemove={(e) => {
-                  e.stopPropagation()
-                  if (confirm('Remove this project from list?')) {
-                    onRemoveProject(project.id)
-                  }
-                }}
-                getDisplayName={getDisplayName}
-                getFullPath={getFullPath}
-              />
-            ))}
-            
-            {otherProjects.length === 0 && !projects.find(p => p.id === 'global' && p.id !== currentProject?.id) && (
-              <div className="px-3 py-4 text-center text-xs text-text-400">
-                No other projects
-              </div>
-            )}
-          </div>
-          
-          {/* Footer Actions */}
-          <div className="p-1.5 border-t border-border-200 bg-bg-50/50">
-            <button
-              onClick={() => {
-                onAddProject()
-                setIsOpen(false)
-              }}
-              className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-medium text-text-200 hover:text-text-100 hover:bg-bg-200 transition-colors"
-            >
-              <PlusIcon className="w-3.5 h-3.5" />
-              Add Project Folder...
-            </button>
+                className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-medium text-text-200 hover:text-text-100 hover:bg-bg-200 transition-colors"
+              >
+                <PlusIcon className="w-3.5 h-3.5" />
+                Add Project Folder...
+              </button>
+            </div>
           </div>
         </div>
-      )}
+      </div>
     </div>
   )
 }
