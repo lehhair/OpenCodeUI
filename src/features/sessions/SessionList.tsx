@@ -1,6 +1,7 @@
 import { useRef, useEffect, useCallback, useState, useMemo } from 'react'
 import { SearchIcon, PencilIcon, TrashIcon } from '../../components/Icons'
 import { formatRelativeTime } from '../../utils/dateUtils'
+import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
 import type { ApiSession } from '../../api'
 
 interface SessionListProps {
@@ -33,10 +34,15 @@ export function SessionList({
   onDelete,
   onRename,
   onLoadMore,
-  onNewChat,
+  // onNewChat, // Not used here
 }: SessionListProps) {
   const listRef = useRef<HTMLDivElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
+  
+  const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; sessionId: string | null }>({
+    isOpen: false,
+    sessionId: null
+  })
 
   // 滚动加载
   const handleScroll = useCallback(() => {
@@ -141,7 +147,7 @@ export function SessionList({
                       session={session}
                       isSelected={session.id === selectedId}
                       onSelect={() => onSelect(session)}
-                      onDelete={() => onDelete(session.id)}
+                      onDelete={() => setDeleteConfirm({ isOpen: true, sessionId: session.id })}
                       onRename={(newTitle) => onRename(session.id, newTitle)}
                     />
                   ))}
@@ -171,6 +177,21 @@ export function SessionList({
           </div>
         )}
       </div>
+
+      <ConfirmDialog
+        isOpen={deleteConfirm.isOpen}
+        onClose={() => setDeleteConfirm({ isOpen: false, sessionId: null })}
+        onConfirm={() => {
+          if (deleteConfirm.sessionId) {
+            onDelete(deleteConfirm.sessionId)
+          }
+          setDeleteConfirm({ isOpen: false, sessionId: null })
+        }}
+        title="Delete Chat"
+        description="Are you sure you want to delete this chat? This action cannot be undone."
+        confirmText="Delete"
+        variant="danger"
+      />
     </div>
   )
 }
@@ -194,9 +215,7 @@ function SessionItem({ session, isSelected, onSelect, onDelete, onRename }: Sess
 
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation()
-    if (confirm('Delete this chat?')) {
-      onDelete()
-    }
+    onDelete()
   }
 
   const handleStartEdit = (e: React.MouseEvent) => {
