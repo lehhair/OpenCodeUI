@@ -119,15 +119,23 @@ export function Header({
             <div ref={settingsMenuRef} className="py-1">
               <div className="px-2 pt-2 pb-1">
                 <div className="text-[10px] font-bold text-text-400 uppercase tracking-wider px-2 mb-1.5">Appearance</div>
-                <div className="flex bg-bg-100/50 p-1 rounded-lg border border-border-200/50">
+                <div className="flex bg-bg-100/50 p-1 rounded-lg border border-border-200/50 relative isolate">
+                  {/* Sliding Background */}
+                  <div
+                    className="absolute top-1 bottom-1 left-1 w-[calc((100%-8px)/3)] bg-bg-000 rounded-md shadow-md ring-1 ring-border-200/50 transition-transform duration-500 ease-[cubic-bezier(0.23,1,0.32,1)] -z-10"
+                    style={{
+                      transform: themeMode === 'system' ? 'translateX(0%)' : themeMode === 'light' ? 'translateX(100%)' : 'translateX(200%)'
+                    }}
+                  />
+
                   {(['system', 'light', 'dark'] as const).map((m) => (
                     <button
                       key={m}
                       onClick={(e) => onThemeChange(m, e)}
-                      className={`flex-1 flex items-center justify-center py-1.5 rounded-md text-xs font-medium transition-all ${
+                      className={`flex-1 flex items-center justify-center py-1.5 rounded-md text-xs font-medium transition-colors duration-300 ${
                         themeMode === m
-                          ? 'bg-bg-000 text-text-100 shadow-sm ring-1 ring-border-200/50'
-                          : 'text-text-400 hover:text-text-200 hover:bg-bg-200/50'
+                          ? 'text-text-100'
+                          : 'text-text-400 hover:text-text-200'
                       }`}
                       title={m.charAt(0).toUpperCase() + m.slice(1)}
                     >

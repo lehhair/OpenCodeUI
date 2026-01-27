@@ -6,7 +6,7 @@ interface SettingsDialogProps {
   isOpen: boolean
   onClose: () => void
   themeMode: ThemeMode
-  onThemeChange: (mode: ThemeMode) => void
+  onThemeChange: (mode: ThemeMode, event?: React.MouseEvent) => void
   isWideMode?: boolean
   onToggleWideMode?: () => void
 }
@@ -30,35 +30,43 @@ export function SettingsDialog({
         {/* Appearance Section */}
         <div>
           <h3 className="text-xs font-semibold text-text-400 mb-3 uppercase tracking-wider">Appearance</h3>
-          <div className="bg-bg-100/50 p-1 rounded-xl flex border border-border-200/50">
+          <div className="bg-bg-100/50 p-1 rounded-xl flex border border-border-200/50 relative isolate">
+            {/* Sliding Background */}
+            <div
+              className="absolute top-1 bottom-1 left-1 w-[calc((100%-8px)/3)] bg-bg-000 rounded-lg shadow-md ring-1 ring-border-200/50 transition-transform duration-500 ease-[cubic-bezier(0.23,1,0.32,1)] -z-10"
+              style={{
+                transform: themeMode === 'system' ? 'translateX(0%)' : themeMode === 'light' ? 'translateX(100%)' : 'translateX(200%)'
+              }}
+            />
+
             <button
-              onClick={() => onThemeChange('system')}
-              className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-all ${
+              onClick={(e) => onThemeChange('system', e)}
+              className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-colors duration-300 ${
                 themeMode === 'system'
-                  ? 'bg-bg-000 text-text-100 shadow-sm ring-1 ring-border-200/50'
-                  : 'text-text-400 hover:text-text-200 hover:bg-bg-200/50'
+                  ? 'text-text-100'
+                  : 'text-text-400 hover:text-text-200'
               }`}
             >
               <SystemIcon />
               <span>Auto</span>
             </button>
             <button
-              onClick={() => onThemeChange('light')}
-              className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-all ${
+              onClick={(e) => onThemeChange('light', e)}
+              className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-colors duration-300 ${
                 themeMode === 'light'
-                  ? 'bg-bg-000 text-text-100 shadow-sm ring-1 ring-border-200/50'
-                  : 'text-text-400 hover:text-text-200 hover:bg-bg-200/50'
+                  ? 'text-text-100'
+                  : 'text-text-400 hover:text-text-200'
               }`}
             >
               <SunIcon />
               <span>Light</span>
             </button>
             <button
-              onClick={() => onThemeChange('dark')}
-              className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-all ${
+              onClick={(e) => onThemeChange('dark', e)}
+              className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-colors duration-300 ${
                 themeMode === 'dark'
-                  ? 'bg-bg-000 text-text-100 shadow-sm ring-1 ring-border-200/50'
-                  : 'text-text-400 hover:text-text-200 hover:bg-bg-200/50'
+                  ? 'text-text-100'
+                  : 'text-text-400 hover:text-text-200'
               }`}
             >
               <MoonIcon />
