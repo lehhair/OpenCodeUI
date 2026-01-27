@@ -32,11 +32,18 @@ export const ModelSelector = memo(function ModelSelector({
   const [isOpen, setIsOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [highlightedIndex, setHighlightedIndex] = useState(0)
+  const [refreshTrigger, setRefreshTrigger] = useState(0) // 强制刷新 Recent
   
   const containerRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
+  const ignoreMouseRef = useRef(false) // 防止打开时鼠标位置干扰初始高亮
+
+  // 移除打开时的强制刷新，避免闪烁
+  // useEffect(() => {
+  //   if (isOpen) setRefreshTrigger(c => c + 1)
+  // }, [isOpen])
 
   const filteredModels = useMemo(() => {
     if (!searchQuery.trim()) return models
@@ -75,8 +82,9 @@ export const ModelSelector = memo(function ModelSelector({
     })
     
     return { flatList: flat }
-  }, [filteredModels, models, searchQuery])
+  }, [filteredModels, models, searchQuery, refreshTrigger])
 
+  // 仅计算可交互项的索引映射
   const itemIndices = useMemo(() => {
     return flatList
       .map((item, index) => item.type === 'item' ? index : -1)
@@ -92,10 +100,29 @@ export const ModelSelector = memo(function ModelSelector({
 
   const openMenu = useCallback(() => {
     if (disabled || isLoading) return
+    
+    // 计算初始高亮索引
+    let targetIndex = 0
+    if (selectedModelKey) {
+      const index = flatList.findIndex(item => 
+        item.type === 'item' && getModelKey(item.data) === selectedModelKey
+      )
+      if (index !== -1) {
+        const interactiveIndex = itemIndices.indexOf(index)
+        if (interactiveIndex !== -1) targetIndex = interactiveIndex
+      }
+    }
+    
+    setHighlightedIndex(targetIndex)
     setIsOpen(true)
     setSearchQuery('')
-    setHighlightedIndex(0)
-  }, [disabled, isLoading])
+    
+    // 暂时忽略鼠标移动，防止打开时高亮跳变
+    ignoreMouseRef.current = true
+    setTimeout(() => {
+      ignoreMouseRef.current = false
+    }, 300)
+  }, [disabled, isLoading, selectedModelKey, flatList, itemIndices])
 
   const closeMenu = useCallback(() => {
     setIsOpen(false)
@@ -108,6 +135,8 @@ export const ModelSelector = memo(function ModelSelector({
     recordModelUsage(model)
     onSelect(key, model)
     closeMenu()
+    // 选择后刷新列表顺序，确保 Recent 更新
+    setRefreshTrigger(c => c + 1)
   }, [onSelect, closeMenu])
 
   useEffect(() => {
@@ -125,23 +154,37 @@ export const ModelSelector = memo(function ModelSelector({
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [isOpen, closeMenu])
 
-  // 滚动逻辑
+  // 初始定位逻辑：打开时自动滚动到当前选中项
   useEffect(() => {
     if (!isOpen) return
-    const globalIndex = itemIndices[highlightedIndex]
-    const el = document.getElementById(`list-item-${globalIndex}`)
-    el?.scrollIntoView({ block: 'nearest' })
-  }, [highlightedIndex, isOpen, itemIndices])
+
+    // 延迟滚动以等待渲染
+    requestAnimationFrame(() => {
+      const realIndex = itemIndices[highlightedIndex]
+      const el = document.getElementById(`list-item-${realIndex}`)
+      el?.scrollIntoView({ block: 'nearest' })
+    })
+  }, [isOpen]) // 只在打开时触发滚动，键盘导航有自己的滚动逻辑
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     switch (e.key) {
       case 'ArrowDown':
         e.preventDefault()
-        setHighlightedIndex(prev => Math.min(prev + 1, itemIndices.length - 1))
+        setHighlightedIndex(prev => {
+          const next = Math.min(prev + 1, itemIndices.length - 1)
+          const realIndex = itemIndices[next]
+          document.getElementById(`list-item-${realIndex}`)?.scrollIntoView({ block: 'nearest' })
+          return next
+        })
         break
       case 'ArrowUp':
         e.preventDefault()
-        setHighlightedIndex(prev => Math.max(prev - 1, 0))
+        setHighlightedIndex(prev => {
+          const next = Math.max(prev - 1, 0)
+          const realIndex = itemIndices[next]
+          document.getElementById(`list-item-${realIndex}`)?.scrollIntoView({ block: 'nearest' })
+          return next
+        })
         break
       case 'Enter':
         e.preventDefault()
@@ -174,9 +217,11 @@ export const ModelSelector = memo(function ModelSelector({
       </button>
 
       <div 
-        className={`absolute top-full left-0 mt-1 w-[85vw] sm:w-[380px] z-50 transition-all duration-200 ease-out origin-top-left ${
-          isOpen ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-95 -translate-y-1 pointer-events-none'
-        }`}
+        className={`z-50 transition-all duration-200 ease-out 
+          fixed top-[58px] left-1/2 -translate-x-1/2 w-[90vw] max-w-[380px] origin-top
+          sm:absolute sm:top-full sm:left-0 sm:translate-x-0 sm:w-[380px] sm:origin-top-left sm:mt-1
+          ${isOpen ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'}
+        `}
         onKeyDown={handleKeyDown}
       >
         <div className="bg-bg-000 border border-border-200 shadow-xl rounded-lg overflow-hidden flex flex-col max-h-[600px]">
@@ -198,7 +243,7 @@ export const ModelSelector = memo(function ModelSelector({
           </div>
 
           {/* List */}
-          <div ref={listRef} className="overflow-y-auto custom-scrollbar flex-1 relative">
+          <div ref={listRef} className="overflow-y-auto custom-scrollbar flex-1 relative scroll-pt-8">
             {flatList.length === 0 ? (
               <div className="px-4 py-8 text-center text-xs text-text-400">No models found</div>
             ) : (
@@ -206,7 +251,7 @@ export const ModelSelector = memo(function ModelSelector({
                 {flatList.map((item, index) => {
                   if (item.type === 'header') {
                     return (
-                      <div key={item.key} className="px-3 py-1.5 mt-1 first:mt-0 text-[10px] font-bold text-text-400 uppercase tracking-wider select-none sticky top-0 bg-bg-000/95 backdrop-blur-md z-10 border-b border-border-100/50 shadow-sm">
+                      <div key={item.key} className="px-3 py-1.5 mt-0.5 first:mt-0 text-[10px] font-bold text-text-400 uppercase tracking-wider select-none sticky top-0 bg-bg-000 z-10 border-b border-border-200 shadow-sm">
                         {item.data.name}
                       </div>
                     )
@@ -222,23 +267,27 @@ export const ModelSelector = memo(function ModelSelector({
                       <div
                         id={`list-item-${index}`}
                         onClick={() => handleSelect(model)}
-                        onMouseEnter={() => {
-                          const hIndex = itemIndices.indexOf(index)
-                          if (hIndex !== -1) setHighlightedIndex(hIndex)
-                        }}
-                        className={`
-                          group flex items-center justify-between px-3 py-2 rounded-md cursor-pointer text-sm font-sans transition-colors mt-0.5
-                          ${isSelected ? 'bg-accent-main-100/10 text-accent-main-100' : 'text-text-200'}
-                          ${isCurrentlyHighlighted && !isSelected ? 'bg-bg-200/60 text-text-100' : ''}
-                        `}
-                      >
-                        {/* Left: Name */}
-                        <div className="flex items-center gap-3 min-w-0 flex-1 overflow-hidden">
-                          <span className={`truncate font-medium ${isSelected ? 'text-accent-main-100' : 'text-text-100'}`}>
-                            {model.name}
-                          </span>
-                          <div className="flex items-center gap-1.5 opacity-30 group-hover:opacity-60 transition-opacity flex-shrink-0 h-4">
-                            {model.supportsReasoning && (
+                    onMouseMove={() => {
+                      if (ignoreMouseRef.current) return
+                      const hIndex = itemIndices.indexOf(index)
+                      if (hIndex !== -1 && hIndex !== highlightedIndex) {
+                        setHighlightedIndex(hIndex)
+                      }
+                    }}
+                    className={`
+                      group flex items-center justify-between px-3 py-2 rounded-md cursor-pointer text-sm font-sans transition-colors mt-0.5
+                      ${isSelected ? 'bg-accent-main-100/10 text-accent-main-100' : 'text-text-200'}
+                      ${isCurrentlyHighlighted && !isSelected ? 'bg-bg-200/60 text-text-100' : ''}
+                    `}
+                  >
+                    {/* Left: Name */}
+                    <div className="flex items-center gap-3 min-w-0 flex-1 overflow-hidden">
+                      <span className={`truncate font-medium ${isSelected ? 'text-accent-main-100' : 'text-text-100'}`}>
+                        {model.name}
+                      </span>
+                      {/* Icons - Fixed width container for alignment */}
+                      <div className={`flex items-center gap-1.5 transition-opacity flex-shrink-0 h-4 ${isCurrentlyHighlighted || isSelected ? 'opacity-60' : 'opacity-30'}`}>
+                        {model.supportsReasoning && (
                               <div className="flex items-center justify-center w-3.5" title="Thinking">
                                 <ThinkingIcon size={13} />
                               </div>

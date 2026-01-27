@@ -235,30 +235,28 @@ export interface ModelGroup {
 export function groupModelsByProvider(models: ModelInfo[]): ModelGroup[] {
   const stats = getModelUsageStats()
   
-  // 计算每个 provider 的总使用次数
-  const providerUsage: Record<string, number> = {}
-  for (const model of models) {
-    const key = getModelKey(model)
-    const count = stats[key]?.count ?? 0
-    providerUsage[model.providerId] = (providerUsage[model.providerId] ?? 0) + count
-  }
-  
-  // 按 provider 分组
+  // 按 providerName 分组 (合并同名 Provider)
   const groupMap = models.reduce((acc, model) => {
-    if (!acc[model.providerId]) {
-      acc[model.providerId] = {
-        providerId: model.providerId,
+    const key = model.providerName // 使用 Name 作为分组键
+    if (!acc[key]) {
+      acc[key] = {
+        providerId: model.providerId, // 这里的 ID 仅作参考，可能不唯一
         providerName: model.providerName,
         models: []
       }
     }
-    acc[model.providerId].models.push(model)
+    acc[key].models.push(model)
     return acc
   }, {} as Record<string, ModelGroup>)
   
-  // 按 provider 使用频率排序
+  // 按 provider 使用频率排序 (累加该 Name 下所有模型的使用次数)
   const groups = Object.values(groupMap).sort((a, b) => {
-    return (providerUsage[b.providerId] ?? 0) - (providerUsage[a.providerId] ?? 0)
+    // 计算 Group A 的总权重
+    const weightA = a.models.reduce((sum, m) => sum + (stats[getModelKey(m)]?.count ?? 0), 0)
+    // 计算 Group B 的总权重
+    const weightB = b.models.reduce((sum, m) => sum + (stats[getModelKey(m)]?.count ?? 0), 0)
+    
+    return weightB - weightA
   })
   
   // 每个 provider 内部按使用频率排序
@@ -276,11 +274,16 @@ export function getRecentModels(models: ModelInfo[], limit = 5): ModelInfo[] {
   const stats = getModelUsageStats()
   
   // 过滤出使用过的模型并按最近使用时间排序
+  // 只要有记录且 count > 0 就视为使用过
   const usedModels = models
-    .filter(m => stats[getModelKey(m)]?.lastUsed)
+    .filter(m => {
+      const s = stats[getModelKey(m)]
+      return s && (s.count > 0 || s.lastUsed > 0)
+    })
     .sort((a, b) => {
       const statsA = stats[getModelKey(a)]
       const statsB = stats[getModelKey(b)]
+      // 优先按时间倒序
       return (statsB?.lastUsed ?? 0) - (statsA?.lastUsed ?? 0)
     })
   
