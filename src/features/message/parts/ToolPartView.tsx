@@ -57,7 +57,7 @@ export const ToolPartView = memo(function ToolPartView({ part, isFirst = false, 
   return (
     <div className="group relative flex">
       {/* Timeline Column */}
-      <div className="w-10 shrink-0 relative flex flex-col items-center">
+      <div className="w-6 shrink-0 relative flex flex-col items-center">
         {/* Line Up - 6px long */}
         {!isFirst && (
           <div className="absolute top-0 h-1.5 w-px bg-border-300/30" />
@@ -85,7 +85,7 @@ export const ToolPartView = memo(function ToolPartView({ part, isFirst = false, 
       <div className="flex-1 min-w-0 pb-1">
         {/* Header */}
         <button
-          className={`flex items-center gap-3 w-full text-left px-3 hover:bg-bg-200/50 rounded-lg transition-colors group/header ${headerHeightClass}`}
+          className={`flex items-center gap-3 w-full text-left px-2 hover:bg-bg-200/50 rounded-lg transition-colors group/header ${headerHeightClass}`}
           onClick={() => setExpanded(!expanded)}
         >
           <div className="flex items-center gap-2 overflow-hidden flex-1">
@@ -127,7 +127,7 @@ export const ToolPartView = memo(function ToolPartView({ part, isFirst = false, 
           expanded ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
         }`}>
           <div className="overflow-hidden">
-            <div className="pt-3 pb-3 px-3">
+            <div className="py-2 px-2">
               <ToolBody part={part} />
             </div>
           </div>
