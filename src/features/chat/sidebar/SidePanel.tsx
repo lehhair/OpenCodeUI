@@ -4,6 +4,7 @@ import { ProjectSelector } from '../../sessions/ProjectSelector'
 import { useDirectory } from '../../../hooks'
 import { useSessionContext } from '../../../contexts/SessionContext'
 import { updateSession, subscribeToConnectionState, type ApiSession, type ConnectionInfo } from '../../../api'
+import { uiErrorHandler } from '../../../utils'
 
 interface SidePanelProps {
   onNewSession: () => void
@@ -98,7 +99,7 @@ export function SidePanel({
       await updateSession(sessionId, { title: newTitle }, currentDirectory)
       refresh()
     } catch (e) {
-      console.error(e)
+      uiErrorHandler('rename session', e)
     }
   }, [currentDirectory, refresh])
 

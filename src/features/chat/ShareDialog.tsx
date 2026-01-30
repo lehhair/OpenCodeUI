@@ -3,6 +3,7 @@ import { Dialog, Button, IconButton } from '../../components/ui'
 import { LinkIcon, CopyIcon, GlobeIcon, SpinnerIcon, CheckIcon } from '../../components/Icons'
 import { shareSession, unshareSession } from '../../api'
 import { useMessageStore, messageStore } from '../../store'
+import { apiErrorHandler } from '../../utils'
 
 interface ShareDialogProps {
   isOpen: boolean
@@ -31,7 +32,7 @@ export function ShareDialog({ isOpen, onClose }: ShareDialogProps) {
       messageStore.setShareUrl(sessionId, updatedSession.share?.url)
     } catch (e) {
       setError('Failed to create share link')
-      console.error(e)
+      apiErrorHandler('share session', e)
     } finally {
       setLoading(false)
     }
@@ -46,7 +47,7 @@ export function ShareDialog({ isOpen, onClose }: ShareDialogProps) {
       messageStore.setShareUrl(sessionId, undefined)
     } catch (e) {
       setError('Failed to remove share link')
-      console.error(e)
+      apiErrorHandler('unshare session', e)
     } finally {
       setLoading(false)
     }

@@ -99,7 +99,10 @@ export function useSyntaxHighlight(code: string, options: HighlightOptions & { m
           if (!cancelled) setOutput(result.tokens)
         }
       } catch (err) {
-        console.error('Shiki error:', err)
+        // Syntax highlighting error - silently fallback
+        if (import.meta.env.DEV) {
+          console.warn('[Syntax] Shiki error:', err)
+        }
         if (!cancelled) setOutput(null)
       } finally {
         if (!cancelled) setIsLoading(false)

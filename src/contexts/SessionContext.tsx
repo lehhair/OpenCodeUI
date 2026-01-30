@@ -8,6 +8,7 @@ import {
   type SessionListParams 
 } from '../api'
 import { useDirectory } from './DirectoryContext'
+import { sessionErrorHandler, normalizeToForwardSlash, isSameDirectory, autoDetectPathStyle } from '../utils'
 
 interface SessionContextValue {
   sessions: ApiSession[]
@@ -45,18 +46,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     currentDirectoryRef.current = currentDirectory
   }, [currentDirectory])
   
-  // 规范化目录路径
-  const normalizeDirectory = useCallback((dir: string | undefined): string | undefined => {
-    if (!dir) return undefined
-    let result = dir.replace(/[/\\]$/, '')
-    // Windows 路径兼容性
-    if (/^[a-zA-Z]:/.test(result)) {
-      result = result.replace(/\//g, '\\')
-    }
-    return result
-  }, [])
-  
   // 核心获取逻辑
+  // 注意：directory 传给 getSessions 时使用正斜杠格式
+  // http 层的 fetchWithBothSlashesAndMerge 会处理两种斜杠格式的兼容
   const fetchSessions = useCallback(async (params: SessionListParams & { append?: boolean } = {}) => {
     const { append = false, ...queryParams } = params
     const requestId = ++requestIdRef.current
@@ -68,7 +60,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     }
 
     try {
-      const targetDir = normalizeDirectory(currentDirectory)
+      // 使用正斜杠格式传给 API（http 层会处理兼容）
+      const targetDir = normalizeToForwardSlash(currentDirectory) || undefined
 
       const data = await getSessions({
         roots: true,
@@ -80,6 +73,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
       if (requestId !== requestIdRef.current) return
 
+      // 自动检测路径风格（从后端返回的 directory 字段）
+      if (data.length > 0 && data[0].directory) {
+        autoDetectPathStyle(data[0].directory)
+      }
+
       if (append) {
         setSessions(prev => [...prev, ...data])
       } else {
@@ -87,14 +85,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       }
       setHasMore(data.length >= 30)
     } catch (e) {
-      console.error('[SessionContext] Fetch error:', e)
+      sessionErrorHandler('fetch sessions', e)
     } finally {
       if (requestId === requestIdRef.current) {
         setIsLoading(false)
         setIsLoadingMore(false)
       }
     }
-  }, [currentDirectory, search, normalizeDirectory])
+  }, [currentDirectory, search])
 
   // 监听 directory 和 search 变化
   useEffect(() => {
@@ -116,11 +114,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         // 忽略子 session（有 parentID 的是子 agent 创建的）
         if (session.parentID) return
         
-        // 检查是否属于当前 directory
-        const targetDir = normalizeDirectory(currentDirectoryRef.current)
-        const sessionDir = normalizeDirectory(session.directory)
-        
-        if (targetDir === sessionDir || (!targetDir && !sessionDir)) {
+        // 使用 isSameDirectory 比较，处理斜杠和大小写差异
+        if (isSameDirectory(currentDirectoryRef.current, session.directory)) {
           setSessions(prev => {
             // 避免重复
             if (prev.some(s => s.id === session.id)) return prev
@@ -141,7 +136,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     })
 
     return unsubscribe
-  }, [normalizeDirectory])
+  }, [])
 
   // Actions
   const refresh = useCallback(() => fetchSessions(), [fetchSessions])
@@ -153,7 +148,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, [isLoadingMore, hasMore, sessions, fetchSessions])
 
   const createSession = useCallback(async (title?: string) => {
-    const targetDir = normalizeDirectory(currentDirectory)
+    // 使用正斜杠格式传给后端
+    const targetDir = normalizeToForwardSlash(currentDirectory) || undefined
     
     const newSession = await apiCreateSession({ 
       title,
@@ -162,13 +158,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     // SSE 会处理添加到列表，这里只是更新 currentSessionId
     setCurrentSessionId(newSession.id)
     return newSession
-  }, [currentDirectory, normalizeDirectory])
+  }, [currentDirectory])
 
   const deleteSession = useCallback(async (id: string) => {
-    await apiDeleteSession(id)
+    const targetDir = normalizeToForwardSlash(currentDirectory) || undefined
+    await apiDeleteSession(id, targetDir)
     setSessions(prev => prev.filter(s => s.id !== id))
     if (currentSessionId === id) setCurrentSessionId(null)
-  }, [currentSessionId])
+  }, [currentSessionId, currentDirectory])
 
   return (
     <SessionContext.Provider value={{

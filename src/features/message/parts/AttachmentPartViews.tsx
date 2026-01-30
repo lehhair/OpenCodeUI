@@ -1,5 +1,5 @@
 import { memo } from 'react'
-import { AttachmentItem, fromFilePart, fromAgentPart, fromTextPart } from '../../../components/Attachment'
+import { AttachmentItem, fromFilePart, fromAgentPart, fromTextPart } from '../../attachment'
 import type { FilePart, AgentPart, TextPart } from '../../../types/message'
 
 // ============================================

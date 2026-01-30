@@ -1,116 +1,82 @@
 // ============================================
 // Session API Functions
+// 基于 OpenAPI: /session 相关接口
 // ============================================
 
-import {
-  API_BASE,
-  type ApiSession,
-  type SessionListParams,
-} from './types'
+import { get, post, patch, del } from './http'
+import { formatPathForApi } from '../utils/directoryUtils'
+import type { ApiSession, SessionListParams } from './types'
+
+// ============================================
+// Session CRUD
+// ============================================
 
 /**
- * 构建带 directory 的 URL
+ * GET /session - 获取 session 列表
+ * directory 会根据 pathMode 自动转换格式
  */
-function buildUrl(path: string, directory?: string, extraParams?: URLSearchParams): string {
-  const params = extraParams || new URLSearchParams()
-  if (directory) params.set('directory', directory)
-  const queryString = params.toString()
-  return `${API_BASE}${path}${queryString ? '?' + queryString : ''}`
-}
-
 export async function getSessions(params: SessionListParams = {}): Promise<ApiSession[]> {
-  const searchParams = new URLSearchParams()
-  
-  if (params.directory) searchParams.set('directory', params.directory)
-  if (params.roots !== undefined) searchParams.set('roots', String(params.roots))
-  if (params.start !== undefined) searchParams.set('start', String(params.start))
-  if (params.search) searchParams.set('search', params.search)
-  if (params.limit !== undefined) searchParams.set('limit', String(params.limit))
-
-  const url = `${API_BASE}/session${searchParams.toString() ? '?' + searchParams.toString() : ''}`
-  const response = await fetch(url)
-  
-  if (!response.ok) {
-    throw new Error(`Failed to fetch sessions: ${response.status}`)
-  }
-
-  return response.json()
+  const { directory, roots, start, search, limit } = params
+  return get<ApiSession[]>('/session', { 
+    directory: formatPathForApi(directory), 
+    roots, 
+    start, 
+    search, 
+    limit 
+  })
 }
 
+/**
+ * GET /session/{sessionID} - 获取单个 session
+ */
 export async function getSession(sessionId: string, directory?: string): Promise<ApiSession> {
-  const response = await fetch(buildUrl(`/session/${sessionId}`, directory))
-  
-  if (!response.ok) {
-    throw new Error(`Failed to fetch session: ${response.status}`)
-  }
-
-  return response.json()
+  return get<ApiSession>(`/session/${sessionId}`, { directory: formatPathForApi(directory) })
 }
 
+/**
+ * POST /session - 创建 session
+ */
 export async function createSession(params: {
   directory?: string
   title?: string
   parentID?: string
 } = {}): Promise<ApiSession> {
-  const { directory, ...body } = params
-  const queryParams = new URLSearchParams()
-  if (directory) queryParams.set('directory', directory)
-  
-  const url = `${API_BASE}/session${queryParams.toString() ? '?' + queryParams.toString() : ''}`
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  })
-  
-  if (!response.ok) {
-    throw new Error(`Failed to create session: ${response.status}`)
-  }
-
-  return response.json()
+  const { directory, title, parentID } = params
+  return post<ApiSession>('/session', { directory: formatPathForApi(directory) }, { title, parentID })
 }
 
-export async function updateSession(sessionId: string, params: {
-  title?: string
-  time?: { archived?: number }
-}, directory?: string): Promise<ApiSession> {
-  const response = await fetch(buildUrl(`/session/${sessionId}`, directory), {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(params),
-  })
-  
-  if (!response.ok) {
-    throw new Error(`Failed to update session: ${response.status}`)
-  }
-
-  return response.json()
+/**
+ * PATCH /session/{sessionID} - 更新 session
+ */
+export async function updateSession(
+  sessionId: string,
+  params: { title?: string; time?: { archived?: number } },
+  directory?: string
+): Promise<ApiSession> {
+  return patch<ApiSession>(`/session/${sessionId}`, { directory: formatPathForApi(directory) }, params)
 }
 
+/**
+ * DELETE /session/{sessionID} - 删除 session
+ */
 export async function deleteSession(sessionId: string, directory?: string): Promise<boolean> {
-  const response = await fetch(buildUrl(`/session/${sessionId}`, directory), {
-    method: 'DELETE',
-  })
-  
-  if (!response.ok) {
-    throw new Error(`Failed to delete session: ${response.status}`)
-  }
-
-  return response.json()
+  return del<boolean>(`/session/${sessionId}`, { directory: formatPathForApi(directory) })
 }
 
+// ============================================
+// Session Actions
+// ============================================
+
+/**
+ * POST /session/{sessionID}/abort - 中止 session
+ */
 export async function abortSession(sessionId: string, directory?: string): Promise<boolean> {
-  const response = await fetch(buildUrl(`/session/${sessionId}/abort`, directory), {
-    method: 'POST',
-  })
-
-  if (!response.ok) {
-    throw new Error(`Failed to abort session: ${response.status}`)
-  }
-
-  return response.json()
+  return post<boolean>(`/session/${sessionId}/abort`, { directory: formatPathForApi(directory) })
 }
 
+/**
+ * POST /session/{sessionID}/revert - 回退消息
+ */
 export async function revertMessage(
   sessionId: string,
   messageId: string,
@@ -121,52 +87,69 @@ export async function revertMessage(
   if (partId) {
     body.partID = partId
   }
-
-  const response = await fetch(buildUrl(`/session/${sessionId}/revert`, directory), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  })
-
-  if (!response.ok) {
-    throw new Error(`Failed to revert message: ${response.status}`)
-  }
-
-  return response.json()
+  return post<ApiSession>(`/session/${sessionId}/revert`, { directory: formatPathForApi(directory) }, body)
 }
 
+/**
+ * POST /session/{sessionID}/unrevert - 恢复已回退的消息
+ */
 export async function unrevertSession(sessionId: string, directory?: string): Promise<ApiSession> {
-  const response = await fetch(buildUrl(`/session/${sessionId}/unrevert`, directory), {
-    method: 'POST',
-  })
-
-  if (!response.ok) {
-    throw new Error(`Failed to unrevert session: ${response.status}`)
-  }
-
-  return response.json()
+  return post<ApiSession>(`/session/${sessionId}/unrevert`, { directory: formatPathForApi(directory) })
 }
 
+/**
+ * POST /session/{sessionID}/share - 分享 session
+ */
 export async function shareSession(sessionId: string, directory?: string): Promise<ApiSession> {
-  const response = await fetch(buildUrl(`/session/${sessionId}/share`, directory), {
-    method: 'POST',
-  })
-
-  if (!response.ok) {
-    throw new Error(`Failed to share session: ${response.status}`)
-  }
-
-  return response.json()
+  return post<ApiSession>(`/session/${sessionId}/share`, { directory: formatPathForApi(directory) })
 }
 
+/**
+ * DELETE /session/{sessionID}/share - 取消分享 session
+ */
 export async function unshareSession(sessionId: string, directory?: string): Promise<ApiSession> {
-  const response = await fetch(buildUrl(`/session/${sessionId}/share`, directory), {
-    method: 'DELETE',
-  })
+  return del<ApiSession>(`/session/${sessionId}/share`, { directory: formatPathForApi(directory) })
+}
 
-  if (!response.ok) {
-    throw new Error(`Failed to unshare session: ${response.status}`)
-  }
+/**
+ * POST /session/{sessionID}/fork - Fork session
+ */
+export async function forkSession(
+  sessionId: string,
+  messageId?: string,
+  directory?: string
+): Promise<ApiSession> {
+  return post<ApiSession>(`/session/${sessionId}/fork`, { directory: formatPathForApi(directory) }, { messageID: messageId })
+}
 
-  return response.json()
+/**
+ * POST /session/{sessionID}/summarize - 总结 session
+ */
+export async function summarizeSession(
+  sessionId: string,
+  params: { providerID: string; modelID: string; auto?: boolean },
+  directory?: string
+): Promise<boolean> {
+  return post<boolean>(`/session/${sessionId}/summarize`, { directory: formatPathForApi(directory) }, params)
+}
+
+/**
+ * GET /session/{sessionID}/children - 获取子 session
+ */
+export async function getSessionChildren(sessionId: string, directory?: string): Promise<ApiSession[]> {
+  return get<ApiSession[]>(`/session/${sessionId}/children`, { directory: formatPathForApi(directory) })
+}
+
+/**
+ * GET /session/{sessionID}/todo - 获取 session 的 todo 列表
+ */
+export interface ApiTodo {
+  id: string
+  content: string
+  status: 'pending' | 'in_progress' | 'completed' | 'cancelled'
+  priority: 'high' | 'medium' | 'low'
+}
+
+export async function getSessionTodos(sessionId: string, directory?: string): Promise<ApiTodo[]> {
+  return get<ApiTodo[]>(`/session/${sessionId}/todo`, { directory: formatPathForApi(directory) })
 }

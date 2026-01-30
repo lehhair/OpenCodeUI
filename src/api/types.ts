@@ -1,500 +1,112 @@
 // ============================================
-// API Types - 所有 API 相关的类型定义
+// API Types - 向后兼容层
 // ============================================
-
-export const API_BASE = 'http://127.0.0.1:4096'
-
-// ============================================
-// Model Types
-// ============================================
-
-export interface ApiModel {
-  id: string
-  providerID: string
-  name: string
-  family: string
-  status: 'active' | 'disabled' | 'unavailable'
-  limit: {
-    context: number
-    output: number
-  }
-  capabilities: {
-    temperature: boolean
-    reasoning: boolean
-    attachment: boolean
-    toolcall: boolean
-    input: {
-      text: boolean
-      audio: boolean
-      image: boolean
-      video: boolean
-      pdf: boolean
-    }
-    output: {
-      text: boolean
-      audio: boolean
-      image: boolean
-      video: boolean
-      pdf: boolean
-    }
-  }
-  variants?: Record<string, Record<string, unknown>>
-}
-
-export interface ApiProvider {
-  id: string
-  name: string
-  source: string
-  models: Record<string, ApiModel>
-}
-
-export interface ProvidersResponse {
-  providers: ApiProvider[]
-  default: Record<string, string>
-}
-
-export interface ModelInfo {
-  id: string
-  name: string
-  providerId: string
-  providerName: string
-  family: string
-  contextLimit: number
-  outputLimit: number
-  supportsReasoning: boolean
-  supportsImages: boolean
-  supportsToolcall: boolean
-  variants: string[]
-}
+//
+// 此文件从 types/api/ 重新导出所有类型，保持向后兼容
+// 新代码应该直接从 @/types 或 @/types/api 导入
+//
 
 // ============================================
-// Agent Types
+// Re-export from types/api
 // ============================================
 
-export interface ApiAgentPermission {
-  permission: string
-  action: 'allow' | 'ask' | 'deny'
-  pattern: string
-}
+// Common types
+export type {
+  TimeInfo,
+  TokenUsage,
+  ModelRef,
+  PathInfo,
+  ErrorInfo,
+  TextRange,
+  BadRequestError,
+  NotFoundError,
+} from '../types/api/common'
 
-export interface ApiAgent {
-  name: string
-  description?: string
-  mode: 'subagent' | 'primary' | 'all'
-  native?: boolean
-  hidden?: boolean
-  temperature?: number
-  topP?: number
-  color?: string
-  prompt?: string
-  permission?: ApiAgentPermission[]
-  options?: Record<string, unknown>
-  model?: {
-    modelID: string
-    providerID: string
-  }
-}
+// Model types - with aliases for backward compatibility
+export type {
+  Model as ApiModel,
+  Provider as ApiProvider,
+  ProvidersResponse,
+} from '../types/api/model'
 
-// ============================================
-// Project Types
-// ============================================
+// Project types - with aliases
+export type {
+  Project as ApiProject,
+  PathResponse as ApiPath,
+} from '../types/api/project'
 
-export interface ApiProject {
-  id: string
-  worktree: string
-  vcs?: 'git'
-  name?: string
-  icon?: {
-    url?: string
-    override?: string
-    color?: string
-  }
-  time: {
-    created: number
-    updated: number
-    initialized?: number
-  }
-  sandboxes: string[]
-}
+// Session types - with aliases
+export type {
+  Session as ApiSession,
+  SessionListParams,
+  SessionRevert as SessionRevertState,
+} from '../types/api/session'
 
-// ============================================
-// Path Types
-// ============================================
+// Message types - with aliases
+export type {
+  Message as ApiMessage,
+  UserMessage as ApiUserMessage,
+  AssistantMessage as ApiAssistantMessage,
+  MessageWithParts as ApiMessageWithParts,
+  Part as ApiPart,
+  TextPart as ApiTextPart,
+  ReasoningPart as ApiReasoningPart,
+  ToolPart as ApiToolPart,
+  FilePart as ApiFilePart,
+  AgentPart as ApiAgentPart,
+  StepStartPart as ApiStepStartPart,
+  StepFinishPart as ApiStepFinishPart,
+  SnapshotPart as ApiSnapshotPart,
+  PatchPart as ApiPatchPart,
+  RetryPart as ApiRetryPart,
+  CompactionPart as ApiCompactionPart,
+  SubtaskPart as ApiSubtaskPart,
+} from '../types/api/message'
 
-export interface ApiPath {
-  home: string
-  state: string
-  config: string
-  worktree: string
-  directory: string
-}
+// Permission types - with aliases
+export type {
+  PermissionRequest as ApiPermissionRequest,
+  PermissionReply,
+  QuestionOption as ApiQuestionOption,
+  QuestionInfo as ApiQuestionInfo,
+  QuestionRequest as ApiQuestionRequest,
+  QuestionAnswer,
+} from '../types/api/permission'
 
-// ============================================
-// Session Types
-// ============================================
+// File types
+export type {
+  FileNode,
+  FileDiff,
+  Symbol as SymbolInfo,
+} from '../types/api/file'
 
-export interface ApiSession {
-  id: string
-  slug?: string
-  projectID: string
-  directory: string
-  parentID?: string
-  title: string
-  time: {
-    created: number
-    updated: number
-    archived?: number
-  }
-  summary?: {
-    additions: number
-    deletions: number
-    files: number
-  }
-  share?: {
-    url: string
-  }
-  revert?: {
-    messageID: string
-    partID?: string
-    snapshot?: string
-    diff?: string
-  }
-}
+// Agent types - with aliases
+export type {
+  Agent as ApiAgent,
+  AgentPermission as ApiAgentPermission,
+} from '../types/api/agent'
 
-export interface SessionListParams {
-  directory?: string
-  roots?: boolean
-  start?: number
-  search?: string
-  limit?: number
-}
-
-export interface SessionRevertState {
-  messageID: string
-  partID?: string
-  snapshot?: string
-  diff?: string
-}
+// Event types
+export type {
+  GlobalEvent,
+  EventCallbacks,
+} from '../types/api/event'
 
 // ============================================
-// Message Types
+// UI Types (from types/ui.ts)
 // ============================================
 
-export interface ApiUserMessage {
-  id: string
-  sessionID: string
-  role: 'user'
-  time: { created: number }
-  agent: string
-  model: { providerID: string; modelID: string }
-  variant?: string
-  summary?: { title?: string; body?: string }
-}
-
-export interface ApiAssistantMessage {
-  id: string
-  sessionID: string
-  role: 'assistant'
-  time: { created: number; completed?: number }
-  parentID: string
-  modelID: string
-  providerID: string
-  mode: string
-  agent: string
-  path: { cwd: string; root: string }
-  cost: number
-  tokens: {
-    input: number
-    output: number
-    reasoning: number
-    cache: { read: number; write: number }
-  }
-  error?: { name: string; data: unknown }
-  finish?: string
-}
-
-export type ApiMessage = ApiUserMessage | ApiAssistantMessage
+export type {
+  ModelInfo,
+  Attachment,
+  AttachmentType,
+} from '../types/ui'
 
 // ============================================
-// Part Types
+// Send Message Types (kept here for now)
 // ============================================
 
-export interface ApiTextPart {
-  id: string
-  sessionID: string
-  messageID: string
-  type: 'text'
-  text: string
-  synthetic?: boolean
-  time?: { start: number; end?: number }
-}
-
-export interface ApiReasoningPart {
-  id: string
-  sessionID: string
-  messageID: string
-  type: 'reasoning'
-  text: string
-  time: { start: number; end?: number }
-}
-
-export interface ApiToolPart {
-  id: string
-  sessionID: string
-  messageID: string
-  type: 'tool'
-  callID: string
-  tool: string
-  state: {
-    status: 'pending' | 'running' | 'completed' | 'error'
-    input?: unknown
-    output?: unknown
-    title?: string
-    time?: { start: number; end?: number }
-    error?: { name: string; data: unknown }
-    metadata?: Record<string, unknown>
-  }
-}
-
-export interface ApiFilePart {
-  id: string
-  sessionID: string
-  messageID: string
-  type: 'file'
-  mime: string
-  filename?: string
-  url: string
-  source?: {
-    text?: { value: string; start: number; end: number }
-    type?: string
-    path?: string
-  }
-}
-
-export interface ApiAgentPart {
-  id: string
-  sessionID: string
-  messageID: string
-  type: 'agent'
-  name: string
-  source?: { value: string; start: number; end: number }
-}
-
-export interface ApiStepStartPart {
-  id: string
-  sessionID: string
-  messageID: string
-  type: 'step-start'
-  snapshot?: string
-}
-
-export interface ApiStepFinishPart {
-  id: string
-  sessionID: string
-  messageID: string
-  type: 'step-finish'
-  reason: string
-  snapshot?: string
-  cost: number
-  tokens: {
-    input: number
-    output: number
-    reasoning: number
-    cache: { read: number; write: number }
-  }
-}
-
-export interface ApiSnapshotPart {
-  id: string
-  sessionID: string
-  messageID: string
-  type: 'snapshot'
-  snapshot: string
-}
-
-export interface ApiPatchPart {
-  id: string
-  sessionID: string
-  messageID: string
-  type: 'patch'
-  hash: string
-  files: string[]
-}
-
-export interface ApiRetryPart {
-  id: string
-  sessionID: string
-  messageID: string
-  type: 'retry'
-  attempt: number
-  error: { name: string; data: unknown }
-  time: { created: number }
-}
-
-export interface ApiCompactionPart {
-  id: string
-  sessionID: string
-  messageID: string
-  type: 'compaction'
-  auto?: boolean
-}
-
-export interface ApiSubtaskPart {
-  id: string
-  sessionID: string
-  messageID: string
-  type: 'subtask'
-  prompt: string
-  description: string
-  agent: string
-  model?: { providerID: string; modelID: string }
-  command?: string
-}
-
-export type ApiPart = 
-  | ApiTextPart 
-  | ApiReasoningPart 
-  | ApiToolPart 
-  | ApiFilePart 
-  | ApiAgentPart
-  | ApiStepStartPart 
-  | ApiStepFinishPart
-  | ApiSnapshotPart
-  | ApiPatchPart
-  | ApiRetryPart
-  | ApiCompactionPart
-  | ApiSubtaskPart
-  | { type: string; [key: string]: unknown }
-
-export interface ApiMessageWithParts {
-  info: ApiMessage
-  parts: ApiPart[]
-}
-
-// ============================================
-// Permission Types
-// ============================================
-
-export interface ApiPermissionRequest {
-  id: string
-  sessionID: string
-  permission: string
-  patterns: string[]
-  metadata: Record<string, unknown>
-  always: string[]
-  tool?: {
-    messageID: string
-    callID: string
-  }
-}
-
-export type PermissionReply = 'once' | 'always' | 'reject'
-
-// ============================================
-// Question Types
-// ============================================
-
-export interface ApiQuestionOption {
-  label: string
-  description: string
-}
-
-export interface ApiQuestionInfo {
-  question: string
-  header: string
-  options: ApiQuestionOption[]
-  multiple?: boolean
-  custom?: boolean
-}
-
-export interface ApiQuestionRequest {
-  id: string
-  sessionID: string
-  questions: ApiQuestionInfo[]
-  tool?: {
-    messageID: string
-    callID: string
-  }
-}
-
-export type QuestionAnswer = string[]
-
-// ============================================
-// File Types
-// ============================================
-
-export interface FileNode {
-  name: string
-  type: 'file' | 'directory'
-  size?: number
-  modified?: number
-}
-
-export interface FileDiff {
-  file: string
-  before: string
-  after: string
-  additions: number
-  deletions: number
-}
-
-export interface SymbolInfo {
-  name: string
-  kind: number
-  location: {
-    uri: string
-    range: {
-      start: { line: number; character: number }
-      end: { line: number; character: number }
-    }
-  }
-  containerName?: string
-}
-
-// ============================================
-// Event Types
-// ============================================
-
-export interface GlobalEvent {
-  directory: string
-  payload: {
-    type: string
-    properties: unknown
-  }
-}
-
-export interface EventCallbacks {
-  onMessageUpdated?: (message: ApiMessage) => void
-  onPartUpdated?: (part: ApiPart) => void
-  onPartRemoved?: (data: { id: string; messageID: string; sessionID: string }) => void
-  onSessionUpdated?: (session: ApiSession) => void
-  onSessionCreated?: (session: ApiSession) => void
-  onSessionError?: (error: { sessionID: string; name: string; data: unknown }) => void
-  onSessionIdle?: (data: { sessionID: string }) => void
-  onPermissionAsked?: (request: ApiPermissionRequest) => void
-  onPermissionReplied?: (data: { sessionID: string; requestID: string; reply: PermissionReply }) => void
-  onQuestionAsked?: (request: ApiQuestionRequest) => void
-  onQuestionReplied?: (data: { sessionID: string; requestID: string; answers: QuestionAnswer[] }) => void
-  onQuestionRejected?: (data: { sessionID: string; requestID: string }) => void
-  onError?: (error: Error) => void
-}
-
-// ============================================
-// Send Message Types
-// ============================================
-
-import type { Attachment } from '../components/Attachment'
-
-export type { Attachment } from '../components/Attachment'
-
-/**
- * @deprecated 使用 Attachment 代替
- */
-export interface FileAttachment {
-  mime: string
-  url: string
-  filename?: string
-}
+import type { Attachment } from '../types/ui'
 
 export interface RevertedMessage {
   text: string
@@ -516,6 +128,6 @@ export interface SendMessageParams {
 }
 
 export interface SendMessageResponse {
-  info: ApiAssistantMessage
-  parts: ApiPart[]
+  info: import('../types/api/message').AssistantMessage
+  parts: import('../types/api/message').Part[]
 }

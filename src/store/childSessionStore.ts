@@ -58,12 +58,6 @@ class ChildSessionStore {
   registerChildSession(session: ApiSession) {
     if (!session.parentID) return // 不是子 session
 
-    console.log('[ChildSessionStore] Registering child session:', {
-      id: session.id,
-      parentID: session.parentID,
-      title: session.title,
-    })
-
     // 添加到 parent -> children 映射
     let children = this.childrenByParent.get(session.parentID)
     if (!children) {

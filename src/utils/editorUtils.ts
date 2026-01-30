@@ -1,4 +1,4 @@
-import type { Attachment } from '../components/Attachment'
+import type { Attachment } from '../features/attachment'
 
 // ============================================
 // DOM Helpers for ContentEditable

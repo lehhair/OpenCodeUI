@@ -1,51 +1,50 @@
 // ============================================
 // Message API Functions
+// 基于 OpenAPI: /session/{sessionID}/message 相关接口
 // ============================================
 
-import {
-  API_BASE,
-  type ApiMessageWithParts,
-  type ApiTextPart,
-  type ApiFilePart,
-  type ApiAgentPart,
-  type Attachment,
-  type RevertedMessage,
-  type SendMessageParams,
-  type SendMessageResponse,
+import { get, post } from './http'
+import { formatPathForApi } from '../utils/directoryUtils'
+import type {
+  ApiMessageWithParts,
+  ApiTextPart,
+  ApiFilePart,
+  ApiAgentPart,
+  Attachment,
+  RevertedMessage,
+  SendMessageParams,
+  SendMessageResponse,
 } from './types'
 
-/**
- * 构建带 directory 的 URL
- */
-function buildUrl(path: string, directory?: string, extraParams?: URLSearchParams): string {
-  const params = extraParams || new URLSearchParams()
-  if (directory) params.set('directory', directory)
-  const queryString = params.toString()
-  return `${API_BASE}${path}${queryString ? '?' + queryString : ''}`
-}
+// ============================================
+// Message Query
+// ============================================
 
+/**
+ * GET /session/{sessionID}/message - 获取 session 的消息列表
+ */
 export async function getSessionMessages(
   sessionId: string, 
   limit?: number,
   directory?: string
 ): Promise<ApiMessageWithParts[]> {
-  const params = new URLSearchParams()
-  if (limit !== undefined) params.set('limit', String(limit))
-  
-  const url = buildUrl(`/session/${sessionId}/message`, directory, params)
-  const response = await fetch(url)
-  
-  if (!response.ok) {
-    throw new Error(`Failed to fetch messages: ${response.status}`)
-  }
-
-  return response.json()
+  return get<ApiMessageWithParts[]>(`/session/${sessionId}/message`, { 
+    directory: formatPathForApi(directory), 
+    limit 
+  })
 }
 
+/**
+ * 获取 session 的消息数量
+ */
 export async function getSessionMessageCount(sessionId: string): Promise<number> {
   const messages = await getSessionMessages(sessionId)
   return messages.length
 }
+
+// ============================================
+// Message Content Extraction
+// ============================================
 
 /**
  * 从 API 消息中提取用户消息内容（文本+附件）
@@ -94,6 +93,10 @@ export function extractUserMessageContent(apiMessage: ApiMessageWithParts): Reve
   return { text, attachments }
 }
 
+// ============================================
+// Send Message
+// ============================================
+
 /**
  * 构建 file:// URL
  */
@@ -118,16 +121,21 @@ function toFileUrl(path: string): string {
   return `file:///${normalized}`
 }
 
+/**
+ * POST /session/{sessionID}/message - 发送消息
+ */
 export async function sendMessage(params: SendMessageParams): Promise<SendMessageResponse> {
   const { sessionId, text, attachments, model, agent, variant, directory } = params
 
   const parts: Array<{ type: string; [key: string]: unknown }> = []
   
+  // 文本 part
   parts.push({
     type: 'text',
     text,
   })
   
+  // 附件 parts
   for (const attachment of attachments) {
     if (attachment.type === 'agent') {
       parts.push({
@@ -177,36 +185,7 @@ export async function sendMessage(params: SendMessageParams): Promise<SendMessag
     requestBody.variant = variant
   }
 
-  const url = buildUrl(`/session/${sessionId}/message`, directory)
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: { 
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(requestBody),
-  })
-
-  if (!response.ok) {
-    let errorMsg = `Failed to send message: ${response.status}`
-    try {
-      const errorText = await response.text()
-      if (errorText) {
-        errorMsg += ` - ${errorText}`
-      }
-    } catch {
-      // 忽略读取错误
-    }
-    throw new Error(errorMsg)
-  }
-
-  const responseText = await response.text()
-  if (!responseText) {
-    throw new Error('Failed to send message: Empty response from server')
-  }
-  
-  try {
-    return JSON.parse(responseText)
-  } catch {
-    throw new Error(`Failed to send message: Invalid JSON response - ${responseText.slice(0, 100)}`)
-  }
+  return post<SendMessageResponse>(`/session/${sessionId}/message`, { 
+    directory: formatPathForApi(directory) 
+  }, requestBody)
 }

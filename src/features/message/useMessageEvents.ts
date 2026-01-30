@@ -135,8 +135,8 @@ export function useSessionEvents(
         if (error.sessionID !== currentSessionIdRef.current) return
 
         const isAbort = error.name === 'MessageAbortedError' || error.name === 'AbortError'
-        if (!isAbort) {
-          console.error('Session error:', error)
+        if (!isAbort && import.meta.env.DEV) {
+          console.warn('[MessageEvents] Session error:', error)
         }
 
         callbacksRef.current.setMessages(prev => prev.map(m =>
@@ -145,8 +145,8 @@ export function useSessionEvents(
         callbacksRef.current.setIsIdle(true)
       },
 
-      onSessionUpdated: (session) => {
-        console.log('Session updated:', session.id, session.title)
+      onSessionUpdated: () => {
+        // Session title 更新等事件，暂不需要处理
       },
 
       // 权限请求

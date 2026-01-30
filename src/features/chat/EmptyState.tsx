@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { getPath, type ApiProject, type ApiPath } from '../../api'
+import { handleError } from '../../utils'
 
 interface EmptyStateProps {
   currentProject: ApiProject | null
@@ -21,7 +22,7 @@ export function EmptyState({
 
   // 获取当前路径信息
   useEffect(() => {
-    getPath().then(setPathInfo).catch(console.error)
+    getPath().then(setPathInfo).catch(handleError('get path', 'api'))
   }, [])
 
   // 点击外部关闭下拉

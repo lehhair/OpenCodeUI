@@ -5,6 +5,7 @@
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react'
 import { getPath, type ApiPath } from '../api'
 import { useRouter } from '../hooks/useRouter'
+import { handleError, normalizeToForwardSlash, getDirectoryName, isSameDirectory } from '../utils'
 
 export interface SavedDirectory {
   path: string
@@ -58,7 +59,7 @@ export function DirectoryProvider({ children }: { children: ReactNode }) {
 
   // 加载路径信息
   useEffect(() => {
-    getPath().then(setPathInfo).catch(console.error)
+    getPath().then(setPathInfo).catch(handleError('get path info', 'api'))
   }, [])
 
   // 保存 savedDirectories 到 localStorage
@@ -73,19 +74,17 @@ export function DirectoryProvider({ children }: { children: ReactNode }) {
 
   // 添加目录
   const addDirectory = useCallback((path: string) => {
-    const normalized = path.replace(/\\/g, '/')
+    const normalized = normalizeToForwardSlash(path)
     
-    if (savedDirectories.some(d => d.path === normalized)) {
+    // 使用 isSameDirectory 检查是否已存在（处理大小写和斜杠差异）
+    if (savedDirectories.some(d => isSameDirectory(d.path, normalized))) {
       setCurrentDirectory(normalized)
       return
     }
     
-    const parts = normalized.split('/').filter(Boolean)
-    const name = parts[parts.length - 1] || normalized
-    
     const newDir: SavedDirectory = {
       path: normalized,
-      name,
+      name: getDirectoryName(normalized),
       addedAt: Date.now(),
     }
     
@@ -95,8 +94,9 @@ export function DirectoryProvider({ children }: { children: ReactNode }) {
 
   // 移除目录
   const removeDirectory = useCallback((path: string) => {
-    setSavedDirectories(prev => prev.filter(d => d.path !== path))
-    if (urlDirectory === path) {
+    const normalized = normalizeToForwardSlash(path)
+    setSavedDirectories(prev => prev.filter(d => !isSameDirectory(d.path, normalized)))
+    if (isSameDirectory(urlDirectory, normalized)) {
       setCurrentDirectory(undefined)
     }
   }, [urlDirectory, setCurrentDirectory])

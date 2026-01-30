@@ -91,20 +91,9 @@ export function useGlobalEvents(callbacks?: GlobalEventsCallbacks) {
       },
 
       onPartUpdated: (apiPart: ApiPart) => {
-        console.log('[GlobalEvents] onPartUpdated received:', {
-          id: apiPart.id,
-          type: apiPart.type,
-          hasSessionID: 'sessionID' in apiPart,
-          hasMessageID: 'messageID' in apiPart,
-          sessionID: (apiPart as any).sessionID,
-          messageID: (apiPart as any).messageID,
-        })
-        
         if ('sessionID' in apiPart && 'messageID' in apiPart) {
           messageStore.handlePartUpdated(apiPart as ApiPart & { sessionID: string; messageID: string })
           scheduleScroll()
-        } else {
-          console.warn('[GlobalEvents] Part missing sessionID or messageID, skipping')
         }
       },
 
@@ -117,7 +106,6 @@ export function useGlobalEvents(callbacks?: GlobalEventsCallbacks) {
       // ============================================
 
       onSessionCreated: (session) => {
-        console.log('[GlobalEvents] Session created:', session.id, 'parentID:', session.parentID)
         // 注册子 session 关系
         if (session.parentID) {
           childSessionStore.registerChildSession(session)
@@ -125,7 +113,6 @@ export function useGlobalEvents(callbacks?: GlobalEventsCallbacks) {
           // 处理因时序问题缓存的权限请求
           const pendingPermission = pendingPermissions.get(session.id)
           if (pendingPermission && belongsToCurrentSession(session.id)) {
-            console.log('[GlobalEvents] Processing delayed permission for session:', session.id)
             callbacksRef.current?.onPermissionAsked?.(pendingPermission.request)
             pendingPermissions.delete(session.id)
           }
@@ -133,7 +120,6 @@ export function useGlobalEvents(callbacks?: GlobalEventsCallbacks) {
           // 处理因时序问题缓存的问题请求
           const pendingQuestion = pendingQuestions.get(session.id)
           if (pendingQuestion && belongsToCurrentSession(session.id)) {
-            console.log('[GlobalEvents] Processing delayed question for session:', session.id)
             callbacksRef.current?.onQuestionAsked?.(pendingQuestion.request)
             pendingQuestions.delete(session.id)
           }
@@ -152,17 +138,16 @@ export function useGlobalEvents(callbacks?: GlobalEventsCallbacks) {
 
       onSessionError: (error) => {
         const isAbort = error.name === 'MessageAbortedError' || error.name === 'AbortError'
-        if (!isAbort) {
-          console.error('[GlobalEvents] Session error:', error)
+        if (!isAbort && import.meta.env.DEV) {
+          console.warn('[GlobalEvents] Session error:', error)
         }
         messageStore.handleSessionError(error.sessionID)
         // 更新子 session 状态
         childSessionStore.markError(error.sessionID)
       },
 
-      onSessionUpdated: (session) => {
+      onSessionUpdated: (_session) => {
         // 可以在这里更新 session 标题等信息
-        console.log('[GlobalEvents] Session updated:', session.id, session.title)
       },
 
       // ============================================
@@ -178,7 +163,6 @@ export function useGlobalEvents(callbacks?: GlobalEventsCallbacks) {
         } else {
           // 可能是子 session 的请求先于 session.created 到达
           // 缓存它，等 session 注册后处理
-          console.log('[GlobalEvents] Caching permission request for unregistered session:', request.sessionID)
           pendingPermissions.set(request.sessionID, {
             request,
             timestamp: Date.now(),
@@ -205,7 +189,6 @@ export function useGlobalEvents(callbacks?: GlobalEventsCallbacks) {
           callbacksRef.current?.onQuestionAsked?.(request)
         } else {
           // 缓存未注册 session 的请求
-          console.log('[GlobalEvents] Caching question request for unregistered session:', request.sessionID)
           pendingQuestions.set(request.sessionID, {
             request,
             timestamp: Date.now(),

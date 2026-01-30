@@ -14,6 +14,7 @@ import {
   type PermissionReply,
   type QuestionAnswer,
 } from '../api'
+import { permissionErrorHandler } from '../utils'
 
 export interface UsePermissionHandlerResult {
   // State
@@ -87,10 +88,9 @@ export function usePermissionHandler(): UsePermissionHandlerResult {
       
       // 成功后从列表移除
       setPendingPermissionRequests(prev => prev.filter(r => r.id !== requestId))
-      console.log(`[Permission] Replied ${reply} to ${requestId}`)
       return true
     } catch (error) {
-      console.error('[Permission] Failed to reply after retries:', error)
+      permissionErrorHandler('reply after retries', error)
       
       // 即使失败也从列表移除，避免卡住 UI
       // 用户可以通过刷新重新获取
@@ -118,10 +118,9 @@ export function usePermissionHandler(): UsePermissionHandlerResult {
     try {
       await withRetry(() => replyQuestion(requestId, answers, directory))
       setPendingQuestionRequests(prev => prev.filter(r => r.id !== requestId))
-      console.log(`[Question] Replied to ${requestId}`)
       return true
     } catch (error) {
-      console.error('[Question] Failed to reply after retries:', error)
+      permissionErrorHandler('question reply after retries', error)
       setPendingQuestionRequests(prev => prev.filter(r => r.id !== requestId))
       return false
     } finally {
@@ -144,10 +143,9 @@ export function usePermissionHandler(): UsePermissionHandlerResult {
     try {
       await withRetry(() => rejectQuestion(requestId, directory))
       setPendingQuestionRequests(prev => prev.filter(r => r.id !== requestId))
-      console.log(`[Question] Rejected ${requestId}`)
       return true
     } catch (error) {
-      console.error('[Question] Failed to reject after retries:', error)
+      permissionErrorHandler('question reject after retries', error)
       setPendingQuestionRequests(prev => prev.filter(r => r.id !== requestId))
       return false
     } finally {
@@ -187,24 +185,16 @@ export function usePermissionHandler(): UsePermissionHandlerResult {
       setPendingPermissionRequests(prev => {
         const existingIds = new Set(prev.map(r => r.id))
         const newRequests = allPermissions.filter(r => !existingIds.has(r.id))
-        if (newRequests.length > 0) {
-          console.log(`[Permission] Found ${newRequests.length} new pending requests`)
-          return [...prev, ...newRequests]
-        }
-        return prev
+        return newRequests.length > 0 ? [...prev, ...newRequests] : prev
       })
       
       setPendingQuestionRequests(prev => {
         const existingIds = new Set(prev.map(r => r.id))
         const newRequests = allQuestions.filter(r => !existingIds.has(r.id))
-        if (newRequests.length > 0) {
-          console.log(`[Question] Found ${newRequests.length} new pending requests`)
-          return [...prev, ...newRequests]
-        }
-        return prev
+        return newRequests.length > 0 ? [...prev, ...newRequests] : prev
       })
     } catch (error) {
-      console.error('[Permission] Failed to refresh pending requests:', error)
+      permissionErrorHandler('refresh pending requests', error)
     }
   }, [])
 

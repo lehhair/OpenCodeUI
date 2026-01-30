@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { AttachmentPreview, type Attachment, getMentionText } from '../../components/Attachment'
+import { AttachmentPreview, type Attachment, getMentionText } from '../attachment'
 import { MentionMenu, detectMentionTrigger, type MentionMenuHandle, type MentionItem } from '../mention'
 import { getEditorText, getTagRanges, getCursorPosition, setCursorPosition, rebuildEditorWithText, syncAttachmentsFromEditor } from '../../utils/editorUtils'
 import { InputToolbar } from './input/InputToolbar'

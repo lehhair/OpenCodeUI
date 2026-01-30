@@ -6,23 +6,9 @@ export function getInitials(name: string): string {
   return (parts[0][0] + parts[1][0]).toUpperCase()
 }
 
-/**
- * 规范化目录路径用于比较
- * - 统一使用正斜杠
- * - 移除末尾斜杠
- * - 转小写（Windows 路径不区分大小写）
- */
-export function normalizeDirectoryPath(dir: string | undefined | null): string {
-  if (!dir) return ''
-  return dir
-    .replace(/\\/g, '/')  // 反斜杠 → 正斜杠
-    .replace(/\/+$/, '')  // 移除末尾斜杠
-    .toLowerCase()        // Windows 路径不区分大小写
-}
-
-/**
- * 比较两个目录路径是否相同
- */
-export function isSameDirectory(dir1: string | undefined | null, dir2: string | undefined | null): boolean {
-  return normalizeDirectoryPath(dir1) === normalizeDirectoryPath(dir2)
-}
+// 目录路径工具已移至 directoryUtils.ts
+// 保持向后兼容的 re-export
+export { 
+  normalizeForComparison as normalizeDirectoryPath,
+  isSameDirectory,
+} from './directoryUtils'

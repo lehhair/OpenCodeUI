@@ -18,6 +18,7 @@ import {
   type ApiMessageWithParts,
   type ApiUserMessage,
 } from '../api'
+import { sessionErrorHandler } from '../utils'
 
 const INITIAL_MESSAGE_LIMIT = 20
 
@@ -57,7 +58,6 @@ export function useSessionManager({
     
     // 如果已经有消息且正在 streaming，跳过加载避免覆盖 SSE 数据
     if (hasExistingMessages && existingState.isStreaming) {
-      console.log('[SessionManager] Skipping load - session already has messages and is streaming')
       loadingRef.current = false
       onLoadComplete?.()
       return
@@ -76,7 +76,6 @@ export function useSessionManager({
       const currentState = messageStore.getSessionState(sid)
       if (currentState && currentState.messages.length > apiMessages.length) {
         // SSE 推送的消息比 API 返回的多，说明有新消息，跳过覆盖
-        console.log('[SessionManager] Skipping setMessages - SSE has newer data')
         messageStore.setLoadState(sid, 'loaded')
         onLoadComplete?.()
         loadingRef.current = false
@@ -93,7 +92,7 @@ export function useSessionManager({
 
       onLoadComplete?.()
     } catch (error) {
-      console.error('[SessionManager] Load session failed:', error)
+      sessionErrorHandler('load session', error)
       messageStore.setLoadState(sid, 'error')
       onError?.(error instanceof Error ? error : new Error(String(error)))
     } finally {
@@ -148,7 +147,7 @@ export function useSessionManager({
 
       messageStore.prependMessages(sessionId, newMessages, hasMore)
     } catch (error) {
-      console.error('[SessionManager] Load more history failed:', error)
+      sessionErrorHandler('load more history', error)
     }
   }, [sessionId])
 
@@ -200,7 +199,7 @@ export function useSessionManager({
       }
       messageStore.setRevertState(sessionId, revertState)
     } catch (error) {
-      console.error('[SessionManager] Undo failed:', error)
+      sessionErrorHandler('undo', error)
     }
   }, [sessionId])
 
@@ -238,7 +237,7 @@ export function useSessionManager({
         messageStore.setRevertState(sessionId, null)
       }
     } catch (error) {
-      console.error('[SessionManager] Redo failed:', error)
+      sessionErrorHandler('redo', error)
     }
   }, [sessionId])
 
@@ -256,7 +255,7 @@ export function useSessionManager({
       await unrevertSession(sessionId, dir)
       messageStore.setRevertState(sessionId, null)
     } catch (error) {
-      console.error('[SessionManager] Redo all failed:', error)
+      sessionErrorHandler('redo all', error)
     }
   }, [sessionId])
 

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { listDirectory, getPath } from '../../api'
+import { fileErrorHandler } from '../../utils'
 
 // ============================================
 // Types
@@ -141,7 +142,7 @@ export function ProjectDialog({ isOpen, onClose, onSelect, initialPath = '' }: P
         }
       })
       .catch(err => {
-        console.error(err)
+        fileErrorHandler('list directory', err)
         setError(err.message)
         setItems([])
       })

@@ -1,4 +1,4 @@
-import { FileIcon, FolderIcon, AgentIcon, ImageIcon, TerminalIcon } from '../Icons'
+import { FileIcon, FolderIcon, AgentIcon, ImageIcon, TerminalIcon } from '../../components/Icons'
 import type { Attachment } from './types'
 
 /**

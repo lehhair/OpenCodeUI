@@ -4,6 +4,7 @@ import { ChevronDownIcon } from './Icons'
 import { clsx } from 'clsx'
 import { useSyntaxHighlight } from '../hooks/useSyntaxHighlight'
 import { detectLanguage } from '../utils/languageUtils'
+import { syntaxErrorHandler } from '../utils'
 
 interface DiffViewProps {
   /** Unified diff format string */
@@ -166,7 +167,7 @@ function useHighlightedDiff(before: string, after: string, language: string) {
         })
 
     } catch (err) {
-        console.error('Diff highlighting failed:', err)
+        syntaxErrorHandler('diff highlighting', err)
     }
   }, [before, after, oldTokens, newTokens])
 

@@ -1,20 +1,25 @@
 // ============================================
 // API Client for OpenCode Backend
+// 基于 OpenAPI: /config, /project, /provider 相关接口
 // ============================================
 
-import {
-  API_BASE,
-  type ProvidersResponse,
-  type ModelInfo,
-  type ApiProject,
-  type ApiPath,
+import { get, patch } from './http'
+import { formatPathForApi } from '../utils/directoryUtils'
+import type {
+  ProvidersResponse,
+  ModelInfo,
+  ApiProject,
+  ApiPath,
 } from './types'
+
+// Re-export API_BASE for backward compatibility
+export { API_BASE } from './http'
 
 // Re-export all types
 export * from './types'
 
-// Re-export from Attachment component
-export { fromFilePart, fromAgentPart } from '../components/Attachment'
+// Re-export from Attachment feature
+export { fromFilePart, fromAgentPart } from '../features/attachment'
 
 // Re-export from sub-modules
 export * from './session'
@@ -23,18 +28,25 @@ export * from './permission'
 export * from './file'
 export * from './agent'
 export * from './events'
+export * from './config'
+export * from './vcs'
+export * from './mcp'
+export * from './pty'
+export * from './worktree'
+export * from './command'
+export * from './global'
+export * from './tool'
+export * from './lsp'
 
 // ============================================
 // Model API Functions
+// 基于 OpenAPI: GET /config/providers
 // ============================================
 
-export async function getActiveModels(): Promise<ModelInfo[]> {
-  const response = await fetch(`${API_BASE}/config/providers`)
-  if (!response.ok) {
-    throw new Error(`Failed to fetch providers: ${response.status}`)
-  }
-
-  const data: ProvidersResponse = await response.json()
+export async function getActiveModels(directory?: string): Promise<ModelInfo[]> {
+  const data = await get<ProvidersResponse>('/config/providers', { 
+    directory: formatPathForApi(directory) 
+  })
   const models: ModelInfo[] = []
 
   for (const provider of data.providers) {
@@ -62,55 +74,46 @@ export async function getActiveModels(): Promise<ModelInfo[]> {
   return models
 }
 
-export async function getDefaultModels(): Promise<Record<string, string>> {
-  const response = await fetch(`${API_BASE}/config/providers`)
-  if (!response.ok) {
-    throw new Error(`Failed to fetch providers: ${response.status}`)
-  }
-
-  const data: ProvidersResponse = await response.json()
+export async function getDefaultModels(directory?: string): Promise<Record<string, string>> {
+  const data = await get<ProvidersResponse>('/config/providers', { 
+    directory: formatPathForApi(directory) 
+  })
   return data.default
 }
 
 // ============================================
 // Project API Functions
+// 基于 OpenAPI: /project, /project/current, /project/{projectID}
 // ============================================
 
-export async function getCurrentProject(): Promise<ApiProject> {
-  const response = await fetch(`${API_BASE}/project/current`)
-  
-  if (!response.ok) {
-    throw new Error(`Failed to fetch current project: ${response.status}`)
-  }
-
-  return response.json()
+/**
+ * GET /project/current - 获取当前项目
+ */
+export async function getCurrentProject(directory?: string): Promise<ApiProject> {
+  return get<ApiProject>('/project/current', { directory: formatPathForApi(directory) })
 }
 
-export async function getProjects(): Promise<ApiProject[]> {
-  const response = await fetch(`${API_BASE}/project`)
-  
-  if (!response.ok) {
-    throw new Error(`Failed to fetch projects: ${response.status}`)
-  }
-
-  return response.json()
+/**
+ * GET /project - 获取项目列表
+ */
+export async function getProjects(directory?: string): Promise<ApiProject[]> {
+  return get<ApiProject[]>('/project', { directory: formatPathForApi(directory) })
 }
 
-export async function updateProject(projectId: string, params: {
-  name?: string
-  icon?: { url?: string; override?: string; color?: string }
-}): Promise<ApiProject> {
-  const response = await fetch(`${API_BASE}/project/${projectId}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(params),
-  })
-  
-  if (!response.ok) {
-    throw new Error(`Failed to update project: ${response.status}`)
-  }
-
-  return response.json()
+/**
+ * PATCH /project/{projectID} - 更新项目
+ */
+export async function updateProject(
+  projectId: string, 
+  params: {
+    name?: string
+    icon?: { url?: string; override?: string; color?: string }
+  },
+  directory?: string
+): Promise<ApiProject> {
+  return patch<ApiProject>(`/project/${projectId}`, { 
+    directory: formatPathForApi(directory) 
+  }, params)
 }
 
 // ============================================
@@ -118,11 +121,5 @@ export async function updateProject(projectId: string, params: {
 // ============================================
 
 export async function getPath(): Promise<ApiPath> {
-  const response = await fetch(`${API_BASE}/path`)
-  
-  if (!response.ok) {
-    throw new Error(`Failed to fetch path: ${response.status}`)
-  }
-
-  return response.json()
+  return get<ApiPath>('/path')
 }

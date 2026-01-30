@@ -102,17 +102,10 @@ class MessageStore {
   getVisibleMessages(): Message[] {
     const state = this.getCurrentSessionState()
     if (!state) {
-      console.log('[MessageStore] getVisibleMessages: no current session state, currentSessionId=', this.currentSessionId)
       return []
     }
 
     const { messages, revertState } = state
-    
-    console.log('[MessageStore] getVisibleMessages:', {
-      currentSessionId: this.currentSessionId,
-      messagesCount: messages.length,
-      hasRevertState: !!revertState,
-    })
 
     if (!revertState) {
       return messages
@@ -310,14 +303,6 @@ class MessageStore {
    * 处理消息创建/更新事件
    */
   handleMessageUpdated(apiMsg: ApiMessage) {
-    console.log('[MessageStore] handleMessageUpdated:', {
-      msgId: apiMsg.id,
-      sessionID: apiMsg.sessionID,
-      currentSessionId: this.currentSessionId,
-      isCurrentSession: apiMsg.sessionID === this.currentSessionId,
-      role: apiMsg.role,
-    })
-    
     // 确保 session 存在
     const state = this.ensureSession(apiMsg.sessionID)
 
@@ -342,8 +327,6 @@ class MessageStore {
       }
       // Immutable push
       state.messages = [...state.messages, newMsg]
-      
-      console.log('[MessageStore] New message added, total messages:', state.messages.length)
       
       // 新的 assistant 消息表示开始 streaming
       if (apiMsg.role === 'assistant') {

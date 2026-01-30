@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { getCurrentProject, getProjects, type ApiProject } from '../api'
+import { apiErrorHandler } from '../utils'
 
 export interface UseProjectResult {
   // 当前选中的 project
@@ -56,7 +57,7 @@ export function useProject(): UseProjectResult {
         setCurrentProject(current)
       }
     } catch (e) {
-      console.error('Failed to load projects:', e)
+      apiErrorHandler('load projects', e)
       setError(e instanceof Error ? e.message : 'Failed to load projects')
     } finally {
       setIsLoading(false)

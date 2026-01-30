@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { flushSync } from 'react-dom'
+import { STORAGE_KEY_THEME_MODE } from '../constants'
 
 export type ThemeMode = 'system' | 'light' | 'dark'
 
 export function useTheme() {
   const [mode, setMode] = useState<ThemeMode>(() => {
-    const saved = localStorage.getItem('theme-mode')
+    const saved = localStorage.getItem(STORAGE_KEY_THEME_MODE)
     return (saved as ThemeMode) || 'system'
   })
   
@@ -41,7 +42,7 @@ export function useTheme() {
       root.setAttribute('data-mode', mode)
     }
 
-    localStorage.setItem('theme-mode', mode)
+    localStorage.setItem(STORAGE_KEY_THEME_MODE, mode)
   }, [mode])
 
   // 监听系统主题变化

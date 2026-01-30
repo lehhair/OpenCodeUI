@@ -2,16 +2,16 @@
 // Global Event Subscription (SSE) - Singleton Pattern
 // ============================================
 
-import {
-  API_BASE,
-  type ApiMessageWithParts,
-  type ApiPart,
-  type ApiSession,
-  type ApiPermissionRequest,
-  type PermissionReply,
-  type ApiQuestionRequest,
-  type GlobalEvent,
-  type EventCallbacks,
+import { API_BASE } from './http'
+import type {
+  ApiMessageWithParts,
+  ApiPart,
+  ApiSession,
+  ApiPermissionRequest,
+  PermissionReply,
+  ApiQuestionRequest,
+  GlobalEvent,
+  EventCallbacks,
 } from './types'
 
 // ============================================
@@ -87,7 +87,9 @@ function scheduleReconnect() {
   const attempt = connectionInfo.reconnectAttempt
   const delay = RECONNECT_DELAYS[Math.min(attempt, RECONNECT_DELAYS.length - 1)]
   
-  console.log(`[SSE] Reconnecting in ${delay}ms (attempt ${attempt + 1})...`)
+  if (import.meta.env.DEV) {
+    console.log(`[SSE] Reconnecting in ${delay}ms (attempt ${attempt + 1})...`)
+  }
   
   reconnectTimer = setTimeout(() => {
     updateConnectionState({ reconnectAttempt: attempt + 1 })
@@ -103,7 +105,9 @@ function connectSingleton() {
   singletonController = new AbortController()
   
   updateConnectionState({ state: 'connecting' })
-  console.log('[SSE] Connecting singleton...')
+  if (import.meta.env.DEV) {
+    console.log('[SSE] Connecting singleton...')
+  }
 
   fetch(`${API_BASE}/global/event`, {
     signal: singletonController.signal,
@@ -121,7 +125,9 @@ function connectSingleton() {
         error: undefined 
       })
       resetHeartbeat()
-      console.log('[SSE] Singleton connected')
+      if (import.meta.env.DEV) {
+        console.log('[SSE] Singleton connected')
+      }
 
       const reader = response.body?.getReader()
       if (!reader) {
@@ -134,7 +140,9 @@ function connectSingleton() {
       while (true) {
         const { done, value } = await reader.read()
         if (done) {
-          console.log('[SSE] Stream ended, reconnecting...')
+          if (import.meta.env.DEV) {
+            console.log('[SSE] Stream ended, reconnecting...')
+          }
           updateConnectionState({ state: 'disconnected' })
           scheduleReconnect()
           break
@@ -158,7 +166,10 @@ function connectSingleton() {
               // 广播给所有订阅者
               broadcastEvent(globalEvent)
             } catch (e) {
-              console.error('[SSE] Failed to parse event:', e, eventData)
+              // SSE parse error - logged only in development
+              if (import.meta.env.DEV) {
+                console.warn('[SSE] Failed to parse event:', e, eventData)
+              }
             }
             eventData = ''
           }
@@ -171,7 +182,10 @@ function connectSingleton() {
       if (error.name === 'AbortError') {
         return
       }
-      console.error('[SSE] Event stream error:', error)
+      // SSE stream error - logged for debugging
+      if (import.meta.env.DEV) {
+        console.warn('[SSE] Event stream error:', error)
+      }
       updateConnectionState({ 
         state: 'error', 
         error: error.message || 'Connection failed' 
@@ -191,17 +205,11 @@ function disconnectSingleton() {
   }
   isConnecting = false
   updateConnectionState({ state: 'disconnected' })
-  console.log('[SSE] Singleton disconnected')
 }
 
 // 广播事件给所有订阅者
 function broadcastEvent(globalEvent: GlobalEvent) {
   const { type, properties } = globalEvent.payload
-  
-  // Debug logging (只打印一次)
-  if (type !== 'server.heartbeat') {
-    console.log(`[SSE] Event received: ${type}`, properties)
-  }
   
   // 广播给所有订阅者
   allSubscribers.forEach(callbacks => {
@@ -274,7 +282,6 @@ function handleEventForSubscriber(
  */
 export function subscribeToEvents(callbacks: EventCallbacks): () => void {
   allSubscribers.add(callbacks)
-  console.log(`[SSE] Subscriber added, total: ${allSubscribers.size}`)
   
   // 如果是第一个订阅者，启动连接
   if (allSubscribers.size === 1) {
@@ -284,7 +291,6 @@ export function subscribeToEvents(callbacks: EventCallbacks): () => void {
   // 返回取消订阅函数
   return () => {
     allSubscribers.delete(callbacks)
-    console.log(`[SSE] Subscriber removed, total: ${allSubscribers.size}`)
     
     // 如果没有订阅者了，断开连接
     if (allSubscribers.size === 0) {

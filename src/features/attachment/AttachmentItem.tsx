@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { CloseIcon, ChevronDownIcon } from '../Icons'
+import { CloseIcon, ChevronDownIcon } from '../../components/Icons'
 import { getAttachmentIcon, hasExpandableContent } from './utils'
 import type { Attachment } from './types'
 

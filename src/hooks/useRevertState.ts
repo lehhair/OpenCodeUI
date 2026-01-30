@@ -13,6 +13,7 @@ import {
   type RevertedMessage,
   type ApiMessageWithParts,
 } from '../api'
+import { revertErrorHandler } from '../utils'
 
 /** 将 API 消息转换为 UI Message */
 function convertApiToMessage(apiMsg: ApiMessageWithParts): Message {
@@ -92,7 +93,7 @@ export function useRevertState({
       // 1. 找到 UI 中要删除的消息（从点击的消息开始到最后）
       const targetUIIndex = messages.findIndex(m => m.info.id === userMessageId)
       if (targetUIIndex === -1) {
-        console.error('User message not found in UI:', userMessageId)
+        revertErrorHandler('user message not found in UI', new Error(`Message ID: ${userMessageId}`))
         return
       }
       
@@ -107,7 +108,7 @@ export function useRevertState({
       const targetIndex = apiMessages.findIndex(m => m.info.id === userMessageId)
       
       if (targetIndex === -1) {
-        console.error('User message not found in API:', userMessageId)
+        revertErrorHandler('user message not found in API', new Error(`Message ID: ${userMessageId}`))
         return
       }
       
@@ -142,7 +143,7 @@ export function useRevertState({
         requestAnimationFrame(() => scrollToEnd())
       }, 50)
     } catch (error) {
-      console.error('Failed to undo:', error)
+      revertErrorHandler('undo', error)
     }
   }, [routeSessionId, animateUndo, messages, setMessages])
 
@@ -186,7 +187,7 @@ export function useRevertState({
         setMessages(apiMessages.map(convertApiToMessage))
       }
     } catch (error) {
-      console.error('Failed to redo:', error)
+      revertErrorHandler('redo', error)
     }
   }, [routeSessionId, revertHistory, animateRedo, setMessages])
 
@@ -206,7 +207,7 @@ export function useRevertState({
       const apiMessages = await getSessionMessages(routeSessionId)
       setMessages(apiMessages.map(convertApiToMessage))
     } catch (error) {
-      console.error('Failed to redo all:', error)
+      revertErrorHandler('redo all', error)
     }
   }, [routeSessionId, revertHistory.length, setMessages])
 

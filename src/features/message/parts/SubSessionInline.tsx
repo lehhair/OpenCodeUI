@@ -12,6 +12,7 @@ import { useCallback, useRef, useEffect, memo, useState } from 'react'
 import { useSessionState, messageStore, childSessionStore } from '../../../store'
 import { sendMessage, abortSession, getSessionMessages } from '../../../api'
 import { ChevronDownIcon } from '../../../components/Icons'
+import { sessionErrorHandler } from '../../../utils'
 import type { Message, TextPart, ToolPart } from '../../../types/message'
 
 interface SubSessionInlineProps {
@@ -57,7 +58,7 @@ export const SubSessionInline = memo(function SubSessionInline({ sessionId }: Su
         })
       })
       .catch(err => {
-        console.error('[SubSessionInline] Load failed:', err)
+        sessionErrorHandler('load sub-session', err)
         messageStore.setLoadState(sessionId, 'error')
       })
   }, [sessionId])
@@ -83,13 +84,19 @@ export const SubSessionInline = memo(function SubSessionInline({ sessionId }: Su
         model
       })
     } catch (error) {
-      console.error('Failed to send message to sub-session:', error)
+      sessionErrorHandler('send to sub-session', error)
       messageStore.setStreaming(sessionId, false)
     }
   }, [sessionId, messages])
 
   const handleStop = useCallback(() => {
-    abortSession(sessionId)
+    // 获取父 session 的 directory
+    const childInfo = childSessionStore.getSessionInfo(sessionId)
+    const parentSessionId = childInfo?.parentID || messageStore.getCurrentSessionId()
+    const parentState = parentSessionId ? messageStore.getSessionState(parentSessionId) : null
+    const directory = parentState?.directory || ''
+    
+    abortSession(sessionId, directory)
   }, [sessionId])
 
   // 在新标签页打开
@@ -104,7 +111,7 @@ export const SubSessionInline = memo(function SubSessionInline({ sessionId }: Su
     
     // 构造 URL，包含 directory 参数
     const baseUrl = `${window.location.origin}${window.location.pathname}#/session/${sessionId}`
-    const url = directory ? `${baseUrl}?dir=${encodeURIComponent(directory)}` : baseUrl
+    const url = directory ? `${baseUrl}?dir=${directory}` : baseUrl
     window.open(url, '_blank')
   }, [sessionId])
 

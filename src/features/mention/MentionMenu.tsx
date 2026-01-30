@@ -5,6 +5,7 @@
 
 import { useState, useEffect, useRef, useCallback, useImperativeHandle, forwardRef } from 'react'
 import { searchFiles, listDirectory, type ApiAgent } from '../../api/client'
+import { fileErrorHandler } from '../../utils'
 import type { MentionType, MentionItem } from './types'
 import { getFileName, toAbsolutePath, normalizePath } from './utils'
 
@@ -140,7 +141,7 @@ export const MentionMenu = forwardRef<MentionMenuHandle, MentionMenuProps>(funct
         setSelectedIndex(0)
       })
       .catch(err => {
-        console.error('List directory error:', err)
+        fileErrorHandler('list directory', err)
         setItems([])
       })
       .finally(() => setLoading(false))
@@ -206,7 +207,7 @@ export const MentionMenu = forwardRef<MentionMenuHandle, MentionMenuProps>(funct
           })
           .catch(err => {
             if (err.name !== 'AbortError') {
-              console.error('File search error:', err)
+              fileErrorHandler('file search', err)
               setItems([])
             }
           })

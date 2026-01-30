@@ -89,7 +89,7 @@ export interface SubtaskBlock {
 
 export type AgentBlock = ThinkingBlock | ToolCallsBlock | TextBlock | StepInfoBlock | SubtaskBlock
 
-import type { Attachment } from '../components/Attachment'
+import type { Attachment } from '../features/attachment'
 
 export interface Message {
   id: string

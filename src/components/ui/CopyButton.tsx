@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react'
 import { CopyIcon, CheckIcon } from '../Icons'
 import { clsx } from 'clsx'
+import { clipboardErrorHandler } from '../../utils'
 
 interface CopyButtonProps {
   text: string
@@ -20,7 +21,7 @@ export function CopyButton({ text, className, position = 'absolute', groupName }
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     } catch (err) {
-      console.error('Failed to copy:', err)
+      clipboardErrorHandler('copy', err)
     }
   }, [text])
 

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { normalizeToForwardSlash } from '../utils'
 
 /**
  * Hash 路由，支持 directory 参数
@@ -18,13 +19,14 @@ function parseHash(): RouteState {
   // 分离路径和查询参数
   const [path, queryString] = hash.split('?')
   
-  // 解析 directory 参数
+  // 解析 directory 参数（不需要 URL 解码，直接使用原始路径）
   let directory: string | undefined
   if (queryString) {
-    const params = new URLSearchParams(queryString)
-    const dir = params.get('dir')
-    if (dir) {
-      directory = decodeURIComponent(dir)
+    // 手动解析 dir 参数，避免 URLSearchParams 自动解码
+    const dirMatch = queryString.match(/(?:^|&)dir=([^&]*)/)
+    if (dirMatch && dirMatch[1]) {
+      // 入口标准化：统一转为正斜杠
+      directory = normalizeToForwardSlash(dirMatch[1]) || undefined
     }
   }
   
@@ -40,7 +42,8 @@ function parseHash(): RouteState {
 function buildHash(sessionId: string | null, directory: string | undefined): string {
   const path = sessionId ? `#/session/${sessionId}` : '#/'
   if (directory) {
-    return `${path}?dir=${encodeURIComponent(directory)}`
+    // 不需要 URL 编码，直接使用原始路径
+    return `${path}?dir=${directory}`
   }
   return path
 }
@@ -77,15 +80,19 @@ export function useRouter() {
 
   // 设置 directory（保留当前 session）
   const setDirectory = useCallback((directory: string | undefined) => {
-    const newHash = buildHash(route.sessionId, directory)
+    // 入口标准化：统一转为正斜杠
+    const normalized = directory ? normalizeToForwardSlash(directory) : undefined
+    const newHash = buildHash(route.sessionId, normalized || undefined)
     window.location.hash = newHash
   }, [route.sessionId])
 
   // 替换 directory（不产生历史记录）
   const replaceDirectory = useCallback((directory: string | undefined) => {
-    const newHash = buildHash(route.sessionId, directory)
+    // 入口标准化：统一转为正斜杠
+    const normalized = directory ? normalizeToForwardSlash(directory) : undefined
+    const newHash = buildHash(route.sessionId, normalized || undefined)
     window.history.replaceState(null, '', newHash)
-    setRoute({ sessionId: route.sessionId, directory })
+    setRoute({ sessionId: route.sessionId, directory: normalized || undefined })
   }, [route.sessionId])
 
   return {

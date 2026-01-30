@@ -1,15 +1,14 @@
 // ============================================
 // File Search API Functions
+// 基于 OpenAPI: /file, /find/file, /find/symbol 相关接口
 // ============================================
 
-import {
-  API_BASE,
-  type FileNode,
-  type SymbolInfo,
-} from './types'
+import { get } from './http'
+import { formatPathForApi } from '../utils/directoryUtils'
+import type { FileNode, SymbolInfo } from './types'
 
 /**
- * 搜索文件或目录
+ * GET /find/file - 搜索文件或目录
  * @param query 搜索关键词
  * @param options.directory 工作目录（项目目录）
  * @param options.type 搜索类型：file 或 directory
@@ -23,68 +22,39 @@ export async function searchFiles(
     limit?: number
   } = {}
 ): Promise<string[]> {
-  const params = new URLSearchParams()
-  params.set('query', query)
-  if (options.directory) params.set('directory', options.directory)
-  if (options.type) params.set('type', options.type)
-  if (options.limit) params.set('limit', String(options.limit))
-
-  const response = await fetch(`${API_BASE}/find/file?${params.toString()}`)
-
-  if (!response.ok) {
-    throw new Error(`Failed to search files: ${response.status}`)
-  }
-
-  return response.json()
+  return get<string[]>('/find/file', {
+    query,
+    directory: formatPathForApi(options.directory),
+    type: options.type,
+    limit: options.limit,
+  })
 }
 
 /**
- * 列出目录内容
+ * GET /file - 列出目录内容
  * @param path 要列出的路径
  * @param directory 工作目录（项目目录）
  */
 export async function listDirectory(path: string, directory?: string): Promise<FileNode[]> {
-  const params = new URLSearchParams()
-  
   // 智能处理：如果 path 是绝对路径，将其作为 directory 传递，path 设为空
   // Windows: C: 或 C:/ 开头
   // Unix: / 开头
   const isAbsolute = /^[a-zA-Z]:/.test(path) || path.startsWith('/')
   
   if (isAbsolute && !directory) {
-    params.set('directory', path)
-    params.set('path', '')
+    return get<FileNode[]>('/file', { directory: formatPathForApi(path), path: '' })
   } else {
-    params.set('path', path)
-    if (directory) params.set('directory', directory)
+    return get<FileNode[]>('/file', { path, directory: formatPathForApi(directory) })
   }
-
-  const response = await fetch(`${API_BASE}/file?${params.toString()}`)
-
-  if (!response.ok) {
-    throw new Error(`Failed to list directory: ${response.status}`)
-  }
-
-  return response.json()
 }
 
 /**
- * 搜索代码符号
+ * GET /find/symbol - 搜索代码符号
  * @param query 搜索关键词
  * @param directory 工作目录（项目目录）
  */
 export async function searchSymbols(query: string, directory?: string): Promise<SymbolInfo[]> {
-  const params = new URLSearchParams()
-  params.set('query', query)
-  if (directory) params.set('directory', directory)
-
-  const response = await fetch(`${API_BASE}/find/symbol?${params.toString()}`)
-
-  if (!response.ok) {
-    throw new Error(`Failed to search symbols: ${response.status}`)
-  }
-
-  return response.json()
+  return get<SymbolInfo[]>('/find/symbol', { query, directory: formatPathForApi(directory) })
 }
 
 /**
