@@ -40,6 +40,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const requestIdRef = useRef(0)
   const searchTimerRef = useRef<number | null>(null)
   const currentDirectoryRef = useRef(currentDirectory)
+  const isLoadingMoreRef = useRef(false)  // 防止并发 loadMore
   
   // 保持 ref 同步
   useEffect(() => {
@@ -79,7 +80,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       }
 
       if (append) {
-        setSessions(prev => [...prev, ...data])
+        // 去重：过滤掉已存在的 session
+        setSessions(prev => {
+          const existingIds = new Set(prev.map(s => s.id))
+          const newSessions = data.filter(s => !existingIds.has(s.id))
+          return [...prev, ...newSessions]
+        })
       } else {
         setSessions(data)
       }
@@ -142,10 +148,17 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const refresh = useCallback(() => fetchSessions(), [fetchSessions])
 
   const loadMore = useCallback(async () => {
-    if (isLoadingMore || !hasMore || sessions.length === 0) return
-    const lastSession = sessions[sessions.length - 1]
-    await fetchSessions({ start: lastSession.time.updated, append: true })
-  }, [isLoadingMore, hasMore, sessions, fetchSessions])
+    // 使用 ref 检查，防止并发请求
+    if (isLoadingMoreRef.current || !hasMore || sessions.length === 0) return
+    isLoadingMoreRef.current = true
+    
+    try {
+      const lastSession = sessions[sessions.length - 1]
+      await fetchSessions({ start: lastSession.time.updated, append: true })
+    } finally {
+      isLoadingMoreRef.current = false
+    }
+  }, [hasMore, sessions, fetchSessions])
 
   const createSession = useCallback(async (title?: string) => {
     // 使用正斜杠格式传给后端
