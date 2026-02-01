@@ -9,22 +9,62 @@
 export type FileNodeType = 'file' | 'directory'
 
 /**
- * 文件节点
+ * 文件节点 - 匹配 OpenAPI FileNode schema
  */
 export interface FileNode {
   name: string
+  path: string       // 相对路径
+  absolute: string   // 绝对路径
   type: FileNodeType
+  ignored: boolean
+  // UI 扩展字段
   size?: number
   modified?: number
 }
 
 /**
- * 文件内容
+ * 文件 patch hunk
+ */
+export interface PatchHunk {
+  oldStart: number
+  oldLines: number
+  newStart: number
+  newLines: number
+  lines: string[]
+}
+
+/**
+ * 文件 patch
+ */
+export interface FilePatch {
+  oldFileName: string
+  newFileName: string
+  oldHeader?: string
+  newHeader?: string
+  hunks: PatchHunk[]
+  index?: string
+}
+
+/**
+ * 文件内容 - 匹配 OpenAPI FileContent schema
  */
 export interface FileContent {
-  path: string
+  type: 'text'
   content: string
-  language?: string
+  diff?: string
+  patch?: FilePatch
+  encoding?: 'base64'
+  mimeType?: string
+}
+
+/**
+ * 文件状态 - 匹配 OpenAPI File schema
+ */
+export interface FileStatusItem {
+  path: string
+  added: number
+  removed: number
+  status: 'added' | 'deleted' | 'modified'
 }
 
 /**
@@ -39,7 +79,7 @@ export interface FileDiff {
 }
 
 /**
- * 文件状态
+ * 文件状态 (旧版兼容)
  */
 export interface FileStatus {
   path: string

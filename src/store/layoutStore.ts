@@ -2,12 +2,27 @@
 // LayoutStore - 全局 UI 布局状态
 // ============================================
 
-export type RightPanelTab = 'changes' | 'terminal' | 'preview'
+// 右侧栏面板类型: files(文件浏览) 或 changes(变更)
+export type RightPanelView = 'files' | 'changes'
+
+// 文件预览的文件信息
+export interface PreviewFile {
+  path: string
+  name: string
+}
 
 interface LayoutState {
+  // 右侧栏
   rightPanelOpen: boolean
-  activeTab: RightPanelTab
+  rightPanelView: RightPanelView  // 当前视图
   rightPanelWidth: number
+  
+  // 文件预览状态
+  previewFile: PreviewFile | null
+  
+  // 下边栏 (为将来的终端准备)
+  bottomPanelOpen: boolean
+  bottomPanelHeight: number
 }
 
 type Subscriber = () => void
@@ -15,8 +30,11 @@ type Subscriber = () => void
 class LayoutStore {
   private state: LayoutState = {
     rightPanelOpen: false,
-    activeTab: 'changes',
-    rightPanelWidth: 450
+    rightPanelView: 'files',
+    rightPanelWidth: 450,
+    previewFile: null,
+    bottomPanelOpen: false,
+    bottomPanelHeight: 200,
   }
   private subscribers = new Set<Subscriber>()
 
@@ -28,6 +46,13 @@ class LayoutStore {
         const width = parseInt(savedWidth)
         if (!isNaN(width) && width >= 300 && width <= 800) {
           this.state.rightPanelWidth = width
+        }
+      }
+      const savedBottomHeight = localStorage.getItem('opencode-bottom-panel-height')
+      if (savedBottomHeight) {
+        const height = parseInt(savedBottomHeight)
+        if (!isNaN(height) && height >= 100 && height <= 500) {
+          this.state.bottomPanelHeight = height
         }
       }
     } catch {
@@ -49,22 +74,24 @@ class LayoutStore {
   }
 
   // ============================================
-  // Actions
+  // Right Panel Actions
   // ============================================
 
-  toggleRightPanel(tab?: RightPanelTab) {
-    if (tab && tab !== this.state.activeTab) {
-      this.state.activeTab = tab
+  toggleRightPanel(view?: RightPanelView) {
+    if (view && view !== this.state.rightPanelView) {
+      this.state.rightPanelView = view
       this.state.rightPanelOpen = true
+    } else if (view === this.state.rightPanelView && this.state.rightPanelOpen) {
+      this.state.rightPanelOpen = false
     } else {
       this.state.rightPanelOpen = !this.state.rightPanelOpen
     }
     this.notify()
   }
 
-  openRightPanel(tab: RightPanelTab) {
+  openRightPanel(view: RightPanelView) {
     this.state.rightPanelOpen = true
-    this.state.activeTab = tab
+    this.state.rightPanelView = view
     this.notify()
   }
 
@@ -73,11 +100,61 @@ class LayoutStore {
     this.notify()
   }
 
+  setRightPanelView(view: RightPanelView) {
+    this.state.rightPanelView = view
+    this.notify()
+  }
+
   setRightPanelWidth(width: number) {
     this.state.rightPanelWidth = width
-    // 保存到 localStorage
     try {
       localStorage.setItem('opencode-right-panel-width', width.toString())
+    } catch {
+      // ignore
+    }
+    this.notify()
+  }
+
+  // ============================================
+  // File Preview Actions
+  // ============================================
+
+  openFilePreview(file: PreviewFile) {
+    this.state.previewFile = file
+    // 打开右侧栏并切换到文件视图
+    this.state.rightPanelOpen = true
+    this.state.rightPanelView = 'files'
+    this.notify()
+  }
+
+  closeFilePreview() {
+    this.state.previewFile = null
+    this.notify()
+  }
+
+  // ============================================
+  // Bottom Panel Actions (为终端准备)
+  // ============================================
+
+  toggleBottomPanel() {
+    this.state.bottomPanelOpen = !this.state.bottomPanelOpen
+    this.notify()
+  }
+
+  openBottomPanel() {
+    this.state.bottomPanelOpen = true
+    this.notify()
+  }
+
+  closeBottomPanel() {
+    this.state.bottomPanelOpen = false
+    this.notify()
+  }
+
+  setBottomPanelHeight(height: number) {
+    this.state.bottomPanelHeight = height
+    try {
+      localStorage.setItem('opencode-bottom-panel-height', height.toString())
     } catch {
       // ignore
     }

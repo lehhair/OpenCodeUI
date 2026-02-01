@@ -16,11 +16,13 @@ export { useModelSelection } from './useModelSelection'
 export { useChatSession } from './useChatSession'
 export { usePathMode } from './usePathMode'
 export { useSessionStats, formatTokens, formatCost } from './useSessionStats'
+export { useFileExplorer } from './useFileExplorer'
 export type { ThemeMode } from './useTheme'
 export type { UseProjectResult } from './useProject'
 export type { UseRevertStateResult, RevertHistoryItem } from './useRevertState'
 export type { UsePermissionHandlerResult } from './usePermissionHandler'
 export type { SessionStats } from './useSessionStats'
+export type { FileTreeNode, UseFileExplorerOptions, UseFileExplorerResult } from './useFileExplorer'
 
 // Re-export from contexts
 export { DirectoryProvider, useDirectory, SessionProvider, useSessionContext } from '../contexts'

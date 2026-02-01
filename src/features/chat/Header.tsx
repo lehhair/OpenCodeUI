@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
-import { ComposeIcon, CogIcon, MoreHorizontalIcon, TeachIcon, SidebarIcon, MaximizeIcon, MinimizeIcon, SunIcon, MoonIcon, SystemIcon, ShareIcon, GitCommitIcon } from '../../components/Icons'
+import { ComposeIcon, CogIcon, MoreHorizontalIcon, TeachIcon, SidebarIcon, MaximizeIcon, MinimizeIcon, SunIcon, MoonIcon, SystemIcon, ShareIcon, PanelRightIcon } from '../../components/Icons'
 import { DropdownMenu, MenuItem, IconButton } from '../../components/ui'
 import { ModelSelector } from './ModelSelector'
 import { SettingsDialog } from '../settings/SettingsDialog'
@@ -35,8 +35,8 @@ export function Header({
   isWideMode,
   onToggleWideMode,
 }: HeaderProps) {
-  const { shareUrl, messages, sessionId } = useMessageStore()
-  const { rightPanelOpen, activeTab } = useLayoutStore()
+  const { shareUrl, messages } = useMessageStore()
+  const { rightPanelOpen } = useLayoutStore()
   
   const [settingsMenuOpen, setSettingsMenuOpen] = useState(false)
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false)
@@ -112,22 +112,20 @@ export function Header({
           </IconButton>
         )}
 
-        {/* Changes Button */}
-        {hasMessages && sessionId && (
-          <IconButton
-            aria-label="View changes"
-            onClick={() => layoutStore.toggleRightPanel('changes')}
-            className={`
-              transition-colors
-              ${rightPanelOpen && activeTab === 'changes'
-                ? 'text-accent-main-100 bg-bg-200/50' 
-                : 'text-text-400 hover:text-text-100 hover:bg-bg-200/50'
-              }
-            `}
-          >
-            <GitCommitIcon size={18} />
-          </IconButton>
-        )}
+        {/* Right Panel Toggle */}
+        <IconButton
+          aria-label={rightPanelOpen ? "Close panel" : "Open panel"}
+          onClick={() => layoutStore.toggleRightPanel()}
+          className={`
+            transition-colors
+            ${rightPanelOpen
+              ? 'text-accent-main-100 bg-bg-200/50' 
+              : 'text-text-400 hover:text-text-100 hover:bg-bg-200/50'
+            }
+          `}
+        >
+          <PanelRightIcon size={18} />
+        </IconButton>
 
         {/* New Chat Button */}
         <IconButton

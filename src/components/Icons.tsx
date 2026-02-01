@@ -132,6 +132,13 @@ export const SidebarIcon = (props: IconProps) => (
   </DefaultIcon>
 )
 
+export const PanelRightIcon = (props: IconProps) => (
+  <DefaultIcon {...props}>
+    <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+    <line x1="15" y1="3" x2="15" y2="21" />
+  </DefaultIcon>
+)
+
 export const StopIcon = (props: IconProps) => (
   <DefaultIcon {...props}>
     <rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor" stroke="none" />
@@ -218,6 +225,12 @@ export const FileIcon = (props: IconProps) => (
 export const FolderIcon = (props: IconProps) => (
   <DefaultIcon {...props}>
     <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 2H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z" />
+  </DefaultIcon>
+)
+
+export const FolderOpenIcon = (props: IconProps) => (
+  <DefaultIcon {...props}>
+    <path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2" />
   </DefaultIcon>
 )
 

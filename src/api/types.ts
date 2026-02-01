@@ -76,7 +76,11 @@ export type {
 // File types
 export type {
   FileNode,
+  FileContent,
+  FileStatusItem,
   FileDiff,
+  FilePatch,
+  PatchHunk,
   Symbol as SymbolInfo,
 } from '../types/api/file'
 

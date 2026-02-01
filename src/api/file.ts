@@ -5,7 +5,7 @@
 
 import { get } from './http'
 import { formatPathForApi } from '../utils/directoryUtils'
-import type { FileNode, SymbolInfo } from './types'
+import type { FileNode, FileContent, FileStatusItem, SymbolInfo } from './types'
 
 /**
  * GET /find/file - 搜索文件或目录
@@ -32,7 +32,7 @@ export async function searchFiles(
 
 /**
  * GET /file - 列出目录内容
- * @param path 要列出的路径
+ * @param path 要列出的路径（相对于 directory）
  * @param directory 工作目录（项目目录）
  */
 export async function listDirectory(path: string, directory?: string): Promise<FileNode[]> {
@@ -46,6 +46,28 @@ export async function listDirectory(path: string, directory?: string): Promise<F
   } else {
     return get<FileNode[]>('/file', { path, directory: formatPathForApi(directory) })
   }
+}
+
+/**
+ * GET /file/content - 读取文件内容
+ * @param path 文件路径（相对于 directory）
+ * @param directory 工作目录（项目目录）
+ */
+export async function getFileContent(path: string, directory?: string): Promise<FileContent> {
+  return get<FileContent>('/file/content', {
+    path,
+    directory: formatPathForApi(directory),
+  })
+}
+
+/**
+ * GET /file/status - 获取文件 git 状态
+ * @param directory 工作目录（项目目录）
+ */
+export async function getFileStatus(directory?: string): Promise<FileStatusItem[]> {
+  return get<FileStatusItem[]>('/file/status', {
+    directory: formatPathForApi(directory),
+  })
 }
 
 /**

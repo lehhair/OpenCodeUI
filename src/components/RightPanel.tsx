@@ -1,20 +1,22 @@
 import { memo, useState, useCallback, useRef } from 'react'
-import { useLayoutStore, layoutStore, type RightPanelTab } from '../store/layoutStore'
-import { CloseIcon, GitCommitIcon, TerminalIcon, EyeIcon } from './Icons'
+import { useLayoutStore, layoutStore, type RightPanelView } from '../store/layoutStore'
+import { CloseIcon, GitCommitIcon, FolderIcon } from './Icons'
 import { SessionChangesPanel } from './SessionChangesPanel'
+import { FileExplorer } from './FileExplorer'
 import { useMessageStore } from '../store'
+import { useDirectory } from '../hooks'
 
 const MIN_WIDTH = 300
 const MAX_WIDTH = 800
 
 export const RightPanel = memo(function RightPanel() {
-  const { rightPanelOpen, activeTab, rightPanelWidth } = useLayoutStore()
+  const { rightPanelOpen, rightPanelView, rightPanelWidth, previewFile } = useLayoutStore()
   const { sessionId } = useMessageStore()
+  const { currentDirectory } = useDirectory()
   
   const [isResizing, setIsResizing] = useState(false)
-  const resizingRef = useRef(false) // Ref to track resizing state without re-renders in effect
+  const resizingRef = useRef(false)
 
-  // Better approach: store resizing logic in a separate effect that binds/unbinds listeners
   const startResizing = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
     setIsResizing(true)
@@ -49,14 +51,13 @@ export const RightPanel = memo(function RightPanel() {
       style={{ width: rightPanelOpen ? rightPanelWidth : 0 }}
       className={`
         relative h-full flex flex-col bg-bg-50/50 backdrop-blur-xl
-        border-l border-border-200/50
         overflow-hidden
         ${isResizing ? 'transition-none' : 'transition-[width] duration-300 ease-[cubic-bezier(0.25,1,0.5,1)]'}
-        ${!rightPanelOpen ? 'border-none' : ''}
+        ${rightPanelOpen ? 'border-l border-border-200/50' : ''}
       `}
     >
-      {/* Content Container - Fixed width during transition to avoid content squashing */}
-      <div className="absolute top-0 right-0 bottom-0 flex flex-col border-l border-border-100" style={{ width: rightPanelWidth }}>
+      {/* Content Container */}
+      <div className="absolute top-0 right-0 bottom-0 flex flex-col" style={{ width: rightPanelWidth }}>
         
         {/* Resize Handle */}
         <div
@@ -68,26 +69,20 @@ export const RightPanel = memo(function RightPanel() {
           onMouseDown={startResizing}
         />
 
-        {/* Header / Tabs */}
-        <div className="flex items-center justify-between px-3 py-2 border-b border-border-100 bg-bg-100/50 shrink-0 h-10">
+        {/* Header with View Tabs */}
+        <div className="flex items-center justify-between px-3 py-2 border-b border-border-200/50 shrink-0 h-10">
           <div className="flex items-center gap-1">
-            <TabButton 
+            <ViewTab 
               id="changes" 
-              active={activeTab === 'changes'} 
+              active={rightPanelView === 'changes'} 
               icon={<GitCommitIcon size={14} />} 
               label="Changes" 
             />
-            <TabButton 
-              id="terminal" 
-              active={activeTab === 'terminal'} 
-              icon={<TerminalIcon size={14} />} 
-              label="Terminal" 
-            />
-            <TabButton 
-              id="preview" 
-              active={activeTab === 'preview'} 
-              icon={<EyeIcon size={14} />} 
-              label="Preview" 
+            <ViewTab 
+              id="files" 
+              active={rightPanelView === 'files'} 
+              icon={<FolderIcon size={14} />} 
+              label="Files" 
             />
           </div>
           
@@ -99,27 +94,22 @@ export const RightPanel = memo(function RightPanel() {
           </button>
         </div>
 
-        {/* Content */}
-        <div className="flex-1 overflow-hidden relative bg-bg-000/50">
-          {activeTab === 'changes' && sessionId && (
+        {/* Content Area */}
+        <div className="flex-1 overflow-hidden relative">
+          {/* Files View */}
+          {rightPanelView === 'files' && (
+            <FileExplorer 
+              directory={currentDirectory}
+              previewFile={previewFile}
+            />
+          )}
+          
+          {/* Changes View */}
+          {rightPanelView === 'changes' && sessionId && (
             <SessionChangesPanel sessionId={sessionId} />
           )}
           
-          {activeTab === 'terminal' && (
-            <div className="flex flex-col items-center justify-center h-full text-text-400 text-sm gap-2">
-              <TerminalIcon size={32} className="opacity-20" />
-              <span>Terminal coming soon</span>
-            </div>
-          )}
-          
-          {activeTab === 'preview' && (
-            <div className="flex flex-col items-center justify-center h-full text-text-400 text-sm gap-2">
-              <EyeIcon size={32} className="opacity-20" />
-              <span>Preview coming soon</span>
-            </div>
-          )}
-          
-          {activeTab === 'changes' && !sessionId && (
+          {rightPanelView === 'changes' && !sessionId && (
             <div className="flex items-center justify-center h-full text-text-400 text-xs">
               No active session
             </div>
@@ -130,17 +120,21 @@ export const RightPanel = memo(function RightPanel() {
   )
 })
 
-interface TabButtonProps {
-  id: RightPanelTab
+// ============================================
+// View Tab Button
+// ============================================
+
+interface ViewTabProps {
+  id: RightPanelView
   active: boolean
   icon: React.ReactNode
   label: string
 }
 
-function TabButton({ id, active, icon, label }: TabButtonProps) {
+function ViewTab({ id, active, icon, label }: ViewTabProps) {
   return (
     <button
-      onClick={() => layoutStore.toggleRightPanel(id)}
+      onClick={() => layoutStore.setRightPanelView(id)}
       className={`
         flex items-center gap-1.5 px-3 py-1 rounded-md text-[11px] font-medium transition-all
         border border-transparent
