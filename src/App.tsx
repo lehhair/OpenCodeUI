@@ -2,17 +2,11 @@ import { useRef, useEffect, useState, useCallback } from 'react'
 import { Header, InputBox, PermissionDialog, QuestionDialog, Sidebar, ChatArea, type ChatAreaHandle } from './features/chat'
 import { RightPanel } from './components/RightPanel'
 import { useTheme, useModels, useModelSelection, useChatSession } from './hooks'
-import { useLayoutStore } from './store/layoutStore'
 import { restoreModelSelection } from './utils'
 import { STORAGE_KEY_WIDE_MODE } from './constants'
 import type { Attachment } from './api'
 
 function App() {
-  // ============================================
-  // Layout Store
-  // ============================================
-  const { rightPanelOpen } = useLayoutStore()
-
   // ============================================
   // Refs
   // ============================================
@@ -237,11 +231,7 @@ function App() {
         </div>
 
         {/* Right Panel */}
-        {rightPanelOpen && (
-          <div className="w-[400px] xl:w-[500px] h-full transition-all duration-300 shrink-0 border-l border-border-100 bg-bg-000 relative z-30 shadow-xl">
-            <RightPanel />
-          </div>
-        )}
+        <RightPanel />
       </div>
     </div>
   )

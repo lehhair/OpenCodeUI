@@ -7,6 +7,7 @@ export type RightPanelTab = 'changes' | 'terminal' | 'preview'
 interface LayoutState {
   rightPanelOpen: boolean
   activeTab: RightPanelTab
+  rightPanelWidth: number
 }
 
 type Subscriber = () => void
@@ -14,9 +15,25 @@ type Subscriber = () => void
 class LayoutStore {
   private state: LayoutState = {
     rightPanelOpen: false,
-    activeTab: 'changes'
+    activeTab: 'changes',
+    rightPanelWidth: 450
   }
   private subscribers = new Set<Subscriber>()
+
+  constructor() {
+    // 从 localStorage 恢复宽度
+    try {
+      const savedWidth = localStorage.getItem('opencode-right-panel-width')
+      if (savedWidth) {
+        const width = parseInt(savedWidth)
+        if (!isNaN(width) && width >= 300 && width <= 800) {
+          this.state.rightPanelWidth = width
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }
 
   // ============================================
   // Subscription
@@ -53,6 +70,17 @@ class LayoutStore {
 
   closeRightPanel() {
     this.state.rightPanelOpen = false
+    this.notify()
+  }
+
+  setRightPanelWidth(width: number) {
+    this.state.rightPanelWidth = width
+    // 保存到 localStorage
+    try {
+      localStorage.setItem('opencode-right-panel-width', width.toString())
+    } catch {
+      // ignore
+    }
     this.notify()
   }
 
