@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
-import { ComposeIcon, CogIcon, MoreHorizontalIcon, TeachIcon, SidebarIcon, MaximizeIcon, MinimizeIcon, SunIcon, MoonIcon, SystemIcon, ShareIcon, PanelRightIcon, PanelBottomIcon, ChevronDownIcon, TrashIcon, PencilIcon } from '../../components/Icons'
+import { ComposeIcon, CogIcon, MoreHorizontalIcon, TeachIcon, SidebarIcon, MaximizeIcon, MinimizeIcon, SunIcon, MoonIcon, SystemIcon, ShareIcon, PanelRightIcon, PanelBottomIcon, ChevronDownIcon } from '../../components/Icons'
 import { DropdownMenu, MenuItem, IconButton } from '../../components/ui'
 import { ModelSelector } from './ModelSelector'
 import { SettingsDialog } from '../settings/SettingsDialog'
@@ -37,16 +37,21 @@ export function Header({
 }: HeaderProps) {
   const { shareUrl, messages, sessionId } = useMessageStore()
   const { rightPanelOpen, bottomPanelOpen } = useLayoutStore()
-  const { sessions, remove: removeSession } = useSessions()
+  const { sessions } = useSessions()
   
   const [settingsMenuOpen, setSettingsMenuOpen] = useState(false)
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false)
   const [shareDialogOpen, setShareDialogOpen] = useState(false)
-  const [sessionMenuOpen, setSessionMenuOpen] = useState(false)
   
   const settingsTriggerRef = useRef<HTMLButtonElement>(null)
   const settingsMenuRef = useRef<HTMLDivElement>(null)
-  const sessionMenuTriggerRef = useRef<HTMLButtonElement>(null)
+
+  // 获取当前 Session 标题
+  const currentSession = useMemo(() => 
+    sessions.find(s => s.id === sessionId), 
+    [sessions, sessionId]
+  )
+  const sessionTitle = currentSession?.title || 'New Chat'
 
   // 获取当前选中的模型
   const selectedModel = useMemo(() => {
@@ -54,20 +59,15 @@ export function Header({
     return models.find(m => `${m.providerId}:${m.id}` === selectedModelKey) || null
   }, [models, selectedModelKey])
 
-  // 获取当前 Session
-  const currentSession = useMemo(() => sessions.find(s => s.id === sessionId), [sessions, sessionId])
-  const sessionTitle = currentSession?.title || "New Chat"
-
   // 计算 session 统计
   const stats = useSessionStats(selectedModel?.contextLimit || 200000)
   
   // 是否有消息（用于控制显示）
   const hasMessages = messages.length > 0
 
-  // Close menus when clicking outside
+  // Close settings menu when clicking outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      // Settings Menu
       if (
         settingsMenuRef.current &&
         !settingsMenuRef.current.contains(e.target as Node) &&
@@ -75,23 +75,14 @@ export function Header({
       ) {
         setSettingsMenuOpen(false)
       }
-      // Session Menu
-      if (
-        sessionMenuOpen && 
-        sessionMenuTriggerRef.current && 
-        !sessionMenuTriggerRef.current.contains(e.target as Node) &&
-        !(e.target as Element).closest('[role="menu"]')
-      ) {
-        setSessionMenuOpen(false)
-      }
     }
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [sessionMenuOpen])
+  }, [])
 
   return (
-    <div className="h-14 flex justify-between items-center px-4 z-20 backdrop-blur-md bg-bg-100/80 border-b border-border-200/50 transition-colors duration-200">
-      <div className="flex items-center gap-2 pointer-events-auto">
+    <div className="h-14 flex justify-between items-center px-4 z-20 backdrop-blur-md bg-bg-100/80 transition-colors duration-200 relative">
+      <div className="flex items-center gap-2 min-w-0 shrink-1">
         {/* Sidebar Toggle */}
         <IconButton
           aria-label="Toggle sidebar"
@@ -100,58 +91,6 @@ export function Header({
         >
           <SidebarIcon size={18} />
         </IconButton>
-
-        {/* Chat Title Group */}
-        <div className="flex items-center group rounded-lg hover:bg-bg-200/50 transition-colors p-0.5 border border-transparent hover:border-border-200/30">
-          <button 
-            className="px-2 py-1 text-sm font-medium text-text-300 hover:text-text-100 truncate max-w-[160px] md:max-w-[240px] transition-colors rounded-md active:scale-[0.98]"
-            title={sessionTitle}
-          >
-            {sessionTitle}
-          </button>
-          <div className="w-px h-3.5 bg-border-200/30 mx-0.5 group-hover:bg-border-200/50 transition-colors" />
-          <div className="relative">
-            <button 
-              ref={sessionMenuTriggerRef}
-              onClick={() => setSessionMenuOpen(!sessionMenuOpen)}
-              className={`p-1 text-text-400 hover:text-text-100 rounded-md transition-all active:scale-95 ${sessionMenuOpen ? 'bg-bg-200 text-text-100' : ''}`}
-            >
-              <ChevronDownIcon size={12} className={`transition-transform duration-200 ${sessionMenuOpen ? 'rotate-180' : ''}`} />
-            </button>
-            
-            {/* Session Menu Dropdown */}
-            <DropdownMenu
-              triggerRef={sessionMenuTriggerRef}
-              isOpen={sessionMenuOpen}
-              position="bottom"
-              align="left"
-              width={160}
-            >
-              <div className="py-1" role="menu">
-                <MenuItem
-                  icon={<PencilIcon />}
-                  label="Rename"
-                  onClick={() => {
-                    setSessionMenuOpen(false)
-                    // TODO: Implement rename
-                  }}
-                />
-                <MenuItem
-                  icon={<TrashIcon />}
-                  label="Delete"
-                  variant="danger"
-                  onClick={() => {
-                    setSessionMenuOpen(false)
-                    if (sessionId) {
-                      removeSession(sessionId)
-                      onNewChat()
-                    }
-                  }}
-                />
-              </div>
-            </DropdownMenu>
-          </div>
-        </div>
 
         {/* New Chat */}
         <IconButton
@@ -162,27 +101,44 @@ export function Header({
           <ComposeIcon size={18} />
         </IconButton>
 
-        <div className="w-px h-4 bg-border-200/50 mx-1 hidden sm:block" />
+        <div className="w-px h-4 bg-border-200/50 mx-1 shrink-0" />
 
-        {/* Model Selector - hidden on mobile if needed, or compact */}
-        <div className="hidden sm:block">
-          <ModelSelector
-            models={models}
-            selectedModelKey={selectedModelKey}
-            onSelect={onModelChange}
-            isLoading={modelsLoading}
-          />
+        {/* Session Title Split Button */}
+        <div className="flex items-center group bg-transparent hover:bg-bg-200/50 rounded-lg transition-colors duration-300 ease-[cubic-bezier(0.165,0.85,0.45,1)] p-0.5 border border-transparent hover:border-border-200/50 min-w-0 shrink">
+          <button 
+            className="px-3 py-1.5 text-sm font-medium text-text-200 hover:text-text-100 transition-colors truncate max-w-[120px] sm:max-w-[200px] text-left cursor-default select-none"
+            title={sessionTitle}
+          >
+            {sessionTitle}
+          </button>
+          <div className="w-[1.5px] h-3 bg-border-200/50 mx-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
+          <button 
+            className="p-1 text-text-400 hover:text-text-100 transition-colors rounded-md hover:bg-bg-300/50 opacity-0 group-hover:opacity-100 shrink-0"
+            title="Session options"
+          >
+            <ChevronDownIcon size={12} />
+          </button>
         </div>
       </div>
 
-      {/* Center: Context & Cost Stats */}
-      {hasMessages && (
-        <div className="hidden md:flex items-center gap-4 absolute left-1/2 -translate-x-1/2">
-          <ContextIndicator stats={stats} />
-        </div>
-      )}
+      {/* Center: Model Selector */}
+      <div className="hidden md:flex absolute left-1/2 -translate-x-1/2">
+        <ModelSelector
+          models={models}
+          selectedModelKey={selectedModelKey}
+          onSelect={onModelChange}
+          isLoading={modelsLoading}
+        />
+      </div>
 
-      <div className="flex items-center gap-2 pointer-events-auto">
+      <div className="flex items-center gap-2 pointer-events-auto shrink-0">
+        {/* Stats */}
+        {hasMessages && (
+          <div className="hidden lg:flex mr-2">
+            <ContextIndicator stats={stats} />
+          </div>
+        )}
+
         {/* Wide Mode Toggle */}
         {onToggleWideMode && (
           <IconButton
@@ -318,6 +274,9 @@ export function Header({
         isOpen={shareDialogOpen} 
         onClose={() => setShareDialogOpen(false)} 
       />
+
+      {/* Smooth gradient transition to content */}
+      <div className="absolute top-full left-0 right-0 h-8 bg-gradient-to-b from-bg-100/80 to-transparent pointer-events-none z-10" />
     </div>
   )
 }
