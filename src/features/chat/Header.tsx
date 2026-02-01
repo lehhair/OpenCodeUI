@@ -73,8 +73,8 @@ export function Header({
   }, [])
 
   return (
-    <div className="h-14 flex justify-between items-center px-4 z-20 pointer-events-none">
-      <div className="flex items-center gap-2 pointer-events-auto">
+    <div className="h-14 flex justify-between items-center px-4 z-20 backdrop-blur-md bg-bg-100/80 border-b border-border-200/50 transition-colors duration-200">
+      <div className="flex items-center gap-2">
         {/* Sidebar Toggle */}
         <IconButton
           aria-label="Toggle sidebar"
@@ -83,6 +83,17 @@ export function Header({
         >
           <SidebarIcon size={18} />
         </IconButton>
+
+        {/* New Chat - Moved to left for better accessibility */}
+        <IconButton
+          aria-label="New chat"
+          onClick={onNewChat}
+          className="hover:bg-bg-200/50 text-text-400 hover:text-text-100"
+        >
+          <ComposeIcon size={18} />
+        </IconButton>
+
+        <div className="w-px h-4 bg-border-200/50 mx-1" />
 
         {/* Model Selector */}
         <ModelSelector
@@ -95,7 +106,7 @@ export function Header({
 
       {/* Center: Context & Cost Stats */}
       {hasMessages && (
-        <div className="hidden md:flex items-center gap-4 pointer-events-auto">
+        <div className="hidden md:flex items-center gap-4 absolute left-1/2 -translate-x-1/2">
           <ContextIndicator stats={stats} />
         </div>
       )}
@@ -106,26 +117,11 @@ export function Header({
           <IconButton
             aria-label={isWideMode ? "Standard width" : "Wide mode"}
             onClick={onToggleWideMode}
-            className="hover:bg-bg-200/50 hidden sm:flex text-text-400 hover:text-text-100"
+            className="hover:bg-bg-200/50 text-text-400 hover:text-text-100"
           >
             {isWideMode ? <MinimizeIcon size={18} /> : <MaximizeIcon size={18} />}
           </IconButton>
         )}
-
-        {/* Bottom Panel Toggle */}
-        <IconButton
-          aria-label={bottomPanelOpen ? "Close bottom panel" : "Open bottom panel"}
-          onClick={() => layoutStore.toggleBottomPanel()}
-          className={`
-            transition-colors
-            ${bottomPanelOpen
-              ? 'text-accent-main-100 bg-bg-200/50' 
-              : 'text-text-400 hover:text-text-100 hover:bg-bg-200/50'
-            }
-          `}
-        >
-          <PanelBottomIcon size={18} />
-        </IconButton>
 
         {/* Right Panel Toggle */}
         <IconButton
@@ -142,13 +138,19 @@ export function Header({
           <PanelRightIcon size={18} />
         </IconButton>
 
-        {/* New Chat Button */}
+        {/* Bottom Panel Toggle */}
         <IconButton
-          aria-label="New chat"
-          onClick={onNewChat}
-          className="hover:bg-bg-200/50 text-text-400 hover:text-text-100"
+          aria-label={bottomPanelOpen ? "Close bottom panel" : "Open bottom panel"}
+          onClick={() => layoutStore.toggleBottomPanel()}
+          className={`
+            transition-colors
+            ${bottomPanelOpen
+              ? 'text-accent-main-100 bg-bg-200/50' 
+              : 'text-text-400 hover:text-text-100 hover:bg-bg-200/50'
+            }
+          `}
         >
-          <ComposeIcon size={18} />
+          <PanelBottomIcon size={18} />
         </IconButton>
 
         {/* Settings Button */}
