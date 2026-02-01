@@ -16,7 +16,7 @@ import type { ModelInfo } from '../../api'
 interface HeaderProps {
   models: ModelInfo[]
   modelsLoading: boolean
-  selectedModelKey: string | null  // providerId:modelId 格式
+  selectedModelKey: string | null
   onModelChange: (modelKey: string, model: ModelInfo) => void
   onNewChat: () => void
   onToggleSidebar: () => void
@@ -53,13 +53,22 @@ export function Header({
   const settingsTriggerRef = useRef<HTMLButtonElement>(null)
   const settingsMenuRef = useRef<HTMLDivElement>(null)
 
-  // 获取当前 Session 标题
+  // Session Data
   const currentSession = useMemo(() => 
     sessions.find(s => s.id === sessionId), 
     [sessions, sessionId]
   )
   const sessionTitle = currentSession?.title || 'New Chat'
 
+  const selectedModel = useMemo(() => {
+    if (!selectedModelKey) return null
+    return models.find(m => `${m.providerId}:${m.id}` === selectedModelKey) || null
+  }, [models, selectedModelKey])
+
+  const stats = useSessionStats(selectedModel?.contextLimit || 200000)
+  const hasMessages = messages.length > 0
+
+  // Editing Logic
   useEffect(() => {
     setIsEditingTitle(false)
   }, [sessionId])
@@ -82,7 +91,6 @@ export function Header({
       setIsEditingTitle(false)
       return
     }
-    
     try {
       await updateSession(sessionId, { title: editTitle.trim() }, currentSession?.directory)
       refresh()
@@ -93,19 +101,7 @@ export function Header({
     }
   }
 
-  // 获取当前选中的模型
-  const selectedModel = useMemo(() => {
-    if (!selectedModelKey) return null
-    return models.find(m => `${m.providerId}:${m.id}` === selectedModelKey) || null
-  }, [models, selectedModelKey])
-
-  // 计算 session 统计
-  const stats = useSessionStats(selectedModel?.contextLimit || 200000)
-  
-  // 是否有消息（用于控制显示）
-  const hasMessages = messages.length > 0
-
-  // Close settings menu when clicking outside
+  // Close menu on click outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (
@@ -122,8 +118,9 @@ export function Header({
 
   return (
     <div className="h-14 flex justify-between items-center px-4 z-20 bg-bg-100 transition-colors duration-200 relative">
+      
+      {/* Left: Navigation & Context */}
       <div className="flex items-center gap-2 min-w-0 shrink-1">
-        {/* Sidebar Toggle */}
         <IconButton
           aria-label="Toggle sidebar"
           onClick={onToggleSidebar}
@@ -132,18 +129,8 @@ export function Header({
           <SidebarIcon size={18} />
         </IconButton>
 
-        {/* New Chat */}
-        <IconButton
-          aria-label="New chat"
-          onClick={onNewChat}
-          className="hover:bg-bg-200/50 text-text-400 hover:text-text-100"
-        >
-          <ComposeIcon size={18} />
-        </IconButton>
-
         <div className="w-px h-4 bg-border-200/50 mx-1 shrink-0" />
 
-        {/* Model Selector - Moved to left */}
         <ModelSelector
           models={models}
           selectedModelKey={selectedModelKey}
@@ -152,9 +139,10 @@ export function Header({
         />
       </div>
 
-      {/* Center: Session Title - Only on desktop */}
+      {/* Center: Session Capsule (Title + Stats) - Only on desktop */}
       <div className="absolute left-1/2 -translate-x-1/2 hidden md:flex">
         <div className={`flex items-center group ${isEditingTitle ? 'bg-bg-200/50 ring-1 ring-accent-main-100' : 'bg-transparent hover:bg-bg-200/50 border border-transparent hover:border-border-200/50'} rounded-lg transition-all duration-200 p-0.5 min-w-0 shrink`}>
+          
           {isEditingTitle ? (
             <input
               ref={titleInputRef}
@@ -166,15 +154,20 @@ export function Header({
                 if (e.key === 'Enter') handleRename()
                 if (e.key === 'Escape') setIsEditingTitle(false)
               }}
-              className="px-3 py-1.5 text-sm font-medium text-text-100 bg-transparent border-none outline-none w-[200px] lg:w-[300px] h-full"
+              className="px-3 py-1.5 text-sm font-medium text-text-100 bg-transparent border-none outline-none w-[200px] lg:w-[300px] h-full text-center"
             />
           ) : (
             <button 
               onClick={handleStartEdit}
-              className="px-3 py-1.5 text-sm font-medium text-text-200 hover:text-text-100 transition-colors truncate max-w-[200px] lg:max-w-[300px] text-left cursor-text select-none"
+              className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-text-200 hover:text-text-100 transition-colors max-w-[300px] cursor-text select-none"
               title="Click to rename"
             >
-              {sessionTitle}
+              <span className="truncate">{sessionTitle}</span>
+              
+              {/* Integrated Stats Badge */}
+              {hasMessages && (
+                <StatsBadge stats={stats} />
+              )}
             </button>
           )}
 
@@ -193,27 +186,41 @@ export function Header({
         </div>
       </div>
 
-      <div className="flex items-center gap-2 pointer-events-auto shrink-0">
-        {/* Stats */}
-        {hasMessages && (
-          <div className="hidden lg:flex mr-2">
-            <ContextIndicator stats={stats} />
-          </div>
-        )}
+      {/* Right: Actions & Tools */}
+      <div className="flex items-center gap-1 pointer-events-auto shrink-0">
+        
+        {/* New Chat */}
+        <IconButton
+          aria-label="New chat"
+          onClick={onNewChat}
+          className="hover:bg-bg-200/50 text-text-400 hover:text-text-100 mr-1"
+        >
+          <ComposeIcon size={18} />
+        </IconButton>
 
-        {/* Wide Mode Toggle */}
-        {onToggleWideMode && (
+        <div className="w-px h-4 bg-border-200/50 mx-1 hidden sm:block" />
+
+        {/* Layout Group */}
+        <div className="flex items-center gap-0.5">
           <IconButton
-            aria-label={isWideMode ? "Standard width" : "Wide mode"}
-            onClick={onToggleWideMode}
-            className="hover:bg-bg-200/50 text-text-400 hover:text-text-100"
+            aria-label={bottomPanelOpen ? "Close bottom panel" : "Open bottom panel"}
+            onClick={() => layoutStore.toggleBottomPanel()}
+            className={`transition-colors ${bottomPanelOpen ? 'text-accent-main-100 bg-bg-200/50' : 'text-text-400 hover:text-text-100 hover:bg-bg-200/50'}`}
           >
-            {isWideMode ? <MinimizeIcon size={18} /> : <MaximizeIcon size={18} />}
+            <PanelBottomIcon size={18} />
           </IconButton>
-        )}
 
-        {/* Settings Button */}
-        <div className="relative">
+          <IconButton
+            aria-label={rightPanelOpen ? "Close panel" : "Open panel"}
+            onClick={() => layoutStore.toggleRightPanel()}
+            className={`transition-colors ${rightPanelOpen ? 'text-accent-main-100 bg-bg-200/50' : 'text-text-400 hover:text-text-100 hover:bg-bg-200/50'}`}
+          >
+            <PanelRightIcon size={18} />
+          </IconButton>
+        </div>
+
+        {/* Settings */}
+        <div className="relative ml-1">
           <IconButton
             ref={settingsTriggerRef}
             aria-label="Menu"
@@ -223,7 +230,6 @@ export function Header({
             <MoreHorizontalIcon size={18} />
           </IconButton>
 
-          {/* Settings Menu */}
           <DropdownMenu
             triggerRef={settingsTriggerRef}
             isOpen={settingsMenuOpen}
@@ -232,27 +238,23 @@ export function Header({
             width={200}
           >
             <div ref={settingsMenuRef} className="py-1">
+              {/* Theme Selector */}
               <div className="px-2 pt-2 pb-1">
                 <div className="text-[10px] font-bold text-text-400 uppercase tracking-wider px-2 mb-1.5">Appearance</div>
                 <div className="flex bg-bg-100/50 p-1 rounded-lg border border-border-200/50 relative isolate">
-                  {/* Sliding Background */}
                   <div
                     className="absolute top-1 bottom-1 left-1 w-[calc((100%-8px)/3)] bg-bg-000 rounded-md shadow-md ring-1 ring-border-200/50 transition-transform duration-500 ease-[cubic-bezier(0.23,1,0.32,1)] -z-10"
                     style={{
                       transform: themeMode === 'system' ? 'translateX(0%)' : themeMode === 'light' ? 'translateX(100%)' : 'translateX(200%)'
                     }}
                   />
-
                   {(['system', 'light', 'dark'] as const).map((m) => (
                     <button
                       key={m}
                       onClick={(e) => onThemeChange(m, e)}
                       className={`flex-1 flex items-center justify-center py-1.5 rounded-md text-xs font-medium transition-colors duration-300 ${
-                        themeMode === m
-                          ? 'text-text-100'
-                          : 'text-text-400 hover:text-text-200'
+                        themeMode === m ? 'text-text-100' : 'text-text-400 hover:text-text-200'
                       }`}
-                      title={m.charAt(0).toUpperCase() + m.slice(1)}
                     >
                       {m === 'system' && <SystemIcon size={14} />}
                       {m === 'light' && <SunIcon size={14} />}
@@ -261,66 +263,36 @@ export function Header({
                   ))}
                 </div>
               </div>
+              
               <div className="my-1 border-t border-border-200/50" />
               
+              {onToggleWideMode && (
+                <MenuItem
+                  icon={isWideMode ? <MinimizeIcon size={16} /> : <MaximizeIcon size={16} />}
+                  label={isWideMode ? "Standard Width" : "Wide Mode"}
+                  onClick={() => { onToggleWideMode(); setSettingsMenuOpen(false); }}
+                />
+              )}
+
               <MenuItem
                 icon={<ShareIcon />}
                 label={shareUrl ? "Share Settings" : "Share Chat"}
-                onClick={() => {
-                  setSettingsMenuOpen(false)
-                  setShareDialogOpen(true)
-                }}
+                onClick={() => { setSettingsMenuOpen(false); setShareDialogOpen(true); }}
               />
 
               <MenuItem
                 icon={<CogIcon />}
                 label="Settings"
-                onClick={() => {
-                  setSettingsMenuOpen(false)
-                  setSettingsDialogOpen(true)
-                }}
+                onClick={() => { setSettingsMenuOpen(false); setSettingsDialogOpen(true); }}
               />
               <MenuItem
                 icon={<TeachIcon />}
                 label="Help & Feedback"
-                onClick={() => {
-                  setSettingsMenuOpen(false)
-                  // TODO: Open help
-                }}
+                onClick={() => { setSettingsMenuOpen(false); }}
               />
             </div>
           </DropdownMenu>
         </div>
-
-        {/* Bottom Panel Toggle - Moved to second last */}
-        <IconButton
-          aria-label={bottomPanelOpen ? "Close bottom panel" : "Open bottom panel"}
-          onClick={() => layoutStore.toggleBottomPanel()}
-          className={`
-            transition-colors
-            ${bottomPanelOpen
-              ? 'text-accent-main-100 bg-bg-200/50' 
-              : 'text-text-400 hover:text-text-100 hover:bg-bg-200/50'
-            }
-          `}
-        >
-          <PanelBottomIcon size={18} />
-        </IconButton>
-
-        {/* Right Panel Toggle - Moved to rightmost */}
-        <IconButton
-          aria-label={rightPanelOpen ? "Close panel" : "Open panel"}
-          onClick={() => layoutStore.toggleRightPanel()}
-          className={`
-            transition-colors
-            ${rightPanelOpen
-              ? 'text-accent-main-100 bg-bg-200/50' 
-              : 'text-text-400 hover:text-text-100 hover:bg-bg-200/50'
-            }
-          `}
-        >
-          <PanelRightIcon size={18} />
-        </IconButton>
       </div>
 
       <SettingsDialog
@@ -332,109 +304,71 @@ export function Header({
         onToggleWideMode={onToggleWideMode}
       />
 
-      <ShareDialog 
-        isOpen={shareDialogOpen} 
-        onClose={() => setShareDialogOpen(false)} 
-      />
+      <ShareDialog isOpen={shareDialogOpen} onClose={() => setShareDialogOpen(false)} />
 
-      {/* Smooth gradient transition to content */}
+      {/* Smooth gradient */}
       <div className="absolute top-full left-0 right-0 h-8 bg-gradient-to-b from-bg-100 to-transparent pointer-events-none z-10" />
     </div>
   )
 }
 
 // ============================================
-// Context Indicator Component
+// Stats Badge Component (Fusion Style)
 // ============================================
 
-interface ContextIndicatorProps {
-  stats: SessionStats
-}
-
-function ContextIndicator({ stats }: ContextIndicatorProps) {
+function StatsBadge({ stats }: { stats: SessionStats }) {
   const [showTooltip, setShowTooltip] = useState(false)
   
-  // 根据使用率确定颜色
-  const getProgressColor = (percent: number) => {
-    if (percent >= 90) return 'bg-danger-100'
-    if (percent >= 70) return 'bg-warning-100'
-    return 'bg-accent-main-100'
+  const getTextColor = (percent: number) => {
+    if (percent >= 90) return 'text-danger-100'
+    if (percent >= 70) return 'text-warning-100'
+    return 'text-text-400'
   }
-  
-  const progressColor = getProgressColor(stats.contextPercent)
   
   return (
     <div 
-      className="relative flex items-center gap-3 px-3 py-1.5 rounded-lg bg-bg-200/30 hover:bg-bg-200/50 transition-colors cursor-default"
+      className="relative flex items-center"
       onMouseEnter={() => setShowTooltip(true)}
       onMouseLeave={() => setShowTooltip(false)}
+      onClick={(e) => e.stopPropagation()} // Prevent triggering rename
     >
-      {/* Context Progress */}
-      <div className="flex items-center gap-2">
-        <div className="w-20 h-1.5 bg-bg-300/50 rounded-full overflow-hidden">
-          <div 
-            className={`h-full rounded-full transition-all duration-300 ${progressColor}`}
-            style={{ width: `${Math.max(1, stats.contextPercent)}%` }}
-          />
-        </div>
-        <span className="text-[11px] font-mono text-text-400 tabular-nums">
-          {formatTokens(stats.contextUsed)}
+      <div className={`
+        flex items-center justify-center px-1.5 py-0.5 rounded
+        bg-bg-300/30 hover:bg-bg-300/50 transition-colors
+        border border-transparent hover:border-border-200/30
+      `}>
+        <span className={`text-[10px] font-mono leading-none ${getTextColor(stats.contextPercent)}`}>
+          {Math.round(stats.contextPercent)}%
         </span>
       </div>
-      
-      {/* Cost */}
-      {stats.totalCost > 0 && (
-        <>
-          <div className="w-px h-3 bg-border-200/50" />
-          <span className="text-[11px] font-mono text-text-400 tabular-nums">
-            {formatCost(stats.totalCost)}
-          </span>
-        </>
-      )}
-      
-      {/* Tooltip */}
+
+      {/* Detailed Tooltip */}
       {showTooltip && (
-        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 z-50">
-          <div className="bg-bg-100 border border-border-200 rounded-lg shadow-lg px-3 py-2 min-w-[180px]">
+        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-3 z-50 cursor-default">
+          <div className="bg-bg-100 border border-border-200 rounded-lg shadow-xl px-3 py-2 min-w-[180px]">
             <div className="text-[10px] font-bold text-text-400 uppercase tracking-wider mb-2">
               Session Stats
             </div>
-            <div className="space-y-1.5 text-xs">
+            <div className="space-y-1.5 text-xs text-text-200">
               <div className="flex justify-between">
                 <span className="text-text-400">Context</span>
-                <span className="font-mono text-text-200">
-                  {formatTokens(stats.contextUsed)} / {formatTokens(stats.contextLimit)}
-                </span>
+                <span className="font-mono">{formatTokens(stats.contextUsed)}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-text-400">Input tokens</span>
-                <span className="font-mono text-text-200">{formatTokens(stats.inputTokens)}</span>
+                <span className="text-text-400">Limit</span>
+                <span className="font-mono">{formatTokens(stats.contextLimit)}</span>
               </div>
+              <div className="w-full h-1 bg-bg-300 rounded-full overflow-hidden my-1">
+                <div 
+                  className={`h-full ${getTextColor(stats.contextPercent).replace('text-', 'bg-')}`} 
+                  style={{ width: `${Math.min(100, stats.contextPercent)}%` }}
+                />
+              </div>
+              <div className="border-t border-border-200/50 my-1.5" />
               <div className="flex justify-between">
-                <span className="text-text-400">Output tokens</span>
-                <span className="font-mono text-text-200">{formatTokens(stats.outputTokens)}</span>
+                <span className="text-text-400">Cost</span>
+                <span className="font-mono">{formatCost(stats.totalCost)}</span>
               </div>
-              {stats.reasoningTokens > 0 && (
-                <div className="flex justify-between">
-                  <span className="text-text-400">Reasoning</span>
-                  <span className="font-mono text-text-200">{formatTokens(stats.reasoningTokens)}</span>
-                </div>
-              )}
-              {stats.cacheRead > 0 && (
-                <div className="flex justify-between">
-                  <span className="text-text-400">Cache read</span>
-                  <span className="font-mono text-success-100">{formatTokens(stats.cacheRead)}</span>
-                </div>
-              )}
-              {stats.totalCost > 0 && (
-                <>
-                  <div className="border-t border-border-200/50 my-1.5" />
-                  <div className="flex justify-between">
-                    <span className="text-text-400">Total cost</span>
-                    <span className="font-mono text-text-200">{formatCost(stats.totalCost)}</span>
-                  </div>
-                </>
-              )}
             </div>
             {/* Arrow */}
             <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-bg-100 border-l border-t border-border-200 rotate-45" />
