@@ -5,6 +5,7 @@ import { useDirectory } from '../../../hooks'
 import { useSessionContext } from '../../../contexts/SessionContext'
 import { updateSession, subscribeToConnectionState, type ApiSession, type ConnectionInfo } from '../../../api'
 import { uiErrorHandler } from '../../../utils'
+import { ComposeIcon } from '../../../components/Icons'
 
 interface SidePanelProps {
   onNewSession: () => void
@@ -12,6 +13,8 @@ interface SidePanelProps {
   onCloseMobile?: () => void
   selectedSessionId: string | null
   onAddProject: () => void
+  isMobile?: boolean
+  isCollapsed?: boolean
 }
 
 export function SidePanel({
@@ -20,6 +23,8 @@ export function SidePanel({
   onCloseMobile,
   selectedSessionId,
   onAddProject,
+  isMobile = false,
+  isCollapsed = false,
 }: SidePanelProps) {
   const { currentDirectory, savedDirectories, setCurrentDirectory, removeDirectory } = useDirectory()
   const [connectionState, setConnectionState] = useState<ConnectionInfo | null>(null)
@@ -42,8 +47,7 @@ export function SidePanel({
     refresh,
   } = useSessionContext()
 
-  // 构建项目列表数据供 Selector 使用
-  // 这里我们需要把 Global 和 Saved Directories 统一格式
+  // 构建项目列表数据
   const projects = useMemo(() => {
     const list = []
     // Global
@@ -103,22 +107,51 @@ export function SidePanel({
     }
   }, [currentDirectory, refresh])
 
-  return (
-    <div className="flex flex-col h-full overflow-hidden border-r border-border-200/30">
-      {/* Top Section: Project Selector Header */}
-      <div className="h-14 flex items-center px-3 z-20 relative shrink-0">
-        {/* Project Switcher */}
-        <div className="w-full relative z-20">
-          <ProjectSelector
-            currentProject={currentProject as any}
-            projects={projects as any}
-            isLoading={false}
-            onSelectProject={handleSelectProject}
-            onAddProject={onAddProject}
-            onRemoveProject={handleRemoveProject}
-          />
+  // ==========================================
+  // Render: Collapsed Mode (Icon Only)
+  // ==========================================
+  if (isCollapsed) {
+    return (
+      <div className="flex flex-col items-center h-full py-2 gap-4">
+        <button
+          onClick={onNewSession}
+          className="w-10 h-10 flex items-center justify-center rounded-xl bg-bg-200/50 hover:bg-bg-200 hover:text-accent-main-100 text-text-400 transition-colors"
+          title="New Chat"
+        >
+          <ComposeIcon size={20} />
+        </button>
+        
+        {/* Placeholder icons for other features if needed */}
+        <div className="w-8 h-px bg-border-200/50" />
+        
+        <div className="flex flex-col gap-3">
+           {/* Just show simple indicators or nothing for now */}
+           {/* Maybe show recent sessions as dots? No, just keep it clean */}
         </div>
       </div>
+    )
+  }
+
+  // ==========================================
+  // Render: Full Mode
+  // ==========================================
+  return (
+    <div className="flex flex-col h-full overflow-hidden">
+      {/* Top Section: Project Selector Header - 移动端隐藏（Sidebar 已有 header） */}
+      {!isMobile && (
+        <div className="h-14 flex items-center px-3 z-20 relative shrink-0">
+          <div className="w-full relative z-20">
+            <ProjectSelector
+              currentProject={currentProject as any}
+              projects={projects as any}
+              isLoading={false}
+              onSelectProject={handleSelectProject}
+              onAddProject={onAddProject}
+              onRemoveProject={handleRemoveProject}
+            />
+          </div>
+        </div>
+      )}
 
       {/* List */}
       <div className="flex-1 overflow-hidden pt-2">
@@ -144,7 +177,6 @@ export function SidePanel({
           <ConnectionIndicator state={connectionState?.state || 'disconnected'} />
           <span className="opacity-70">{connectionState?.state === 'connected' ? 'Online' : 'Offline'}</span>
         </div>
-        {/* Settings button could go here */}
       </div>
     </div>
   )

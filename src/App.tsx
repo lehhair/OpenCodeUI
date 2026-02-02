@@ -139,6 +139,7 @@ function App() {
         onSelectSession={handleSelectSession}
         onNewSession={handleNewSession}
         onClose={() => setSidebarExpanded(false)}
+        onToggle={() => setSidebarExpanded(!sidebarExpanded)}
       />
 
       {/* Main Content Area: Chat Column + Right Panel */}
@@ -155,7 +156,6 @@ function App() {
                   modelsLoading={modelsLoading}
                   selectedModelKey={selectedModelKey}
                   onModelChange={handleModelChange}
-                  onNewChat={handleNewSession}
                   onToggleSidebar={() => setSidebarExpanded(!sidebarExpanded)}
                   themeMode={themeMode}
                   onThemeChange={setThemeWithAnimation}

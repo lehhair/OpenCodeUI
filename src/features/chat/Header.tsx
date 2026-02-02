@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
-import { ComposeIcon, CogIcon, MoreHorizontalIcon, TeachIcon, SidebarIcon, MaximizeIcon, MinimizeIcon, SunIcon, MoonIcon, SystemIcon, ShareIcon, PanelRightIcon, PanelBottomIcon, ChevronDownIcon } from '../../components/Icons'
+import { CogIcon, MoreHorizontalIcon, TeachIcon, SidebarIcon, MaximizeIcon, MinimizeIcon, SunIcon, MoonIcon, SystemIcon, ShareIcon, PanelRightIcon, PanelBottomIcon, ChevronDownIcon } from '../../components/Icons'
 import { DropdownMenu, MenuItem, IconButton } from '../../components/ui'
 import { ModelSelector } from './ModelSelector'
 import { SettingsDialog } from '../settings/SettingsDialog'
@@ -18,7 +18,6 @@ interface HeaderProps {
   modelsLoading: boolean
   selectedModelKey: string | null
   onModelChange: (modelKey: string, model: ModelInfo) => void
-  onNewChat: () => void
   onToggleSidebar: () => void
   themeMode: ThemeMode
   onThemeChange: (mode: ThemeMode, event?: React.MouseEvent) => void
@@ -31,7 +30,6 @@ export function Header({
   modelsLoading,
   selectedModelKey,
   onModelChange,
-  onNewChat,
   onToggleSidebar,
   themeMode,
   onThemeChange,
@@ -119,25 +117,17 @@ export function Header({
   return (
     <div className="h-14 flex justify-between items-center px-4 z-20 bg-bg-100 transition-colors duration-200 relative">
       
-      {/* Left: Sidebar, New Chat, Model (z-20) */}
+      {/* Left: Sidebar, Model (z-20) */}
       <div className="flex items-center gap-2 min-w-0 shrink-1 z-20">
         <IconButton
           aria-label="Toggle sidebar"
           onClick={onToggleSidebar}
-          className="hover:bg-bg-200/50 text-text-400 hover:text-text-100"
+          className="md:hidden hover:bg-bg-200/50 text-text-400 hover:text-text-100"
         >
           <SidebarIcon size={18} />
         </IconButton>
 
-        <IconButton
-          aria-label="New chat"
-          onClick={onNewChat}
-          className="hover:bg-bg-200/50 text-text-400 hover:text-text-100"
-        >
-          <ComposeIcon size={18} />
-        </IconButton>
-
-        <div className="w-px h-4 bg-border-200/50 mx-1 shrink-0" />
+        <div className="w-px h-4 bg-border-200/50 mx-1 shrink-0 md:hidden" />
 
         <ModelSelector
           models={models}
