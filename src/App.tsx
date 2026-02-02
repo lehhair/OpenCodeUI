@@ -187,6 +187,7 @@ function App() {
                 onSend={handleSend} 
                 onAbort={handleAbort}
                 onCommand={handleCommand}
+                onNewChat={handleNewSession}
                 disabled={!isIdle}
                 isStreaming={isStreaming}
                 agents={agents}

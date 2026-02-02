@@ -15,6 +15,7 @@ export interface InputBoxProps {
   onSend: (text: string, attachments: Attachment[], options?: { agent?: string; variant?: string }) => void
   onAbort?: () => void
   onCommand?: (command: string) => void  // 斜杠命令回调，接收完整命令字符串如 "/help"
+  onNewChat?: () => void  // 新建对话回调
   disabled?: boolean
   isStreaming?: boolean
   agents?: ApiAgent[]
@@ -45,6 +46,7 @@ export function InputBox({
   onSend, 
   onAbort,
   onCommand,
+  onNewChat,
   disabled, 
   isStreaming,
   agents = [],
@@ -657,9 +659,12 @@ export function InputBox({
 
           {/* Disclaimer */}
           <div className="flex justify-center pt-2 text-text-500">
-            <a href="#" className="text-[11px] hover:text-text-300 transition-colors text-center shadow-sm">
+            <button 
+              onClick={onNewChat}
+              className="text-[11px] hover:text-text-300 transition-colors text-center"
+            >
               AI can make mistakes. Please double-check responses.
-            </a>
+            </button>
           </div>
         </div>
       </div>
