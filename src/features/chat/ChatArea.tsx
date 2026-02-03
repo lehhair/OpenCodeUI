@@ -130,6 +130,16 @@ export const ChatArea = memo(forwardRef<ChatAreaHandle, ChatAreaProps>(({
     return () => clearInterval(scrollInterval)
   }, [isStreaming])
   
+  // 清理 scrollingTimeoutRef 防止内存泄漏
+  useEffect(() => {
+    return () => {
+      if (scrollingTimeoutRef.current) {
+        clearTimeout(scrollingTimeoutRef.current)
+        scrollingTimeoutRef.current = null
+      }
+    }
+  }, [])
+  
   // firstItemIndex：基于 prependedCount 计算，确保和 messages 同步
   const firstItemIndex = START_INDEX - prependedCount
 

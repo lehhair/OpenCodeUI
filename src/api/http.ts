@@ -4,7 +4,17 @@
 // ============================================
 
 import { API_BASE_URL } from '../constants'
+import { serverStore } from '../store/serverStore'
 
+/**
+ * 获取当前 API Base URL
+ * 优先使用 serverStore 中的活动服务器，回退到常量
+ */
+export function getApiBaseUrl(): string {
+  return serverStore.getActiveBaseUrl()
+}
+
+/** @deprecated 使用 getApiBaseUrl() 代替 */
 export const API_BASE = API_BASE_URL
 
 // ============================================
@@ -34,7 +44,7 @@ export function buildUrl(
   path: string,
   params: Record<string, QueryValue> = {}
 ): string {
-  return `${API_BASE}${path}${buildQueryString(params)}`
+  return `${getApiBaseUrl()}${path}${buildQueryString(params)}`
 }
 
 // ============================================

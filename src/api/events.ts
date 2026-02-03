@@ -2,7 +2,7 @@
 // Global Event Subscription (SSE) - Singleton Pattern
 // ============================================
 
-import { API_BASE } from './http'
+import { getApiBaseUrl } from './http'
 import type {
   ApiMessageWithParts,
   ApiPart,
@@ -109,7 +109,7 @@ function connectSingleton() {
     console.log('[SSE] Connecting singleton...')
   }
 
-  fetch(`${API_BASE}/global/event`, {
+  fetch(`${getApiBaseUrl()}/global/event`, {
     signal: singletonController.signal,
   })
     .then(async (response) => {

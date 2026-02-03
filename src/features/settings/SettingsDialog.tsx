@@ -1,10 +1,21 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Dialog } from '../../components/ui/Dialog'
-import { SunIcon, MoonIcon, SystemIcon, MaximizeIcon, MinimizeIcon, PathAutoIcon, PathUnixIcon, PathWindowsIcon } from '../../components/Icons'
-import { usePathMode } from '../../hooks'
+import { Button } from '../../components/ui/Button'
+import { 
+  SunIcon, MoonIcon, SystemIcon, MaximizeIcon, MinimizeIcon, 
+  PathAutoIcon, PathUnixIcon, PathWindowsIcon,
+  GlobeIcon, PlusIcon, TrashIcon, CheckIcon, WifiIcon, WifiOffIcon, SpinnerIcon
+} from '../../components/Icons'
+import { usePathMode, useServerStore } from '../../hooks'
 import { autoApproveStore } from '../../store'
+import { KeybindingsSection } from './KeybindingsSection'
 import type { ThemeMode } from '../../hooks'
 import type { PathMode } from '../../utils/directoryUtils'
+import type { ServerConfig, ServerHealth } from '../../store/serverStore'
+
+// ============================================
+// Settings Dialog Props
+// ============================================
 
 interface SettingsDialogProps {
   isOpen: boolean
@@ -15,7 +26,159 @@ interface SettingsDialogProps {
   onToggleWideMode?: () => void
 }
 
-// Path mode icons removed (using imports)
+// ============================================
+// Server Item Component
+// ============================================
+
+interface ServerItemProps {
+  server: ServerConfig
+  health: ServerHealth | null
+  isActive: boolean
+  onSelect: () => void
+  onDelete: () => void
+  onCheckHealth: () => void
+}
+
+function ServerItem({ server, health, isActive, onSelect, onDelete, onCheckHealth }: ServerItemProps) {
+  const [showActions, setShowActions] = useState(false)
+  
+  const healthIcon = () => {
+    if (!health || health.status === 'checking') {
+      return <SpinnerIcon size={12} className="animate-spin text-text-400" />
+    }
+    if (health.status === 'online') {
+      return <WifiIcon size={12} className="text-green-500" />
+    }
+    return <WifiOffIcon size={12} className="text-red-400" />
+  }
+  
+  return (
+    <div 
+      className={`
+        flex items-center gap-3 p-3 rounded-xl border transition-all cursor-pointer group
+        ${isActive 
+          ? 'border-accent-main-100 bg-accent-main-100/5' 
+          : 'border-border-200/50 bg-bg-000 hover:border-border-300'
+        }
+      `}
+      onClick={onSelect}
+      onMouseEnter={() => setShowActions(true)}
+      onMouseLeave={() => setShowActions(false)}
+    >
+      <div className={`p-2 rounded-lg transition-colors ${isActive ? 'bg-accent-main-100/20 text-accent-main-100' : 'bg-bg-100 text-text-300'}`}>
+        <GlobeIcon size={16} />
+      </div>
+      
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium text-text-100 truncate">{server.name}</span>
+          {isActive && <CheckIcon size={14} className="text-accent-main-100 shrink-0" />}
+        </div>
+        <div className="text-xs text-text-400 truncate font-mono">{server.url}</div>
+      </div>
+      
+      <div className="flex items-center gap-2">
+        {/* Health indicator */}
+        <button 
+          className="p-1.5 rounded-md hover:bg-bg-200 transition-colors"
+          onClick={(e) => { e.stopPropagation(); onCheckHealth() }}
+          title={health?.status === 'online' ? `Online (${health.latency}ms)` : health?.error || 'Check health'}
+        >
+          {healthIcon()}
+        </button>
+        
+        {/* Actions (show on hover) */}
+        {showActions && !server.isDefault && (
+          <button 
+            className="p-1.5 rounded-md hover:bg-danger-100/20 text-text-400 hover:text-danger-100 transition-colors"
+            onClick={(e) => { e.stopPropagation(); onDelete() }}
+            title="Remove server"
+          >
+            <TrashIcon size={14} />
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ============================================
+// Add Server Form
+// ============================================
+
+interface AddServerFormProps {
+  onAdd: (name: string, url: string) => void
+  onCancel: () => void
+}
+
+function AddServerForm({ onAdd, onCancel }: AddServerFormProps) {
+  const [name, setName] = useState('')
+  const [url, setUrl] = useState('')
+  const [error, setError] = useState('')
+  
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    
+    // Validate
+    if (!name.trim()) {
+      setError('Name is required')
+      return
+    }
+    if (!url.trim()) {
+      setError('URL is required')
+      return
+    }
+    
+    // Basic URL validation
+    try {
+      new URL(url)
+    } catch {
+      setError('Invalid URL format')
+      return
+    }
+    
+    onAdd(name.trim(), url.trim())
+  }
+  
+  return (
+    <form onSubmit={handleSubmit} className="p-3 rounded-xl border border-border-200 bg-bg-050 space-y-3">
+      <div>
+        <label className="block text-xs font-medium text-text-300 mb-1">Name</label>
+        <input
+          type="text"
+          value={name}
+          onChange={(e) => { setName(e.target.value); setError('') }}
+          placeholder="My Server"
+          className="w-full px-3 py-2 text-sm bg-bg-000 border border-border-200 rounded-lg focus:outline-none focus:border-accent-main-100 text-text-100 placeholder:text-text-400"
+          autoFocus
+        />
+      </div>
+      <div>
+        <label className="block text-xs font-medium text-text-300 mb-1">URL</label>
+        <input
+          type="text"
+          value={url}
+          onChange={(e) => { setUrl(e.target.value); setError('') }}
+          placeholder="http://192.168.1.100:4096"
+          className="w-full px-3 py-2 text-sm bg-bg-000 border border-border-200 rounded-lg focus:outline-none focus:border-accent-main-100 text-text-100 placeholder:text-text-400 font-mono"
+        />
+      </div>
+      {error && <p className="text-xs text-danger-100">{error}</p>}
+      <div className="flex justify-end gap-2">
+        <Button type="button" variant="ghost" size="sm" onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button type="submit" size="sm">
+          Add Server
+        </Button>
+      </div>
+    </form>
+  )
+}
+
+// ============================================
+// Main Settings Dialog
+// ============================================
 
 export function SettingsDialog({
   isOpen,
@@ -27,6 +190,26 @@ export function SettingsDialog({
 }: SettingsDialogProps) {
   const { pathMode, setPathMode, effectiveStyle, detectedStyle, isAutoMode } = usePathMode()
   const [autoApproveEnabled, setAutoApproveEnabled] = useState(autoApproveStore.enabled)
+  const [isAddingServer, setIsAddingServer] = useState(false)
+  
+  // Server store
+  const { 
+    servers, 
+    activeServer, 
+    addServer, 
+    removeServer, 
+    setActiveServer, 
+    checkHealth, 
+    checkAllHealth,
+    getHealth 
+  } = useServerStore()
+  
+  // Check health on mount
+  useEffect(() => {
+    if (isOpen) {
+      checkAllHealth()
+    }
+  }, [isOpen, checkAllHealth])
 
   const handlePathModeChange = (mode: PathMode) => {
     setPathMode(mode)
@@ -39,6 +222,19 @@ export function SettingsDialog({
     if (!newValue) {
       // 关闭时清空所有规则
       autoApproveStore.clearAllRules()
+    }
+  }
+  
+  const handleAddServer = (name: string, url: string) => {
+    addServer({ name, url })
+    setIsAddingServer(false)
+  }
+  
+  const handleServerChange = (serverId: string) => {
+    if (activeServer?.id !== serverId) {
+      setActiveServer(serverId)
+      // Notify user that they need to reload for the change to take effect
+      // For now we just switch - SSE will reconnect automatically
     }
   }
 
@@ -96,6 +292,49 @@ export function SettingsDialog({
               <span>Dark</span>
             </button>
           </div>
+        </div>
+
+        {/* Servers Section */}
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-xs font-semibold text-text-400 uppercase tracking-wider">Servers</h3>
+            {!isAddingServer && (
+              <button
+                onClick={() => setIsAddingServer(true)}
+                className="flex items-center gap-1 text-xs text-accent-main-100 hover:text-accent-main-200 transition-colors"
+              >
+                <PlusIcon size={12} />
+                <span>Add</span>
+              </button>
+            )}
+          </div>
+          
+          <div className="space-y-2">
+            {servers.map(server => (
+              <ServerItem
+                key={server.id}
+                server={server}
+                health={getHealth(server.id)}
+                isActive={activeServer?.id === server.id}
+                onSelect={() => handleServerChange(server.id)}
+                onDelete={() => removeServer(server.id)}
+                onCheckHealth={() => checkHealth(server.id)}
+              />
+            ))}
+            
+            {isAddingServer && (
+              <AddServerForm
+                onAdd={handleAddServer}
+                onCancel={() => setIsAddingServer(false)}
+              />
+            )}
+          </div>
+          
+          {activeServer && activeServer.id !== 'local' && (
+            <p className="mt-2 text-xs text-text-400">
+              Connected to: <span className="font-mono text-text-300">{activeServer.url}</span>
+            </p>
+          )}
         </div>
 
         {/* Path Mode Section */}
@@ -156,6 +395,9 @@ export function SettingsDialog({
             )}
           </div>
         </div>
+
+        {/* Keybindings Section */}
+        <KeybindingsSection />
 
         {/* Layout Section */}
         {onToggleWideMode && (

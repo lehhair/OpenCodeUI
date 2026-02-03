@@ -1,4 +1,4 @@
-import { memo, useState, useCallback, useRef, useLayoutEffect } from 'react'
+import { memo, useState, useCallback, useRef, useLayoutEffect, useEffect } from 'react'
 import { useIsMobile } from '../../hooks'
 
 // 统一的动画配置 (与 Sidebar 保持一致)
@@ -34,6 +34,15 @@ export const ResizablePanel = memo(function ResizablePanel({
   const contentRef = useRef<HTMLDivElement>(null)
   const rafRef = useRef<number>(0)
   const currentSizeRef = useRef(size)
+  // 保存事件处理函数引用，以便在组件卸载时清理
+  const mouseHandlersRef = useRef<{
+    move: ((e: MouseEvent) => void) | null
+    up: (() => void) | null
+  }>({ move: null, up: null })
+  const touchHandlersRef = useRef<{
+    move: ((e: TouchEvent) => void) | null
+    end: (() => void) | null
+  }>({ move: null, end: null })
 
   // 同步 size 到 ref 和 CSS 变量
   useLayoutEffect(() => {
@@ -108,9 +117,14 @@ export const ResizablePanel = memo(function ResizablePanel({
       document.body.style.userSelect = ''
       document.removeEventListener('mousemove', handleMouseMove)
       document.removeEventListener('mouseup', handleMouseUp)
+      // 清空 ref
+      mouseHandlersRef.current = { move: null, up: null }
       
       onSizeChange(currentSizeRef.current)
     }
+    
+    // 保存到 ref 以便清理
+    mouseHandlersRef.current = { move: handleMouseMove, up: handleMouseUp }
     
     document.addEventListener('mousemove', handleMouseMove)
     document.addEventListener('mouseup', handleMouseUp)
@@ -141,12 +155,39 @@ export const ResizablePanel = memo(function ResizablePanel({
        window.dispatchEvent(new CustomEvent('panel-resize-end'))
        document.removeEventListener('touchmove', handleTouchMove)
        document.removeEventListener('touchend', handleTouchEnd)
+       // 清空 ref
+       touchHandlersRef.current = { move: null, end: null }
        onSizeChange(currentSizeRef.current)
     }
+
+    // 保存到 ref 以便清理
+    touchHandlersRef.current = { move: handleTouchMove, end: handleTouchEnd }
 
     document.addEventListener('touchmove', handleTouchMove, { passive: false })
     document.addEventListener('touchend', handleTouchEnd)
   }, [position, onSizeChange])
+
+  // 组件卸载时清理可能残留的事件监听器
+  useEffect(() => {
+    return () => {
+      // 清理 mouse handlers
+      const { move: mouseMove, up: mouseUp } = mouseHandlersRef.current
+      if (mouseMove) document.removeEventListener('mousemove', mouseMove)
+      if (mouseUp) document.removeEventListener('mouseup', mouseUp)
+      
+      // 清理 touch handlers
+      const { move: touchMove, end: touchEnd } = touchHandlersRef.current
+      if (touchMove) document.removeEventListener('touchmove', touchMove)
+      if (touchEnd) document.removeEventListener('touchend', touchEnd)
+      
+      // 清理 raf
+      if (rafRef.current) cancelAnimationFrame(rafRef.current)
+      
+      // 恢复 body 样式
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+    }
+  }, [])
 
   // ============================================
   // Styles

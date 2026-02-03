@@ -273,10 +273,18 @@ export function SidePanel({
                 const isGlobal = project.id === 'global'
                 const isActive = currentProject?.id === project.id
                 return (
-                  <button
+                  <div
                     key={project.id}
                     onClick={() => handleSelectProject(project.id)}
-                    className={`group w-full flex items-center gap-2 px-2 py-1.5 transition-colors ${
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        handleSelectProject(project.id)
+                      }
+                    }}
+                    className={`group w-full flex items-center gap-2 px-2 py-1.5 transition-colors cursor-pointer ${
                       isActive ? 'bg-bg-200/60 text-text-100' : 'text-text-300 hover:text-text-100 hover:bg-bg-200/50'
                     }`}
                     title={project.worktree}
@@ -300,7 +308,7 @@ export function SidePanel({
                         <TrashIcon size={12} />
                       </button>
                     )}
-                  </button>
+                  </div>
                 )
               })}
             </div>
@@ -527,6 +535,7 @@ function SidebarFooter({
   const containerRef = useRef<HTMLDivElement>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
+  const closeTimeoutIdRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   
   // 菜单中连接状态显示用
   const statusColorClass = {
@@ -573,7 +582,10 @@ function SidebarFooter({
   // 关闭菜单
   const closeMenu = useCallback(() => {
     setIsVisible(false)
-    setTimeout(() => setIsOpen(false), 150)
+    // 使用 ref 追踪 timeout 以便清理
+    const closeTimeoutId = setTimeout(() => setIsOpen(false), 150)
+    // 保存到 ref 以便清理
+    closeTimeoutIdRef.current = closeTimeoutId
   }, [])
 
   // 切换菜单
@@ -611,6 +623,16 @@ function SidebarFooter({
   useEffect(() => {
     if (isOpen) closeMenu()
   }, [showLabels]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 清理 closeTimeout 防止内存泄漏
+  useEffect(() => {
+    return () => {
+      if (closeTimeoutIdRef.current) {
+        clearTimeout(closeTimeoutIdRef.current)
+        closeTimeoutIdRef.current = null
+      }
+    }
+  }, [])
 
   // 浮动菜单
   const floatingMenu = isOpen ? createPortal(

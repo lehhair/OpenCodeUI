@@ -1,9 +1,11 @@
-import { useRef, useEffect, useState, useCallback } from 'react'
+import { useRef, useEffect, useState, useCallback, useMemo } from 'react'
 import { Header, InputBox, PermissionDialog, QuestionDialog, Sidebar, ChatArea, type ChatAreaHandle } from './features/chat'
 import { SettingsDialog } from './features/settings/SettingsDialog'
 import { RightPanel } from './components/RightPanel'
 import { BottomPanel } from './components/BottomPanel'
-import { useTheme, useModels, useModelSelection, useChatSession } from './hooks'
+import { useTheme, useModels, useModelSelection, useChatSession, useGlobalKeybindings } from './hooks'
+import type { KeybindingHandlers } from './hooks/useKeybindings'
+import { layoutStore } from './store/layoutStore'
 import { STORAGE_KEY_WIDE_MODE } from './constants'
 import { restoreModelSelection } from './utils/sessionHelpers'
 import type { Attachment } from './api'
@@ -127,6 +129,36 @@ function App() {
       restoreFromMessage(userInfo.model, userInfo.variant)
     }
   }, [messages, models, revertedContent, restoreFromMessage])
+
+  // ============================================
+  // Global Keybindings
+  // ============================================
+  const keybindingHandlers = useMemo<KeybindingHandlers>(() => ({
+    // General
+    openSettings,
+    toggleSidebar: () => setSidebarExpanded(!sidebarExpanded),
+    toggleRightPanel: () => layoutStore.toggleRightPanel(),
+    focusInput: () => {
+      // 聚焦到输入框 - InputBox 内部需要 expose 方法或使用 DOM
+      const input = document.querySelector<HTMLTextAreaElement>('[data-input-box] textarea')
+      input?.focus()
+    },
+    
+    // Session
+    newSession: handleNewSession,
+    
+    // Terminal
+    toggleTerminal: () => layoutStore.toggleBottomPanel(),
+    
+    // Message
+    cancelMessage: () => {
+      if (isStreaming) {
+        handleAbort()
+      }
+    },
+  }), [openSettings, sidebarExpanded, setSidebarExpanded, handleNewSession, isStreaming, handleAbort])
+
+  useGlobalKeybindings(keybindingHandlers)
 
   // ============================================
   // Render

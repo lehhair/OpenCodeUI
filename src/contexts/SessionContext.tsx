@@ -7,6 +7,7 @@ import {
   type ApiSession, 
   type SessionListParams 
 } from '../api'
+import { childSessionStore } from '../store/childSessionStore'
 import { useDirectory } from './DirectoryContext'
 import { sessionErrorHandler, normalizeToForwardSlash, isSameDirectory, autoDetectPathStyle } from '../utils'
 
@@ -176,6 +177,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const deleteSession = useCallback(async (id: string) => {
     const targetDir = normalizeToForwardSlash(currentDirectory) || undefined
     await apiDeleteSession(id, targetDir)
+    // 清理该 session 的子 session 记录，防止内存泄漏
+    childSessionStore.clearChildren(id)
     setSessions(prev => prev.filter(s => s.id !== id))
     if (currentSessionId === id) setCurrentSessionId(null)
   }, [currentSessionId, currentDirectory])

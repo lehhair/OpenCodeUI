@@ -250,11 +250,19 @@ export const Terminal = memo(function Terminal({
       }
       if (resizeTimeoutRef.current) {
         clearTimeout(resizeTimeoutRef.current)
+        resizeTimeoutRef.current = null
       }
       if (ws) {
         ws.close()
       }
+      // 置空 refs 防止内存泄漏
+      wsRef.current = null
+      // 显式 dispose addons
+      fitAddon.dispose()
+      webLinksAddon.dispose()
       terminal.dispose()
+      terminalRef.current = null
+      fitAddonRef.current = null
     }
   }, [ptyId, directory, hasBeenActive])
 
