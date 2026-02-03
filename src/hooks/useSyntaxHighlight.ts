@@ -63,8 +63,9 @@ class LRUCache<T> {
 }
 
 // 全局缓存实例 - HTML 和 Tokens 分开缓存
-const htmlCache = new LRUCache<string>(150)
-const tokensCache = new LRUCache<any[][]>(100)
+// 增加缓存大小以支持长对话
+const htmlCache = new LRUCache<string>(500)
+const tokensCache = new LRUCache<any[][]>(200)
 
 // 代码长度限制 - 超过此长度跳过高亮
 const MAX_CODE_LENGTH = 50000 // 50KB
@@ -155,52 +156,94 @@ export function getShikiTheme(isDark: boolean): BundledTheme {
   return isDark ? 'github-dark' : 'github-light'
 }
 
-// 检测当前是否为深色主题
-function useIsDarkMode(): boolean {
-  const [isDark, setIsDark] = useState(() => {
+// ============================================
+// 全局主题状态单例 - 避免每个 CodeBlock 都创建监听器
+// ============================================
+
+class ThemeStateManager {
+  private isDark: boolean
+  private subscribers = new Set<(isDark: boolean) => void>()
+  private observer: MutationObserver | null = null
+  private mediaQuery: MediaQueryList | null = null
+  
+  constructor() {
+    this.isDark = this.detectTheme()
+    this.setupListeners()
+  }
+  
+  private detectTheme(): boolean {
     if (typeof window === 'undefined') return true
     const mode = document.documentElement.getAttribute('data-mode')
     if (mode === 'light') return false
     if (mode === 'dark') return true
-    // system 模式，检测系统偏好
     return window.matchMedia('(prefers-color-scheme: dark)').matches
-  })
-
-  useEffect(() => {
+  }
+  
+  private setupListeners() {
+    if (typeof window === 'undefined') return
+    
     // 监听 data-mode 属性变化
-    const observer = new MutationObserver(() => {
-      const mode = document.documentElement.getAttribute('data-mode')
-      if (mode === 'light') {
-        setIsDark(false)
-      } else if (mode === 'dark') {
-        setIsDark(true)
-      } else {
-        // system 模式
-        setIsDark(window.matchMedia('(prefers-color-scheme: dark)').matches)
+    this.observer = new MutationObserver(() => {
+      const newIsDark = this.detectTheme()
+      if (newIsDark !== this.isDark) {
+        this.isDark = newIsDark
+        this.notify()
       }
     })
-
-    observer.observe(document.documentElement, {
+    
+    this.observer.observe(document.documentElement, {
       attributes: true,
       attributeFilter: ['data-mode']
     })
-
+    
     // 监听系统主题变化
-    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
-    const handleChange = (e: MediaQueryListEvent) => {
+    this.mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
+    const handleChange = () => {
       const mode = document.documentElement.getAttribute('data-mode')
       if (!mode || mode === 'system') {
-        setIsDark(e.matches)
+        const newIsDark = this.mediaQuery!.matches
+        if (newIsDark !== this.isDark) {
+          this.isDark = newIsDark
+          this.notify()
+        }
       }
     }
-    mediaQuery.addEventListener('change', handleChange)
+    this.mediaQuery.addEventListener('change', handleChange)
+  }
+  
+  private notify() {
+    this.subscribers.forEach(fn => fn(this.isDark))
+  }
+  
+  getIsDark(): boolean {
+    return this.isDark
+  }
+  
+  subscribe(fn: (isDark: boolean) => void): () => void {
+    this.subscribers.add(fn)
+    return () => this.subscribers.delete(fn)
+  }
+}
 
-    return () => {
-      observer.disconnect()
-      mediaQuery.removeEventListener('change', handleChange)
-    }
+// 全局单例
+let themeStateManager: ThemeStateManager | null = null
+
+function getThemeStateManager(): ThemeStateManager {
+  if (!themeStateManager) {
+    themeStateManager = new ThemeStateManager()
+  }
+  return themeStateManager
+}
+
+// 使用全局单例的 hook
+function useIsDarkMode(): boolean {
+  const manager = getThemeStateManager()
+  const [isDark, setIsDark] = useState(() => manager.getIsDark())
+  
+  useEffect(() => {
+    return manager.subscribe(setIsDark)
   }, [])
-
+  
   return isDark
 }
 

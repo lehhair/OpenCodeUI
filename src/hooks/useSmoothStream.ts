@@ -119,6 +119,11 @@ export function useSmoothStream(
   useEffect(() => {
     // 不是 streaming，不需要动画
     if (!isStreaming) {
+      // 确保清理 RAF
+      if (frameRef.current) {
+        cancelAnimationFrame(frameRef.current)
+        frameRef.current = null
+      }
       return
     }
 
@@ -138,7 +143,13 @@ export function useSmoothStream(
       setDisplayIndex(currentIndex => {
         // 已经显示完了，继续等待新内容
         if (currentIndex >= fullTextLength) {
-          frameRef.current = requestAnimationFrame(animate)
+          // 使用 setTimeout 代替持续 RAF，减少 CPU 占用
+          // 只有在 streaming 状态下才继续等待
+          setTimeout(() => {
+            if (isRunning && fullTextLengthRef.current > currentIndex) {
+              frameRef.current = requestAnimationFrame(animate)
+            }
+          }, 50) // 50ms 检查一次是否有新内容
           return currentIndex
         }
         
