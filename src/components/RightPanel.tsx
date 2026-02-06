@@ -6,6 +6,7 @@ import { FileExplorer } from './FileExplorer'
 import { Terminal } from './Terminal'
 import { McpPanel } from './McpPanel'
 import { SkillPanel } from './SkillPanel'
+import { WorktreePanel } from './WorktreePanel'
 import { useMessageStore } from '../store'
 import { useDirectory } from '../hooks'
 import { createPtySession, removePtySession } from '../api/pty'
@@ -96,6 +97,8 @@ export const RightPanel = memo(function RightPanel() {
         return <McpPanel isResizing={isPanelResizing} />
       case 'skill':
         return <SkillPanel isResizing={isPanelResizing} />
+      case 'worktree':
+        return <WorktreePanel isResizing={isPanelResizing} />
       default:
         return null
     }

@@ -537,6 +537,45 @@ textarea.custom-scrollbar::-webkit-scrollbar-thumb {
   background: transparent;
 }
 
+/**
+ * Code scrollbar - 用于代码预览区域
+ * 横向滚动条极细且半透明，避免遮挡代码最后一行
+ */
+.code-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--border-300) / 0.25) transparent;
+  overflow: auto;
+}
+
+@supports (overflow: overlay) {
+  .code-scrollbar {
+    overflow: overlay;
+  }
+}
+
+.code-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 4px;
+  background: transparent;
+}
+
+.code-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.code-scrollbar::-webkit-scrollbar-thumb {
+  background-color: hsl(var(--border-300) / 0.25);
+  border-radius: 99px;
+}
+
+.code-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: hsl(var(--border-300) / 0.5);
+}
+
+.code-scrollbar::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
 /* 仅垂直滚动的变体 */
 .panel-scrollbar-y {
   scrollbar-width: thin;

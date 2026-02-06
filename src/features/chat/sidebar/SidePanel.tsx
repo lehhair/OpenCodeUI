@@ -16,9 +16,10 @@ import {
   SystemIcon,
   MaximizeIcon,
   MinimizeIcon,
-  ShareIcon
+  ShareIcon,
+  GitBranchIcon,
 } from '../../../components/Icons'
-import { useDirectory, useSessionStats, formatTokens, formatCost } from '../../../hooks'
+import { useDirectory, useSessionStats, formatTokens, formatCost, useVcsInfo } from '../../../hooks'
 import type { ThemeMode } from '../../../hooks'
 import { useSessionContext } from '../../../contexts/SessionContext'
 import { useMessageStore } from '../../../store'
@@ -71,7 +72,7 @@ export function SidePanel({
   isWideMode,
   onToggleWideMode,
 }: SidePanelProps) {
-  const { currentDirectory, savedDirectories, setCurrentDirectory, removeDirectory } = useDirectory()
+  const { currentDirectory, savedDirectories, setCurrentDirectory, removeDirectory, recentProjects } = useDirectory()
   const [connectionState, setConnectionState] = useState<ConnectionInfo | null>(null)
   const [projectDeleteConfirm, setProjectDeleteConfirm] = useState<{ isOpen: boolean; projectId: string | null }>({
     isOpen: false,
@@ -86,6 +87,9 @@ export function SidePanel({
   const { messages } = useMessageStore()
   const stats = useSessionStats(contextLimit)
   const hasMessages = messages.length > 0
+  
+  // VCS info
+  const { vcsInfo } = useVcsInfo(currentDirectory)
   
   useEffect(() => {
     return subscribeToConnectionState(setConnectionState)
@@ -109,7 +113,13 @@ export function SidePanel({
       worktree: 'All projects',
       name: 'Global',
     }]
-    savedDirectories.forEach(d => {
+    // 按最近使用时间排序，最近使用的排最前
+    const sorted = [...savedDirectories].sort((a, b) => {
+      const aTime = recentProjects[a.path] || a.addedAt
+      const bTime = recentProjects[b.path] || b.addedAt
+      return bTime - aTime
+    })
+    sorted.forEach(d => {
       list.push({
         id: d.path,
         worktree: d.path,
@@ -117,7 +127,7 @@ export function SidePanel({
       })
     })
     return list
-  }, [savedDirectories])
+  }, [savedDirectories, recentProjects])
 
   const currentProject = useMemo<ProjectItem>(() => {
     if (!currentDirectory) return projects[0]
@@ -324,6 +334,23 @@ export function SidePanel({
           </div>
         </div>
       </div>
+
+      {/* ===== VCS Branch Info ===== */}
+      {showLabels && vcsInfo?.branch && (
+        <div className="mx-2 mt-1">
+          <div
+            className="h-7 flex items-center rounded-lg px-2 text-text-400 overflow-hidden"
+            title={`Branch: ${vcsInfo.branch}`}
+          >
+            <span className="size-4 flex items-center justify-center shrink-0">
+              <GitBranchIcon size={13} />
+            </span>
+            <span className="ml-1.5 text-[11px] font-mono truncate">
+              {vcsInfo.branch}
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* ===== Main Content ===== */}
       <div 

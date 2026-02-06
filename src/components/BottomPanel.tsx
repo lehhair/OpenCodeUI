@@ -8,6 +8,7 @@ import { SessionChangesPanel } from './SessionChangesPanel'
 import { FileExplorer } from './FileExplorer'
 import { McpPanel } from './McpPanel'
 import { SkillPanel } from './SkillPanel'
+import { WorktreePanel } from './WorktreePanel'
 import { useMessageStore } from '../store'
 import { ResizablePanel } from './ui/ResizablePanel'
 
@@ -150,6 +151,8 @@ export const BottomPanel = memo(function BottomPanel({ directory }: BottomPanelP
         return <McpPanel isResizing={isPanelResizing} />
       case 'skill':
         return <SkillPanel isResizing={isPanelResizing} />
+      case 'worktree':
+        return <WorktreePanel isResizing={isPanelResizing} />
       default:
         return null
     }

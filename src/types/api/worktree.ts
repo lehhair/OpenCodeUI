@@ -1,40 +1,39 @@
 // ============================================
 // Worktree API Types
-// 基于 OpenAPI 规范
+// 基于 OpenAPI 规范 v0.0.3
 // ============================================
 
 /**
  * Worktree 实体
+ * 后端 schema: { name, branch, directory } 全部 required
  */
 export interface Worktree {
-  id: string
-  path: string
-  branch?: string
-  locked?: boolean
-  prunable?: boolean
+  name: string
+  branch: string
+  directory: string
 }
 
 /**
  * Worktree 创建参数
+ * 后端 schema: { name?, startCommand? }
  */
 export interface WorktreeCreateInput {
-  branch?: string
-  path?: string
-  sessionID?: string
+  name?: string
+  startCommand?: string
 }
 
 /**
  * Worktree 删除参数
+ * 后端 schema: { directory } required
  */
 export interface WorktreeRemoveInput {
-  path: string
-  force?: boolean
+  directory: string
 }
 
 /**
  * Worktree 重置参数
+ * 后端 schema: { directory } required
  */
 export interface WorktreeResetInput {
-  path: string
-  hard?: boolean
+  directory: string
 }

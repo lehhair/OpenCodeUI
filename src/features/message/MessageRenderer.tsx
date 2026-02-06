@@ -279,25 +279,22 @@ const ToolGroup = memo(function ToolGroup({ parts, stepFinish }: ToolGroupProps)
   const isAllDone = doneCount === totalCount
   
   return (
-    <div className={`flex flex-col transition-all duration-300 ease-in-out -ml-3 ${
-      expanded ? 'w-[calc(100%+1.5rem)]' : 'w-[260px]'
-    }`}>
+    <div className="flex flex-col">
       <button
         onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center gap-1.5 px-3 py-2 text-text-500 text-sm hover:bg-bg-200/30 rounded-lg transition-colors"
+        className="flex items-center gap-1.5 py-1.5 text-text-400 text-sm hover:text-text-200 rounded-md transition-colors w-fit"
       >
-        <span className="whitespace-nowrap">
+        <span className={`transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`}>
+          <ChevronDownIcon size={14} />
+        </span>
+        <span className="whitespace-nowrap tabular-nums">
           {isAllDone ? `${totalCount} steps` : `${doneCount}/${totalCount} steps`}
         </span>
-        {/* Step finish info inline when collapsed */}
         {!expanded && stepFinish && (
-          <span className="text-xs text-text-600 ml-2">
+          <span className="text-xs text-text-500 ml-1.5 font-mono">
             {formatTokens(stepFinish.tokens)}
           </span>
         )}
-        <span className={`ml-auto transition-transform duration-300 ${expanded ? 'rotate-180' : ''}`}>
-          <ChevronDownIcon />
-        </span>
       </button>
 
       <div className={`grid transition-[grid-template-rows] duration-300 ease-in-out ${
@@ -314,9 +311,8 @@ const ToolGroup = memo(function ToolGroup({ parts, stepFinish }: ToolGroupProps)
                   isLast={idx === parts.length - 1}
                 />
               ))}
-              {/* Step finish at bottom of group */}
               {stepFinish && (
-                <div className="px-3 pt-1">
+                <div className="pl-8 pt-1 pb-1">
                   <StepFinishPartView part={stepFinish} />
                 </div>
               )}

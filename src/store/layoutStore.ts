@@ -6,7 +6,7 @@
 export type PanelPosition = 'bottom' | 'right'
 
 // 面板内容类型
-export type PanelTabType = 'terminal' | 'files' | 'changes' | 'mcp' | 'skill'
+export type PanelTabType = 'terminal' | 'files' | 'changes' | 'mcp' | 'skill' | 'worktree'
 
 // 统一的面板标签
 export interface PanelTab {
@@ -202,6 +202,11 @@ class LayoutStore {
   // 添加 Skill 标签
   addSkillTab(position: PanelPosition) {
     return this.addSingletonTab('skill', position, 'skill')
+  }
+
+  // 添加 Worktree 标签
+  addWorktreeTab(position: PanelPosition) {
+    return this.addSingletonTab('worktree', position, 'worktree')
   }
 
   // 移除 tab

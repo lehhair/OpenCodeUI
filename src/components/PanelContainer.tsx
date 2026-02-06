@@ -14,6 +14,7 @@ import {
   GitCommitIcon,
   PlugIcon,
   TeachIcon,
+  GitWorktreeIcon,
 } from './Icons'
 import { 
   layoutStore, 
@@ -41,6 +42,7 @@ const TAB_ICONS: Record<PanelTabType, React.ReactNode> = {
   changes: <GitCommitIcon size={12} />,
   mcp: <PlugIcon size={12} />,
   skill: <TeachIcon size={12} />,
+  worktree: <GitWorktreeIcon size={12} />,
 }
 
 // Tab 显示名称
@@ -53,6 +55,7 @@ function getTabLabel(tab: PanelTab): string {
     case 'changes': return 'Changes'
     case 'mcp': return 'MCP'
     case 'skill': return 'Skills'
+    case 'worktree': return 'Worktrees'
     default: return 'Tab'
   }
 }
@@ -357,6 +360,18 @@ export const PanelContainer = memo(function PanelContainer({
               <TeachIcon size={12} />
             </span>
             Skills
+          </button>
+          <button
+            onClick={() => {
+              layoutStore.addWorktreeTab(position)
+              setAddMenuPos(null)
+            }}
+            className="w-full flex items-center gap-2 px-3 py-1.5 text-left text-xs text-text-200 hover:bg-bg-200 hover:text-text-100 transition-colors"
+          >
+            <span className="opacity-60 shrink-0">
+              <GitWorktreeIcon size={12} />
+            </span>
+            Worktrees
           </button>
         </div>,
         document.body

@@ -28,6 +28,8 @@ export type { UseRevertStateResult, RevertHistoryItem } from './useRevertState'
 export type { UsePermissionHandlerResult } from './usePermissionHandler'
 export type { SessionStats } from './useSessionStats'
 export type { FileTreeNode, UseFileExplorerOptions, UseFileExplorerResult } from './useFileExplorer'
+export { useVcsInfo } from './useVcsInfo'
+export type { UseVcsInfoResult } from './useVcsInfo'
 
 // Re-export from contexts
 export { DirectoryProvider, useDirectory, SessionProvider, useSessionContext } from '../contexts'

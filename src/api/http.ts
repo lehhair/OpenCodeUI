@@ -181,7 +181,8 @@ export async function put<T>(
  */
 export async function del<T>(
   path: string,
-  params: Record<string, QueryValue> = {}
+  params: Record<string, QueryValue> = {},
+  body?: unknown
 ): Promise<T> {
-  return request<T>(path, params, { method: 'DELETE' })
+  return request<T>(path, params, { method: 'DELETE', body })
 }

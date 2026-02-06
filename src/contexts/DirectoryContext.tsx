@@ -30,12 +30,18 @@ export interface DirectoryContextValue {
   sidebarExpanded: boolean
   /** 设置侧边栏展开状态 */
   setSidebarExpanded: (expanded: boolean) => void
+  /** 最近使用的项目时间戳 { [path]: lastUsedAt } */
+  recentProjects: Record<string, number>
 }
 
 const DirectoryContext = createContext<DirectoryContextValue | null>(null)
 
 const STORAGE_KEY_SIDEBAR = 'opencode-sidebar-expanded'
 const STORAGE_KEY_SAVED = 'opencode-saved-directories'
+const STORAGE_KEY_RECENT = 'opencode-recent-projects'
+
+// 最近使用记录: { [path]: lastUsedAt }
+type RecentProjects = Record<string, number>
 
 export function DirectoryProvider({ children }: { children: ReactNode }) {
   // 从 URL 获取 directory（替代 localStorage）
@@ -54,6 +60,15 @@ export function DirectoryProvider({ children }: { children: ReactNode }) {
     const saved = localStorage.getItem(STORAGE_KEY_SIDEBAR)
     return saved !== 'false'
   })
+
+  const [recentProjects, setRecentProjects] = useState<RecentProjects>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY_RECENT)
+      return saved ? JSON.parse(saved) : {}
+    } catch {
+      return {}
+    }
+  })
   
   const [pathInfo, setPathInfo] = useState<ApiPath | null>(null)
 
@@ -67,9 +82,17 @@ export function DirectoryProvider({ children }: { children: ReactNode }) {
     localStorage.setItem(STORAGE_KEY_SAVED, JSON.stringify(savedDirectories))
   }, [savedDirectories])
 
-  // 设置当前目录（更新 URL）
+  // 保存 recentProjects 到 localStorage
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY_RECENT, JSON.stringify(recentProjects))
+  }, [recentProjects])
+
+  // 设置当前目录（更新 URL + 记录最近使用）
   const setCurrentDirectory = useCallback((directory: string | undefined) => {
     setUrlDirectory(directory)
+    if (directory) {
+      setRecentProjects(prev => ({ ...prev, [directory]: Date.now() }))
+    }
   }, [setUrlDirectory])
 
   // 添加目录
@@ -117,6 +140,7 @@ export function DirectoryProvider({ children }: { children: ReactNode }) {
     pathInfo,
     sidebarExpanded,
     setSidebarExpanded,
+    recentProjects,
   }), [
     urlDirectory,
     setCurrentDirectory,
@@ -126,6 +150,7 @@ export function DirectoryProvider({ children }: { children: ReactNode }) {
     pathInfo,
     sidebarExpanded,
     setSidebarExpanded,
+    recentProjects,
   ])
 
   return (

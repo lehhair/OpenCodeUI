@@ -511,7 +511,6 @@ interface CodePreviewProps {
   language: string
   truncateLines?: boolean
   maxHeight?: number
-  minHeight?: number
   isResizing?: boolean
 }
 
@@ -543,18 +542,17 @@ export function CodePreview({
   code,
   language,
   truncateLines = true,
-  maxHeight = 400,
-  minHeight = 80,
+  maxHeight,
   isResizing = false,
 }: CodePreviewProps) {
-  const lines = useMemo(() => code.split('\n'), [code])
+  const lines = useMemo(() => {
+    const raw = code.split('\n')
+    if (raw.length > 1 && raw[raw.length - 1] === '' && code.endsWith('\n')) {
+      raw.pop()
+    }
+    return raw
+  }, [code])
   const totalHeight = lines.length * LINE_HEIGHT
-  const containerStyle = useMemo(() => {
-    const naturalHeight = totalHeight
-    const effectiveMinHeight = lines.length <= 2 ? naturalHeight : minHeight
-    const height = Math.min(maxHeight, Math.max(effectiveMinHeight, naturalHeight))
-    return { height }
-  }, [totalHeight, minHeight, maxHeight, lines.length])
   
   // text 类型不走高亮，resize 时也禁用以提高性能
   const enableHighlight = language !== 'text' && !isResizing
@@ -700,9 +698,9 @@ export function CodePreview({
   return (
     <div 
       ref={containerRef}
-      className="overflow-auto panel-scrollbar"
+      className="overflow-auto code-scrollbar"
       onScroll={handleScroll}
-      style={{ contain: 'strict', ...containerStyle }}
+      style={maxHeight !== undefined ? { maxHeight } : undefined}
     >
       <div style={{ height: totalHeight, position: 'relative' }}>
         <div 

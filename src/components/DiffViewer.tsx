@@ -33,8 +33,8 @@ export interface DiffViewerProps {
   after: string
   language?: string
   viewMode?: ViewMode
+  /** 不传则填满父容器 */
   maxHeight?: number
-  minHeight?: number
   isResizing?: boolean
 }
 
@@ -83,8 +83,7 @@ export const DiffViewer = memo(function DiffViewer({
   after,
   language = 'text',
   viewMode = 'split',
-  maxHeight = 400,
-  minHeight = 80,
+  maxHeight,
   isResizing = false,
 }: DiffViewerProps) {
   // 检测大文件
@@ -100,7 +99,6 @@ export const DiffViewer = memo(function DiffViewer({
         isResizing={isResizing}
         isLargeFile={isLargeFile}
         maxHeight={maxHeight}
-        minHeight={minHeight}
       />
     )
   }
@@ -111,7 +109,6 @@ export const DiffViewer = memo(function DiffViewer({
       language={language}
       isResizing={isResizing}
       maxHeight={maxHeight}
-      minHeight={minHeight}
     />
   )
 })
@@ -127,15 +124,13 @@ const SplitDiffView = memo(function SplitDiffView({
   isResizing,
   isLargeFile,
   maxHeight,
-  minHeight,
 }: { 
   before: string
   after: string
   language: string
   isResizing: boolean
-  isLargeFile: boolean  // 仅用于跳过word-level diff
-  maxHeight: number
-  minHeight: number
+  isLargeFile: boolean
+  maxHeight?: number
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const leftPanelRef = useRef<HTMLDivElement>(null)
@@ -147,15 +142,12 @@ const SplitDiffView = memo(function SplitDiffView({
   const [leftContentWidth, setLeftContentWidth] = useState(0)
   const [rightContentWidth, setRightContentWidth] = useState(0)
   
-  // 缓存
   const cachedRef = useRef<PairedLine[] | null>(null)
   
-  // resize时禁用高亮
   const shouldHighlight = !isResizing && language !== 'text'
   const { output: beforeTokens } = useSyntaxHighlight(before, { lang: language, mode: 'tokens', enabled: shouldHighlight })
   const { output: afterTokens } = useSyntaxHighlight(after, { lang: language, mode: 'tokens', enabled: shouldHighlight })
   
-  // 计算diff
   const skipWordDiff = isResizing || isLargeFile
   const pairedLines = useMemo(() => {
     if (isResizing && cachedRef.current) return cachedRef.current
@@ -165,12 +157,6 @@ const SplitDiffView = memo(function SplitDiffView({
   }, [before, after, isResizing, skipWordDiff])
   
   const totalHeight = pairedLines.length * LINE_HEIGHT
-  const containerStyle = useMemo(() => {
-    const naturalHeight = totalHeight
-    const effectiveMinHeight = pairedLines.length <= 2 ? naturalHeight : minHeight
-    const height = Math.min(maxHeight, Math.max(effectiveMinHeight, naturalHeight))
-    return { height }
-  }, [totalHeight, minHeight, maxHeight, pairedLines.length])
   
   // 可见范围
   const { startIndex, endIndex, offsetY } = useMemo(() => {
@@ -191,7 +177,7 @@ const SplitDiffView = memo(function SplitDiffView({
     return () => resizeObserver.disconnect()
   }, [isResizing])
   
-  // 测量内容宽度（用于底部滚动条）
+  // 测量内容宽度
   useEffect(() => {
     const leftPanel = leftPanelRef.current
     const rightPanel = rightPanelRef.current
@@ -215,37 +201,24 @@ const SplitDiffView = memo(function SplitDiffView({
     setScrollTop(e.currentTarget.scrollTop)
   }, [])
   
-  // 同步滚动条 -> 面板
+  // 同步 proxy 滚动条 <-> 面板
   const handleLeftScrollbar = useCallback((e: React.UIEvent<HTMLDivElement>) => {
-    if (leftPanelRef.current) {
-      leftPanelRef.current.scrollLeft = e.currentTarget.scrollLeft
-    }
+    if (leftPanelRef.current) leftPanelRef.current.scrollLeft = e.currentTarget.scrollLeft
   }, [])
-  
   const handleRightScrollbar = useCallback((e: React.UIEvent<HTMLDivElement>) => {
-    if (rightPanelRef.current) {
-      rightPanelRef.current.scrollLeft = e.currentTarget.scrollLeft
-    }
+    if (rightPanelRef.current) rightPanelRef.current.scrollLeft = e.currentTarget.scrollLeft
   }, [])
-  
-  // 同步面板 -> 滚动条
   const handleLeftPanelScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
-    if (leftScrollbarRef.current) {
-      leftScrollbarRef.current.scrollLeft = e.currentTarget.scrollLeft
-    }
+    if (leftScrollbarRef.current) leftScrollbarRef.current.scrollLeft = e.currentTarget.scrollLeft
   }, [])
-  
   const handleRightPanelScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
-    if (rightScrollbarRef.current) {
-      rightScrollbarRef.current.scrollLeft = e.currentTarget.scrollLeft
-    }
+    if (rightScrollbarRef.current) rightScrollbarRef.current.scrollLeft = e.currentTarget.scrollLeft
   }, [])
 
   if (pairedLines.length === 0) {
     return <div className="h-full flex items-center justify-center text-text-400 text-sm">No changes</div>
   }
   
-  // 渲染可见行
   const leftRows: React.ReactNode[] = []
   const rightRows: React.ReactNode[] = []
   
@@ -278,61 +251,54 @@ const SplitDiffView = memo(function SplitDiffView({
   }
 
   return (
-    <div className="flex flex-col" style={containerStyle}>
-      {/* 主内容区域 */}
-      <div 
-        ref={containerRef}
-        className="flex-1 overflow-y-auto overflow-x-hidden panel-scrollbar font-mono min-h-0"
-        onScroll={handleScroll}
-      >
-        {/* 虚拟滚动占位 */}
-        <div style={{ height: totalHeight, position: 'relative' }}>
-          {/* 可见区域 - 左右并排，各自水平滚动 */}
+    <div 
+      ref={containerRef}
+      className="h-full overflow-y-auto overflow-x-hidden panel-scrollbar-y font-mono"
+      style={maxHeight !== undefined ? { maxHeight } : undefined}
+      onScroll={handleScroll}
+    >
+      {/* 虚拟滚动占位 */}
+      <div style={{ height: totalHeight, position: 'relative' }}>
+        <div 
+          className="absolute top-0 left-0 right-0 flex"
+          style={{ transform: `translateY(${offsetY}px)` }}
+        >
+          {/* Left — 隐藏自身滚动条，由 proxy 控制 */}
           <div 
-            className="absolute top-0 left-0 right-0 flex"
-            style={{ transform: `translateY(${offsetY}px)` }}
+            ref={leftPanelRef}
+            className="flex-1 overflow-x-auto scrollbar-none border-r border-border-100/30"
+            onScroll={handleLeftPanelScroll}
           >
-            {/* Left Panel - 水平滚动 */}
-            <div 
-              ref={leftPanelRef}
-              className="flex-1 overflow-x-auto overflow-y-hidden scrollbar-none border-r border-border-100/50"
-              onScroll={handleLeftPanelScroll}
-            >
-              <div className="inline-block min-w-full">
-                {leftRows}
-              </div>
+            <div className="inline-block min-w-full">
+              {leftRows}
             </div>
-            {/* Right Panel - 水平滚动 */}
-            <div 
-              ref={rightPanelRef}
-              className="flex-1 overflow-x-auto overflow-y-hidden scrollbar-none"
-              onScroll={handleRightPanelScroll}
-            >
-              <div className="inline-block min-w-full">
-                {rightRows}
-              </div>
+          </div>
+          {/* Right */}
+          <div 
+            ref={rightPanelRef}
+            className="flex-1 overflow-x-auto scrollbar-none"
+            onScroll={handleRightPanelScroll}
+          >
+            <div className="inline-block min-w-full">
+              {rightRows}
             </div>
           </div>
         </div>
       </div>
-      
-      {/* 底部固定横向滚动条 */}
-      <div className="flex shrink-0 border-t border-border-100/50">
-        {/* 左侧滚动条 */}
+
+      {/* Sticky proxy 横向滚动条 — 固定在可视区底部，和面板天然对齐 */}
+      <div className="sticky bottom-0 z-10 flex bg-bg-100/90 backdrop-blur-sm">
         <div 
           ref={leftScrollbarRef}
-          className="flex-1 overflow-x-auto panel-scrollbar border-r border-border-100/50"
+          className="flex-1 overflow-x-auto code-scrollbar border-r border-border-100/30"
           onScroll={handleLeftScrollbar}
-          style={{ height: 12 }}
         >
           <div style={{ width: leftContentWidth, height: 1 }} />
         </div>
-        {/* 右侧滚动条 */}
         <div 
           ref={rightScrollbarRef}
-          className="flex-1 overflow-x-auto panel-scrollbar"
+          className="flex-1 overflow-x-auto code-scrollbar"
           onScroll={handleRightScrollbar}
-          style={{ height: 12 }}
         >
           <div style={{ width: rightContentWidth, height: 1 }} />
         </div>
@@ -351,14 +317,12 @@ const UnifiedDiffView = memo(function UnifiedDiffView({
   language,
   isResizing,
   maxHeight,
-  minHeight,
 }: { 
   before: string
   after: string
   language: string
   isResizing: boolean
-  maxHeight: number
-  minHeight: number
+  maxHeight?: number
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [scrollTop, setScrollTop] = useState(0)
@@ -379,12 +343,6 @@ const UnifiedDiffView = memo(function UnifiedDiffView({
   }, [before, after, isResizing])
   
   const totalHeight = lines.length * LINE_HEIGHT
-  const containerStyle = useMemo(() => {
-    const naturalHeight = totalHeight
-    const effectiveMinHeight = lines.length <= 2 ? naturalHeight : minHeight
-    const height = Math.min(maxHeight, Math.max(effectiveMinHeight, naturalHeight))
-    return { height }
-  }, [totalHeight, minHeight, maxHeight, lines.length])
   
   const { startIndex, endIndex, offsetY } = useMemo(() => {
     const start = Math.max(0, Math.floor(scrollTop / LINE_HEIGHT) - OVERSCAN)
@@ -444,9 +402,9 @@ const UnifiedDiffView = memo(function UnifiedDiffView({
   return (
     <div 
       ref={containerRef}
-      className="overflow-auto panel-scrollbar font-mono"
+      className="h-full overflow-auto panel-scrollbar font-mono"
+      style={maxHeight !== undefined ? { maxHeight } : undefined}
       onScroll={handleScroll}
-      style={containerStyle}
     >
       <div style={{ height: totalHeight, position: 'relative' }}>
         <div style={{ position: 'absolute', top: 0, left: 0, transform: `translateY(${offsetY}px)` }}>
