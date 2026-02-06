@@ -392,6 +392,10 @@ body {
 ::view-transition-new(root) {
   animation: none;
   mix-blend-mode: normal;
+  /* 硬件加速优化 */
+  will-change: clip-path;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
 }
 
 /* Utility classes */

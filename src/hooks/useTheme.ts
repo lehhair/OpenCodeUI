@@ -97,6 +97,7 @@ export function useTheme() {
     })
 
      transition.ready.then(() => {
+        // 使用 GPU 加速的动画配置
         document.documentElement.animate(
           {
             clipPath: [
@@ -105,8 +106,8 @@ export function useTheme() {
             ],
           },
           {
-            duration: 520,
-            easing: 'cubic-bezier(0.2, 0.7, 0.2, 1)',
+            duration: 380, // 缩短动画时长，更干脆
+            easing: 'cubic-bezier(0.4, 0, 0.2, 1)', // Material Design 标准 easing，更流畅
             pseudoElement: '::view-transition-new(root)',
           }
         )
