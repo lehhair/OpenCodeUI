@@ -141,10 +141,21 @@ export function SidePanel({
 
   const currentProject = useMemo<ProjectItem>(() => {
     if (!currentDirectory) return projects[0]
-    return projects.find(p => p.id === currentDirectory) || {
+    const found = projects.find(p => p.id === currentDirectory)
+    if (found) return found
+    
+    // 未保存的目录，从路径提取名称并解码
+    const rawName = currentDirectory.split(/[/\\]/).pop() || currentDirectory
+    let decodedName = rawName
+    try {
+      decodedName = decodeURIComponent(rawName)
+    } catch {
+      // 解码失败就用原值
+    }
+    return {
       id: currentDirectory,
       worktree: currentDirectory,
-      name: currentDirectory.split(/[/\\]/).pop() || currentDirectory,
+      name: decodedName,
     }
   }, [currentDirectory, projects])
 

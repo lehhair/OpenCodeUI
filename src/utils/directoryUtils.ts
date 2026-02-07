@@ -249,7 +249,13 @@ export function getDirectoryName(dir: string | undefined | null): string {
   if (!dir) return ''
   const normalized = normalizeToForwardSlash(dir)
   const parts = normalized.split('/').filter(Boolean)
-  return parts[parts.length - 1] || normalized
+  const name = parts[parts.length - 1] || normalized
+  // 解码 URL 编码的中文等字符
+  try {
+    return decodeURIComponent(name)
+  } catch {
+    return name
+  }
 }
 
 /**
