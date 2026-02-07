@@ -185,12 +185,7 @@ const AssistantMessageView = memo(function AssistantMessageView({ message, onEns
   
   return (
     <div className="flex flex-col gap-2 w-full group">
-      {/* Empty streaming message placeholder */}
-      {isStreaming && renderItems.length === 0 && (
-        <div className="py-2">
-          <div className="w-2.5 h-5 bg-accent-main-100/80 rounded-[1px] animate-pulse" />
-        </div>
-      )}
+
 
       {renderItems.map((item: RenderItem) => {
         if (item.type === 'tool-group') {

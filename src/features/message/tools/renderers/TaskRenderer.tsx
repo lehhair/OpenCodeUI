@@ -185,14 +185,6 @@ const TaskHeader = memo(function TaskHeader({
         {description}
       </span>
       
-      {/* Status indicator */}
-      {isRunning && (
-        <span className="flex items-center gap-1 text-[10px] text-accent-main-100">
-          <span className="w-1.5 h-1.5 rounded-full bg-accent-main-100 animate-pulse" />
-          Running
-        </span>
-      )}
-      
       {/* Open in new tab */}
       {sessionId && (
         <button

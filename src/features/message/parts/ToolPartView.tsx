@@ -73,7 +73,7 @@ export const ToolPartView = memo(function ToolPartView({ part, isFirst = false, 
           onClick={() => setExpanded(!expanded)}
         >
           <div className="flex items-center gap-2 overflow-hidden flex-1 min-w-0">
-            <span className={`font-medium text-[13px] leading-none transition-colors shrink-0 ${
+            <span className={`font-medium text-[13px] leading-none transition-colors duration-300 shrink-0 ${
               isActive ? 'text-accent-main-100' :
               isError ? 'text-danger-100' :
               'text-text-200 group-hover/header:text-text-100'
@@ -90,20 +90,20 @@ export const ToolPartView = memo(function ToolPartView({ part, isFirst = false, 
             
           <div className="flex items-center gap-2 ml-auto shrink-0">
             {duration !== undefined && state.status === 'completed' && (
-              <span className="text-[10px] font-mono text-text-500 tabular-nums">
+              <span className="text-[10px] font-mono text-text-500 tabular-nums transition-opacity duration-300">
                 {formatDuration(duration)}
               </span>
             )}
-            {isActive && (
-              <span className="text-[10px] font-medium text-accent-main-100">
-                Running
-              </span>
-            )}
-            {isError && (
-              <span className="text-[10px] font-medium text-danger-100">
-                Failed
-              </span>
-            )}
+            <span className={`text-[10px] font-medium transition-all duration-300 ${
+              isActive ? 'opacity-100 text-accent-main-100' : 'opacity-0 w-0 overflow-hidden'
+            }`}>
+              Running
+            </span>
+            <span className={`text-[10px] font-medium transition-all duration-300 ${
+              isError ? 'opacity-100 text-danger-100' : 'opacity-0 w-0 overflow-hidden'
+            }`}>
+              Failed
+            </span>
             <span className="text-text-500">
               {expanded ? <ChevronDownIcon size={12} /> : <ChevronRightIcon size={12} />}
             </span>
