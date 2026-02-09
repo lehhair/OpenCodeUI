@@ -121,8 +121,17 @@ function InputBoxComponent({
   useEffect(() => {
     const textarea = textareaRef.current
     if (!textarea) return
+    
+    // 文本为空时重置为最小高度
+    if (!text.trim()) {
+      textarea.style.height = '24px'
+      return
+    }
+    
     textarea.style.height = 'auto'
-    textarea.style.height = Math.min(textarea.scrollHeight, window.innerHeight * 0.5) + 'px'
+    const scrollHeight = textarea.scrollHeight
+    // 确保最小高度为 24px，最大为视口高度的 50%
+    textarea.style.height = Math.max(24, Math.min(scrollHeight, window.innerHeight * 0.5)) + 'px'
   }, [text])
 
   // 计算
