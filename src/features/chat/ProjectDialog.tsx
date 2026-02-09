@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { FolderIcon, ArrowUpIcon, SpinnerIcon, PlusIcon } from '../../components/Icons'
 import { listDirectory, getPath } from '../../api'
-import { fileErrorHandler } from '../../utils'
+import { fileErrorHandler, normalizeToForwardSlash } from '../../utils'
 
 // ============================================
 // Types
@@ -25,8 +25,8 @@ interface FileItem {
 // Constants
 // ============================================
 
-const isWindows = typeof navigator !== 'undefined' && navigator.platform?.toLowerCase().includes('win')
-const PATH_SEP = isWindows ? '\\' : '/'
+// 始终使用正斜杠显示
+const PATH_SEP = '/'
 
 // ============================================
 // Utils
@@ -34,7 +34,7 @@ const PATH_SEP = isWindows ? '\\' : '/'
 
 function normalizePath(p: string): string {
   if (!p) return ''
-  return isWindows ? p.replace(/\//g, '\\') : p.replace(/\\/g, '/')
+  return normalizeToForwardSlash(p)
 }
 
 function getDirectoryPath(path: string): string {
