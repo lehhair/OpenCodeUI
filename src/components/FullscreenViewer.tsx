@@ -69,7 +69,7 @@ export const FullscreenViewer = memo(function FullscreenViewer(props: Fullscreen
       setShouldRender(true)
     } else {
       setIsVisible(false)
-      const timer = setTimeout(() => setShouldRender(false), 250)
+      const timer = setTimeout(() => setShouldRender(false), 200)
       return () => clearTimeout(timer)
     }
   }, [isOpen])
@@ -147,32 +147,24 @@ export const FullscreenViewer = memo(function FullscreenViewer(props: Fullscreen
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6"
+      className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 transition-all duration-200 ease-out"
       style={{
-        opacity: isVisible ? 1 : 0,
-        transition: 'opacity 0.2s ease-out',
+        backgroundColor: isVisible ? 'rgba(0,0,0,0.4)' : 'rgba(0,0,0,0)',
+        backdropFilter: isVisible ? 'blur(2px)' : 'blur(0px)',
       }}
       onClick={handleBackdropClick}
       role="dialog"
       aria-modal="true"
     >
-      {/* 背景层 - 简洁的暗色 */}
-      <div 
-        className="absolute inset-0 pointer-events-none bg-bg-000/95"
-        style={{
-          backdropFilter: 'blur(4px)',
-          WebkitBackdropFilter: 'blur(4px)',
-        }}
-      />
 
       {/* 卡片 - 自适应高度 */}
       <div
-        className="relative flex flex-col bg-bg-100 border border-border-200/60 rounded-lg shadow-2xl overflow-hidden"
+        className="relative flex flex-col bg-bg-100 border border-border-200/60 rounded-lg shadow-2xl overflow-hidden transition-all duration-200 ease-out"
         style={{
           width: 'min(96vw, 1400px)',
           maxHeight: 'min(90vh, 1000px)',
+          opacity: isVisible ? 1 : 0,
           transform: isVisible ? 'scale(1) translateY(0)' : 'scale(0.98) translateY(4px)',
-          transition: 'transform 0.2s ease-out',
         }}
         onClick={(e) => e.stopPropagation()}
       >

@@ -95,16 +95,22 @@ export const DiffModal = memo(function DiffModal({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[100] flex flex-col transition-opacity duration-200"
+      className="fixed inset-0 z-[100] flex items-center justify-center transition-all duration-200 ease-out"
       style={{
-        opacity: isVisible ? 1 : 0,
-        backdropFilter: 'blur(24px)',
-        WebkitBackdropFilter: 'blur(24px)',
-        backgroundColor: 'hsl(var(--bg-000) / 0.85)',
+        backgroundColor: isVisible ? 'rgba(0,0,0,0.4)' : 'rgba(0,0,0,0)',
+        backdropFilter: isVisible ? 'blur(2px)' : 'blur(0px)',
       }}
       role="dialog"
       aria-modal="true"
     >
+      {/* 内容面板 - 全屏铺满但有不透明背景 */}
+      <div
+        className="w-full h-full flex flex-col bg-bg-000 transition-all duration-200 ease-out"
+        style={{
+          opacity: isVisible ? 1 : 0,
+          transform: isVisible ? 'scale(1)' : 'scale(0.98)',
+        }}
+      >
       {/* Toolbar */}
       <div className="flex items-center justify-between h-11 px-4 border-b border-border-100/40 shrink-0">
         {/* Left: file info */}
@@ -147,6 +153,7 @@ export const DiffModal = memo(function DiffModal({
           language={lang}
           viewMode={viewMode}
         />
+      </div>
       </div>
     </div>,
     document.body
