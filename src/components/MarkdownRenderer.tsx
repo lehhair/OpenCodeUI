@@ -14,7 +14,7 @@ interface MarkdownRendererProps {
  */
 const InlineCode = memo(function InlineCode({ children }: { children: React.ReactNode }) {
   return (
-    <code className="px-1.5 py-0.5 mx-0.5 bg-bg-200/50 border border-border-200/50 rounded text-accent-main-100 text-[0.85em] font-mono tracking-tight align-middle">
+    <code className="px-1.5 py-0.5 mx-0.5 bg-bg-200/50 border border-border-200/50 rounded text-accent-main-100 text-[0.85em] font-mono tracking-tight align-middle break-all">
       {children}
     </code>
   )
@@ -147,7 +147,7 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
   }), [])
 
   return (
-    <div className={`markdown-content text-sm text-text-100 leading-relaxed ${className}`}>
+    <div className={`markdown-content text-sm text-text-100 leading-relaxed break-words min-w-0 overflow-hidden ${className}`}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={components}
