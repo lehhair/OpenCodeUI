@@ -41,7 +41,7 @@ const TICK_W_MIN = 8
 const TICK_W_MAX = 22
 const TICK_H = 2.5
 const MARGIN_MIN = 4
-const MARGIN_MAX = 22
+const MARGIN_MAX = 14
 
 // ============================================
 // Data extraction (同 ChatArea 的过滤逻辑)
@@ -320,7 +320,7 @@ const DesktopAperture = memo(function DesktopAperture({
 
 const MOBILE_INFLUENCE_RADIUS = 45
 const MOBILE_MARGIN_MIN = 3
-const MOBILE_MARGIN_MAX = 24
+const MOBILE_MARGIN_MAX = 16
 const MOBILE_TICK_W_MIN = 6
 const MOBILE_TICK_W_MAX = 20
 const MOBILE_LABEL_THRESHOLD = 0.6
