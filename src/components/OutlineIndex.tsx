@@ -40,8 +40,8 @@ const LABEL_THRESHOLD = 0.65
 const TICK_W_MIN = 8
 const TICK_W_MAX = 22
 const TICK_H = 2.5
-const MARGIN_MIN = 1
-const MARGIN_MAX = 8
+const MARGIN_MIN = 4
+const MARGIN_MAX = 14
 
 // ============================================
 // Data extraction (同 ChatArea 的过滤逻辑)
@@ -257,8 +257,7 @@ const DesktopAperture = memo(function DesktopAperture({
       className="
         hidden md:flex flex-col items-end
         absolute right-3.5 top-1/2 -translate-y-1/2 z-[5]
-        max-h-[65vh] overflow-y-auto scrollbar-none
-        pl-4 pr-1 select-none
+        py-1 pr-1 select-none
       "
       onMouseEnter={handleMouseEnter}
       onMouseMove={handleMouseMove}
@@ -308,8 +307,8 @@ const DesktopAperture = memo(function DesktopAperture({
 // ============================================
 
 const MOBILE_INFLUENCE_RADIUS = 45
-const MOBILE_MARGIN_MIN = 1
-const MOBILE_MARGIN_MAX = 10
+const MOBILE_MARGIN_MIN = 3
+const MOBILE_MARGIN_MAX = 16
 const MOBILE_TICK_W_MIN = 6
 const MOBILE_TICK_W_MAX = 20
 const MOBILE_LABEL_THRESHOLD = 0.6
@@ -506,7 +505,7 @@ const MobileAperture = memo(function MobileAperture({
         className="
           absolute right-0 top-1/2 -translate-y-1/2 z-[15]
           flex flex-col items-end
-          pr-1.5 pl-4 py-4
+          pr-1.5 py-4
           select-none
         "
         onTouchStart={handleTouchStart}
