@@ -50,11 +50,17 @@ export const ToolPartView = memo(function ToolPartView({ part, isFirst = false, 
         {/* Tool icon — h-9 和右侧 header 等高，flex 自然居中 */}
         <div className="h-9 flex items-center justify-center relative z-10">
           <div className={`
-            flex items-center justify-center transition-colors duration-200
+            relative flex items-center justify-center transition-colors duration-200
             ${isActive ? 'text-accent-main-100' : ''}
             ${isError ? 'text-danger-100' : ''}
             ${state.status === 'completed' ? 'text-text-400 group-hover:text-text-300' : ''}
           `}>
+            {isActive && (
+              <span className="absolute inset-[-4px] rounded-full bg-accent-main-100/20 animate-ping" style={{ animationDuration: '1.5s' }} />
+            )}
+            {isActive && (
+              <span className="absolute inset-[-3px] rounded-full bg-accent-main-100/15" />
+            )}
             {getToolIcon(toolName)}
           </div>
         </div>

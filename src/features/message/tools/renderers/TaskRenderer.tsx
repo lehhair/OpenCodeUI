@@ -189,7 +189,7 @@ const TaskHeader = memo(function TaskHeader({
       {sessionId && (
         <button
           onClick={handleOpenInNewTab}
-          className="opacity-0 group-hover:opacity-100 p-1 text-text-500 hover:text-accent-main-100 transition-all"
+          className="sm:opacity-0 sm:group-hover:opacity-100 p-1 text-text-500 hover:text-accent-main-100 transition-all"
           title="Open in new tab"
         >
           <ExternalLinkIcon size={12} />
@@ -360,7 +360,7 @@ const MessageItem = memo(function MessageItem({ message, isLast }: MessageItemPr
   if (isUser) {
     return (
       <div className="flex justify-end">
-        <div className="max-w-[85%] px-2.5 py-1.5 rounded-lg bg-bg-300 text-text-100 text-[11px]">
+        <div className="max-w-[85%] px-2.5 py-1.5 rounded-lg bg-bg-300 text-text-100 text-[11px] whitespace-pre-wrap break-words">
           {textContent}
         </div>
       </div>
