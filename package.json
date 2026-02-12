@@ -1,6 +1,6 @@
 {
   "name": "opencodeui",
-  "version": "0.1.0-canary.4",
+  "version": "0.1.0-canary.5",
   "description": "A third-party web frontend for OpenCode",
   "license": "GPL-3.0-only",
   "type": "module",
