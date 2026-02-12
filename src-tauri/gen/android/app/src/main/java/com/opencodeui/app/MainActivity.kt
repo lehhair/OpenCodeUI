@@ -15,7 +15,6 @@ class MainActivity : TauriActivity() {
 
   private val handler = Handler(Looper.getMainLooper())
   private var cachedInsetsJs: String? = null
-  private var insetsInjected = false
 
   override fun onCreate(savedInstanceState: Bundle?) {
     enableEdgeToEdge()

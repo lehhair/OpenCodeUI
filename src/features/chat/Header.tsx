@@ -88,7 +88,7 @@ export function Header({
   }
 
   return (
-    <div className="h-14 flex justify-between items-center px-4 z-20 bg-bg-100 transition-colors duration-200 relative">
+    <div className="h-[calc(3.5rem+var(--safe-area-inset-top))] pt-[var(--safe-area-inset-top)] flex justify-between items-center px-4 z-20 bg-bg-100 transition-colors duration-200 relative">
       
       {/* Left: Mobile Menu + Model (z-20) */}
       <div className="flex items-center gap-2 min-w-0 shrink-1 z-20">

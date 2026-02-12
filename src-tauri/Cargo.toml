@@ -1,6 +1,6 @@
 [package]
 name = "opencodeui"
-version = "0.1.0-canary.1"
+version = "0.1.0-canary.2"
 description = "OpenCode UI - Tauri Mobile App"
 authors = ["you"]
 license = "GPL-3.0-only"

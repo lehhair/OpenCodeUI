@@ -44,7 +44,7 @@ html, body, #root {
 
 /* Tauri 原生 app：通过 main.tsx 在 <html> 上添加 .tauri-app class */
 .tauri-app #root {
-  padding-top: var(--safe-area-inset-top);
+  /* padding-top: var(--safe-area-inset-top);  <-- Removed: Do not apply globally */
   padding-left: var(--safe-area-inset-left);
   padding-right: var(--safe-area-inset-right);
 }

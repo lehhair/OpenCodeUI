@@ -210,7 +210,7 @@ export const Sidebar = memo(function Sidebar({
           onTouchEnd={handleSidebarTouchEnd}
           className={`
             fixed inset-y-0 left-0 z-40 
-            flex flex-col bg-bg-100 shadow-xl
+            flex flex-col bg-bg-100 shadow-xl pt-[var(--safe-area-inset-top)]
             ${isSwiping.current ? '' : 'transition-transform duration-300 ease-out'}
             ${isOpen ? 'translate-x-0' : '-translate-x-full'}
           `}
@@ -260,7 +260,7 @@ export const Sidebar = memo(function Sidebar({
         ref={sidebarRef}
         style={{ width: isOpen ? `${width}px` : `${RAIL_WIDTH}px` }}
         className={`
-          relative flex flex-col h-full bg-bg-100 overflow-hidden shrink-0
+          relative flex flex-col h-full bg-bg-100 overflow-hidden shrink-0 pt-[var(--safe-area-inset-top)]
           border-r border-border-200/50
           ${isResizing ? 'transition-none' : 'transition-[width] duration-300 ease-out'}
         `}
