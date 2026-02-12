@@ -4,9 +4,25 @@ import './index.css'
 import App from './App.tsx'
 import { DirectoryProvider, SessionProvider } from './contexts'
 import { themeStore } from './store/themeStore'
+import { isTauri } from './utils/tauri'
 
 // 初始化主题系统（在 React 渲染前注入 CSS 变量，避免闪烁）
 themeStore.init()
+
+// Tauri 原生 app 初始化
+if (isTauri()) {
+  // 添加 CSS class 用于 safe-area 适配
+  document.documentElement.classList.add('tauri-app')
+
+  // 确保 viewport meta 包含 viewport-fit=cover（用于状态栏沉浸式）
+  const viewportMeta = document.querySelector('meta[name="viewport"]')
+  if (viewportMeta) {
+    const content = viewportMeta.getAttribute('content') || ''
+    if (!content.includes('viewport-fit=cover')) {
+      viewportMeta.setAttribute('content', content + ', viewport-fit=cover')
+    }
+  }
+}
 
 // 全局错误处理 - 防止未捕获错误导致页面刷新
 window.addEventListener('error', (event) => {

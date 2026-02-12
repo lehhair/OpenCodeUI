@@ -28,7 +28,7 @@ html, body, #root {
   -webkit-overflow-scrolling: touch;
 }
 
-/* PWA 全屏模式适配 - 只在 #root 上应用 safe area */
+/* PWA 全屏模式 / Tauri 原生 app 适配 - 只在 #root 上应用 safe area */
 @media (display-mode: standalone) {
   #root {
     padding-top: var(--safe-area-top);
@@ -36,6 +36,13 @@ html, body, #root {
     padding-right: var(--safe-area-right);
     /* 不在这里加 padding-bottom，让 InputBox 自己处理 */
   }
+}
+
+/* Tauri 原生 app：通过 main.tsx 在 <html> 上添加 .tauri-app class */
+.tauri-app #root {
+  padding-top: var(--safe-area-top);
+  padding-left: var(--safe-area-left);
+  padding-right: var(--safe-area-right);
 }
 
 @font-face {

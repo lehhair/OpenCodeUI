@@ -3,6 +3,7 @@
 // ============================================
 
 import { getApiBaseUrl, getAuthHeader } from './http'
+import { isTauri } from '../utils/tauri'
 import type {
   ApiMessageWithParts,
   ApiPart,
@@ -109,7 +110,6 @@ function connectSingleton() {
   if (connectionInfo.state === 'connected') return
   
   isConnecting = true
-  singletonController = new AbortController()
   
   updateConnectionState({ state: 'connecting' })
   if (import.meta.env.DEV) {
@@ -118,6 +118,133 @@ function connectSingleton() {
 
   // 注册生命周期监听器（首次连接时）
   registerLifecycleListeners()
+
+  if (isTauri()) {
+    connectViaTauri()
+  } else {
+    connectViaBrowser()
+  }
+}
+
+// ============================================
+// Tauri SSE Bridge (via Rust reqwest + Channel)
+// ============================================
+
+/** Tauri Channel 的 onmessage 事件类型 */
+interface TauriSseEvent {
+  event: 'connected' | 'message' | 'disconnected' | 'error'
+  data?: {
+    raw?: string
+    reason?: string
+    message?: string
+  }
+}
+
+async function connectViaTauri() {
+  try {
+    const { invoke, Channel } = await import('@tauri-apps/api/core')
+
+    const url = `${getApiBaseUrl()}/global/event`
+    const authHeaders = getAuthHeader()
+    const authHeader = authHeaders['Authorization'] || null
+
+    const onEvent = new Channel<TauriSseEvent>()
+    
+    onEvent.onmessage = (msg: TauriSseEvent) => {
+      switch (msg.event) {
+        case 'connected': {
+          isConnecting = false
+          const isReconnect = hasConnectedBefore
+          hasConnectedBefore = true
+
+          updateConnectionState({
+            state: 'connected',
+            reconnectAttempt: 0,
+            error: undefined,
+          })
+          resetHeartbeat()
+          if (import.meta.env.DEV) {
+            console.log('[SSE/Tauri] Connected', isReconnect ? '(reconnected)' : '(first)')
+          }
+          if (isReconnect) {
+            allSubscribers.forEach(cb => cb.onReconnected?.())
+          }
+          break
+        }
+        case 'message': {
+          resetHeartbeat()
+          if (msg.data?.raw) {
+            try {
+              const globalEvent = JSON.parse(msg.data.raw) as GlobalEvent
+              broadcastEvent(globalEvent)
+            } catch (e) {
+              if (import.meta.env.DEV) {
+                console.warn('[SSE/Tauri] Failed to parse event:', e, msg.data.raw)
+              }
+            }
+          }
+          break
+        }
+        case 'disconnected': {
+          isConnecting = false
+          if (import.meta.env.DEV) {
+            console.log('[SSE/Tauri] Disconnected:', msg.data?.reason)
+          }
+          updateConnectionState({ state: 'disconnected' })
+          scheduleReconnect()
+          break
+        }
+        case 'error': {
+          isConnecting = false
+          const errorMsg = msg.data?.message || 'Unknown error'
+          if (import.meta.env.DEV) {
+            console.warn('[SSE/Tauri] Error:', errorMsg)
+          }
+          updateConnectionState({
+            state: 'error',
+            error: errorMsg,
+          })
+          allSubscribers.forEach(cb => cb.onError?.(new Error(errorMsg)))
+          scheduleReconnect()
+          break
+        }
+      }
+    }
+
+    // 调用 Rust 命令启动 SSE 流
+    // 注意：这个 invoke 会在 SSE 流结束或出错时 resolve/reject
+    // 但事件通过 Channel 实时推送
+    invoke('sse_connect', {
+      args: { url, authHeader },
+      onEvent,
+    }).catch((error: unknown) => {
+      isConnecting = false
+      const errorMsg = error instanceof Error ? error.message : String(error)
+      if (import.meta.env.DEV) {
+        console.warn('[SSE/Tauri] invoke error:', errorMsg)
+      }
+      updateConnectionState({
+        state: 'error',
+        error: errorMsg,
+      })
+      allSubscribers.forEach(cb => cb.onError?.(new Error(errorMsg)))
+      scheduleReconnect()
+    })
+  } catch (error) {
+    isConnecting = false
+    const errorMsg = error instanceof Error ? error.message : String(error)
+    console.warn('[SSE/Tauri] Failed to initialize:', errorMsg)
+    updateConnectionState({ state: 'error', error: errorMsg })
+    scheduleReconnect()
+  }
+}
+
+// ============================================
+// Browser SSE (via fetch + ReadableStream)
+// ============================================
+
+function connectViaBrowser() {
+  singletonController = new AbortController()
 
   // 如果配置了密码，添加 Authorization header
   fetch(`${getApiBaseUrl()}/global/event`, {
@@ -222,10 +349,20 @@ function connectSingleton() {
 function disconnectSingleton() {
   if (heartbeatTimer) clearTimeout(heartbeatTimer)
   if (reconnectTimer) clearTimeout(reconnectTimer)
+  
+  // Tauri: 调用 Rust 侧断开命令
+  if (isTauri()) {
+    import('@tauri-apps/api/core').then(({ invoke }) => {
+      invoke('sse_disconnect').catch(() => {})
+    }).catch(() => {})
+  }
+  
+  // Browser: abort fetch
   if (singletonController) {
     singletonController.abort()
     singletonController = null
   }
+  
   isConnecting = false
   updateConnectionState({ state: 'disconnected' })
 }
@@ -246,7 +383,12 @@ function handleVisibilityChange() {
       reconnectTimer = null
       updateConnectionState({ reconnectAttempt: 0 })
       
-      // 断开旧连接（如果还在）
+      // 断开旧连接
+      if (isTauri()) {
+        import('@tauri-apps/api/core').then(({ invoke }) => {
+          invoke('sse_disconnect').catch(() => {})
+        }).catch(() => {})
+      }
       if (singletonController) {
         singletonController.abort()
         singletonController = null
@@ -273,6 +415,11 @@ function handleOnline() {
     reconnectTimer = null
     updateConnectionState({ reconnectAttempt: 0 })
     
+    if (isTauri()) {
+      import('@tauri-apps/api/core').then(({ invoke }) => {
+        invoke('sse_disconnect').catch(() => {})
+      }).catch(() => {})
+    }
     if (singletonController) {
       singletonController.abort()
       singletonController = null
@@ -289,6 +436,11 @@ function handleOffline() {
   }
   // 标记为断连，但不尝试重连（没网重连也没用）
   if (connectionInfo.state === 'connected' || connectionInfo.state === 'connecting') {
+    if (isTauri()) {
+      import('@tauri-apps/api/core').then(({ invoke }) => {
+        invoke('sse_disconnect').catch(() => {})
+      }).catch(() => {})
+    }
     if (singletonController) {
       singletonController.abort()
       singletonController = null

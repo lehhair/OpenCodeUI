@@ -1,0 +1,27 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Default capabilities for OpenCode UI",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "core:default",
+    {
+      "identifier": "http:default",
+      "allow": [
+        { "url": "http://**" },
+        { "url": "https://**" },
+        { "url": "http://**:*" },
+        { "url": "https://**:*" },
+        { "url": "http://**:*/**" },
+        { "url": "https://**:*/**" }
+      ]
+    },
+    "notification:default",
+    "dialog:default",
+    "dialog:allow-open",
+    "fs:default",
+    "opener:default"
+  ]
+}

@@ -1,10 +1,43 @@
 // ============================================
 // HTTP Client Utilities
 // 统一的 HTTP 请求工具
+// Tauri 环境下自动使用 Rust 后端发请求（绕过 CORS）
 // ============================================
 
 import { API_BASE_URL } from '../constants'
 import { serverStore, makeBasicAuthHeader } from '../store/serverStore'
+import { isTauri } from '../utils/tauri'
+
+/**
+ * 获取 fetch 函数
+ * Tauri 环境下使用 plugin-http 的 fetch（通过 Rust 发请求，无 CORS 限制）
+ * 浏览器环境下使用原生 fetch
+ */
+let _tauriFetch: typeof globalThis.fetch | null = null
+let _tauriFetchLoading: Promise<typeof globalThis.fetch> | null = null
+
+async function getTauriFetch(): Promise<typeof globalThis.fetch> {
+  if (_tauriFetch) return _tauriFetch
+  if (_tauriFetchLoading) return _tauriFetchLoading
+
+  _tauriFetchLoading = import('@tauri-apps/plugin-http').then(mod => {
+    _tauriFetch = mod.fetch as unknown as typeof globalThis.fetch
+    return _tauriFetch
+  })
+  return _tauriFetchLoading
+}
+
+/**
+ * 统一 fetch 入口
+ * 自动选择 Tauri fetch 或原生 fetch
+ */
+export async function unifiedFetch(input: string | URL | Request, init?: RequestInit): Promise<Response> {
+  if (isTauri()) {
+    const f = await getTauriFetch()
+    return f(input, init)
+  }
+  return globalThis.fetch(input, init)
+}
 
 /**
  * 获取当前 API Base URL
@@ -101,7 +134,7 @@ export async function request<T>(
     init.body = JSON.stringify(body)
   }
   
-  const response = await fetch(buildUrl(path, params), init)
+  const response = await unifiedFetch(buildUrl(path, params), init)
   
   if (!response.ok) {
     let errorMsg = `Request failed: ${response.status}`

@@ -1,6 +1,7 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { ChevronDownIcon, SendIcon, StopIcon, ImageIcon, AgentIcon, ThinkingIcon } from '../../../components/Icons'
 import { DropdownMenu, MenuItem, IconButton, AnimatedPresence } from '../../../components/ui'
+import { isTauri } from '../../../utils/tauri'
 import type { ApiAgent } from '../../../api/client'
 
 interface InputToolbarProps {
@@ -46,6 +47,54 @@ export function InputToolbar({
   const variantTriggerRef = useRef<HTMLButtonElement>(null)
   const variantMenuRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Tauri 原生文件选择器
+  const handleImageClick = useCallback(async () => {
+    if (!isTauri()) {
+      // 浏览器模式：走 <input type="file">
+      fileInputRef.current?.click()
+      return
+    }
+
+    try {
+      // 动态导入 Tauri 插件
+      const [{ open }, { readFile }] = await Promise.all([
+        import('@tauri-apps/plugin-dialog'),
+        import('@tauri-apps/plugin-fs'),
+      ])
+
+      const selected = await open({
+        multiple: true,
+        filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'] }],
+      })
+
+      if (!selected || selected.length === 0) return
+
+      const files: File[] = []
+      for (const path of selected) {
+        const fileName = path.split(/[\\/]/).pop() || 'image'
+        const ext = fileName.split('.').pop()?.toLowerCase() || 'png'
+        const mimeMap: Record<string, string> = {
+          png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
+          gif: 'image/gif', webp: 'image/webp', bmp: 'image/bmp', svg: 'image/svg+xml',
+        }
+        const mime = mimeMap[ext] || 'image/png'
+
+        const data = await readFile(path)
+        const file = new File([data], fileName, { type: mime })
+        files.push(file)
+      }
+
+      if (files.length > 0) {
+        // 构造 FileList 传给 onImageUpload（保持接口一致）
+        const dt = new DataTransfer()
+        files.forEach(f => dt.items.add(f))
+        onImageUpload(dt.files)
+      }
+    } catch (err) {
+      console.warn('[InputToolbar] Tauri file picker error:', err)
+    }
+  }, [onImageUpload])
 
   // Click outside logic
   useEffect(() => {
@@ -142,15 +191,18 @@ export function InputToolbar({
       <div className="flex items-center gap-1">
         <AnimatedPresence show={supportsImages}>
           <>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              multiple
-              className="hidden"
-              onChange={(e) => onImageUpload(e.target.files)}
-            />
-            <IconButton aria-label="Upload image" onClick={() => fileInputRef.current?.click()}>
+            {/* 浏览器模式下的隐藏文件输入 */}
+            {!isTauri() && (
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                className="hidden"
+                onChange={(e) => onImageUpload(e.target.files)}
+              />
+            )}
+            <IconButton aria-label="Upload image" onClick={handleImageClick}>
               <ImageIcon />
             </IconButton>
           </>
