@@ -211,7 +211,7 @@ export const ResizablePanel = memo(function ResizablePanel({
       : 'fixed bottom-0 left-0 right-0 z-[100] h-[40vh] shadow-2xl rounded-t-xl border-t border-border-200'
 
     const mobileInsetStyle = position === 'right'
-      ? { top: 'var(--safe-area-inset-top)', height: 'calc(100% - var(--safe-area-inset-top))' } as React.CSSProperties
+      ? { top: 0, height: '100%', paddingTop: 'var(--safe-area-inset-top)' } as React.CSSProperties
       : undefined
 
     return (
@@ -223,7 +223,7 @@ export const ResizablePanel = memo(function ResizablePanel({
             transition-opacity ${ANIMATION_DURATION} ease-out
             ${isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}
           `}
-          style={position === 'right' ? { top: 'var(--safe-area-inset-top)', height: 'calc(100% - var(--safe-area-inset-top))' } : undefined}
+          style={position === 'right' ? { inset: 0 } : undefined}
           onClick={onClose}
         />
 
@@ -246,7 +246,7 @@ export const ResizablePanel = memo(function ResizablePanel({
             </div>
           )}
           
-          <div ref={contentRef} className="flex-1 flex flex-col min-h-0 w-full h-full relative">
+          <div ref={contentRef} className="flex-1 flex flex-col min-h-0 w-full h-full relative bg-bg-100">
             {children}
           </div>
         </div>

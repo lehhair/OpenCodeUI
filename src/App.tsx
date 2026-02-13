@@ -75,25 +75,34 @@ function App() {
     return () => ro.disconnect()
   }, [])
 
-  // Browser/PWA keyboard inset (Android Tauri uses adjustResize + native insets)
+  // Keyboard inset + viewport height
   useEffect(() => {
-    if (document.documentElement.classList.contains('tauri-app')) return // Tauri 用原生处理
     const root = document.documentElement
-    const updateKeyboardInset = () => {
+    const isTauriApp = root.classList.contains('tauri-app')
+    const updateViewport = () => {
       const viewport = window.visualViewport
       if (!viewport) return
       const inset = Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop)
       root.style.setProperty('--keyboard-inset-bottom', `${Math.round(inset)}px`)
+      if (isTauriApp) {
+        root.style.setProperty('--app-height', `${Math.round(viewport.height)}px`)
+      }
     }
-    updateKeyboardInset()
+    updateViewport()
     if (window.visualViewport) {
-      window.visualViewport.addEventListener('resize', updateKeyboardInset)
-      window.visualViewport.addEventListener('scroll', updateKeyboardInset)
+      window.visualViewport.addEventListener('resize', updateViewport)
+      window.visualViewport.addEventListener('scroll', updateViewport)
+    }
+    if (isTauriApp) {
+      window.addEventListener('resize', updateViewport)
     }
     return () => {
       if (window.visualViewport) {
-        window.visualViewport.removeEventListener('resize', updateKeyboardInset)
-        window.visualViewport.removeEventListener('scroll', updateKeyboardInset)
+        window.visualViewport.removeEventListener('resize', updateViewport)
+        window.visualViewport.removeEventListener('scroll', updateViewport)
+      }
+      if (isTauriApp) {
+        window.removeEventListener('resize', updateViewport)
       }
     }
   }, [])
