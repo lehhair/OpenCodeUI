@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "OpenCode",
-  "version": "0.1.0-canary.5",
+  "version": "0.1.0-canary.1",
   "identifier": "com.opencodeui.app",
   "build": {
     "frontendDist": "../dist",

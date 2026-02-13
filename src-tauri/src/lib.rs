@@ -5,7 +5,7 @@
 
 use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
-use std::sync::Mutex;
+use std::sync::atomic::{AtomicU64, Ordering};
 use tauri::{ipc::Channel, Manager, State};
 
 // ============================================
@@ -16,16 +16,16 @@ use tauri::{ipc::Channel, Manager, State};
 /// 存储一个可选的 abort flag，用于取消正在进行的 SSE 连接
 struct SseState {
     /// 每次连接分配一个递增 ID，用于区分不同连接
-    current_id: Mutex<u64>,
-    /// 当前活跃连接的 ID，设为 None 表示要断开
-    active_id: Mutex<Option<u64>>,
+    current_id: AtomicU64,
+    /// 当前活跃连接的 ID，0 表示无连接
+    active_id: AtomicU64,
 }
 
 impl Default for SseState {
     fn default() -> Self {
         Self {
-            current_id: Mutex::new(0),
-            active_id: Mutex::new(None),
+            current_id: AtomicU64::new(0),
+            active_id: AtomicU64::new(0),
         }
     }
 }
@@ -77,15 +77,9 @@ async fn sse_connect(
     on_event: Channel<SseEvent>,
 ) -> Result<(), String> {
     // 分配连接 ID
-    let conn_id = {
-        let mut id = state.current_id.lock().map_err(|e| e.to_string())?;
-        *id += 1;
-        let new_id = *id;
-        // 设置为活跃连接
-        let mut active = state.active_id.lock().map_err(|e| e.to_string())?;
-        *active = Some(new_id);
-        new_id
-    };
+    let conn_id = state.current_id.fetch_add(1, Ordering::SeqCst) + 1;
+    // 设置为活跃连接
+    state.active_id.store(conn_id, Ordering::SeqCst);
 
     // 构建请求
     let client = reqwest::Client::new();
@@ -122,14 +116,11 @@ async fn sse_connect(
 
     loop {
         // 检查是否被要求断开
-        {
-            let active = state.active_id.lock().map_err(|e| e.to_string())?;
-            if *active != Some(conn_id) {
-                let _ = on_event.send(SseEvent::Disconnected {
-                    reason: "Disconnected by client".to_string(),
-                });
-                return Ok(());
-            }
+        if state.active_id.load(Ordering::SeqCst) != conn_id {
+            let _ = on_event.send(SseEvent::Disconnected {
+                reason: "Disconnected by client".to_string(),
+            });
+            return Ok(());
         }
 
         match stream.next().await {
@@ -177,8 +168,7 @@ async fn sse_connect(
 /// 断开 SSE 连接
 #[tauri::command]
 async fn sse_disconnect(state: State<'_, SseState>) -> Result<(), String> {
-    let mut active = state.active_id.lock().map_err(|e| e.to_string())?;
-    *active = None;
+    state.active_id.store(0, Ordering::SeqCst);
     Ok(())
 }
 

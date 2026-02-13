@@ -87,12 +87,30 @@ function App() {
       root.style.setProperty('--keyboard-inset-bottom', `${Math.round(inset)}px`)
     }
 
+    const handleFocusIn = (event: FocusEvent) => {
+      const target = event.target as HTMLElement | null
+      if (!target) return
+      if (target.matches('input, textarea, select, [contenteditable="true"]')) {
+        root.classList.add('keyboard-open')
+      }
+    }
+
+    const handleFocusOut = (event: FocusEvent) => {
+      const target = event.target as HTMLElement | null
+      if (!target) return
+      if (target.matches('input, textarea, select, [contenteditable="true"]')) {
+        root.classList.remove('keyboard-open')
+      }
+    }
+
     updateKeyboardInset()
     window.addEventListener('resize', updateKeyboardInset)
     if (window.visualViewport) {
       window.visualViewport.addEventListener('resize', updateKeyboardInset)
       window.visualViewport.addEventListener('scroll', updateKeyboardInset)
     }
+    window.addEventListener('focusin', handleFocusIn)
+    window.addEventListener('focusout', handleFocusOut)
 
     return () => {
       window.removeEventListener('resize', updateKeyboardInset)
@@ -100,6 +118,8 @@ function App() {
         window.visualViewport.removeEventListener('resize', updateKeyboardInset)
         window.visualViewport.removeEventListener('scroll', updateKeyboardInset)
       }
+      window.removeEventListener('focusin', handleFocusIn)
+      window.removeEventListener('focusout', handleFocusOut)
     }
   }, [])
 

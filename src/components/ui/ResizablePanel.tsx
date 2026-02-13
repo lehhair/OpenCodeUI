@@ -219,10 +219,11 @@ export const ResizablePanel = memo(function ResizablePanel({
         {/* Mobile Backdrop */}
         <div 
           className={`
-            fixed inset-0 bg-black/50 z-[99] 
+            fixed left-0 right-0 bg-black/50 z-[99] 
             transition-opacity ${ANIMATION_DURATION} ease-out
             ${isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}
           `}
+          style={position === 'right' ? { top: 'var(--safe-area-inset-top)', height: 'calc(100% - var(--safe-area-inset-top))' } : undefined}
           onClick={onClose}
         />
 

@@ -196,10 +196,11 @@ export const Sidebar = memo(function Sidebar({
         {/* Mobile Backdrop */}
         <div 
           className={`
-            fixed inset-0 bg-black/40 z-30
+            fixed left-0 right-0 bg-black/40 z-30
             transition-opacity duration-300
             ${isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}
           `}
+          style={{ top: 'var(--safe-area-inset-top)', height: 'calc(100% - var(--safe-area-inset-top))' }}
           onClick={handleBackdropClick}
         />
 
