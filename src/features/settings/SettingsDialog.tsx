@@ -372,7 +372,7 @@ function AppearanceSettings({ themeMode, onThemeChange, isWideMode, onToggleWide
 function GeneralSettings() {
   const { pathMode, setPathMode, effectiveStyle, detectedStyle, isAutoMode } = usePathMode()
   const [autoApprove, setAutoApprove] = useState(autoApproveStore.enabled)
-  const { enabled: notificationsEnabled, setEnabled: setNotificationsEnabled, supported: notificationsSupported, permission: notificationPermission } = useNotification()
+  const { enabled: notificationsEnabled, setEnabled: setNotificationsEnabled, supported: notificationsSupported, permission: notificationPermission, sendNotification } = useNotification()
   const [collapseUserMessages, setCollapseUserMessages] = useState(themeStore.collapseUserMessages)
 
   const handleAutoApprove = () => {
@@ -386,6 +386,10 @@ function GeneralSettings() {
     const v = !collapseUserMessages
     setCollapseUserMessages(v)
     themeStore.setCollapseUserMessages(v)
+  }
+
+  const handleTestNotification = () => {
+    sendNotification('OpenCode', 'This is a test notification')
   }
 
   return (
@@ -431,6 +435,22 @@ function GeneralSettings() {
             enabled={notificationsEnabled && notificationPermission !== 'denied'} 
             onChange={() => notificationPermission !== 'denied' && setNotificationsEnabled(!notificationsEnabled)} 
           />
+        </SettingRow>
+      )}
+      {notificationsSupported && (
+        <SettingRow
+          label="Test Notification"
+          description={notificationsEnabled ? 'Send a sample notification' : 'Enable notifications to test'}
+          icon={<BellIcon size={14} />}
+        >
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={handleTestNotification}
+            disabled={!notificationsEnabled || notificationPermission === 'denied'}
+          >
+            Send
+          </Button>
         </SettingRow>
       )}
       <SettingRow
