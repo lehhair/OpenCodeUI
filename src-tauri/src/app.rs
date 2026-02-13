@@ -6,7 +6,10 @@
 use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicU64, Ordering};
-use tauri::{ipc::Channel, Manager, State};
+use tauri::{ipc::Channel, State};
+
+#[cfg(debug_assertions)]
+use tauri::Manager;
 
 // ============================================
 // SSE Connection State
