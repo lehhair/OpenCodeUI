@@ -18,6 +18,7 @@ class MainActivity : TauriActivity() {
   private val handler = Handler(Looper.getMainLooper())
   private var cachedInsetsJs: String? = null
   private var themeSyncRunnable: Runnable? = null
+  private var cachedWebView: WebView? = null
 
   override fun onCreate(savedInstanceState: Bundle?) {
     enableEdgeToEdge()
@@ -29,7 +30,7 @@ class MainActivity : TauriActivity() {
     controller.isAppearanceLightNavigationBars = true
 
     // 监听 WindowInsets 变化，获取真实的安全区域并注入 CSS 变量
-    val rootView = window.decorView.findViewById<View>(android.R.id.content)
+    val rootView = window.decorView
     ViewCompat.setOnApplyWindowInsetsListener(rootView) { _, windowInsets ->
       val insets = windowInsets.getInsets(
         WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
@@ -90,7 +91,7 @@ class MainActivity : TauriActivity() {
   }
 
   private fun syncSystemBars(rootView: View) {
-    val webView = findWebView(rootView) ?: return
+    val webView = cachedWebView ?: findWebView(rootView) ?: return
     val js = """
       (function() {
         var mode = document.documentElement.getAttribute('data-mode') || 'system';
@@ -123,6 +124,19 @@ class MainActivity : TauriActivity() {
     controller.isAppearanceLightNavigationBars = isLightBg && mode != "dark"
     window.statusBarColor = color
     window.navigationBarColor = color
+  }
+
+  private inner class SystemBarBridge {
+    @android.webkit.JavascriptInterface
+    fun setSystemBars(mode: String, bg: String) {
+      val color = parseCssColor(bg) ?: return
+      val isLightBg = isColorLight(color)
+      val controller = WindowInsetsControllerCompat(window, window.decorView)
+      controller.isAppearanceLightStatusBars = isLightBg && mode != "dark"
+      controller.isAppearanceLightNavigationBars = isLightBg && mode != "dark"
+      window.statusBarColor = color
+      window.navigationBarColor = color
+    }
   }
 
   private fun parseCssColor(value: String): Int? {
@@ -209,8 +223,18 @@ class MainActivity : TauriActivity() {
   private fun tryInjectInsets(view: View): Boolean {
     val js = cachedInsetsJs ?: return false
     val webView = findWebView(view) ?: return false
+    cachedWebView = webView
+    ensureJsBridge(webView)
     webView.evaluateJavascript(js, null)
     return true
+  }
+
+  private fun ensureJsBridge(webView: WebView) {
+    try {
+      webView.addJavascriptInterface(SystemBarBridge(), "__opencode_android")
+    } catch (_: Exception) {
+      // ignore - may be added already
+    }
   }
 
   private fun findWebView(view: View): WebView? {

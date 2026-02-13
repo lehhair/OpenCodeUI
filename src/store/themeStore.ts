@@ -223,6 +223,11 @@ class ThemeStore {
         const meta = document.querySelector('meta[name="theme-color"]')
         if (meta) meta.setAttribute('content', bg)
       }
+
+      const androidBridge = (window as unknown as { __opencode_android?: { setSystemBars?: (mode: string, bg: string) => void } }).__opencode_android
+      if (androidBridge?.setSystemBars && bg) {
+        androidBridge.setSystemBars(resolvedMode, bg)
+      }
     })
   }
   
