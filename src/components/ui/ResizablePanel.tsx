@@ -230,7 +230,7 @@ export const ResizablePanel = memo(function ResizablePanel({
       : (isOpen ? 'translate-y-0' : 'translate-y-full')
       
     const mobileBaseClass = position === 'right'
-      ? 'fixed left-0 right-0 z-[100] w-full shadow-2xl bg-bg-100'
+      ? 'fixed left-0 right-0 z-[100] w-full bg-bg-100'
       : 'fixed bottom-0 left-0 right-0 z-[100] h-[40vh] shadow-2xl rounded-t-xl border-t border-border-200 bg-bg-100'
 
     const keyboardInset = isPanelFocused ? 'var(--keyboard-inset-bottom, 0px)' : '0px'
