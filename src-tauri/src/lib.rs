@@ -113,6 +113,7 @@ async fn sse_connect(
     // 流式读取 SSE
     let mut stream = response.bytes_stream();
     let mut buffer = String::new();
+    let mut event_data = String::new();
 
     loop {
         // 检查是否被要求断开
@@ -138,13 +139,25 @@ async fn sse_connect(
                     if line.starts_with("data:") {
                         let data = line[5..].trim();
                         if !data.is_empty() {
-                            let _ = on_event.send(SseEvent::Message {
-                                raw: data.to_string(),
-                            });
+                            if !event_data.is_empty() {
+                                event_data.push('\n');
+                            }
+                            event_data.push_str(data);
                         }
+                        continue;
                     }
+
+                    if line.is_empty() {
+                        if !event_data.is_empty() {
+                            let _ = on_event.send(SseEvent::Message {
+                                raw: event_data.clone(),
+                            });
+                            event_data.clear();
+                        }
+                        continue;
+                    }
+
                     // 忽略 event:, id:, retry: 等 SSE 字段
-                    // 空行在 SSE 中是事件分隔符，我们已经按 data: 逐行发送了
                 }
             }
             Some(Err(e)) => {
@@ -155,6 +168,11 @@ async fn sse_connect(
                 return Err(msg);
             }
             None => {
+                if !event_data.is_empty() {
+                    let _ = on_event.send(SseEvent::Message {
+                        raw: event_data.clone(),
+                    });
+                }
                 // 流结束
                 let _ = on_event.send(SseEvent::Disconnected {
                     reason: "Stream ended".to_string(),
