@@ -384,6 +384,22 @@ function App() {
   // ============================================
   const isIdle = !isStreaming
 
+  // ============================================
+  // Dialog Collapsed State
+  // ============================================
+  const [permissionCollapsed, setPermissionCollapsed] = useState(false)
+  const [questionCollapsed, setQuestionCollapsed] = useState(false)
+
+  // 新的 request 到来时自动展开
+  const permissionRequestId = pendingPermissionRequests[0]?.id
+  const questionRequestId = pendingQuestionRequests[0]?.id
+  useEffect(() => {
+    if (permissionRequestId) setPermissionCollapsed(false)
+  }, [permissionRequestId])
+  useEffect(() => {
+    if (questionRequestId) setQuestionCollapsed(false)
+  }, [questionRequestId])
+
   // streaming 结束时清理 cancel hint
   useEffect(() => {
     if (!isStreaming) {
@@ -511,6 +527,16 @@ function App() {
                 registerInputBox={registerInputBox}
                 showScrollToBottom={!isAtBottom}
                 onScrollToBottom={() => chatAreaRef.current?.scrollToBottom()}
+                collapsedPermission={
+                  pendingPermissionRequests.length > 0 && permissionCollapsed
+                    ? { label: `Permission: ${pendingPermissionRequests[0].permission}`, queueLength: pendingPermissionRequests.length, onExpand: () => setPermissionCollapsed(false) }
+                    : undefined
+                }
+                collapsedQuestion={
+                  pendingPermissionRequests.length === 0 && pendingQuestionRequests.length > 0 && questionCollapsed
+                    ? { label: 'Question', queueLength: pendingQuestionRequests.length, onExpand: () => setQuestionCollapsed(false) }
+                    : undefined
+                }
               />
             </div>
 
@@ -522,6 +548,8 @@ function App() {
                 queueLength={pendingPermissionRequests.length}
                 isReplying={isReplying}
                 currentSessionId={routeSessionId}
+                collapsed={permissionCollapsed}
+                onCollapsedChange={setPermissionCollapsed}
               />
             )}
 
@@ -533,6 +561,8 @@ function App() {
                 onReject={() => handleQuestionReject(pendingQuestionRequests[0].id, effectiveDirectory)}
                 queueLength={pendingQuestionRequests.length}
                 isReplying={isReplying}
+                collapsed={questionCollapsed}
+                onCollapsedChange={setQuestionCollapsed}
               />
             )}
           </div>

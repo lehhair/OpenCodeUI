@@ -283,11 +283,11 @@ export const DiffView = memo(function DiffView({
             className="overflow-auto custom-scrollbar"
             style={{ maxHeight }}
           >
-            <table className="w-full border-collapse table-fixed">
+            <table className="min-w-full border-collapse">
               <colgroup>
                 <col className="w-[40px]" />
                 <col className="w-[40px]" />
-                <col className="w-full" />
+                <col />
               </colgroup>
               <tbody>
                 {lines.map((line, idx) => {
@@ -311,7 +311,7 @@ export const DiffView = memo(function DiffView({
                     </td>
 
                     {/* Code Content */}
-                    <td className={clsx("px-4 py-0.5 relative group overflow-hidden align-top", rowBgClass)}>
+                    <td className={clsx("px-4 py-0.5 relative group align-top", rowBgClass)}>
                       {/* Indicator for add/delete */}
                       {(line.type === 'add' || line.type === 'delete') && (
                         <span className={clsx(
@@ -324,7 +324,7 @@ export const DiffView = memo(function DiffView({
                       
                       {/* The code itself */}
                       <div 
-                        className="whitespace-pre break-all font-mono"
+                        className="whitespace-pre font-mono"
                         dangerouslySetInnerHTML={{ __html: line.content }}
                       />
                     </td>

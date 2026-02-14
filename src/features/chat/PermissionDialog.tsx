@@ -1,6 +1,6 @@
-import { useState } from 'react'
+
 import type { ApiPermissionRequest, PermissionReply } from '../../api'
-import { PermissionListIcon, UsersIcon, ReturnIcon, ChevronDownIcon, ChevronUpIcon } from '../../components/Icons'
+import { PermissionListIcon, UsersIcon, ReturnIcon, ChevronDownIcon } from '../../components/Icons'
 import { DiffView } from '../../components/DiffView'
 import { ContentBlock } from '../../components'
 import { childSessionStore, autoApproveStore } from '../../store'
@@ -12,10 +12,11 @@ interface PermissionDialogProps {
   queueLength?: number  // 队列中的请求数量
   isReplying?: boolean  // 是否正在回复
   currentSessionId?: string | null  // 当前主 session ID，用于判断是否来自子 agent
+  collapsed?: boolean
+  onCollapsedChange?: (collapsed: boolean) => void
 }
 
-export function PermissionDialog({ request, onReply, onAutoApprove, queueLength = 1, isReplying = false, currentSessionId }: PermissionDialogProps) {
-  const [collapsed, setCollapsed] = useState(false)
+export function PermissionDialog({ request, onReply, onAutoApprove, queueLength = 1, isReplying = false, currentSessionId, collapsed = false, onCollapsedChange }: PermissionDialogProps) {
 
   // 从 metadata 中提取 diff 信息
   const metadata = request.metadata
@@ -41,27 +42,9 @@ export function PermissionDialog({ request, onReply, onAutoApprove, queueLength 
     ? childSessionStore.getSessionInfo(request.sessionID) 
     : null
 
-  // 折叠态：小胶囊
+  // 折叠态：由 InputBox 渲染胶囊，这里不渲染
   if (collapsed) {
-    return (
-      <div className="absolute bottom-0 left-0 right-0 z-[10] pointer-events-none">
-        <div className="mx-auto max-w-3xl px-4 pb-4 flex justify-center">
-          <button
-            onClick={() => setCollapsed(false)}
-            className="pointer-events-auto flex items-center gap-2 px-3 py-1.5 rounded-full bg-bg-000 border border-border-200/50 shadow-lg text-sm text-text-200 hover:bg-bg-200 transition-colors animate-in fade-in slide-in-from-bottom-2 duration-150"
-          >
-            <PermissionListIcon size={14} />
-            <span className="font-medium">Permission: {request.permission}</span>
-            {queueLength > 1 && (
-              <span className="text-xs text-text-400 bg-bg-200 px-1.5 py-0.5 rounded-full">
-                +{queueLength - 1}
-              </span>
-            )}
-            <ChevronUpIcon size={14} className="text-text-400" />
-          </button>
-        </div>
-      </div>
-    )
+    return null
   }
 
   return (
@@ -83,7 +66,7 @@ export function PermissionDialog({ request, onReply, onAutoApprove, queueLength 
                 )}
               </div>
               <button
-                onClick={() => setCollapsed(true)}
+                onClick={() => onCollapsedChange?.(true)}
                 className="p-1 rounded-md text-text-400 hover:text-text-200 hover:bg-bg-200 transition-colors"
                 title="Minimize"
               >

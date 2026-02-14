@@ -8,13 +8,19 @@ import { UndoStatus } from './input/UndoStatus'
 import { useImageCompressor } from '../../hooks/useImageCompressor'
 import { keybindingStore, matchesKeybinding } from '../../store/keybindingStore'
 import { useIsMobile } from '../../hooks'
-import { ArrowDownIcon } from '../../components/Icons'
+import { ArrowDownIcon, PermissionListIcon, QuestionIcon } from '../../components/Icons'
 import type { ApiAgent } from '../../api/client'
 import type { Command } from '../../api/command'
 
 // ============================================
 // Types
 // ============================================
+
+export interface CollapsedDialogInfo {
+  label: string
+  queueLength: number
+  onExpand: () => void
+}
 
 export interface InputBoxProps {
   onSend: (text: string, attachments: Attachment[], options?: { agent?: string; variant?: string }) => void
@@ -44,6 +50,9 @@ export interface InputBoxProps {
   registerInputBox?: (element: HTMLElement | null) => void
   showScrollToBottom?: boolean
   onScrollToBottom?: () => void
+  // Collapsed dialog capsules
+  collapsedPermission?: CollapsedDialogInfo
+  collapsedQuestion?: CollapsedDialogInfo
 }
 
 // ============================================
@@ -76,6 +85,8 @@ function InputBoxComponent({
   registerInputBox,
   showScrollToBottom = false,
   onScrollToBottom,
+  collapsedPermission,
+  collapsedQuestion,
 }: InputBoxProps) {
   // 文本状态
   const [text, setText] = useState('')
@@ -547,8 +558,38 @@ function InputBoxComponent({
     <div className="w-full">
       <div className="mx-auto max-w-3xl px-4 pb-4 pointer-events-auto transition-[max-width] duration-300 ease-in-out" style={{ paddingBottom: 'max(16px, var(--safe-area-inset-bottom, 16px))' }}>
         <div className="flex flex-col gap-2">
-          {(showScrollToBottom || canRedo) && (
-            <div className={`flex items-center justify-center ${canRedo ? 'gap-2' : ''}`}>
+          {(showScrollToBottom || canRedo || collapsedPermission || collapsedQuestion) && (
+            <div className={`flex items-center justify-center gap-2`}>
+              {/* Collapsed Permission Capsule */}
+              {collapsedPermission && (
+                <button
+                  type="button"
+                  onClick={collapsedPermission.onExpand}
+                  className="flex items-center gap-1.5 px-3 h-[32px] rounded-full bg-accent-main-100/10 backdrop-blur-md border border-accent-main-100/20 text-[11px] text-accent-main-000 hover:bg-accent-main-100/20 transition-colors animate-in fade-in slide-in-from-bottom-2 duration-150"
+                >
+                  <PermissionListIcon size={14} />
+                  <span className="whitespace-nowrap">{collapsedPermission.label}</span>
+                  {collapsedPermission.queueLength > 1 && (
+                    <span className="text-[10px] opacity-70">+{collapsedPermission.queueLength - 1}</span>
+                  )}
+                </button>
+              )}
+
+              {/* Collapsed Question Capsule */}
+              {collapsedQuestion && (
+                <button
+                  type="button"
+                  onClick={collapsedQuestion.onExpand}
+                  className="flex items-center gap-1.5 px-3 h-[32px] rounded-full bg-accent-main-100/10 backdrop-blur-md border border-accent-main-100/20 text-[11px] text-accent-main-000 hover:bg-accent-main-100/20 transition-colors animate-in fade-in slide-in-from-bottom-2 duration-150"
+                >
+                  <QuestionIcon size={14} />
+                  <span className="whitespace-nowrap">{collapsedQuestion.label}</span>
+                  {collapsedQuestion.queueLength > 1 && (
+                    <span className="text-[10px] opacity-70">+{collapsedQuestion.queueLength - 1}</span>
+                  )}
+                </button>
+              )}
+
               {canRedo && (
                 <UndoStatus 
                   canRedo={canRedo} 

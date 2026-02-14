@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
-import { QuestionIcon, CheckIcon, ReturnIcon, ChevronDownIcon, ChevronUpIcon } from '../../components/Icons'
+import { QuestionIcon, CheckIcon, ReturnIcon, ChevronDownIcon } from '../../components/Icons'
 import type { ApiQuestionRequest, ApiQuestionInfo, QuestionAnswer } from '../../api'
 
 interface QuestionDialogProps {
@@ -8,10 +8,11 @@ interface QuestionDialogProps {
   onReject: () => void
   queueLength?: number
   isReplying?: boolean
+  collapsed?: boolean
+  onCollapsedChange?: (collapsed: boolean) => void
 }
 
-export function QuestionDialog({ request, onReply, onReject, queueLength = 1, isReplying = false }: QuestionDialogProps) {
-  const [collapsed, setCollapsed] = useState(false)
+export function QuestionDialog({ request, onReply, onReject, queueLength = 1, isReplying = false, collapsed = false, onCollapsedChange }: QuestionDialogProps) {
   // 每个问题选中的选项 labels
   const [answers, setAnswers] = useState<Map<number, Set<string>>>(() => {
     const map = new Map<number, Set<string>>()
@@ -134,28 +135,8 @@ export function QuestionDialog({ request, onReply, onReject, queueLength = 1, is
     }
   })
 
-  // 折叠态：小胶囊
-  if (collapsed) {
-    return (
-      <div className="absolute bottom-0 left-0 right-0 z-[10] pointer-events-none">
-        <div className="mx-auto max-w-3xl px-4 pb-4 flex justify-center">
-          <button
-            onClick={() => setCollapsed(false)}
-            className="pointer-events-auto flex items-center gap-2 px-3 py-1.5 rounded-full bg-bg-000 border border-border-200/50 shadow-lg text-sm text-text-200 hover:bg-bg-200 transition-colors animate-in fade-in slide-in-from-bottom-2 duration-150"
-          >
-            <QuestionIcon />
-            <span className="font-medium">Question</span>
-            {queueLength > 1 && (
-              <span className="text-xs text-text-400 bg-bg-200 px-1.5 py-0.5 rounded-full">
-                +{queueLength - 1}
-              </span>
-            )}
-            <ChevronUpIcon size={14} className="text-text-400" />
-          </button>
-        </div>
-      </div>
-    )
-  }
+  // 折叠态：由 InputBox 渲染胶囊，这里不渲染任何内容
+  if (collapsed) return null
 
   return (
     <div className="absolute bottom-0 left-0 right-0 z-[10]">
@@ -176,7 +157,7 @@ export function QuestionDialog({ request, onReply, onReject, queueLength = 1, is
                 )}
               </div>
               <button
-                onClick={() => setCollapsed(true)}
+                onClick={() => onCollapsedChange?.(true)}
                 className="p-1 rounded-md text-text-400 hover:text-text-200 hover:bg-bg-200 transition-colors"
                 title="Minimize"
               >

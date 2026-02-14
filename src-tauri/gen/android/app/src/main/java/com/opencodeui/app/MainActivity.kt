@@ -39,10 +39,6 @@ class MainActivity : TauriActivity() {
       window.isNavigationBarContrastEnforced = false
     }
 
-    // 初始底色：setPadding 区域（状态栏/导航栏后方）需要有底色
-    // 后续由 syncSystemBars 根据 WebView 主题动态更新
-    window.decorView.setBackgroundColor(Color.WHITE)
-
     // 监听 WindowInsets 变化：
     // 1. 对内容容器 setPadding，让 WebView 物理 resize（键盘弹出时 window.innerHeight 自动变小）
     // 2. 注入 CSS 变量供前端做精细布局
