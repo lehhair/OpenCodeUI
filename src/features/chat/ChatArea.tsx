@@ -39,7 +39,6 @@ interface ChatAreaProps {
   bottomPadding?: number
   onVisibleMessageIdsChange?: (ids: string[]) => void
   onAtBottomChange?: (atBottom: boolean) => void
-  keyboardInsetEnabled?: boolean
 }
 
 export type ChatAreaHandle = {
@@ -97,7 +96,6 @@ export const ChatArea = memo(forwardRef<ChatAreaHandle, ChatAreaProps>(({
   bottomPadding = 0,
   onVisibleMessageIdsChange,
   onAtBottomChange,
-  keyboardInsetEnabled = true,
 }, ref) => {
   const virtuosoRef = useRef<VirtuosoHandle>(null)
   // 外部滚动容器
@@ -418,8 +416,8 @@ export const ChatArea = memo(forwardRef<ChatAreaHandle, ChatAreaProps>(({
                 <div
                   style={{
                     height: bottomPadding > 0
-                      ? `calc(${bottomPadding + 16}px + ${keyboardInsetEnabled ? 'var(--keyboard-inset-bottom, 0px)' : '0px'})`
-                      : `calc(256px + ${keyboardInsetEnabled ? 'var(--keyboard-inset-bottom, 0px)' : '0px'})`
+                      ? `${bottomPadding + 16}px`
+                      : '256px'
                   }}
                 />
               )

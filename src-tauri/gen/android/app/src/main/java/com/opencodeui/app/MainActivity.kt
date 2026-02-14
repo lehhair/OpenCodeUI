@@ -16,7 +16,6 @@ import androidx.activity.enableEdgeToEdge
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
-import kotlin.math.max
 
 class MainActivity : TauriActivity() {
 
@@ -40,40 +39,43 @@ class MainActivity : TauriActivity() {
       window.isNavigationBarContrastEnforced = false
     }
 
-    // 监听 WindowInsets 变化，获取真实的安全区域并注入 CSS 变量
-    val rootView = window.decorView
-    ViewCompat.setOnApplyWindowInsetsListener(rootView) { _, windowInsets ->
-      val insets = windowInsets.getInsets(
+    // 监听 WindowInsets 变化：
+    // 1. 对内容容器 setPadding，让 WebView 物理 resize（键盘弹出时 window.innerHeight 自动变小）
+    // 2. 注入 CSS 变量供前端做精细布局
+    val contentView = findViewById<View>(android.R.id.content)
+    ViewCompat.setOnApplyWindowInsetsListener(contentView) { view, windowInsets ->
+      val systemInsets = windowInsets.getInsets(
         WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
       )
       val imeInsets = windowInsets.getInsets(WindowInsetsCompat.Type.ime())
 
-      val density = resources.displayMetrics.density
-      val topDp = insets.top / density
-      val bottomDp = insets.bottom / density
-      val leftDp = insets.left / density
-      val rightDp = insets.right / density
-      val imeBottomDp = max(0f, imeInsets.bottom / density)
+      // 键盘弹出时底部取 IME 和系统栏的较大值，让 WebView 整体 resize
+      val bottomPadding = maxOf(imeInsets.bottom, systemInsets.bottom)
+      view.setPadding(
+        systemInsets.left,
+        systemInsets.top,
+        systemInsets.right,
+        bottomPadding
+      )
 
       cachedInsetsJs = """
         (function() {
           var s = document.documentElement.style;
-          s.setProperty('--safe-area-inset-top', '${topDp}px');
-          s.setProperty('--safe-area-inset-bottom', '${bottomDp}px');
-          s.setProperty('--safe-area-inset-left', '${leftDp}px');
-          s.setProperty('--safe-area-inset-right', '${rightDp}px');
-        s.setProperty('--keyboard-inset-bottom', '${imeBottomDp}px');
-      })();
-    """.trimIndent()
+          s.setProperty('--safe-area-inset-top', '0px');
+          s.setProperty('--safe-area-inset-bottom', '0px');
+          s.setProperty('--safe-area-inset-left', '0px');
+          s.setProperty('--safe-area-inset-right', '0px');
+        })();
+      """.trimIndent()
 
       // 立即尝试注入
-      tryInjectInsets(rootView)
+      tryInjectInsets(view)
 
-      windowInsets
+      WindowInsetsCompat.CONSUMED
     }
 
     // WebView 可能还没创建好，轮询几次确保注入成功
-    scheduleInsetsInjection(rootView, 0)
+    scheduleInsetsInjection(contentView, 0)
   }
 
   override fun onResume() {
