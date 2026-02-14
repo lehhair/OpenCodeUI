@@ -507,6 +507,9 @@ function App() {
                 overflow: 'hidden',
               } : undefined}
             >
+              {/* Bottom gradient - mirrors Header's top gradient */}
+              <div className="h-8 bg-gradient-to-t from-bg-100 to-transparent pointer-events-none" />
+
               {/* Double-Esc cancel hint */}
               {showCancelHint && (
                 <div className="flex justify-center mb-2 pointer-events-none">

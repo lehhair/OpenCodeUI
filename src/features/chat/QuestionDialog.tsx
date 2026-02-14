@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
-import { QuestionIcon, CheckIcon, ReturnIcon } from '../../components/Icons'
+import { QuestionIcon, CheckIcon, ReturnIcon, ChevronDownIcon, ChevronUpIcon } from '../../components/Icons'
 import type { ApiQuestionRequest, ApiQuestionInfo, QuestionAnswer } from '../../api'
 
 interface QuestionDialogProps {
@@ -11,6 +11,7 @@ interface QuestionDialogProps {
 }
 
 export function QuestionDialog({ request, onReply, onReject, queueLength = 1, isReplying = false }: QuestionDialogProps) {
+  const [collapsed, setCollapsed] = useState(false)
   // 每个问题选中的选项 labels
   const [answers, setAnswers] = useState<Map<number, Set<string>>>(() => {
     const map = new Map<number, Set<string>>()
@@ -133,6 +134,29 @@ export function QuestionDialog({ request, onReply, onReject, queueLength = 1, is
     }
   })
 
+  // 折叠态：小胶囊
+  if (collapsed) {
+    return (
+      <div className="absolute bottom-0 left-0 right-0 z-[10] pointer-events-none">
+        <div className="mx-auto max-w-3xl px-4 pb-4 flex justify-center">
+          <button
+            onClick={() => setCollapsed(false)}
+            className="pointer-events-auto flex items-center gap-2 px-3 py-1.5 rounded-full bg-bg-000 border border-border-200/50 shadow-lg text-sm text-text-200 hover:bg-bg-200 transition-colors animate-in fade-in slide-in-from-bottom-2 duration-150"
+          >
+            <QuestionIcon />
+            <span className="font-medium">Question</span>
+            {queueLength > 1 && (
+              <span className="text-xs text-text-400 bg-bg-200 px-1.5 py-0.5 rounded-full">
+                +{queueLength - 1}
+              </span>
+            )}
+            <ChevronUpIcon size={14} className="text-text-400" />
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="absolute bottom-0 left-0 right-0 z-[10]">
       <div className="mx-auto max-w-3xl px-4 pb-7">
@@ -151,6 +175,13 @@ export function QuestionDialog({ request, onReply, onReject, queueLength = 1, is
                   </span>
                 )}
               </div>
+              <button
+                onClick={() => setCollapsed(true)}
+                className="p-1 rounded-md text-text-400 hover:text-text-200 hover:bg-bg-200 transition-colors"
+                title="Minimize"
+              >
+                <ChevronDownIcon size={16} />
+              </button>
             </div>
 
             <div className="border-t border-border-300/30" />
