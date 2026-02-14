@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { createPortal } from 'react-dom'
 
 type DropdownPosition = 'top' | 'bottom'
@@ -45,54 +45,44 @@ export function DropdownMenu({
     }
   }, [isOpen])
 
-  // 位置计算函数，提出来便于多处调用
-  const updatePosition = useCallback(() => {
-    if (!triggerRef.current) return
-    const rect = triggerRef.current.getBoundingClientRect()
-    const gap = 8
-    const newStyle: React.CSSProperties = {}
-
-    if (position === 'top') {
-      newStyle.bottom = window.innerHeight - rect.top + gap
-    } else {
-      newStyle.top = rect.bottom + gap
-    }
-
-    if (align === 'right') {
-      newStyle.right = window.innerWidth - rect.right
-    } else {
-      newStyle.left = rect.left
-    }
-
-    setStyle(newStyle)
-  }, [triggerRef, position, align])
-
-  // 初次渲染时计算位置
-  useEffect(() => {
-    if (shouldRender) {
-      updatePosition()
-    }
-  }, [shouldRender, updatePosition])
-
-  // 实时跟随：监听 visualViewport resize（键盘弹起/收起）和 window resize
+  // 菜单打开期间每帧跟踪 trigger 位置，确保键盘弹起/收起时 dropdown 始终跟随
+  const styleRef = useRef<React.CSSProperties>({})
   useEffect(() => {
     if (!shouldRender) return
 
-    const vp = window.visualViewport
-    if (vp) {
-      vp.addEventListener('resize', updatePosition)
-      vp.addEventListener('scroll', updatePosition)
-    }
-    window.addEventListener('resize', updatePosition)
+    let rafId: number
+    const tick = () => {
+      if (triggerRef.current) {
+        const rect = triggerRef.current.getBoundingClientRect()
+        const gap = 8
+        const newStyle: React.CSSProperties = {}
 
-    return () => {
-      if (vp) {
-        vp.removeEventListener('resize', updatePosition)
-        vp.removeEventListener('scroll', updatePosition)
+        if (position === 'top') {
+          newStyle.bottom = window.innerHeight - rect.top + gap
+        } else {
+          newStyle.top = rect.bottom + gap
+        }
+
+        if (align === 'right') {
+          newStyle.right = window.innerWidth - rect.right
+        } else {
+          newStyle.left = rect.left
+        }
+
+        // 只在位置实际变化时 setState，避免无意义重渲染
+        const prev = styleRef.current
+        if (prev.top !== newStyle.top || prev.bottom !== newStyle.bottom
+          || prev.left !== newStyle.left || prev.right !== newStyle.right) {
+          styleRef.current = newStyle
+          setStyle(newStyle)
+        }
       }
-      window.removeEventListener('resize', updatePosition)
+      rafId = requestAnimationFrame(tick)
     }
-  }, [shouldRender, updatePosition])
+    rafId = requestAnimationFrame(tick)
+
+    return () => cancelAnimationFrame(rafId)
+  }, [shouldRender, triggerRef, position, align])
 
   if (!shouldRender) return null
 
