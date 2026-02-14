@@ -44,8 +44,6 @@ export interface InputBoxProps {
   registerInputBox?: (element: HTMLElement | null) => void
   showScrollToBottom?: boolean
   onScrollToBottom?: () => void
-  /** 键盘是否弹起（移动端），弹起时隐藏 InputFooter */
-  keyboardVisible?: boolean
 }
 
 // ============================================
@@ -78,7 +76,6 @@ function InputBoxComponent({
   registerInputBox,
   showScrollToBottom = false,
   onScrollToBottom,
-  keyboardVisible = false,
 }: InputBoxProps) {
   // 文本状态
   const [text, setText] = useState('')
@@ -661,8 +658,8 @@ function InputBoxComponent({
             </div>
           </div>
 
-          {/* Footer: disclaimer + todo progress — 移动端键盘弹起时隐藏 */}
-          {!(isMobile && keyboardVisible) && <InputFooter sessionId={sessionId} onNewChat={onNewChat} />}
+          {/* Footer: disclaimer + todo progress — 键盘弹起时被键盘遮挡，无需隐藏 */}
+          <InputFooter sessionId={sessionId} onNewChat={onNewChat} />
         </div>
       </div>
     </div>

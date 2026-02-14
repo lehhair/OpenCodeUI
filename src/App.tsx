@@ -65,8 +65,6 @@ function App() {
   const inputBoxWrapperRef = useRef<HTMLDivElement>(null)
   const [isChatInputFocused, setIsChatInputFocused] = useState(false)
   const baseAppHeightRef = useRef<number | null>(null)
-  // 通过 visualViewport 检测虚拟键盘是否真正弹出（不是仅凭焦点判断）
-  const [isKeyboardOpen, setIsKeyboardOpen] = useState(false)
 
   useEffect(() => {
     const el = inputBoxWrapperRef.current
@@ -106,8 +104,6 @@ function App() {
       if (!isTauriApp) {
         const inset = Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop)
         root.style.setProperty('--keyboard-inset-bottom', `${Math.round(inset)}px`)
-        // 键盘高度 > 100px 才认为键盘真正弹出
-        setIsKeyboardOpen(inset > 100)
         return
       }
       if (baseAppHeightRef.current === null) {
@@ -115,8 +111,6 @@ function App() {
       }
       const insetValue = getComputedStyle(root).getPropertyValue('--keyboard-inset-bottom')
       const keyboardInset = Number.parseFloat(insetValue) || 0
-      // Tauri 环境下同样检测键盘
-      setIsKeyboardOpen(keyboardInset > 100)
       if (keyboardInset > 0) {
         root.style.setProperty('--app-height', `${baseAppHeightRef.current}px`)
       } else {
@@ -543,7 +537,6 @@ function App() {
                 registerInputBox={registerInputBox}
                 showScrollToBottom={!isAtBottom}
                 onScrollToBottom={() => chatAreaRef.current?.scrollToBottom()}
-                keyboardVisible={isKeyboardOpen}
               />
             </div>
 
