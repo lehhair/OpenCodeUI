@@ -75,9 +75,12 @@ export function DropdownMenu({
       className="fixed z-[100]"
       style={style}
       onMouseDown={(e) => {
-        // Prevent dropdown interactions from stealing focus from textarea
-        // This keeps the mobile keyboard open when selecting menu items
-        e.preventDefault()
+        // 只在虚拟键盘已打开时才阻止焦点转移
+        const vp = window.visualViewport
+        const keyboardOpen = vp ? (window.innerHeight - vp.height) > 100 : false
+        if (keyboardOpen) {
+          e.preventDefault()
+        }
       }}
     >
       <div

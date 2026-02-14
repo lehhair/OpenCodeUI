@@ -6,6 +6,7 @@ import { useRef, useImperativeHandle, forwardRef, useState, memo, useCallback, u
 import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso'
 import { MessageRenderer } from '../message'
 import { messageStore } from '../../store'
+import { SpinnerIcon } from '../../components/Icons'
 import type { Message } from '../../types/message'
 import {
   VIRTUOSO_START_INDEX,
@@ -25,7 +26,9 @@ interface ChatAreaProps {
   isStreaming?: boolean
   /** 累计向前加载的消息数量，用于计算 Virtuoso 的 firstItemIndex */
   prependedCount?: number
-  onLoadMore?: () => void
+  /** Session 加载状态 */
+  loadState?: 'idle' | 'loading' | 'loaded' | 'error'
+  onLoadMore?: () => void | Promise<void>
   onUndo?: (userMessageId: string) => void
   canUndo?: boolean
   registerMessage?: (id: string, element: HTMLElement | null) => void
@@ -82,6 +85,7 @@ export const ChatArea = memo(forwardRef<ChatAreaHandle, ChatAreaProps>(({
   sessionId,
   isStreaming = false,
   prependedCount = 0,
+  loadState = 'idle',
   onLoadMore,
   onUndo,
   canUndo,
@@ -108,6 +112,24 @@ export const ChatArea = memo(forwardRef<ChatAreaHandle, ChatAreaProps>(({
   // Session 切换过渡：简单的淡入效果
   // 使用 sessionId 作为 key，切换时会触发组件重新挂载从而产生 CSS 动画
   const transitionKey = sessionId || 'empty'
+  
+  // 向上滚动加载更多历史消息的 loading 状态
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
+  const isLoadingMoreRef = useRef(false)
+  
+  // 包装 onLoadMore，追踪加载状态（带最小展示时间防止闪烁）
+  const handleLoadMore = useCallback(async () => {
+    if (!onLoadMore || isLoadingMoreRef.current) return
+    isLoadingMoreRef.current = true
+    setIsLoadingMore(true)
+    const minDelay = new Promise(r => setTimeout(r, 400))
+    try {
+      await Promise.all([onLoadMore(), minDelay])
+    } finally {
+      isLoadingMoreRef.current = false
+      setIsLoadingMore(false)
+    }
+  }, [onLoadMore])
   
   // 过滤空消息（有 memo 避免每次 render 都创建新数组）
   const visibleMessages = useMemo(() => messages.filter(messageHasContent), [messages])
@@ -297,8 +319,29 @@ export const ChatArea = memo(forwardRef<ChatAreaHandle, ChatAreaProps>(({
     )
   }, [registerMessage, onUndo, canUndo, isWideMode, sessionId])
 
+  // Session 正在加载且没有消息 → 显示全屏 spinner
+  const showSessionLoading = loadState === 'loading' && visibleMessages.length === 0
+
   return (
-    <div className="h-full overflow-hidden contain-strict">
+    <div className="h-full overflow-hidden contain-strict relative">
+      {/* Session 加载中的全屏居中 spinner */}
+      {showSessionLoading && (
+        <div className="absolute inset-0 z-10 flex items-center justify-center">
+          <div className="flex flex-col items-center gap-3 text-text-400 animate-in fade-in duration-300">
+            <SpinnerIcon size={24} className="animate-spin" />
+            <span className="text-sm">Loading session...</span>
+          </div>
+        </div>
+      )}
+      {/* 向上加载历史消息的顶部 spinner */}
+      {isLoadingMore && (
+        <div className="absolute top-24 left-0 right-0 z-10 flex justify-center pointer-events-none">
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-bg-100/90 border border-border-200 shadow-sm text-text-400 animate-in fade-in slide-in-from-top-2 duration-200">
+            <SpinnerIcon size={14} className="animate-spin" />
+            <span className="text-xs">Loading...</span>
+          </div>
+        </div>
+      )}
       <div 
         key={transitionKey}
         ref={setScrollParent} 
@@ -311,17 +354,13 @@ export const ChatArea = memo(forwardRef<ChatAreaHandle, ChatAreaProps>(({
             customScrollParent={scrollParent}
             firstItemIndex={firstItemIndex}
             initialTopMostItemIndex={visibleMessages.length - 1}
-            startReached={onLoadMore}
+            startReached={handleLoadMore}
             followOutput={handleFollowOutput}
             atBottomStateChange={handleAtBottomStateChange}
             isScrolling={handleIsScrolling}
             atBottomThreshold={AT_BOTTOM_THRESHOLD_PX}
-            // 预估消息高度，减少初始渲染时的布局跳动 (CLS)
             defaultItemHeight={VIRTUOSO_ESTIMATED_ITEM_HEIGHT}
-            // 减少 prepend 时的闪烁，跳过 ResizeObserver 的 requestAnimationFrame
-            // 可能产生 console 警告但能改善体验
             skipAnimationFrameInResizeObserver
-            // 增加 overscan 预渲染更多内容，减少滚动时的实时渲染压力
             overscan={{ main: VIRTUOSO_OVERSCAN_PX, reverse: VIRTUOSO_OVERSCAN_PX }}
             components={{
               Header: () => <div className="h-20" />,

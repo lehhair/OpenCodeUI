@@ -492,6 +492,10 @@ class MessageStore {
     return this.getCurrentSessionState()?.shareUrl
   }
 
+  getLoadState(): SessionState['loadState'] {
+    return this.getCurrentSessionState()?.loadState ?? 'idle'
+  }
+
   // ============================================
   // Session Management
   // ============================================
@@ -1097,6 +1101,7 @@ export interface MessageStoreSnapshot {
   canRedo: boolean
   redoSteps: number
   revertedContent: RevertHistoryItem | null
+  loadState: SessionState['loadState']
 }
 
 let cachedSnapshot: MessageStoreSnapshot | null = null
@@ -1116,6 +1121,7 @@ function createSnapshot(): MessageStoreSnapshot {
     canRedo: messageStore.canRedo(),
     redoSteps: messageStore.getRedoSteps(),
     revertedContent: messageStore.getCurrentRevertedContent(),
+    loadState: messageStore.getLoadState(),
   }
 }
 

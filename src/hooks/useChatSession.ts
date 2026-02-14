@@ -47,6 +47,7 @@ export function useChatSession({ chatAreaRef, currentModel, refetchModels }: Use
     canRedo,
     redoSteps,
     revertedContent,
+    loadState,
   } = useMessageStore()
   
   // Agents
@@ -481,6 +482,7 @@ export function useChatSession({ chatAreaRef, currentModel, refetchModels }: Use
     canRedo,
     redoSteps,
     revertedContent,
+    loadState,
     agents,
     selectedAgent,
     setSelectedAgent,

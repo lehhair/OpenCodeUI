@@ -188,6 +188,7 @@ function App() {
     selectedAgent,
     setSelectedAgent,
     routeSessionId,
+    loadState,
     sidebarExpanded,
     setSidebarExpanded,
     effectiveDirectory,
@@ -471,6 +472,7 @@ function App() {
                 sessionId={routeSessionId}
                 isStreaming={isStreaming}
                 prependedCount={prependedCount}
+                loadState={loadState}
                 onLoadMore={loadMoreHistory}
                 onUndo={handleUndoWithAnimation}
                 canUndo={canUndo}
