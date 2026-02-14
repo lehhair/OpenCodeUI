@@ -57,6 +57,7 @@ android {
             }
         }
         getByName("release") {
+            manifestPlaceholders["usesCleartextTraffic"] = "true"
             isMinifyEnabled = true
             val ksFile = keystoreProperties.getProperty("storeFile")
             if (ksFile != null) {
