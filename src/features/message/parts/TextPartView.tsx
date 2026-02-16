@@ -32,9 +32,9 @@ export const TextPartView = memo(function TextPartView({ part, isStreaming = fal
   // 跳过 synthetic 文本（系统上下文，单独处理）
   if (part.synthetic) return null
   
-  // streaming 时也渲染 markdown，只有超长文本才降级为纯文本
-  // useSmoothStream 的批量更新已经控制了更新频率，不会导致性能问题
-  const shouldUseMarkdown = displayText.length < STREAMING_MARKDOWN_THRESHOLD
+  // 流式动画中超长文本降级为纯文本（避免频繁 re-render markdown 的性能问题）
+  // 流结束后（!isAnimating）始终使用 markdown 渲染完整内容
+  const shouldUseMarkdown = !isAnimating || displayText.length < STREAMING_MARKDOWN_THRESHOLD
 
   return (
     <div className="font-response">
