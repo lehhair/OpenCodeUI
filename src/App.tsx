@@ -382,7 +382,6 @@ function App() {
   // ============================================
   // Render
   // ============================================
-  const isIdle = !isStreaming
 
   // ============================================
   // Dialog Collapsed State
@@ -506,7 +505,7 @@ function App() {
                 onAbort={handleAbort}
                 onCommand={handleCommand}
                 onNewChat={handleNewSession}
-                disabled={!isIdle}
+                disabled={false}
                 isStreaming={isStreaming}
                 agents={agents}
                 selectedAgent={selectedAgent}

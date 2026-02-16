@@ -8,7 +8,7 @@ import { useSessionManager, useGlobalEvents } from '../hooks'
 import { usePermissions, useRouter, usePermissionHandler, useMessageAnimation, useDirectory, useSessionContext } from '../hooks'
 import { useNotification } from './useNotification'
 import { 
-  sendMessage, abortSession, 
+  sendMessageAsync, abortSession, 
   getSelectableAgents, 
   getPendingPermissions, getPendingQuestions,
   getSessionChildren,
@@ -335,7 +335,7 @@ export function useChatSession({ chatAreaRef, currentModel, refetchModels }: Use
         navigateToSession(sessionId)
       }
 
-      await sendMessage({
+      await sendMessageAsync({
         sessionId,
         text: content,
         attachments,

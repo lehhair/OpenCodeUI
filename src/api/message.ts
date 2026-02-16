@@ -122,9 +122,13 @@ function toFileUrl(path: string): string {
 }
 
 /**
- * POST /session/{sessionID}/message - 发送消息
+ * 构建发送消息的请求体（供 sync/async 共用）
  */
-export async function sendMessage(params: SendMessageParams): Promise<SendMessageResponse> {
+function buildSendMessageBody(params: SendMessageParams): {
+  path: string
+  query: Record<string, string | undefined>
+  body: Record<string, unknown>
+} {
   const { sessionId, text, attachments, model, agent, variant, directory } = params
 
   const parts: Array<{ type: string; [key: string]: unknown }> = []
@@ -185,7 +189,26 @@ export async function sendMessage(params: SendMessageParams): Promise<SendMessag
     requestBody.variant = variant
   }
 
-  return post<SendMessageResponse>(`/session/${sessionId}/message`, { 
-    directory: formatPathForApi(directory) 
-  }, requestBody)
+  return {
+    path: `/session/${sessionId}`,
+    query: { directory: formatPathForApi(directory) },
+    body: requestBody,
+  }
+}
+
+/**
+ * POST /session/{sessionID}/message - 同步发送消息（等待完成）
+ */
+export async function sendMessage(params: SendMessageParams): Promise<SendMessageResponse> {
+  const { path, query, body } = buildSendMessageBody(params)
+  return post<SendMessageResponse>(`${path}/message`, query, body)
+}
+
+/**
+ * POST /session/{sessionID}/prompt_async - 异步发送消息
+ * 立即返回 204，AI 响应通过 SSE 事件流推送
+ */
+export async function sendMessageAsync(params: SendMessageParams): Promise<void> {
+  const { path, query, body } = buildSendMessageBody(params)
+  await post<void>(`${path}/prompt_async`, query, body)
 }

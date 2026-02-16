@@ -211,7 +211,7 @@ export function InputToolbar({
             </IconButton>
           </>
         </AnimatedPresence>
-        {isStreaming ? (
+        {!canSend && isStreaming ? (
           <IconButton aria-label="Stop generation" variant="solid" onClick={onAbort}>
             <StopIcon />
           </IconButton>
