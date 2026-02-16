@@ -2,6 +2,7 @@
 	auto_https off
 }
 
+# ---- 主入口 :6658 — OpenCode 应用 ----
 :6658 {
 	# API（SSE + WebSocket 自动处理）
 	handle_path /api/* {
@@ -10,19 +11,11 @@
 		}
 	}
 
-	# Routes UI
-	@routes path /routes
-	handle @routes {
+	# Routes UI + Preview API（供面板切换预览端口）
+	@router path /routes /preview/*
+	handle @router {
 		reverse_proxy 127.0.0.1:7070
 	}
-
-	# Preview API（供 Routes 面板切换预览端口）
-	handle /preview/* {
-		reverse_proxy 127.0.0.1:7070
-	}
-
-	# 动态端口路由（由 router 自动生成）
-	import /etc/caddy/routes.conf
 
 	# 前端（兜底）
 	handle {
@@ -30,7 +23,14 @@
 	}
 }
 
-# 独立预览端口 — 用于前端开发服务，绑独立域名
+# ---- 开发服务入口 :6659 — 绑独立域名 ----
+# 路径穿透 /p/{token}/ + 独占预览（兜底）
 :6659 {
-	import /etc/caddy/preview.conf
+	# 动态端口路由（由 router 自动生成）
+	import /etc/caddy/routes.conf
+
+	# 独占预览（兜底：未匹配路径穿透的请求走 preview 端口）
+	handle {
+		import /etc/caddy/preview.conf
+	}
 }

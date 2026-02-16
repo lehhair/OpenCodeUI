@@ -329,7 +329,9 @@ def build_routes_payload():
         if not port:
             continue
         public_url = ""
-        if PUBLIC_BASE_URL:
+        if PREVIEW_DOMAIN:
+            public_url = f"https://{PREVIEW_DOMAIN}/p/{token}/"
+        elif PUBLIC_BASE_URL:
             public_url = f"{PUBLIC_BASE_URL}/p/{token}/"
         routes.append(
             {
@@ -794,7 +796,10 @@ def get_routes():
       return Math.floor(s / 86400) + 'd ago'
     }
     function getUrl(r) {
-      return r.publicUrl || (location.origin + '/p/' + r.token + '/')
+      if (r.publicUrl) return r.publicUrl
+      const domain = currentData.previewDomain
+      if (domain) return 'https://' + domain + '/p/' + r.token + '/'
+      return location.origin + '/p/' + r.token + '/'
     }
 
     // ---- Render ----
