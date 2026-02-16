@@ -3,7 +3,7 @@
 // 文件/文件夹/Agent 选择菜单
 // ============================================
 
-import { useState, useEffect, useRef, useCallback, useImperativeHandle, forwardRef } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, useImperativeHandle, forwardRef } from 'react'
 import { searchFiles, listDirectory, type ApiAgent } from '../../api/client'
 import { fileErrorHandler } from '../../utils'
 import type { MentionType, MentionItem } from './types'
@@ -59,6 +59,39 @@ export const MentionMenu = forwardRef<MentionMenuHandle, MentionMenuProps>(funct
   const searchAbortRef = useRef<AbortController | null>(null)
   // 记住返回上级时应该定位到哪个文件夹
   const restoreFolderRef = useRef<string | null>(null)
+  const [dynamicMaxHeight, setDynamicMaxHeight] = useState<number | undefined>(undefined)
+
+  // 动态计算菜单最大高度，防止在小屏幕上被 header 遮挡
+  useLayoutEffect(() => {
+    if (!isOpen || !menuRef.current) {
+      setDynamicMaxHeight(undefined)
+      return
+    }
+    const calculate = () => {
+      const el = menuRef.current
+      if (!el) return
+      // 菜单的父容器（输入框）的位置
+      const parent = el.offsetParent as HTMLElement | null
+      if (!parent) return
+      const parentRect = parent.getBoundingClientRect()
+      // 菜单从父容器顶部向上弹出，可用空间 = 父容器顶部 - header高度(56px) - 安全间距(16px) - marginBottom(8px)
+      const available = parentRect.top - 56 - 16 - 8
+      if (available > 0 && available < 320) {
+        setDynamicMaxHeight(available)
+      } else {
+        setDynamicMaxHeight(undefined)
+      }
+    }
+    calculate()
+    // 监听 resize（键盘弹出/收起时触发）
+    window.addEventListener('resize', calculate)
+    // 也监听 visualViewport 的变化（移动端键盘弹出更可靠）
+    window.visualViewport?.addEventListener('resize', calculate)
+    return () => {
+      window.removeEventListener('resize', calculate)
+      window.visualViewport?.removeEventListener('resize', calculate)
+    }
+  }, [isOpen])
 
   // 初始化
   useEffect(() => {
@@ -289,11 +322,12 @@ export const MentionMenu = forwardRef<MentionMenuHandle, MentionMenuProps>(funct
     <div
       ref={menuRef}
       data-dropdown-open
-      className="absolute z-50 w-full max-w-[360px] max-h-[min(320px,50vh)] flex flex-col bg-bg-000 border border-border-300 rounded-lg shadow-lg overflow-hidden"
+      className="absolute z-50 w-full max-w-[360px] flex flex-col bg-bg-000 border border-border-300 rounded-lg shadow-lg overflow-hidden"
       style={{
         bottom: '100%',
         left: 0,
         marginBottom: '8px',
+        maxHeight: dynamicMaxHeight ? `${dynamicMaxHeight}px` : 'min(320px, calc(100dvh - 10rem))',
       }}
     >
       {/* Path Breadcrumb - 只在有路径时显示 */}

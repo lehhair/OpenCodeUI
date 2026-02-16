@@ -3,7 +3,7 @@
 // 斜杠命令选择菜单
 // ============================================
 
-import { useState, useEffect, useRef, useImperativeHandle, forwardRef } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef, useImperativeHandle, forwardRef } from 'react'
 import { getCommands, type Command } from '../../api/command'
 import { TerminalIcon } from '../../components/Icons'
 
@@ -40,6 +40,35 @@ export const SlashCommandMenu = forwardRef<SlashCommandMenuHandle, SlashCommandM
 
     const menuRef = useRef<HTMLDivElement>(null)
     const listRef = useRef<HTMLDivElement>(null)
+    const [dynamicMaxHeight, setDynamicMaxHeight] = useState<number | undefined>(undefined)
+
+    // 动态计算菜单最大高度，防止在小屏幕上被 header 遮挡
+    useLayoutEffect(() => {
+      if (!isOpen || !menuRef.current) {
+        setDynamicMaxHeight(undefined)
+        return
+      }
+      const calculate = () => {
+        const el = menuRef.current
+        if (!el) return
+        const parent = el.offsetParent as HTMLElement | null
+        if (!parent) return
+        const parentRect = parent.getBoundingClientRect()
+        const available = parentRect.top - 56 - 16 - 8
+        if (available > 0 && available < 280) {
+          setDynamicMaxHeight(available)
+        } else {
+          setDynamicMaxHeight(undefined)
+        }
+      }
+      calculate()
+      window.addEventListener('resize', calculate)
+      window.visualViewport?.addEventListener('resize', calculate)
+      return () => {
+        window.removeEventListener('resize', calculate)
+        window.visualViewport?.removeEventListener('resize', calculate)
+      }
+    }, [isOpen])
 
     // 加载命令列表
     useEffect(() => {
@@ -119,11 +148,12 @@ export const SlashCommandMenu = forwardRef<SlashCommandMenuHandle, SlashCommandM
       <div
         ref={menuRef}
         data-dropdown-open
-        className="absolute z-50 w-full max-w-[320px] max-h-[min(280px,50vh)] flex flex-col bg-bg-000 border border-border-300 rounded-lg shadow-lg overflow-hidden"
+        className="absolute z-50 w-full max-w-[320px] flex flex-col bg-bg-000 border border-border-300 rounded-lg shadow-lg overflow-hidden"
         style={{
           bottom: '100%',
           left: 0,
           marginBottom: '8px',
+          maxHeight: dynamicMaxHeight ? `${dynamicMaxHeight}px` : 'min(280px, calc(100dvh - 10rem))',
         }}
       >
         {/* Header */}
