@@ -250,10 +250,6 @@ export const ContentBlock = memo(function ContentBlock({
                   maxHeight={maxHeight}
                   truncateLines={false}
                 />
-              ) : stats?.exit !== undefined ? (
-                <div className="px-3 py-2 text-text-500 font-mono">
-                  {stats.exit === 0 ? 'Completed successfully' : 'No output'}
-                </div>
               ) : null}
             </div>
           )}
