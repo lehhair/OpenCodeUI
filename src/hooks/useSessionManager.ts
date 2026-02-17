@@ -106,7 +106,10 @@ export function useSessionManager({
         shareUrl: sessionInfo?.share?.url,
       })
 
-      onLoadComplete?.()
+      // force 模式（如 SSE 重连）只静默刷新数据，不触发滚动
+      if (!force) {
+        onLoadComplete?.()
+      }
     } catch (error) {
       sessionErrorHandler('load session', error)
       messageStore.setLoadState(sid, 'error')

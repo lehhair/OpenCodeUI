@@ -25,6 +25,9 @@ function App() {
   const lastEscTimeRef = useRef(0)
   const escHintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // Per-session scroll position tracking (message index at top of viewport)
+  const sessionScrollPositionsRef = useRef<Map<string, number>>(new Map())
+
   // ============================================
   // Cancel Hint (double-Esc to abort)
   // ============================================
@@ -204,6 +207,19 @@ function App() {
     restoreAgentFromMessage,
   } = useChatSession({ chatAreaRef, currentModel, refetchModels })
 
+  // ============================================
+  // Scroll Position Tracking
+  // ============================================
+  const handleTopItemIndexChange = useCallback((index: number) => {
+    if (routeSessionId) {
+      sessionScrollPositionsRef.current.set(routeSessionId, index)
+    }
+  }, [routeSessionId])
+
+  // Get saved scroll position for current session (undefined = go to bottom)
+  const savedScrollIndex = routeSessionId
+    ? sessionScrollPositionsRef.current.get(routeSessionId)
+    : undefined
 
   // ============================================
   // Model Restoration Effect
@@ -477,6 +493,8 @@ function App() {
                   setVisibleMessageIds(ids)
                 }}
                 onAtBottomChange={setIsAtBottom}
+                initialScrollIndex={savedScrollIndex}
+                onTopItemIndexChange={handleTopItemIndexChange}
               />
             </div>
 

@@ -39,6 +39,10 @@ interface ChatAreaProps {
   bottomPadding?: number
   onVisibleMessageIdsChange?: (ids: string[]) => void
   onAtBottomChange?: (atBottom: boolean) => void
+  /** Override initial scroll position (message index). If undefined, defaults to last message (bottom). */
+  initialScrollIndex?: number
+  /** Called when the top visible item index changes (for scroll position tracking) */
+  onTopItemIndexChange?: (index: number) => void
 }
 
 export type ChatAreaHandle = {
@@ -96,6 +100,8 @@ export const ChatArea = memo(forwardRef<ChatAreaHandle, ChatAreaProps>(({
   bottomPadding = 0,
   onVisibleMessageIdsChange,
   onAtBottomChange,
+  initialScrollIndex,
+  onTopItemIndexChange,
 }, ref) => {
   const virtuosoRef = useRef<VirtuosoHandle>(null)
   // 外部滚动容器
@@ -177,7 +183,12 @@ export const ChatArea = memo(forwardRef<ChatAreaHandle, ChatAreaProps>(({
   // 用 ref 追踪最新的消息数量，确保回调和 effect 中能获取到
   const visibleMessagesCountRef = useRef(visibleMessages.length)
   visibleMessagesCountRef.current = visibleMessages.length
-  
+
+  // Compute effective initial scroll index: use saved position if provided, otherwise default to bottom
+  const effectiveInitialIndex = initialScrollIndex !== undefined
+    ? Math.min(initialScrollIndex, Math.max(0, visibleMessages.length - 1))
+    : Math.max(0, visibleMessages.length - 1)
+
   // 定时自动滚动：在 streaming 时定期检查是否需要滚动
   // 这样打字机效果导致的内容增长也会触发滚动
   useEffect(() => {
@@ -401,7 +412,7 @@ export const ChatArea = memo(forwardRef<ChatAreaHandle, ChatAreaProps>(({
             data={visibleMessages}
             customScrollParent={scrollParent}
             firstItemIndex={firstItemIndex}
-            initialTopMostItemIndex={visibleMessages.length - 1}
+            initialTopMostItemIndex={effectiveInitialIndex}
             startReached={handleLoadMore}
             followOutput={handleFollowOutput}
             atBottomStateChange={handleAtBottomStateChange}
@@ -423,6 +434,9 @@ export const ChatArea = memo(forwardRef<ChatAreaHandle, ChatAreaProps>(({
               )
             }}
             rangeChanged={(range) => {
+              // Report top visible item index for scroll position tracking
+              onTopItemIndexChange?.(range.startIndex)
+
               if (!onVisibleMessageIdsChange) return
               const start = Math.max(0, range.startIndex - MESSAGE_PREFETCH_BUFFER)
               const end = Math.min(visibleMessages.length - 1, range.endIndex + MESSAGE_PREFETCH_BUFFER)
