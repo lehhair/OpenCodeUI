@@ -3,10 +3,11 @@
 // ============================================
 
 import { createContext, useContext, useState, useCallback, useEffect, useMemo, type ReactNode } from 'react'
-import { getPath, type ApiPath } from '../api'
+import { getPath, type ApiPath, getPendingPermissions, getPendingQuestions } from '../api'
 import { useRouter } from '../hooks/useRouter'
 import { handleError, normalizeToForwardSlash, getDirectoryName, isSameDirectory, serverStorage } from '../utils'
 import { layoutStore, useLayoutStore } from '../store/layoutStore'
+import { activeSessionStore } from '../store/activeSessionStore'
 import { serverStore } from '../store/serverStore'
 
 export interface SavedDirectory {
@@ -76,6 +77,20 @@ export function DirectoryProvider({ children }: { children: ReactNode }) {
     getPath().then(setPathInfo).catch(handleError('get path info', 'api'))
   }, [])
 
+  // 页面加载时，如果 URL 已有目录，拉取该目录下的 pending requests 补充 active 列表
+  useEffect(() => {
+    if (!urlDirectory) return
+    Promise.all([
+      getPendingPermissions(undefined, urlDirectory).catch(() => []),
+      getPendingQuestions(undefined, urlDirectory).catch(() => []),
+    ]).then(([permissions, questions]) => {
+      if (permissions.length > 0 || questions.length > 0) {
+        activeSessionStore.initializePendingRequests(permissions, questions)
+      }
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // 只在挂载时跑一次
+
   // 保存 savedDirectories 到 per-server storage
   useEffect(() => {
     serverStorage.setJSON(STORAGE_KEY_SAVED, savedDirectories)
@@ -86,12 +101,21 @@ export function DirectoryProvider({ children }: { children: ReactNode }) {
     serverStorage.setJSON(STORAGE_KEY_RECENT, recentProjects)
   }, [recentProjects])
 
-  // 设置当前目录（更新 URL + 记录最近使用）
+  // 设置当前目录（更新 URL + 记录最近使用 + 拉取 pending requests）
   const setCurrentDirectory = useCallback((directory: string | undefined) => {
     setUrlDirectory(directory)
     if (directory) {
       setRecentProjects(prev => ({ ...prev, [directory]: Date.now() }))
     }
+    // 切换目录后拉取该目录下的 pending permission/question，补充到 active 列表
+    Promise.all([
+      getPendingPermissions(undefined, directory).catch(() => []),
+      getPendingQuestions(undefined, directory).catch(() => []),
+    ]).then(([permissions, questions]) => {
+      if (permissions.length > 0 || questions.length > 0) {
+        activeSessionStore.initializePendingRequests(permissions, questions)
+      }
+    })
   }, [setUrlDirectory])
 
   // 添加目录

@@ -23,6 +23,8 @@ import type { ThemeMode } from '../../../hooks'
 import { useSessionContext } from '../../../contexts/SessionContext'
 import { useMessageStore } from '../../../store'
 import { useBusySessions, useBusyCount } from '../../../store/activeSessionStore'
+import { notificationStore, useNotifications, useUnreadNotificationCount } from '../../../store/notificationStore'
+import type { NotificationEntry } from '../../../store/notificationStore'
 import { updateSession, getSession, subscribeToConnectionState, type ApiSession, type ConnectionInfo } from '../../../api'
 import { uiErrorHandler } from '../../../utils'
 import type { SessionStats } from '../../../hooks'
@@ -104,6 +106,10 @@ export function SidePanel({
   // Active sessions
   const busySessions = useBusySessions()
   const busyCount = useBusyCount()
+  // Notification history
+  const notifications = useNotifications()
+  const unreadNotificationCount = useUnreadNotificationCount()
+  const attentionCount = busyCount + unreadNotificationCount
   
   
   useEffect(() => {
@@ -140,9 +146,13 @@ export function SidePanel({
     return map
   }, [sessions, fetchedSessions])
 
-  // 异步拉取 sessions 列表中不存在的 active session
+  // 异步拉取 sessions 列表中不存在的 active/notification session
   useEffect(() => {
-    const missing = busySessions.filter(
+    const allNeeded = [
+      ...busySessions.map(e => ({ sessionId: e.sessionId, directory: e.directory })),
+      ...notifications.map(e => ({ sessionId: e.sessionId, directory: e.directory })),
+    ]
+    const missing = allNeeded.filter(
       (entry) => !sessionLookup.has(entry.sessionId)
     )
     if (missing.length === 0) return
@@ -168,7 +178,7 @@ export function SidePanel({
     }
     fetchMissing()
     return () => { cancelled = true }
-  }, [busySessions, sessionLookup])
+  }, [busySessions, notifications, sessionLookup])
 
   const projects = useMemo<ProjectItem[]>(() => {
     const list: ProjectItem[] = [{
@@ -479,9 +489,13 @@ export function SidePanel({
               }`}
             >
               Active
-              {busyCount > 0 && (
-                <span className="inline-flex items-center justify-center min-w-[16px] h-4 px-1 text-[10px] font-bold rounded-full bg-success-100/15 text-success-100">
-                  {busyCount}
+              {attentionCount > 0 && (
+                <span className={`inline-flex items-center justify-center min-w-[16px] h-4 px-1 text-[10px] font-bold rounded-full ${
+                  attentionCount > busyCount
+                    ? 'bg-accent-main-100/15 text-accent-main-100'
+                    : 'bg-success-100/15 text-success-100'
+                }`}>
+                  {attentionCount}
                 </span>
               )}
             </button>
@@ -515,17 +529,57 @@ export function SidePanel({
           {/* Active Sessions Tab */}
           {sidebarTab === 'active' && (
             <div className="flex-1 overflow-y-auto custom-scrollbar px-2 py-2">
-              {busySessions.length === 0 ? (
+              {busySessions.length === 0 && notifications.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 text-text-400 opacity-60">
                   <p className="text-xs">No active sessions</p>
                 </div>
               ) : (
                 <div className="space-y-0.5">
+                  {/* Busy sessions */}
                   {busySessions.map((entry) => {
                     const resolvedSession = sessionLookup.get(entry.sessionId)
                     return (
                       <ActiveSessionItem
                         key={entry.sessionId}
+                        entry={entry}
+                        resolvedSession={resolvedSession}
+                        isSelected={entry.sessionId === selectedSessionId}
+                        onSelect={handleSelectActive}
+                      />
+                    )
+                  })}
+
+                  {/* Divider + actions between busy and notifications */}
+                  {notifications.length > 0 && (
+                    <div className={`flex items-center justify-between gap-2 ${busySessions.length > 0 ? 'mt-2 pt-2 border-t border-border-200/30' : ''}`}>
+                      <span className="text-[10px] font-medium text-text-400 uppercase tracking-wider pl-1">
+                        Notifications
+                      </span>
+                      <div className="flex items-center gap-0.5">
+                        {notifications.some((n: NotificationEntry) => !n.read) && (
+                          <button
+                            className="text-[10px] text-text-400 hover:text-text-200 px-1.5 py-0.5 rounded-md hover:bg-bg-200 transition-all duration-150 active:scale-95"
+                            onClick={() => notificationStore.markAllRead()}
+                          >
+                            Read all
+                          </button>
+                        )}
+                        <button
+                          className="text-[10px] text-text-400 hover:text-text-200 px-1.5 py-0.5 rounded-md hover:bg-bg-200 transition-all duration-150 active:scale-95"
+                          onClick={() => notificationStore.clearAll()}
+                        >
+                          Clear
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Notification history */}
+                  {notifications.map((entry: NotificationEntry) => {
+                    const resolvedSession = sessionLookup.get(entry.sessionId)
+                    return (
+                      <NotificationItem
+                        key={entry.id}
                         entry={entry}
                         resolvedSession={resolvedSession}
                         isSelected={entry.sessionId === selectedSessionId}
@@ -591,10 +645,20 @@ interface ActiveSessionItemProps {
 
 function ActiveSessionItem({ entry, resolvedSession, isSelected, onSelect }: ActiveSessionItemProps) {
   const isRetry = entry.status.type === 'retry'
+  const pending = entry.pendingAction
   // 标题优先从 resolvedSession 取，然后 fallback 到 entry.title（sessionMeta），最后截取 ID
   const displayTitle = resolvedSession?.title || entry.title || entry.sessionId.slice(0, 12) + '...'
   // 目录优先从 resolvedSession 取
   const directory = resolvedSession?.directory || entry.directory
+
+  // 状态显示：permission > question > retry > working
+  const statusConfig = pending?.type === 'permission'
+    ? { label: 'Awaiting Permission', color: 'text-amber-400', dotColor: 'bg-amber-400', pulse: false }
+    : pending?.type === 'question'
+    ? { label: 'Awaiting Answer', color: 'text-blue-400', dotColor: 'bg-blue-400', pulse: false }
+    : isRetry
+    ? { label: 'Retrying', color: 'text-warning-100', dotColor: 'bg-warning-100', pulse: false }
+    : { label: 'Working', color: 'text-success-100', dotColor: 'bg-success-100', pulse: true }
 
   const handleClick = () => {
     if (resolvedSession) {
@@ -615,11 +679,9 @@ function ActiveSessionItem({ entry, resolvedSession, isSelected, onSelect }: Act
     >
       {/* Status dot */}
       <span className="relative shrink-0 flex items-center justify-center w-4 h-4">
-        <span className={`absolute w-2 h-2 rounded-full ${
-          isRetry ? 'bg-warning-100' : 'bg-success-100'
-        }`} />
-        {!isRetry && (
-          <span className="absolute w-2 h-2 rounded-full bg-success-100 animate-ping opacity-50" />
+        <span className={`absolute w-2 h-2 rounded-full ${statusConfig.dotColor}`} />
+        {statusConfig.pulse && (
+          <span className={`absolute w-2 h-2 rounded-full ${statusConfig.dotColor} animate-ping opacity-50`} />
         )}
       </span>
 
@@ -631,9 +693,15 @@ function ActiveSessionItem({ entry, resolvedSession, isSelected, onSelect }: Act
           {displayTitle}
         </p>
         <div className="flex items-center mt-0.5 h-4 text-[10px] text-text-400 gap-1">
-          <span className={`shrink-0 ${isRetry ? 'text-warning-100' : 'text-success-100'}`}>
-            {isRetry ? 'Retrying' : 'Working'}
+          <span className={`shrink-0 ${statusConfig.color}`}>
+            {statusConfig.label}
           </span>
+          {pending?.description && (
+            <>
+              <span className="opacity-30">·</span>
+              <span className="truncate opacity-60">{pending.description}</span>
+            </>
+          )}
           {isRetry && entry.status.type === 'retry' && (
             <>
               <span className="opacity-30">·</span>
@@ -649,6 +717,116 @@ function ActiveSessionItem({ entry, resolvedSession, isSelected, onSelect }: Act
             </>
           )}
         </div>
+      </div>
+    </div>
+  )
+}
+
+// ============================================
+// Notification Item
+// ============================================
+
+import { CheckIcon, AlertCircleIcon, CloseIcon, HandIcon, QuestionIcon } from '../../../components/Icons'
+
+function formatNotificationTime(ts: number): string {
+  const diff = Date.now() - ts
+  if (diff < 60_000) return 'just now'
+  if (diff < 3600_000) return `${Math.floor(diff / 60_000)}m ago`
+  return `${Math.floor(diff / 3600_000)}h ago`
+}
+
+const notifTypeConfig = {
+  completed:  { icon: CheckIcon, color: 'text-green-400', bgAccent: 'bg-green-400/10', label: 'Completed' },
+  error:      { icon: AlertCircleIcon, color: 'text-red-400', bgAccent: 'bg-red-400/10', label: 'Error' },
+  permission: { icon: HandIcon, color: 'text-amber-400', bgAccent: 'bg-amber-400/10', label: 'Permission' },
+  question:   { icon: QuestionIcon, color: 'text-blue-400', bgAccent: 'bg-blue-400/10', label: 'Question' },
+} as const
+
+interface NotificationItemProps {
+  entry: NotificationEntry
+  resolvedSession?: ApiSession
+  isSelected: boolean
+  onSelect: (session: ApiSession) => void
+}
+
+function NotificationItem({ entry, resolvedSession, isSelected, onSelect }: NotificationItemProps) {
+  const displayTitle = resolvedSession?.title || entry.title || entry.sessionId.slice(0, 12) + '...'
+  const directory = resolvedSession?.directory || entry.directory
+
+  const config = notifTypeConfig[entry.type]
+  const Icon = config.icon
+
+  const handleClick = () => {
+    notificationStore.markRead(entry.id)
+    if (resolvedSession) {
+      onSelect(resolvedSession)
+    } else {
+      const dir = entry.directory ? `?dir=${entry.directory}` : ''
+      window.location.hash = `#/session/${entry.sessionId}${dir}`
+    }
+  }
+
+  const handleDismiss = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    notificationStore.dismiss(entry.id)
+  }
+
+  return (
+    <div
+      onClick={handleClick}
+      className={`group relative flex items-center gap-2.5 px-3 py-2 rounded-lg cursor-pointer transition-all duration-200 border border-transparent ${
+        isSelected
+          ? 'bg-bg-000 shadow-sm ring-1 ring-border-200/50'
+          : 'hover:bg-bg-200/50'
+      } ${entry.read ? 'opacity-50' : ''}`}
+    >
+      {/* Status icon — matches toast style */}
+      <div className={`shrink-0 flex items-center justify-center w-6 h-6 rounded-md ${config.bgAccent}`}>
+        <Icon size={14} className={config.color} />
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 min-w-0">
+        <p className={`text-[13px] truncate font-medium ${
+          isSelected ? 'text-text-100' : 'text-text-200 group-hover:text-text-100'
+        }`} title={displayTitle}>
+          {displayTitle}
+        </p>
+        <div className="flex items-center mt-0.5 text-[10px] text-text-400 gap-1">
+          <span className={`shrink-0 ${config.color}`}>
+            {config.label}
+          </span>
+          {entry.body && (
+            <>
+              <span className="opacity-30">·</span>
+              <span className="truncate">{entry.body}</span>
+            </>
+          )}
+          <span className="opacity-30">·</span>
+          <span className="tabular-nums shrink-0">{formatNotificationTime(entry.timestamp)}</span>
+          {directory && (
+            <>
+              <span className="opacity-30 shrink-0">·</span>
+              <span className="truncate opacity-50" title={directory}>
+                {directory.replace(/\\/g, '/').split('/').filter(Boolean).pop()}
+              </span>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Unread dot + dismiss */}
+      <div className="shrink-0 flex items-center gap-1">
+        {!entry.read && (
+          <span className="w-1.5 h-1.5 rounded-full bg-accent-main-100" />
+        )}
+        <button
+          className="p-0.5 rounded-md text-text-400 opacity-0 group-hover:opacity-100 hover:text-text-200 hover:bg-bg-200 transition-all duration-150 active:scale-90"
+          onClick={handleDismiss}
+          aria-label="Dismiss"
+        >
+          <CloseIcon size={10} />
+        </button>
       </div>
     </div>
   )
@@ -959,7 +1137,7 @@ function SidebarFooter({
   return (
     <div className="shrink-0 border-t border-border-200/30 pb-[var(--safe-area-inset-bottom)]">
       <div ref={containerRef} className="flex flex-col gap-0.5 mx-2 py-2">
-        {/* 触发按钮 */}
+        {/* 状态/设置触发按钮 */}
         <button
           ref={buttonRef}
           onClick={toggleMenu}

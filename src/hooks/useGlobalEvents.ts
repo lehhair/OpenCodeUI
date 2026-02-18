@@ -11,7 +11,8 @@
 import { useEffect, useRef } from 'react'
 import { messageStore, childSessionStore } from '../store'
 import { activeSessionStore } from '../store/activeSessionStore'
-import { subscribeToEvents, getSessionStatus } from '../api'
+import { notificationStore } from '../store/notificationStore'
+import { subscribeToEvents, getSessionStatus, getPendingPermissions, getPendingQuestions } from '../api'
 import type { 
   ApiMessage, 
   ApiPart,
@@ -86,6 +87,23 @@ export function useGlobalEvents(callbacks?: GlobalEventsCallbacks) {
       })
     }
 
+    // ============================================
+    // 拉取 session 状态 + pending requests（初始化 & 重连共用）
+    // ============================================
+
+    const fetchAndInitialize = () => {
+      Promise.all([
+        getSessionStatus().catch(() => ({} as Record<string, import('../types/api/session').SessionStatus>)),
+        getPendingPermissions().catch(() => []),
+        getPendingQuestions().catch(() => []),
+      ]).then(([statusMap, permissions, questions]) => {
+        activeSessionStore.initialize(statusMap)
+        if (permissions.length > 0 || questions.length > 0) {
+          activeSessionStore.initializePendingRequests(permissions, questions)
+        }
+      })
+    }
+
     const unsubscribe = subscribeToEvents({
       // ============================================
       // Message Events → messageStore
@@ -156,6 +174,16 @@ export function useGlobalEvents(callbacks?: GlobalEventsCallbacks) {
         }
         messageStore.handleSessionError(error.sessionID)
         childSessionStore.markError(error.sessionID)
+        if (!isAbort) {
+          // 从 Working 列表移除
+          activeSessionStore.updateStatus(error.sessionID, { type: 'idle' })
+          // 通知（跳过当前 session family）
+          if (!belongsToCurrentSession(error.sessionID)) {
+            const meta = activeSessionStore.getSessionMeta(error.sessionID)
+            const sessionLabel = meta?.title || error.sessionID.slice(0, 8)
+            notificationStore.push('error', sessionLabel, 'Session error', error.sessionID, meta?.directory)
+          }
+        }
         callbacksRef.current?.onSessionError?.(error.sessionID)
       },
 
@@ -174,12 +202,24 @@ export function useGlobalEvents(callbacks?: GlobalEventsCallbacks) {
       // ============================================
       
       onPermissionAsked: (request) => {
-        // 检查是否属于当前 session 或其子 session
+        const meta = activeSessionStore.getSessionMeta(request.sessionID)
+        const sessionLabel = meta?.title || request.sessionID.slice(0, 8)
+        const desc = request.patterns?.length
+          ? `${request.permission}: ${request.patterns[0]}`
+          : request.permission
+
+        // Active 列表：注册 pending request
+        activeSessionStore.addPendingRequest(request.id, request.sessionID, 'permission', desc)
+
+        // Toast 通知 — 不属于当前 session family 的才弹
+        if (!belongsToCurrentSession(request.sessionID)) {
+          notificationStore.push('permission', `${sessionLabel} — Permission`, desc, request.sessionID, meta?.directory)
+        }
+
+        // 回调给 UI 处理权限弹框
         if (belongsToCurrentSession(request.sessionID)) {
           callbacksRef.current?.onPermissionAsked?.(request)
         } else {
-          // 可能是子 session 的请求先于 session.created 到达
-          // 缓存它，等 session 注册后处理
           pendingPermissions.set(request.sessionID, {
             request,
             timestamp: Date.now(),
@@ -188,8 +228,8 @@ export function useGlobalEvents(callbacks?: GlobalEventsCallbacks) {
       },
 
       onPermissionReplied: (data) => {
-        // 清理缓存（无论是否属于当前 session）
         pendingPermissions.delete(data.sessionID)
+        activeSessionStore.resolvePendingRequest(data.requestID)
         
         if (belongsToCurrentSession(data.sessionID)) {
           callbacksRef.current?.onPermissionReplied?.(data)
@@ -197,15 +237,25 @@ export function useGlobalEvents(callbacks?: GlobalEventsCallbacks) {
       },
 
       // ============================================
-      // Question Events → callbacks (通过 ref 调用)
-      // 同样处理子 session 的问题请求，以及时序问题
+      // Question Events
       // ============================================
 
       onQuestionAsked: (request) => {
+        const meta = activeSessionStore.getSessionMeta(request.sessionID)
+        const sessionLabel = meta?.title || request.sessionID.slice(0, 8)
+        const desc = request.questions?.[0]?.header || 'AI is waiting for your input'
+
+        // Active 列表：注册 pending request
+        activeSessionStore.addPendingRequest(request.id, request.sessionID, 'question', desc)
+
+        // Toast 通知
+        if (!belongsToCurrentSession(request.sessionID)) {
+          notificationStore.push('question', `${sessionLabel} — Question`, desc, request.sessionID, meta?.directory)
+        }
+
         if (belongsToCurrentSession(request.sessionID)) {
           callbacksRef.current?.onQuestionAsked?.(request)
         } else {
-          // 缓存未注册 session 的请求
           pendingQuestions.set(request.sessionID, {
             request,
             timestamp: Date.now(),
@@ -215,6 +265,7 @@ export function useGlobalEvents(callbacks?: GlobalEventsCallbacks) {
 
       onQuestionReplied: (data) => {
         pendingQuestions.delete(data.sessionID)
+        activeSessionStore.resolvePendingRequest(data.requestID)
         
         if (belongsToCurrentSession(data.sessionID)) {
           callbacksRef.current?.onQuestionReplied?.(data)
@@ -223,6 +274,7 @@ export function useGlobalEvents(callbacks?: GlobalEventsCallbacks) {
 
       onQuestionRejected: (data) => {
         pendingQuestions.delete(data.sessionID)
+        activeSessionStore.resolvePendingRequest(data.requestID)
         
         if (belongsToCurrentSession(data.sessionID)) {
           callbacksRef.current?.onQuestionRejected?.(data)
@@ -234,7 +286,17 @@ export function useGlobalEvents(callbacks?: GlobalEventsCallbacks) {
       // ============================================
 
       onSessionStatus: (data) => {
+        const prevStatus = activeSessionStore.getSnapshot().statusMap[data.sessionID]
+        const wasBusy = prevStatus && (prevStatus.type === 'busy' || prevStatus.type === 'retry')
+
         activeSessionStore.updateStatus(data.sessionID, data.status)
+
+        // Toast — session 从 busy/retry 变成 idle 时弹 completed 通知
+        if (wasBusy && data.status.type === 'idle' && !belongsToCurrentSession(data.sessionID)) {
+          const meta = activeSessionStore.getSessionMeta(data.sessionID)
+          const sessionLabel = meta?.title || data.sessionID.slice(0, 8)
+          notificationStore.push('completed', sessionLabel, 'Session completed', data.sessionID, meta?.directory)
+        }
       },
 
       // ============================================
@@ -245,22 +307,13 @@ export function useGlobalEvents(callbacks?: GlobalEventsCallbacks) {
         if (import.meta.env.DEV) {
           console.log(`[GlobalEvents] SSE reconnected (reason: ${reason}), notifying for data refresh`)
         }
-        // 重连后重新拉取全量 session 状态
-        getSessionStatus().then(statusMap => {
-          activeSessionStore.initialize(statusMap)
-        }).catch(() => {})
+        // 重连后重新拉取全量状态 + pending requests
+        fetchAndInitialize()
         callbacksRef.current?.onReconnected?.(reason)
       },
     })
 
-    // 初始化拉取 session 状态
-    getSessionStatus().then(statusMap => {
-      activeSessionStore.initialize(statusMap)
-    }).catch((err) => {
-      if (import.meta.env.DEV) {
-        console.warn('[GlobalEvents] Failed to fetch session status:', err)
-      }
-    })
+    fetchAndInitialize()
 
     return unsubscribe
   }, []) // 空依赖，只订阅一次

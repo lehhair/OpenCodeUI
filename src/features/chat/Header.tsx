@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
 import { PanelRightIcon, PanelBottomIcon, ChevronDownIcon, SidebarIcon } from '../../components/Icons'
 import { IconButton } from '../../components/ui'
-import { NotificationCenter } from '../../components/NotificationCenter'
 import { ModelSelector, type ModelSelectorHandle } from './ModelSelector'
 import { ShareDialog } from './ShareDialog'
 import { useMessageStore } from '../../store'
@@ -154,13 +153,10 @@ export function Header({
         </div>
       </div>
 
-      {/* Right: Notification + Panel Toggles (z-20) */}
+      {/* Right: Panel Toggles (z-20) */}
       <div className="flex items-center gap-1 pointer-events-auto shrink-0 z-20">
-        {/* Notification Center */}
-        <NotificationCenter />
-
         {/* Panel Toggles Group */}
-        <div className="flex items-center gap-0.5 ml-1">
+        <div className="flex items-center gap-0.5">
           <IconButton
             aria-label={bottomPanelOpen ? "Close bottom panel" : "Open bottom panel"}
             onClick={() => layoutStore.toggleBottomPanel()}

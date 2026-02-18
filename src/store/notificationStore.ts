@@ -1,9 +1,12 @@
 // ============================================
-// NotificationStore - 应用内通知中心
+// NotificationStore - Toast + 通知历史
 // ============================================
 //
-// 1. 通知列表（权限请求、问答、session 完成/出错）
-// 2. Toast 弹窗（自动消失，可点击跳转）
+// 统一管理所有通知：
+// 1. Toast 弹窗（右上角，8 秒自动消失，悬停暂停）
+// 2. 通知历史（持久化到 localStorage，显示在 Active tab 的 Notifications 区域）
+//
+// 由 useGlobalEvents 统一推送，不再由 activeSessionStore 管通知
 
 import { useSyncExternalStore } from 'react'
 
@@ -13,7 +16,7 @@ import { useSyncExternalStore } from 'react'
 
 export type NotificationType = 'permission' | 'question' | 'completed' | 'error'
 
-export interface AppNotification {
+export interface NotificationEntry {
   id: string
   type: NotificationType
   title: string
@@ -25,14 +28,13 @@ export interface AppNotification {
 }
 
 export interface ToastItem {
-  notification: AppNotification
+  notification: NotificationEntry
   exiting: boolean
 }
 
 interface NotificationState {
-  notifications: AppNotification[]
   toasts: ToastItem[]
-  centerOpen: boolean
+  notifications: NotificationEntry[]
 }
 
 type Subscriber = () => void
@@ -41,10 +43,33 @@ type Subscriber = () => void
 // Constants
 // ============================================
 
-const TOAST_DURATION = 5000
-const MAX_NOTIFICATIONS = 50
+const TOAST_DURATION = 8000
 const MAX_TOASTS = 3
 const EXIT_ANIMATION_MS = 200
+const STORAGE_KEY = 'opencode:notifications'
+const MAX_NOTIFICATIONS = 50
+
+// ============================================
+// localStorage helpers
+// ============================================
+
+function loadNotifications(): NotificationEntry[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (!raw) return []
+    return (JSON.parse(raw) as NotificationEntry[]).slice(0, MAX_NOTIFICATIONS)
+  } catch {
+    return []
+  }
+}
+
+function saveNotifications(entries: NotificationEntry[]) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(entries))
+  } catch {
+    // quota exceeded
+  }
+}
 
 // ============================================
 // Store
@@ -52,9 +77,8 @@ const EXIT_ANIMATION_MS = 200
 
 class NotificationStore {
   private state: NotificationState = {
-    notifications: [],
     toasts: [],
-    centerOpen: false,
+    notifications: loadNotifications(),
   }
   private subscribers = new Set<Subscriber>()
   private toastTimers = new Map<string, ReturnType<typeof setTimeout>>()
@@ -68,14 +92,24 @@ class NotificationStore {
     this.subscribers.forEach(cb => cb())
   }
 
+  private persist() {
+    saveNotifications(this.state.notifications)
+  }
+
   getSnapshot = (): NotificationState => this.state
 
   // ============================================
-  // 通知推送
+  // 推送通知（加历史 + 弹 toast）
   // ============================================
 
-  push(type: NotificationType, title: string, body: string, sessionId: string, directory?: string) {
-    const notification: AppNotification = {
+  push(
+    type: NotificationType,
+    title: string,
+    body: string,
+    sessionId: string,
+    directory?: string,
+  ) {
+    const entry: NotificationEntry = {
       id: `notif_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
       type,
       title,
@@ -86,23 +120,61 @@ class NotificationStore {
       read: false,
     }
 
-    const notifications = [notification, ...this.state.notifications].slice(0, MAX_NOTIFICATIONS)
+    // 加到历史
+    const notifications = [entry, ...this.state.notifications].slice(0, MAX_NOTIFICATIONS)
 
+    // 弹 toast
     const toasts = [...this.state.toasts]
     if (toasts.length >= MAX_TOASTS) {
       const oldest = toasts.pop()
       if (oldest) this.clearToastTimer(oldest.notification.id)
     }
-    toasts.unshift({ notification, exiting: false })
+    toasts.unshift({ notification: entry, exiting: false })
 
-    this.state = { ...this.state, notifications, toasts }
+    this.state = { ...this.state, toasts, notifications }
+    this.persist()
     this.notify()
 
-    this.scheduleToastDismiss(notification.id)
+    this.scheduleToastDismiss(entry.id)
   }
 
   // ============================================
-  // Toast
+  // 用户交互（通知历史）
+  // ============================================
+
+  markRead(id: string) {
+    const notifications = this.state.notifications.map(n =>
+      n.id === id && !n.read ? { ...n, read: true } : n
+    )
+    this.state = { ...this.state, notifications }
+    this.persist()
+    this.notify()
+  }
+
+  markAllRead() {
+    const notifications = this.state.notifications.map(n =>
+      n.read ? n : { ...n, read: true }
+    )
+    this.state = { ...this.state, notifications }
+    this.persist()
+    this.notify()
+  }
+
+  dismiss(id: string) {
+    const notifications = this.state.notifications.filter(n => n.id !== id)
+    this.state = { ...this.state, notifications }
+    this.persist()
+    this.notify()
+  }
+
+  clearAll() {
+    this.state = { ...this.state, notifications: [] }
+    this.persist()
+    this.notify()
+  }
+
+  // ============================================
+  // Toast 管理
   // ============================================
 
   private scheduleToastDismiss(id: string) {
@@ -116,6 +188,17 @@ class NotificationStore {
     if (timer) {
       clearTimeout(timer)
       this.toastTimers.delete(id)
+    }
+  }
+
+  pauseToast(id: string) {
+    this.clearToastTimer(id)
+  }
+
+  resumeToast(id: string) {
+    const exists = this.state.toasts.some(t => t.notification.id === id && !t.exiting)
+    if (exists) {
+      this.scheduleToastDismiss(id)
     }
   }
 
@@ -142,60 +225,6 @@ class NotificationStore {
     this.state = { ...this.state, toasts: [] }
     this.notify()
   }
-
-  // ============================================
-  // 通知中心
-  // ============================================
-
-  toggleCenter() {
-    this.state = { ...this.state, centerOpen: !this.state.centerOpen }
-    this.notify()
-  }
-
-  openCenter() {
-    this.state = { ...this.state, centerOpen: true }
-    this.notify()
-  }
-
-  closeCenter() {
-    this.state = { ...this.state, centerOpen: false }
-    this.notify()
-  }
-
-  markRead(id: string) {
-    this.state = {
-      ...this.state,
-      notifications: this.state.notifications.map(n =>
-        n.id === id ? { ...n, read: true } : n
-      ),
-    }
-    this.notify()
-  }
-
-  markAllRead() {
-    this.state = {
-      ...this.state,
-      notifications: this.state.notifications.map(n => ({ ...n, read: true })),
-    }
-    this.notify()
-  }
-
-  clearAll() {
-    this.state = { ...this.state, notifications: [] }
-    this.notify()
-  }
-
-  remove(id: string) {
-    this.state = {
-      ...this.state,
-      notifications: this.state.notifications.filter(n => n.id !== id),
-    }
-    this.notify()
-  }
-
-  get unreadCount(): number {
-    return this.state.notifications.filter(n => !n.read).length
-  }
 }
 
 // ============================================
@@ -211,9 +240,14 @@ export function useNotificationStore() {
   )
 }
 
-export function useUnreadCount(): number {
-  return useSyncExternalStore(
-    notificationStore.subscribe,
-    () => notificationStore.unreadCount,
-  )
+/** 通知历史列表 */
+export function useNotifications(): NotificationEntry[] {
+  const state = useNotificationStore()
+  return state.notifications
+}
+
+/** 未读通知数 */
+export function useUnreadNotificationCount(): number {
+  const state = useNotificationStore()
+  return state.notifications.filter(n => !n.read).length
 }

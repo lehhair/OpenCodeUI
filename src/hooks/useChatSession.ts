@@ -4,7 +4,6 @@
 
 import { useState, useCallback, useEffect } from 'react'
 import { useMessageStore, messageStore, useSessionFamily, autoApproveStore, childSessionStore } from '../store'
-import { notificationStore } from '../store/notificationStore'
 import { useSessionManager, useGlobalEvents } from '../hooks'
 import { usePermissions, useRouter, usePermissionHandler, useMessageAnimation, useDirectory, useSessionContext } from '../hooks'
 import { useNotification } from './useNotification'
@@ -153,10 +152,7 @@ export function useChatSession({ chatAreaRef, currentModel, refetchModels }: Use
         sessionId: request.sessionID,
         directory: effectiveDirectory,
       })
-      // 应用内通知 — 跳过当前正在查看的 session（已经在聊天界面实时显示了）
-      if (request.sessionID !== routeSessionId) {
-        notificationStore.push('permission', title, permDesc, request.sessionID, effectiveDirectory)
-      }
+      // 应用内 toast 已在 useGlobalEvents 中统一处理
     },
     onPermissionReplied: (data) => {
       setPendingPermissionRequests(prev => 
@@ -176,10 +172,7 @@ export function useChatSession({ chatAreaRef, currentModel, refetchModels }: Use
         sessionId: request.sessionID,
         directory: effectiveDirectory,
       })
-      // 应用内通知 — 跳过当前正在查看的 session
-      if (request.sessionID !== routeSessionId) {
-        notificationStore.push('question', title, questionDesc, request.sessionID, effectiveDirectory)
-      }
+      // 应用内 toast 已在 useGlobalEvents 中统一处理
     },
     onQuestionReplied: (data) => {
       setPendingQuestionRequests(prev => 
@@ -201,11 +194,7 @@ export function useChatSession({ chatAreaRef, currentModel, refetchModels }: Use
         sessionId: sessionID,
         directory: effectiveDirectory,
       })
-      // 应用内通知 — 跳过当前 session family（idle/error 事件来自所有 session）
-      const isCurrentIdle = routeSessionId && (sessionID === routeSessionId || childSessionStore.belongsToSession(sessionID, routeSessionId))
-      if (!isCurrentIdle) {
-        notificationStore.push('completed', title, 'Session completed', sessionID, effectiveDirectory)
-      }
+      // 应用内 toast 已在 useGlobalEvents 中统一处理
     },
     onSessionError: (sessionID) => {
       // 页面不在前台时通知用户 session 出错
@@ -214,11 +203,7 @@ export function useChatSession({ chatAreaRef, currentModel, refetchModels }: Use
         sessionId: sessionID,
         directory: effectiveDirectory,
       })
-      // 应用内通知 — 跳过当前 session family
-      const isCurrentError = routeSessionId && (sessionID === routeSessionId || childSessionStore.belongsToSession(sessionID, routeSessionId))
-      if (!isCurrentError) {
-        notificationStore.push('error', title, 'Session error', sessionID, effectiveDirectory)
-      }
+      // 应用内 toast 已在 useGlobalEvents 中统一处理
     },
     onReconnected: (_reason) => {
       // SSE 重连后重新加载当前会话，补齐断连期间可能丢失的消息
