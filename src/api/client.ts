@@ -57,10 +57,10 @@ export async function getActiveModels(directory?: string): Promise<ModelInfo[]> 
         
         models.push({
           id: model.id,
-          name: model.name,
+          name: model.name || model.id,
           providerId: provider.id,
-          providerName: provider.name,
-          family: model.family,
+          providerName: provider.name || provider.id,
+          family: model.family || '',
           contextLimit: model.limit.context,
           outputLimit: model.limit.output,
           supportsReasoning: model.capabilities.reasoning,

@@ -53,11 +53,13 @@ export const ModelSelector = memo(forwardRef<ModelSelectorHandle, ModelSelectorP
   const filteredModels = useMemo(() => {
     if (!searchQuery.trim()) return models
     const query = searchQuery.toLowerCase()
+    const normalize = (value: unknown) => (typeof value === 'string' ? value : '').toLowerCase()
+
     return models.filter(m =>
-      m.name.toLowerCase().includes(query) ||
-      m.id.toLowerCase().includes(query) ||
-      m.family.toLowerCase().includes(query) ||
-      m.providerName.toLowerCase().includes(query)
+      normalize(m.name).includes(query) ||
+      normalize(m.id).includes(query) ||
+      normalize(m.family).includes(query) ||
+      normalize(m.providerName).includes(query)
     )
   }, [models, searchQuery])
 
