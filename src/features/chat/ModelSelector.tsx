@@ -6,6 +6,7 @@
 
 import { useState, useRef, useEffect, useMemo, useCallback, memo, forwardRef, useImperativeHandle } from 'react'
 import { ChevronDownIcon, SearchIcon, ThinkingIcon, EyeIcon, CheckIcon } from '../../components/Icons'
+import { DropdownMenu } from '../../components/ui'
 import type { ModelInfo } from '../../api'
 import {
   getModelKey,
@@ -42,7 +43,8 @@ export const ModelSelector = memo(forwardRef<ModelSelectorHandle, ModelSelectorP
   const triggerRef = useRef<HTMLButtonElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
-  const ignoreMouseRef = useRef(false) // 防止打开时鼠标位置干扰初始高亮
+  const menuRef = useRef<HTMLDivElement>(null)
+  const ignoreMouseRef = useRef(false)
   const lastMousePosRef = useRef({ x: 0, y: 0 })
 
   // 移除打开时的强制刷新，避免闪烁
@@ -155,10 +157,15 @@ export const ModelSelector = memo(forwardRef<ModelSelectorHandle, ModelSelectorP
     if (isOpen) setTimeout(() => searchInputRef.current?.focus(), 50)
   }, [isOpen])
 
+  // Click outside
   useEffect(() => {
     if (!isOpen) return
     const handleClickOutside = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+      const target = e.target as Node
+      if (
+        containerRef.current && !containerRef.current.contains(target) &&
+        menuRef.current && !menuRef.current.contains(target)
+      ) {
         closeMenu()
       }
     }
@@ -245,18 +252,20 @@ export const ModelSelector = memo(forwardRef<ModelSelectorHandle, ModelSelectorP
         </div>
       </button>
 
-      <div 
-        className={`z-50 transition-all duration-200 ease-out 
-          fixed left-1/2 -translate-x-1/2 w-[90vw] max-w-[380px] origin-top
-          sm:absolute sm:top-full sm:left-0 sm:translate-x-0 sm:w-[380px] sm:origin-top-left sm:mt-1
-          ${isOpen ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'}
-        `}
-        style={{ top: 'calc(58px + var(--safe-area-inset-top))' }}
-        onKeyDown={handleKeyDown}
+      <DropdownMenu
+        triggerRef={triggerRef}
+        isOpen={isOpen}
+        position="bottom"
+        align="left"
+        width="460px"
+        minWidth="280px"
+        maxWidth="min(460px, calc(100vw - 24px))"
+        mobileFullWidth
+        className="!p-0 overflow-hidden flex flex-col max-h-[min(600px,70vh)]"
       >
-        <div className="bg-bg-000 border border-border-200/50 backdrop-blur-xl shadow-xl rounded-xl overflow-hidden flex flex-col max-h-[600px] p-1">
+        <div ref={menuRef} onKeyDown={handleKeyDown}>
           {/* Search */}
-          <div className="flex items-center gap-2.5 px-3 border-b border-border-200/50 flex-shrink-0 z-20">
+          <div className="flex items-center gap-2.5 px-3 border-b border-border-200/50 flex-shrink-0">
             <SearchIcon className="w-3.5 h-3.5 text-text-400 flex-shrink-0" />
             <input
               ref={searchInputRef}
@@ -273,18 +282,18 @@ export const ModelSelector = memo(forwardRef<ModelSelectorHandle, ModelSelectorP
           </div>
 
           {/* List */}
-          <div ref={listRef} className="overflow-y-auto custom-scrollbar flex-1 relative scroll-pt-7">
+          <div ref={listRef} className="overflow-y-auto custom-scrollbar flex-1 relative scroll-pt-7 max-h-[min(500px,60vh)]">
             {flatList.length === 0 ? (
               <div className="px-4 py-10 text-center">
                 <div className="text-sm text-text-400">No models found</div>
                 <div className="text-xs text-text-500 mt-1">Try a different keyword</div>
               </div>
             ) : (
-              <div className="pb-1">
+              <div className="p-1 pb-1">
                 {flatList.map((item, index) => {
                   if (item.type === 'header') {
                     return (
-                      <div key={item.key} className="px-2 py-1.5 mt-1 first:mt-0 text-[10px] font-semibold text-text-400/70 uppercase tracking-wider select-none sticky top-0 bg-bg-000 z-10">
+                      <div key={item.key} className="px-2 py-1.5 mt-1 first:mt-0 text-[10px] font-semibold text-text-400/70 uppercase tracking-wider select-none sticky top-0 bg-bg-000 z-10 -mx-1 px-3">{/* 负margin补偿容器padding，确保sticky无缝 */}
                         {item.data.name}
                       </div>
                     )
@@ -303,13 +312,8 @@ export const ModelSelector = memo(forwardRef<ModelSelectorHandle, ModelSelectorP
                         title={`${model.name} · ${model.providerName}${model.contextLimit ? ` · ${formatContext(model.contextLimit)}` : ''}`}
                         onMouseMove={(e) => {
                           if (ignoreMouseRef.current) return
-                          
-                          // Prevent highlight jump when scrolling via keyboard
-                          if (e.clientX === lastMousePosRef.current.x && e.clientY === lastMousePosRef.current.y) {
-                            return
-                          }
+                          if (e.clientX === lastMousePosRef.current.x && e.clientY === lastMousePosRef.current.y) return
                           lastMousePosRef.current = { x: e.clientX, y: e.clientY }
-
                           const hIndex = itemIndices.indexOf(index)
                           if (hIndex !== -1 && hIndex !== highlightedIndex) {
                             setHighlightedIndex(hIndex)
@@ -317,18 +321,17 @@ export const ModelSelector = memo(forwardRef<ModelSelectorHandle, ModelSelectorP
                         }}
                         className={`
                           scroll-mt-7 group flex items-center justify-between px-2 py-2.5 sm:py-2 rounded-lg cursor-pointer text-sm font-sans transition-all duration-150 mt-px active:scale-[0.98]
-                      ${isSelected ? 'bg-accent-main-100/10 text-accent-main-100' : 'text-text-200'}
-                      ${isCurrentlyHighlighted && !isSelected ? 'bg-bg-200 text-text-100' : ''}
-                    `}
-                  >
-                    {/* Left: Name */}
-                    <div className="flex items-center gap-3 min-w-0 flex-1 overflow-hidden">
-                      <span className={`truncate font-medium ${isSelected ? 'text-accent-main-100' : 'text-text-100'}`}>
-                        {model.name}
-                      </span>
-                      {/* Icons - Fixed width container for alignment */}
-                      <div className={`flex items-center gap-1.5 transition-opacity flex-shrink-0 h-4 ${isCurrentlyHighlighted || isSelected ? 'opacity-70' : 'opacity-35'}`}>
-                        {model.supportsReasoning && (
+                          ${isSelected ? 'bg-accent-main-100/10 text-accent-main-100' : 'text-text-200'}
+                          ${isCurrentlyHighlighted && !isSelected ? 'bg-bg-200 text-text-100' : ''}
+                        `}
+                      >
+                        {/* Left: Name */}
+                        <div className="flex items-center gap-3 min-w-0 flex-1 overflow-hidden">
+                          <span className={`truncate font-medium ${isSelected ? 'text-accent-main-100' : 'text-text-100'}`}>
+                            {model.name}
+                          </span>
+                          <div className={`flex items-center gap-1.5 transition-opacity flex-shrink-0 h-4 ${isCurrentlyHighlighted || isSelected ? 'opacity-70' : 'opacity-35'}`}>
+                            {model.supportsReasoning && (
                               <div className="flex items-center justify-center w-3.5" title="Thinking">
                                 <ThinkingIcon size={13} />
                               </div>
@@ -343,7 +346,7 @@ export const ModelSelector = memo(forwardRef<ModelSelectorHandle, ModelSelectorP
 
                         {/* Right: Meta Info */}
                         <div className="flex items-center gap-3 text-xs font-mono flex-shrink-0 ml-4">
-                          <span className="text-text-500 max-w-[80px] sm:max-w-[100px] truncate text-right">
+                          <span className="text-text-500 max-w-[100px] truncate text-right">
                             {model.providerName}
                           </span>
                           <span className="text-text-500 w-[4ch] text-right">
@@ -363,7 +366,7 @@ export const ModelSelector = memo(forwardRef<ModelSelectorHandle, ModelSelectorP
             )}
           </div>
         </div>
-      </div>
+      </DropdownMenu>
     </div>
   )
 }))
