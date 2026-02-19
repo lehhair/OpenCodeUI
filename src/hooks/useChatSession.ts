@@ -246,7 +246,7 @@ export function useChatSession({ chatAreaRef, currentModel, refetchModels }: Use
   // agents 列表加载后，校验当前选中的 agent 是否存在于列表中
   useEffect(() => {
     if (agents.length === 0) return
-    const primaryAgents = agents.filter(a => a.mode === 'primary' && !a.hidden)
+    const primaryAgents = agents.filter(a => a.mode !== 'subagent' && !a.hidden)
     if (primaryAgents.length === 0) return
 
     // 当前选中的 agent 在列表中存在就不动
@@ -478,7 +478,7 @@ export function useChatSession({ chatAreaRef, currentModel, refetchModels }: Use
 
   // Toggle agent (cycle through primary agents only, matching toolbar display)
   const handleToggleAgent = useCallback(() => {
-    const primaryAgents = agents.filter(a => a.mode === 'primary' && !a.hidden)
+    const primaryAgents = agents.filter(a => a.mode !== 'subagent' && !a.hidden)
     if (primaryAgents.length <= 1) return
     const currentIndex = primaryAgents.findIndex(a => a.name === selectedAgent)
     const nextIndex = (currentIndex + 1) % primaryAgents.length
@@ -489,7 +489,7 @@ export function useChatSession({ chatAreaRef, currentModel, refetchModels }: Use
   const restoreAgentFromMessage = useCallback((agentName: string | null | undefined) => {
     if (!agentName) return
     // 只有当 agent 存在于列表中时才恢复
-    const exists = agents.some(a => a.name === agentName && a.mode === 'primary' && !a.hidden)
+    const exists = agents.some(a => a.name === agentName && a.mode !== 'subagent' && !a.hidden)
     if (exists) {
       setSelectedAgent(agentName)
     }
