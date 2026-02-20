@@ -110,7 +110,7 @@ export function InputToolbar({
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
   
-  const selectableAgents = agents.filter(a => a.mode === 'primary' && !a.hidden)
+  const selectableAgents = agents.filter(a => a.mode !== 'subagent' && !a.hidden)
   const currentAgent = agents.find(a => a.name === selectedAgent)
 
   return (
