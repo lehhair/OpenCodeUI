@@ -13,6 +13,7 @@ import { keybindingStore } from './store/keybindingStore'
 import { layoutStore } from './store/layoutStore'
 import { STORAGE_KEY_WIDE_MODE } from './constants'
 import { restoreModelSelection } from './utils/sessionHelpers'
+import { findModelByKey } from './utils/modelUtils'
 import type { Attachment } from './api'
 import { createPtySession } from './api/pty'
 import type { TerminalTab } from './store/layoutStore'
@@ -200,10 +201,39 @@ function App() {
     handleArchiveSession,
     handlePreviousSession,
     handleNextSession,
-    handleToggleAgent,
     handleCopyLastResponse,
     restoreAgentFromMessage,
   } = useChatSession({ chatAreaRef, currentModel, refetchModels })
+
+  // ============================================
+  // Agent Change with Model Sync
+  // ============================================
+  // 切换 agent 时，如果 agent 绑定了模型，同步切换左上角模型选择
+  const syncModelForAgent = useCallback((agentName: string) => {
+    const agent = agents.find(a => a.name === agentName)
+    if (agent?.model) {
+      const modelKey = `${agent.model.providerID}:${agent.model.modelID}`
+      const model = findModelByKey(models, modelKey)
+      if (model) {
+        handleModelChange(modelKey, model)
+      }
+    }
+  }, [agents, models, handleModelChange])
+
+  const handleAgentChange = useCallback((agentName: string) => {
+    setSelectedAgent(agentName)
+    syncModelForAgent(agentName)
+  }, [setSelectedAgent, syncModelForAgent])
+
+  // 包装 handleToggleAgent，切换后同步模型
+  const handleToggleAgentWithSync = useCallback(() => {
+    const primaryAgents = agents.filter(a => a.mode !== 'subagent' && !a.hidden)
+    if (primaryAgents.length <= 1) return
+    const currentIndex = primaryAgents.findIndex(a => a.name === selectedAgent)
+    const nextIndex = (currentIndex + 1) % primaryAgents.length
+    const nextAgentName = primaryAgents[nextIndex].name
+    handleAgentChange(nextAgentName)
+  }, [agents, selectedAgent, handleAgentChange])
 
   // ============================================
   // Model Restoration Effect
@@ -294,7 +324,7 @@ function App() {
     
     // Model
     selectModel: () => modelSelectorRef.current?.openMenu(),
-    toggleAgent: handleToggleAgent,
+    toggleAgent: handleToggleAgentWithSync,
     
     // Message
     cancelMessage: () => {
@@ -331,7 +361,7 @@ function App() {
     handlePreviousSession,
     handleNextSession,
     handleNewTerminal,
-    handleToggleAgent,
+    handleToggleAgentWithSync,
     isStreaming, 
     handleAbort,
     handleCopyLastResponse,
@@ -366,7 +396,7 @@ function App() {
 
       // Model
       { id: 'selectModel', label: 'Select Model', description: 'Open model selector', category: 'Model', shortcut: getShortcut('selectModel'), action: () => modelSelectorRef.current?.openMenu() },
-      { id: 'toggleAgent', label: 'Toggle Agent', description: 'Switch agent mode', category: 'Model', shortcut: getShortcut('toggleAgent'), action: handleToggleAgent },
+      { id: 'toggleAgent', label: 'Toggle Agent', description: 'Switch agent mode', category: 'Model', shortcut: getShortcut('toggleAgent'), action: handleToggleAgentWithSync },
 
       // Message
       { id: 'copyLastResponse', label: 'Copy Last Response', description: 'Copy last AI response to clipboard', category: 'Message', shortcut: getShortcut('copyLastResponse'), action: handleCopyLastResponse },
@@ -375,7 +405,7 @@ function App() {
   }, [
     openSettings, openProject, sidebarExpanded, setSidebarExpanded,
     handleNewSession, handleArchiveSession, handlePreviousSession, handleNextSession,
-    handleNewTerminal, handleToggleAgent, handleCopyLastResponse,
+    handleNewTerminal, handleToggleAgentWithSync, handleCopyLastResponse,
     isStreaming, handleAbort,
   ])
 
@@ -509,7 +539,7 @@ function App() {
                 isStreaming={isStreaming}
                 agents={agents}
                 selectedAgent={selectedAgent}
-                onAgentChange={setSelectedAgent}
+                onAgentChange={handleAgentChange}
                 variants={currentModel?.variants ?? []}
                 selectedVariant={selectedVariant}
                 onVariantChange={handleVariantChange}
