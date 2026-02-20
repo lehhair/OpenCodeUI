@@ -335,7 +335,8 @@ const FileTreeItem = memo(function FileTreeItem({
   const isExpanded = expandedPaths.has(node.path)
   const isSelected = selectedPath === node.path
   const isDirectory = node.type === 'directory'
-  const status = fileStatus.get(node.path)
+  // node.path 可能用反斜杠（Windows），statusMap key 统一用正斜杠
+  const status = fileStatus.get(node.path) || fileStatus.get(node.path.replace(/\\/g, '/'))
 
   // 状态颜色
   const statusColor = useMemo(() => {

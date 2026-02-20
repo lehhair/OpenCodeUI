@@ -93,14 +93,21 @@ export function useFileExplorer(options: UseFileExplorerOptions = {}): UseFileEx
       const sorted = sortNodes(nodes)
       setTree(sorted.map(n => ({ ...n, children: n.type === 'directory' ? undefined : undefined })))
       
-      // 同时加载文件状态（git status + session diffs）
+      // 同时加载文件状态（session diffs 为主，git status 为辅）
       const statusMap = new Map<string, FileStatusItem>()
       
-      // 1. 先加载 git status
+      // 1. 先加载 git status（路径可能包含 ../ 等前缀，需要规范化）
       try {
         const status = await getFileStatus(directory)
         if (loadId === loadIdRef.current) {
-          status.forEach(s => statusMap.set(s.path, s))
+          status.forEach(s => {
+            // 规范化路径：统一分隔符为 /，去掉 ../ 前缀
+            const normalized = normalizePath(s.path)
+            // 跳过包含 ../ 的路径（文件在当前目录之外）
+            if (!normalized.startsWith('../')) {
+              statusMap.set(normalized, { ...s, path: normalized })
+            }
+          })
         }
       } catch {
         // 忽略文件状态加载失败
@@ -113,8 +120,9 @@ export function useFileExplorer(options: UseFileExplorerOptions = {}): UseFileEx
           if (loadId === loadIdRef.current) {
             diffs.forEach(diff => {
               const status = getFileStatusFromDiff(diff)
-              statusMap.set(diff.file, {
-                path: diff.file,
+              const normalized = normalizePath(diff.file)
+              statusMap.set(normalized, {
+                path: normalized,
                 added: diff.additions,
                 removed: diff.deletions,
                 status,
@@ -319,6 +327,13 @@ function updateTreeNode(
   })
 }
 
+// Helper: 规范化路径 — 统一分隔符为 /，去掉前导 ./
+function normalizePath(p: string): string {
+  let result = p.replace(/\\/g, '/')
+  if (result.startsWith('./')) result = result.slice(2)
+  return result
+}
+
 // Helper: 从 diff 推断文件状态
 function getFileStatusFromDiff(diff: FileDiff): 'added' | 'modified' | 'deleted' {
   if (!diff.before || diff.before.trim() === '') return 'added'
@@ -332,12 +347,10 @@ function computeDirectoryStatus(statusMap: Map<string, FileStatusItem>): void {
   const dirStatuses = new Map<string, 'added' | 'modified' | 'deleted'>()
   
   for (const [filePath, item] of statusMap) {
-    // 检测原始路径使用的分隔符，保持一致
-    const sep = filePath.includes('\\') ? '\\' : '/'
-    const parts = filePath.split(/[/\\]/)
+    const parts = filePath.split('/')
     // 构建所有父目录路径
     for (let i = 1; i < parts.length; i++) {
-      const dirPath = parts.slice(0, i).join(sep)
+      const dirPath = parts.slice(0, i).join('/')
       const existingStatus = dirStatuses.get(dirPath)
       const newStatus = item.status as 'added' | 'modified' | 'deleted'
       
