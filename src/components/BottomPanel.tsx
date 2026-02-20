@@ -1,4 +1,4 @@
-import { memo, useCallback, useState, useEffect } from 'react'
+import { memo, useCallback, useState, useEffect, useRef } from 'react'
 import { Terminal } from './Terminal'
 import { TerminalIcon } from './Icons'
 import { PanelContainer } from './PanelContainer'
@@ -21,7 +21,6 @@ export const BottomPanel = memo(function BottomPanel({ directory }: BottomPanelP
   const { sessionId } = useMessageStore()
   
   const [isRestoring, setIsRestoring] = useState(false)
-  const [restored, setRestored] = useState(false)
   
   // 追踪面板 resize 状态
   const [isPanelResizing, setIsPanelResizing] = useState(false)
@@ -36,28 +35,35 @@ export const BottomPanel = memo(function BottomPanel({ directory }: BottomPanelP
     }
   }, [])
 
-  // 页面加载时恢复已有的 PTY sessions
+  // 目录变化时（包括首次加载），重新拉取该目录的 PTY 会话
+  const prevDirectoryRef = useRef<string | undefined>(undefined)
   useEffect(() => {
-    if (restored || !directory) return
-    setRestored(true)
+    if (!directory) return
+    // 目录没变就不重复拉取
+    if (prevDirectoryRef.current === directory) return
+    prevDirectoryRef.current = directory
 
     const restoreSessions = async () => {
       try {
         setIsRestoring(true)
-        const sessions = await listPtySessions(directory)
-        console.log('[BottomPanel] Found existing PTY sessions:', sessions)
         
-        if (sessions.length > 0) {
-          for (const pty of sessions) {
-            if (!layoutStore.getTerminalTabs().some(t => t.id === pty.id)) {
-              const tab: TerminalTab = {
-                id: pty.id,
-                title: pty.title || 'Terminal',
-                status: pty.running ? 'connecting' : 'exited',
-              }
-              layoutStore.addTerminalTab(tab, false)
-            }
+        // 先清掉所有旧的终端 tab
+        const oldTabs = layoutStore.getTerminalTabs()
+        for (const tab of oldTabs) {
+          layoutStore.removeTerminalTab(tab.id)
+        }
+        
+        // 拉取新目录下的 PTY 会话
+        const sessions = await listPtySessions(directory)
+        console.log('[BottomPanel] PTY sessions for', directory, ':', sessions)
+        
+        for (const pty of sessions) {
+          const tab: TerminalTab = {
+            id: pty.id,
+            title: pty.title || 'Terminal',
+            status: (pty.status === 'running' || pty.running) ? 'connecting' : 'exited',
           }
+          layoutStore.addTerminalTab(tab, false)
         }
       } catch (error) {
         console.error('[BottomPanel] Failed to restore sessions:', error)
@@ -67,7 +73,7 @@ export const BottomPanel = memo(function BottomPanel({ directory }: BottomPanelP
     }
 
     restoreSessions()
-  }, [directory, restored])
+  }, [directory])
 
   // 创建新终端
   const handleNewTerminal = useCallback(async () => {

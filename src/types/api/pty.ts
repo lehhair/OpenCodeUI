@@ -23,6 +23,8 @@ export interface Pty {
   env?: Record<string, string>
   size?: PtySize
   running: boolean
+  status?: string
+  pid?: number
   exitCode?: number
 }
 
