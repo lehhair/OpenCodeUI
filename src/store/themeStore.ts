@@ -39,6 +39,10 @@ export interface ThemeState {
   fontSize: FontSize
   /** 是否自动折叠长用户消息 */
   collapseUserMessages: boolean
+  /** 移动端滚动时是否自动收纳输入框 */
+  mobileInputAutoDock: boolean
+  /** 是否显示消息 token/cache 统计 */
+  showMessageUsageStats: boolean
 }
 
 // ============================================
@@ -50,6 +54,8 @@ const STORAGE_KEY_COLOR_MODE = 'theme-mode'
 const STORAGE_KEY_CUSTOM_CSS = 'theme-custom-css'
 const STORAGE_KEY_FONT_SIZE = 'theme-font-size'
 const STORAGE_KEY_COLLAPSE_USER_MESSAGES = 'collapse-user-messages'
+const STORAGE_KEY_MOBILE_INPUT_AUTO_DOCK = 'mobile-input-auto-dock'
+const STORAGE_KEY_SHOW_MESSAGE_USAGE_STATS = 'show-message-usage-stats'
 
 // ============================================
 // DOM Style Element IDs
@@ -72,7 +78,11 @@ class ThemeStore {
     const savedCSS = localStorage.getItem(STORAGE_KEY_CUSTOM_CSS) || ''
     const savedFontSize = clampFontSize(Number(localStorage.getItem(STORAGE_KEY_FONT_SIZE)) || DEFAULT_FONT_SIZE)
     const savedCollapse = localStorage.getItem(STORAGE_KEY_COLLAPSE_USER_MESSAGES)
+    const savedMobileInputAutoDock = localStorage.getItem(STORAGE_KEY_MOBILE_INPUT_AUTO_DOCK)
+    const savedShowMessageUsageStats = localStorage.getItem(STORAGE_KEY_SHOW_MESSAGE_USAGE_STATS)
     const collapseUserMessages = savedCollapse === null ? true : savedCollapse === 'true'
+    const mobileInputAutoDock = savedMobileInputAutoDock === null ? true : savedMobileInputAutoDock === 'true'
+    const showMessageUsageStats = savedShowMessageUsageStats === null ? true : savedShowMessageUsageStats === 'true'
     
     this.state = {
       presetId: savedPreset,
@@ -80,6 +90,8 @@ class ThemeStore {
       customCSS: savedCSS,
       fontSize: savedFontSize,
       collapseUserMessages,
+      mobileInputAutoDock,
+      showMessageUsageStats,
     }
   }
   
@@ -94,6 +106,8 @@ class ThemeStore {
   get customCSS() { return this.state.customCSS }
   get fontSize() { return this.state.fontSize }
   get collapseUserMessages() { return this.state.collapseUserMessages }
+  get mobileInputAutoDock() { return this.state.mobileInputAutoDock }
+  get showMessageUsageStats() { return this.state.showMessageUsageStats }
   
   /** 获取当前主题预设（内置主题返回对象，自定义返回 undefined） */
   getPreset(): ThemePreset | undefined {
@@ -165,6 +179,20 @@ class ThemeStore {
     if (this.state.collapseUserMessages === enabled) return
     this.state = { ...this.state, collapseUserMessages: enabled }
     localStorage.setItem(STORAGE_KEY_COLLAPSE_USER_MESSAGES, String(enabled))
+    this.emit()
+  }
+
+  setMobileInputAutoDock(enabled: boolean) {
+    if (this.state.mobileInputAutoDock === enabled) return
+    this.state = { ...this.state, mobileInputAutoDock: enabled }
+    localStorage.setItem(STORAGE_KEY_MOBILE_INPUT_AUTO_DOCK, String(enabled))
+    this.emit()
+  }
+
+  setShowMessageUsageStats(enabled: boolean) {
+    if (this.state.showMessageUsageStats === enabled) return
+    this.state = { ...this.state, showMessageUsageStats: enabled }
+    localStorage.setItem(STORAGE_KEY_SHOW_MESSAGE_USAGE_STATS, String(enabled))
     this.emit()
   }
   

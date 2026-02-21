@@ -85,7 +85,7 @@ const CollapsibleUserText = memo(function CollapsibleUserText({ text, collapseEn
   const isCollapsed = showCollapse && !expanded
   
   return (
-    <div className="px-4 py-2.5 bg-bg-300 rounded-2xl max-w-full">
+    <div className="px-3 py-2 bg-bg-300 rounded-xl max-w-full">
       <div className="relative">
         <p
           ref={contentRef}
@@ -216,6 +216,7 @@ const UserMessageView = memo(function UserMessageView({ message, onUndo, canUndo
 
 const AssistantMessageView = memo(function AssistantMessageView({ message, onEnsureParts }: { message: Message; onEnsureParts?: (messageId: string) => void }) {
   const { parts, isStreaming, info } = message
+  const { showMessageUsageStats } = useTheme()
 
   useEffect(() => {
     if (parts.length === 0 && onEnsureParts) {
@@ -272,7 +273,7 @@ const AssistantMessageView = memo(function AssistantMessageView({ message, onEns
   }
   
   return (
-    <div className="flex flex-col gap-2 w-full group">
+    <div className="flex flex-col gap-1.5 w-full group">
 
 
       {renderItems.map((item: RenderItem) => {
@@ -282,6 +283,7 @@ const AssistantMessageView = memo(function AssistantMessageView({ message, onEns
               key={item.parts[0].id} 
               parts={item.parts as ToolPart[]}
               stepFinish={item.stepFinish}
+              showMessageUsageStats={showMessageUsageStats}
             />
           )
         }
@@ -313,6 +315,7 @@ const AssistantMessageView = memo(function AssistantMessageView({ message, onEns
               <StepFinishPartView 
                 key={part.id} 
                 part={part as StepFinishPart}
+                showUsageStats={showMessageUsageStats}
               />
             )
           case 'subtask':
@@ -363,39 +366,41 @@ const AssistantMessageView = memo(function AssistantMessageView({ message, onEns
 interface ToolGroupProps {
   parts: ToolPart[]
   stepFinish?: StepFinishPart
+  showMessageUsageStats: boolean
 }
 
-const ToolGroup = memo(function ToolGroup({ parts, stepFinish }: ToolGroupProps) {
+const ToolGroup = memo(function ToolGroup({ parts, stepFinish, showMessageUsageStats }: ToolGroupProps) {
+  const showStep = parts.length > 3
   const [expanded, setExpanded] = useState(true)
-  const shouldRenderBody = useDelayedRender(expanded)
+  const shouldRenderBody = useDelayedRender(showStep ? expanded : true)
   
   const doneCount = parts.filter(p => p.state.status === 'completed').length
   const totalCount = parts.length
   const isAllDone = doneCount === totalCount
   
   return (
-    <div className="flex flex-col">
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="flex items-center gap-1.5 py-1.5 text-text-400 text-sm hover:text-text-200 rounded-md transition-colors w-fit"
-      >
-        <span>
-          {expanded ? <ChevronDownIcon size={14} /> : <ChevronRightIcon size={14} />}
-        </span>
-        <span className="whitespace-nowrap tabular-nums">
-          {isAllDone ? `${totalCount} steps` : `${doneCount}/${totalCount} steps`}
-        </span>
-        {!expanded && stepFinish && (
-          <span className="text-xs text-text-500 ml-1.5 font-mono">
-            {formatTokens(stepFinish.tokens)}
+    <div className="flex flex-col gap-0.5">
+      {showStep && (
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="flex items-center gap-1.5 py-1 text-text-400 text-sm hover:text-text-200 rounded-md transition-colors w-fit"
+        >
+          <span>
+            {expanded ? <ChevronDownIcon size={14} /> : <ChevronRightIcon size={14} />}
           </span>
-        )}
-      </button>
+          <span className="whitespace-nowrap tabular-nums">
+            {isAllDone ? `${totalCount} steps` : `${doneCount}/${totalCount} steps`}
+          </span>
+          {!expanded && stepFinish && showMessageUsageStats && (
+            <span className="text-xs text-text-500 ml-1.5">
+              {formatTokens(stepFinish.tokens)}
+            </span>
+          )}
+        </button>
+      )}
 
-      <div className={`grid transition-[grid-template-rows] duration-300 ease-in-out ${
-        expanded ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
-      }`}>
-        <div className="flex flex-col overflow-hidden">
+      <div className={showStep ? `grid transition-[grid-template-rows] duration-300 ease-in-out ${expanded ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}` : ''}>
+        <div className={`flex flex-col ${showStep ? 'overflow-hidden' : ''}`}>
           {shouldRenderBody && (
             <>
               {parts.map((part, idx) => (
@@ -407,8 +412,8 @@ const ToolGroup = memo(function ToolGroup({ parts, stepFinish }: ToolGroupProps)
                 />
               ))}
               {stepFinish && (
-                <div className="pl-8 pt-1 pb-1">
-                  <StepFinishPartView part={stepFinish} />
+                <div className="pt-1 pb-1">
+                  <StepFinishPartView part={stepFinish} showUsageStats={showMessageUsageStats} />
                 </div>
               )}
             </>

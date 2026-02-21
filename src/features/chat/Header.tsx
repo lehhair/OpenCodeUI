@@ -1,31 +1,19 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
 import { PanelRightIcon, PanelBottomIcon, ChevronDownIcon, SidebarIcon } from '../../components/Icons'
 import { IconButton } from '../../components/ui'
-import { ModelSelector, type ModelSelectorHandle } from './ModelSelector'
 import { ShareDialog } from './ShareDialog'
 import { useMessageStore } from '../../store'
 import { useLayoutStore, layoutStore } from '../../store/layoutStore'
 import { useSessionContext } from '../../contexts/SessionContext'
 import { updateSession } from '../../api'
 import { uiErrorHandler } from '../../utils'
-import type { ModelInfo } from '../../api'
 
 interface HeaderProps {
-  models: ModelInfo[]
-  modelsLoading: boolean
-  selectedModelKey: string | null
-  onModelChange: (modelKey: string, model: ModelInfo) => void
   onOpenSidebar?: () => void
-  modelSelectorRef?: React.RefObject<ModelSelectorHandle | null>
 }
 
 export function Header({
-  models,
-  modelsLoading,
-  selectedModelKey,
-  onModelChange,
   onOpenSidebar,
-  modelSelectorRef,
 }: HeaderProps) {
   const { sessionId } = useMessageStore()
   const { rightPanelOpen, bottomPanelOpen } = useLayoutStore()
@@ -88,9 +76,9 @@ export function Header({
   }
 
   return (
-    <div className="h-14 flex justify-between items-center px-4 z-20 bg-bg-100 transition-colors duration-200 relative">
+    <div className="h-12 md:h-14 flex justify-between items-center px-3 md:px-4 z-20 bg-bg-100 transition-colors duration-200 relative">
       
-      {/* Left: Mobile Menu + Model (z-20) */}
+      {/* Left: Mobile Menu */}
       <div className="flex items-center gap-2 min-w-0 shrink-1 z-20">
         {/* Mobile Sidebar Toggle - 只在移动端显示 */}
         {onOpenSidebar && (
@@ -102,17 +90,10 @@ export function Header({
             <SidebarIcon size={18} />
           </IconButton>
         )}
-        <ModelSelector
-          ref={modelSelectorRef}
-          models={models}
-          selectedModelKey={selectedModelKey}
-          onSelect={onModelChange}
-          isLoading={modelsLoading}
-        />
       </div>
 
       {/* Center: Session Title (Clean) (z-20) */}
-      <div className="absolute left-1/2 -translate-x-1/2 hidden md:flex z-20">
+      <div className="absolute left-1/2 -translate-x-1/2 flex z-20 max-w-[calc(100%-116px)] md:max-w-none">
         <div className={`flex items-center group ${isEditingTitle ? 'bg-bg-200/50 ring-1 ring-accent-main-100' : 'bg-transparent hover:bg-bg-200/50 border border-transparent hover:border-border-200/50'} rounded-lg transition-all duration-200 p-0.5 min-w-0 shrink`}>
           
           {isEditingTitle ? (
@@ -126,12 +107,12 @@ export function Header({
                 if (e.key === 'Enter') handleRename()
                 if (e.key === 'Escape') setIsEditingTitle(false)
               }}
-              className="px-3 py-1.5 text-sm font-medium text-text-100 bg-transparent border-none outline-none w-[200px] lg:w-[300px] h-full text-center"
+              className="px-2 md:px-3 py-1.5 text-xs md:text-sm font-medium text-text-100 bg-transparent border-none outline-none w-[140px] md:w-[200px] lg:w-[300px] h-full text-center"
             />
           ) : (
             <button 
               onClick={handleStartEdit}
-              className="px-3 py-1.5 text-sm font-medium text-text-200 hover:text-text-100 transition-colors truncate max-w-[300px] cursor-text select-none text-center"
+              className="px-2 md:px-3 py-1.5 text-xs md:text-sm font-medium text-text-200 hover:text-text-100 transition-colors truncate max-w-[180px] md:max-w-[300px] cursor-text select-none text-center"
               title="Click to rename"
             >
               {sessionTitle}
@@ -140,9 +121,9 @@ export function Header({
 
           {!isEditingTitle && (
             <>
-              <div className="w-[1.5px] h-3 bg-border-200/50 mx-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
+              <div className="hidden md:block w-[1.5px] h-3 bg-border-200/50 mx-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
               <button 
-                className="p-1 text-text-400 hover:text-text-100 transition-colors rounded-md hover:bg-bg-300/50 opacity-0 group-hover:opacity-100 shrink-0"
+                className="hidden md:block p-1 text-text-400 hover:text-text-100 transition-colors rounded-md hover:bg-bg-300/50 opacity-0 group-hover:opacity-100 shrink-0"
                 title="Share session"
                 onClick={() => setShareDialogOpen(true)}
               >
@@ -178,7 +159,7 @@ export function Header({
       <ShareDialog isOpen={shareDialogOpen} onClose={() => setShareDialogOpen(false)} />
 
       {/* Smooth gradient - z-10 */}
-      <div className="absolute top-full left-0 right-0 h-8 bg-gradient-to-b from-bg-100 to-transparent pointer-events-none z-10" />
+      <div className="absolute top-full left-0 right-0 h-4 md:h-8 bg-gradient-to-b from-bg-100 to-transparent pointer-events-none z-10" />
     </div>
   )
 }

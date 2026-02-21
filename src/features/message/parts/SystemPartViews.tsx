@@ -48,7 +48,7 @@ export const RetryPartView = memo(function RetryPartView({ part }: RetryPartView
         <div className="overflow-hidden">
           {shouldRenderBody && (
             <div className="mt-2 pt-2 border-t border-warning-100/20">
-              <p className="text-xs text-text-300 font-mono break-all">
+              <p className="text-xs text-text-300 break-all">
                 {error.data.message}
               </p>
               {error.data.statusCode && (
@@ -112,7 +112,7 @@ export const PatchPartView = memo(function PatchPartView({ part }: PatchPartView
           <span className="text-sm text-text-200">
             {fileCount} file{fileCount !== 1 ? 's' : ''} changed
           </span>
-          <span className="text-xs text-text-500 ml-2 font-mono">
+          <span className="text-xs text-text-500 ml-2">
             {hash.slice(0, 7)}
           </span>
         </div>
@@ -128,7 +128,7 @@ export const PatchPartView = memo(function PatchPartView({ part }: PatchPartView
               {files.map((file, idx) => (
                 <div key={idx} className="flex items-center gap-2 text-xs">
                   <FileIcon className="w-3 h-3 text-text-500" />
-                  <span className="text-text-300 font-mono truncate">{file}</span>
+                  <span className="text-text-300 truncate">{file}</span>
                 </div>
               ))}
             </div>
@@ -138,4 +138,3 @@ export const PatchPartView = memo(function PatchPartView({ part }: PatchPartView
     </div>
   )
 })
-

@@ -139,7 +139,7 @@ export function QuestionDialog({ request, onReply, onReject, queueLength = 1, is
   if (collapsed) return null
 
   return (
-    <div className="absolute bottom-0 left-0 right-0 z-[10]">
+    <div className="absolute bottom-0 left-0 right-0 z-[50]">
       <div className="mx-auto max-w-3xl px-4 pb-4">
         <div className="border border-border-300/40 rounded-[14px] shadow-float bg-bg-100 overflow-hidden">
           <div className="bg-bg-000 rounded-t-[14px]">
@@ -351,5 +351,3 @@ function Indicator({ type, checked }: { type: 'radio' | 'checkbox'; checked: boo
     </span>
   )
 }
-
-

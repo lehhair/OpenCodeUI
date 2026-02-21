@@ -1,10 +1,18 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { ChevronDownIcon, SendIcon, StopIcon, ImageIcon, AgentIcon, ThinkingIcon } from '../../../components/Icons'
+import { SendIcon, StopIcon, ImageIcon, AgentIcon, ThinkingIcon, ChevronDownIcon } from '../../../components/Icons'
 import { DropdownMenu, MenuItem, IconButton, AnimatedPresence } from '../../../components/ui'
+import { ModelSelector, type ModelSelectorHandle } from '../ModelSelector'
 import { isTauri } from '../../../utils/tauri'
 import type { ApiAgent } from '../../../api/client'
+import type { ModelInfo } from '../../../api'
 
 interface InputToolbarProps {
+  models?: ModelInfo[]
+  selectedModelKey?: string | null
+  onModelChange?: (modelKey: string, model: ModelInfo) => void
+  modelsLoading?: boolean
+  modelSelectorRef?: React.RefObject<ModelSelectorHandle | null>
+
   agents: ApiAgent[]
   selectedAgent?: string
   onAgentChange?: (agentName: string) => void
@@ -24,6 +32,11 @@ interface InputToolbarProps {
 }
 
 export function InputToolbar({ 
+  models = [],
+  selectedModelKey = null,
+  onModelChange,
+  modelsLoading = false,
+  modelSelectorRef,
   agents,
   selectedAgent,
   onAgentChange,
@@ -115,24 +128,35 @@ export function InputToolbar({
 
   return (
     <div
-      className="flex items-center justify-between px-3 pb-3 relative"
+      className="flex items-center justify-between px-2.5 md:px-3 pb-2 md:pb-3 relative"
     >
-      {/* Left side: Agent + Variant selectors */}
-      <div className="flex items-center gap-2">
+      {/* Left side: Model + Agent + Variant selectors */}
+      <div className="flex items-center gap-2 md:gap-2.5 min-w-0 flex-1 pr-2">
+        <div className="min-w-0 max-w-[116px] md:max-w-none">
+          <ModelSelector
+            ref={modelSelectorRef}
+            models={models}
+            selectedModelKey={selectedModelKey}
+            onSelect={(modelKey, model) => onModelChange?.(modelKey, model)}
+            isLoading={modelsLoading}
+            placement="toolbar"
+          />
+        </div>
+
         {/* Agent Selector */}
         <AnimatedPresence show={selectableAgents.length > 1}>
-          <div className="relative">
+          <div className="relative min-w-0 max-w-[104px] md:max-w-none">
             <button
               ref={agentTriggerRef}
               onClick={() => setAgentMenuOpen(!agentMenuOpen)}
               className="flex items-center gap-1.5 px-2 py-1.5 text-sm rounded-lg transition-all duration-150 hover:bg-bg-200 active:scale-95 cursor-pointer"
               title={currentAgent ? `${currentAgent.name}${currentAgent.description ? ': ' + currentAgent.description : ''}` : selectedAgent || 'build'}
             >
-              <span className="text-text-400" style={currentAgent?.color ? { color: currentAgent.color } : undefined}>
+              <span className="hidden md:inline-flex text-text-400" style={currentAgent?.color ? { color: currentAgent.color } : undefined}>
                 <AgentIcon />
               </span>
-              <span className="text-xs text-text-300 capitalize truncate max-w-[80px]">{selectedAgent || 'build'}</span>
-              <span className="text-text-400"><ChevronDownIcon /></span>
+              <span className="text-xs text-text-300 capitalize truncate max-w-[94px] md:max-w-none">{selectedAgent || 'build'}</span>
+              <span className="hidden md:inline-flex text-text-400"><ChevronDownIcon size={10} /></span>
             </button>
 
             <DropdownMenu triggerRef={agentTriggerRef} isOpen={agentMenuOpen} position="top" align="left">
@@ -154,18 +178,18 @@ export function InputToolbar({
 
         {/* Variant Selector */}
         <AnimatedPresence show={variants.length > 0}>
-          <div className="relative">
+          <div className="relative min-w-0 max-w-[110px] md:max-w-none">
             <button
               ref={variantTriggerRef}
               onClick={() => setVariantMenuOpen(!variantMenuOpen)}
               className="flex items-center gap-1.5 px-2 py-1.5 text-sm rounded-lg transition-all duration-150 hover:bg-bg-200 active:scale-95 cursor-pointer"
               title={selectedVariant ? selectedVariant.charAt(0).toUpperCase() + selectedVariant.slice(1) : 'Default'}
             >
-              <span className="text-text-400"><ThinkingIcon /></span>
-              <span className="text-xs text-text-300 truncate max-w-[80px]">
+              <span className="hidden md:inline-flex text-text-400"><ThinkingIcon /></span>
+              <span className="text-xs text-text-300 truncate max-w-[98px] md:max-w-none">
                 {selectedVariant ? selectedVariant.charAt(0).toUpperCase() + selectedVariant.slice(1) : 'Default'}
               </span>
-              <span className="text-text-400"><ChevronDownIcon /></span>
+              <span className="hidden md:inline-flex text-text-400"><ChevronDownIcon size={10} /></span>
             </button>
 
             <DropdownMenu triggerRef={variantTriggerRef} isOpen={variantMenuOpen} position="top" align="left" minWidth="auto">

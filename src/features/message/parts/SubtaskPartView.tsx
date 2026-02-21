@@ -40,10 +40,10 @@ export const SubtaskPartView = memo(function SubtaskPartView({ part }: SubtaskPa
   }
 
   return (
-    <div className="my-2 rounded-xl border border-border-200/60 bg-bg-100/50 overflow-hidden">
+    <div className="w-full py-1">
       {/* Header */}
       <div 
-        className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-bg-200/30 transition-colors"
+        className="flex items-center gap-3 px-0 py-1.5 cursor-pointer hover:bg-bg-200/20 transition-colors rounded-md"
         onClick={() => setExpanded(!expanded)}
       >
         {/* Status indicator */}
@@ -110,7 +110,7 @@ export const SubtaskPartView = memo(function SubtaskPartView({ part }: SubtaskPa
       }`}>
         <div className="overflow-hidden">
           {shouldRenderBody && (
-            <div className="px-4 py-3 border-t border-border-200/40 space-y-3">
+            <div className="px-0 py-2 space-y-2.5">
               {/* Prompt preview */}
               <div>
                 <p className="text-[10px] text-text-500 uppercase tracking-wider mb-1">Task</p>
@@ -137,7 +137,7 @@ export const SubtaskPartView = memo(function SubtaskPartView({ part }: SubtaskPa
 
               {/* Child session info */}
               {childSession && (
-                <div className="pt-2 border-t border-border-200/30">
+                <div className="pt-1.5">
                   <button
                     onClick={handleEnter}
                     className="w-full flex items-center justify-center gap-2 py-2 text-xs font-medium text-accent-main-100 hover:bg-accent-main-100/10 rounded-lg transition-colors"

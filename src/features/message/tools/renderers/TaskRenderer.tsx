@@ -13,7 +13,7 @@ import type { Message, TextPart, ToolPart } from '../../../../types/message'
 // 
 // 设计原则：
 // 1. 渐进式展开 - 默认显示摘要，点击展开详情
-// 2. 视觉层次 - 左侧缩进线区分嵌套层级
+// 2. 扁平布局 - 避免额外缩进，提升有效宽度
 // 3. 状态优先 - 运行中/完成/错误状态一目了然
 // 4. 按需交互 - 输入框只在需要时显示
 // ============================================
@@ -63,70 +63,60 @@ export const TaskRenderer = memo(function TaskRenderer({ part }: ToolRendererPro
   }, [isRunning])
 
   return (
-    <div className="relative overflow-hidden min-w-0">
-      {/* 左侧装饰线 */}
-      <div className={`absolute left-0 top-0 bottom-0 w-0.5 rounded-full transition-colors ${
-        isRunning ? 'bg-accent-main-100 animate-pulse' :
-        isError ? 'bg-danger-100' :
-        isCompleted ? 'bg-accent-secondary-100/50' :
-        'bg-border-300/30'
-      }`} />
+    <div className="overflow-hidden min-w-0">
+      {/* Header */}
+      <TaskHeader
+        agentType={agentType}
+        description={description}
+        status={state.status}
+        expanded={expanded}
+        onToggle={() => setExpanded(!expanded)}
+        sessionId={targetSessionId}
+        onStop={isRunning ? handleStop : undefined}
+      />
       
-      <div className="pl-3">
-        {/* Header */}
-        <TaskHeader
-          agentType={agentType}
-          description={description}
-          status={state.status}
-          expanded={expanded}
-          onToggle={() => setExpanded(!expanded)}
-          sessionId={targetSessionId}
-          onStop={isRunning ? handleStop : undefined}
-        />
-        
-        {/* Body */}
-        <div className={`grid transition-[grid-template-rows] duration-300 ease-out ${
-          expanded ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
-        }`}>
-          <div className="overflow-hidden">
-            {shouldRenderBody && (
-              <div className="pt-2 space-y-3">
-                {/* Prompt */}
-                {prompt && (
-                  <div className="text-xs text-text-400 bg-bg-200/30 rounded-md px-3 py-2 whitespace-pre-wrap">
-                    {prompt.length > 300 ? prompt.slice(0, 300) + '...' : prompt}
-                  </div>
-                )}
-                
-                {/* 子会话内容 */}
-                {targetSessionId && (
-                  <SubSessionView 
-                    sessionId={targetSessionId} 
-                    isParentRunning={isRunning}
-                  />
-                )}
-                
-                {/* 完成时的输出 */}
-                {isCompleted && state.output !== undefined && state.output !== null && (
-                  <ContentBlock
-                    label="Result"
-                    content={typeof state.output === 'string' ? state.output : JSON.stringify(state.output, null, 2)}
-                    defaultCollapsed={true}
-                    maxHeight={150}
-                  />
-                )}
-                
-                {/* 错误信息 */}
-                {isError && state.error !== undefined && (
-                  <ContentBlock
-                    label="Error"
-                    content={typeof state.error === 'string' ? state.error : JSON.stringify(state.error)}
-                    variant="error"
-                  />
-                )}
-              </div>
-            )}
-          </div>
+      {/* Body */}
+      <div className={`grid transition-[grid-template-rows] duration-300 ease-out ${
+        expanded ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
+      }`}>
+        <div className="overflow-hidden">
+          {shouldRenderBody && (
+            <div className="pt-1.5 space-y-3">
+              {/* Prompt */}
+              {prompt && (
+                <div className="text-xs text-text-400 bg-bg-200/30 rounded-md px-3 py-2 whitespace-pre-wrap">
+                  {prompt.length > 300 ? prompt.slice(0, 300) + '...' : prompt}
+                </div>
+              )}
+              
+              {/* 子会话内容 */}
+              {targetSessionId && (
+                <SubSessionView 
+                  sessionId={targetSessionId} 
+                  isParentRunning={isRunning}
+                />
+              )}
+              
+              {/* 完成时的输出 */}
+              {isCompleted && state.output !== undefined && state.output !== null && (
+                <ContentBlock
+                  label="Result"
+                  content={typeof state.output === 'string' ? state.output : JSON.stringify(state.output, null, 2)}
+                  defaultCollapsed={true}
+                  maxHeight={150}
+                />
+              )}
+              
+              {/* 错误信息 */}
+              {isError && state.error !== undefined && (
+                <ContentBlock
+                  label="Error"
+                  content={typeof state.error === 'string' ? state.error : JSON.stringify(state.error)}
+                  variant="error"
+                />
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -385,7 +375,7 @@ const ToolBadge = memo(function ToolBadge({ tool }: { tool: ToolPart }) {
   const displayTitle = title.length > 30 ? title.slice(0, 30) + '...' : title
   
   return (
-    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono ${
+    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] ${
       isRunning ? 'bg-accent-main-100/10 text-accent-main-100' :
       isError ? 'bg-danger-100/10 text-danger-100' :
       'bg-bg-200 text-text-400'

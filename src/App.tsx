@@ -7,7 +7,7 @@ import { ToastContainer } from './components/ToastContainer'
 import { RightPanel } from './components/RightPanel'
 import { OutlineIndex } from './components/OutlineIndex'
 import { BottomPanel } from './components/BottomPanel'
-import { useTheme, useModels, useModelSelection, useChatSession, useGlobalKeybindings } from './hooks'
+import { useTheme, useModels, useModelSelection, useChatSession, useGlobalKeybindings, useIsMobile } from './hooks'
 import type { KeybindingHandlers } from './hooks/useKeybindings'
 import { keybindingStore } from './store/keybindingStore'
 import { layoutStore } from './store/layoutStore'
@@ -39,6 +39,7 @@ function App() {
     mode: themeMode, setThemeWithAnimation,
     presetId, setPresetWithAnimation, availablePresets,
     customCSS, setCustomCSS,
+    mobileInputAutoDock,
   } = useTheme()
 
   // ============================================
@@ -59,6 +60,9 @@ function App() {
   // ============================================
   const [visibleMessageIds, setVisibleMessageIds] = useState<string[]>([])
   const [isAtBottom, setIsAtBottom] = useState(true)
+  const isMobile = useIsMobile()
+  const [isInputDocked, setIsInputDocked] = useState(false)
+  const scrollDownAccumRef = useRef(0)
 
   // ============================================
   // Input Box Height (动态测量，用于 ChatArea 底部留白)
@@ -299,6 +303,11 @@ function App() {
       console.error('[App] Failed to create terminal:', error)
     }
   }, [effectiveDirectory])
+
+  const openModelSelector = useCallback(() => {
+    setIsInputDocked(false)
+    setTimeout(() => modelSelectorRef.current?.openMenu(), 0)
+  }, [])
   
   const keybindingHandlers = useMemo<KeybindingHandlers>(() => ({
     // General
@@ -308,6 +317,7 @@ function App() {
     toggleSidebar: () => setSidebarExpanded(!sidebarExpanded),
     toggleRightPanel: () => layoutStore.toggleRightPanel(),
     focusInput: () => {
+      setIsInputDocked(false)
       const input = document.querySelector<HTMLTextAreaElement>('[data-input-box] textarea')
       input?.focus()
     },
@@ -323,7 +333,7 @@ function App() {
     newTerminal: handleNewTerminal,
     
     // Model
-    selectModel: () => modelSelectorRef.current?.openMenu(),
+    selectModel: openModelSelector,
     toggleAgent: handleToggleAgentWithSync,
     
     // Message
@@ -361,6 +371,7 @@ function App() {
     handlePreviousSession,
     handleNextSession,
     handleNewTerminal,
+    openModelSelector,
     handleToggleAgentWithSync,
     isStreaming, 
     handleAbort,
@@ -382,7 +393,7 @@ function App() {
       { id: 'openSettingsShortcuts', label: 'Open Shortcuts Settings', description: 'Open settings to shortcuts tab', category: 'General', action: () => { setSettingsInitialTab('keybindings'); setSettingsDialogOpen(true) } },
       { id: 'toggleSidebar', label: 'Toggle Sidebar', description: 'Show or hide sidebar', category: 'General', shortcut: getShortcut('toggleSidebar'), action: () => setSidebarExpanded(!sidebarExpanded) },
       { id: 'toggleRightPanel', label: 'Toggle Right Panel', description: 'Show or hide right panel', category: 'General', shortcut: getShortcut('toggleRightPanel'), action: () => layoutStore.toggleRightPanel() },
-      { id: 'focusInput', label: 'Focus Input', description: 'Focus message input', category: 'General', shortcut: getShortcut('focusInput'), action: () => { const input = document.querySelector<HTMLTextAreaElement>('[data-input-box] textarea'); input?.focus() } },
+      { id: 'focusInput', label: 'Focus Input', description: 'Focus message input', category: 'General', shortcut: getShortcut('focusInput'), action: () => { setIsInputDocked(false); const input = document.querySelector<HTMLTextAreaElement>('[data-input-box] textarea'); input?.focus() } },
 
       // Session
       { id: 'newSession', label: 'New Session', description: 'Create new chat session', category: 'Session', shortcut: getShortcut('newSession'), action: handleNewSession },
@@ -395,7 +406,7 @@ function App() {
       { id: 'newTerminal', label: 'New Terminal', description: 'Open new terminal tab', category: 'Terminal', shortcut: getShortcut('newTerminal'), action: handleNewTerminal },
 
       // Model
-      { id: 'selectModel', label: 'Select Model', description: 'Open model selector', category: 'Model', shortcut: getShortcut('selectModel'), action: () => modelSelectorRef.current?.openMenu() },
+      { id: 'selectModel', label: 'Select Model', description: 'Open model selector', category: 'Model', shortcut: getShortcut('selectModel'), action: openModelSelector },
       { id: 'toggleAgent', label: 'Toggle Agent', description: 'Switch agent mode', category: 'Model', shortcut: getShortcut('toggleAgent'), action: handleToggleAgentWithSync },
 
       // Message
@@ -405,7 +416,7 @@ function App() {
   }, [
     openSettings, openProject, sidebarExpanded, setSidebarExpanded,
     handleNewSession, handleArchiveSession, handlePreviousSession, handleNextSession,
-    handleNewTerminal, handleToggleAgentWithSync, handleCopyLastResponse,
+    handleNewTerminal, handleToggleAgentWithSync, handleCopyLastResponse, openModelSelector,
     isStreaming, handleAbort,
   ])
 
@@ -446,6 +457,38 @@ function App() {
     attachments: revertedContent.attachments as Attachment[],
   } : undefined
 
+  const handleUndockInput = useCallback(() => {
+    setIsInputDocked(false)
+    scrollDownAccumRef.current = 0
+  }, [])
+
+  const handleAtBottomChange = useCallback((atBottom: boolean) => {
+    setIsAtBottom(atBottom)
+    if (atBottom) scrollDownAccumRef.current = 0
+  }, [])
+
+  useEffect(() => {
+    if (!mobileInputAutoDock) {
+      setIsInputDocked(false)
+      scrollDownAccumRef.current = 0
+    }
+  }, [mobileInputAutoDock])
+
+  useEffect(() => {
+    if (!isMobile) {
+      setIsInputDocked(false)
+      scrollDownAccumRef.current = 0
+    }
+  }, [isMobile])
+
+  const handleScrollDirectionChange = useCallback((_: 'up' | 'down', deltaY: number) => {
+    if (!isMobile || !mobileInputAutoDock || isAtBottom || isInputDocked) return
+    scrollDownAccumRef.current += deltaY
+    if (scrollDownAccumRef.current > 56) {
+      setIsInputDocked(true)
+    }
+  }, [isMobile, mobileInputAutoDock, isAtBottom, isInputDocked])
+
   return (
     <div className="relative h-[var(--app-height)] flex bg-bg-100 overflow-hidden" style={{ paddingTop: 'var(--safe-area-inset-top)' }}>
       {/* Sidebar */}
@@ -476,12 +519,7 @@ function App() {
             <div className="absolute top-0 left-0 right-0 z-20 pointer-events-none">
               <div className="pointer-events-auto">
                 <Header
-                  models={models}
-                  modelsLoading={modelsLoading}
-                  selectedModelKey={selectedModelKey}
-                  onModelChange={handleModelChange}
                   onOpenSidebar={() => setSidebarExpanded(true)}
-                  modelSelectorRef={modelSelectorRef}
                 />
               </div>
             </div>
@@ -506,7 +544,8 @@ function App() {
                   handleVisibleMessageIdsChange(ids)
                   setVisibleMessageIds(ids)
                 }}
-                onAtBottomChange={setIsAtBottom}
+                onAtBottomChange={handleAtBottomChange}
+                onScrollDirectionChange={handleScrollDirectionChange}
               />
             </div>
 
@@ -520,7 +559,7 @@ function App() {
             {/* Floating Input Box */}
             <div
               ref={inputBoxWrapperRef}
-              className="absolute bottom-0 left-0 right-0 z-10 pointer-events-none"
+              className={`absolute z-30 pointer-events-none transition-all duration-200 ease-out ${isInputDocked ? 'right-2 left-auto bottom-2' : 'left-0 right-0 bottom-0'}`}
             >
               {/* Double-Esc cancel hint */}
               {showCancelHint && (
@@ -566,6 +605,13 @@ function App() {
                     ? { label: 'Question', queueLength: pendingQuestionRequests.length, onExpand: () => setQuestionCollapsed(false) }
                     : undefined
                 }
+                models={models}
+                modelsLoading={modelsLoading}
+                selectedModelKey={selectedModelKey}
+                onModelChange={handleModelChange}
+                modelSelectorRef={modelSelectorRef}
+                isDocked={isInputDocked}
+                onUndock={handleUndockInput}
               />
             </div>
 

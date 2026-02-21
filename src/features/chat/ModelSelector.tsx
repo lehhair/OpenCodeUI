@@ -5,7 +5,7 @@
  */
 
 import { useState, useRef, useEffect, useMemo, useCallback, memo, forwardRef, useImperativeHandle } from 'react'
-import { ChevronDownIcon, SearchIcon, ThinkingIcon, EyeIcon, CheckIcon } from '../../components/Icons'
+import { SearchIcon, ThinkingIcon, EyeIcon, CheckIcon, ChevronDownIcon, CpuIcon } from '../../components/Icons'
 import { DropdownMenu } from '../../components/ui'
 import type { ModelInfo } from '../../api'
 import {
@@ -21,6 +21,7 @@ interface ModelSelectorProps {
   onSelect: (modelKey: string, model: ModelInfo) => void
   isLoading?: boolean
   disabled?: boolean
+  placement?: 'header' | 'toolbar'
 }
 
 export interface ModelSelectorHandle {
@@ -33,6 +34,7 @@ export const ModelSelector = memo(forwardRef<ModelSelectorHandle, ModelSelectorP
   onSelect,
   isLoading = false,
   disabled = false,
+  placement = 'header',
 }, ref) {
   const [isOpen, setIsOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -106,6 +108,7 @@ export const ModelSelector = memo(forwardRef<ModelSelectorHandle, ModelSelectorP
   }, [models, selectedModelKey])
 
   const displayName = selectedModel?.name || (isLoading ? 'Loading...' : 'Select model')
+  const isToolbar = placement === 'toolbar'
 
   const openMenu = useCallback(() => {
     if (disabled || isLoading) return
@@ -154,7 +157,8 @@ export const ModelSelector = memo(forwardRef<ModelSelectorHandle, ModelSelectorP
   }, [onSelect, closeMenu])
 
   useEffect(() => {
-    if (isOpen) setTimeout(() => searchInputRef.current?.focus(), 50)
+    if (!isOpen) return
+    setTimeout(() => menuRef.current?.focus({ preventScroll: true }), 0)
   }, [isOpen])
 
   // Click outside
@@ -243,27 +247,26 @@ export const ModelSelector = memo(forwardRef<ModelSelectorHandle, ModelSelectorP
         ref={triggerRef}
         onClick={() => isOpen ? closeMenu() : openMenu()}
         disabled={disabled || isLoading}
-        className="group flex items-center gap-2 px-2 py-1.5 text-text-200 rounded-lg hover:bg-bg-200 hover:text-text-100 transition-all duration-150 active:scale-95 cursor-pointer text-sm"
+        className={`flex items-center gap-1.5 px-2 py-1.5 text-sm rounded-lg transition-all duration-150 hover:bg-bg-200 active:scale-95 cursor-pointer ${isToolbar ? 'max-w-[116px] md:max-w-none' : ''}`}
         title={displayName}
       >
-        <span className="font-medium truncate max-w-[240px]">{displayName}</span>
-        <div className={`opacity-50 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}>
-          <ChevronDownIcon size={10} />
-        </div>
+        {isToolbar && <span className="hidden md:inline-flex text-text-400"><CpuIcon size={12} /></span>}
+        <span className={`text-xs text-text-300 font-medium truncate ${isToolbar ? 'max-w-[110px] md:max-w-none' : 'max-w-[240px]'}`}>{displayName}</span>
+        {isToolbar && <span className="hidden md:inline-flex text-text-400"><ChevronDownIcon size={10} /></span>}
       </button>
 
       <DropdownMenu
         triggerRef={triggerRef}
         isOpen={isOpen}
-        position="bottom"
+        position={isToolbar ? 'top' : 'bottom'}
         align="left"
-        width="460px"
+        width={isToolbar ? '380px' : '460px'}
         minWidth="280px"
         maxWidth="min(460px, calc(100vw - 24px))"
         mobileFullWidth
-        className="!p-0 overflow-hidden flex flex-col max-h-[min(600px,70vh)]"
+        className={`!p-0 overflow-hidden flex flex-col ${isToolbar ? 'max-h-[80vh]' : 'max-h-[min(600px,70vh)]'}`}
       >
-        <div ref={menuRef} onKeyDown={handleKeyDown}>
+        <div ref={menuRef} tabIndex={-1} onKeyDown={handleKeyDown}>
           {/* Search */}
           <div className="flex items-center gap-2.5 px-3 border-b border-border-200/50 flex-shrink-0">
             <SearchIcon className="w-3.5 h-3.5 text-text-400 flex-shrink-0" />
