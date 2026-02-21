@@ -163,6 +163,14 @@ export function useTheme() {
     themeStore.setCollapseUserMessages(enabled)
   }, [])
 
+  const setMobileInputAutoDock = useCallback((enabled: boolean) => {
+    themeStore.setMobileInputAutoDock(enabled)
+  }, [])
+
+  const setShowMessageUsageStats = useCallback((enabled: boolean) => {
+    themeStore.setShowMessageUsageStats(enabled)
+  }, [])
+
   return {
     // 日夜模式（向后兼容）
     mode: state.colorMode,
@@ -190,5 +198,13 @@ export function useTheme() {
     // 折叠长用户消息
     collapseUserMessages: state.collapseUserMessages,
     setCollapseUserMessages,
+
+    // 移动端输入框收纳
+    mobileInputAutoDock: state.mobileInputAutoDock,
+    setMobileInputAutoDock,
+
+    // 消息 token/cache 统计显示
+    showMessageUsageStats: state.showMessageUsageStats,
+    setShowMessageUsageStats,
   }
 }

@@ -75,7 +75,7 @@ export const InputFooter = memo(function InputFooter({ sessionId, onNewChat }: I
       : `${stats.total - stats.completed} remaining`
 
   return (
-    <div className="flex items-center justify-center gap-2 pt-2 text-[11px] text-text-500 relative" ref={popoverRef}>
+    <div className="flex items-center justify-center gap-2 pt-1 md:pt-2 text-[11px] text-text-500 relative" ref={popoverRef}>
       {/* 左侧：todo 进度 */}
       <button
         onClick={() => setPopoverOpen(!popoverOpen)}

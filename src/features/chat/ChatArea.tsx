@@ -7,6 +7,7 @@ import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso'
 import { MessageRenderer } from '../message'
 import { messageStore } from '../../store'
 import { SpinnerIcon } from '../../components/Icons'
+import { useIsMobile } from '../../hooks'
 import type { Message } from '../../types/message'
 import {
   VIRTUOSO_START_INDEX,
@@ -39,6 +40,7 @@ interface ChatAreaProps {
   bottomPadding?: number
   onVisibleMessageIdsChange?: (ids: string[]) => void
   onAtBottomChange?: (atBottom: boolean) => void
+  onScrollDirectionChange?: (direction: 'up' | 'down', deltaY: number) => void
 }
 
 export type ChatAreaHandle = {
@@ -96,6 +98,7 @@ export const ChatArea = memo(forwardRef<ChatAreaHandle, ChatAreaProps>(({
   bottomPadding = 0,
   onVisibleMessageIdsChange,
   onAtBottomChange,
+  onScrollDirectionChange,
 }, ref) => {
   const virtuosoRef = useRef<VirtuosoHandle>(null)
   // 外部滚动容器
@@ -121,18 +124,26 @@ export const ChatArea = memo(forwardRef<ChatAreaHandle, ChatAreaProps>(({
   const isLoadingMoreRef = useRef(false)
   // 用户是否在列表顶部附近（用于决定是否显示加载 spinner）
   const [isNearTop, setIsNearTop] = useState(false)
+  const isMobile = useIsMobile()
   
   // 监听 scrollParent 滚动，追踪是否在顶部附近
   useEffect(() => {
     if (!scrollParent) return
     const THRESHOLD = 150
+    let lastScrollTop = scrollParent.scrollTop
     const handleScroll = () => {
       setIsNearTop(scrollParent.scrollTop < THRESHOLD)
+      const currentTop = scrollParent.scrollTop
+      const delta = currentTop - lastScrollTop
+      if (Math.abs(delta) >= 2) {
+        onScrollDirectionChange?.(delta > 0 ? 'down' : 'up', Math.abs(delta))
+      }
+      lastScrollTop = currentTop
     }
     handleScroll() // 初始检查
     scrollParent.addEventListener('scroll', handleScroll, { passive: true })
     return () => scrollParent.removeEventListener('scroll', handleScroll)
-  }, [scrollParent])
+  }, [scrollParent, onScrollDirectionChange])
   
   // 监听用户直接交互事件（wheel/touch），确保第一时间标记用户主动滚动
   // 这比 Virtuoso 的 isScrolling 回调更及时
@@ -373,10 +384,10 @@ export const ChatArea = memo(forwardRef<ChatAreaHandle, ChatAreaProps>(({
       registerMessage?.(msg.info.id, el)
     }
     
-    const maxWidthClass = isWideMode ? 'max-w-[95%] xl:max-w-6xl' : 'max-w-2xl'
+    const maxWidthClass = isWideMode ? 'max-w-[97%] xl:max-w-[90rem]' : 'max-w-[96%] md:max-w-4xl'
 
     return (
-      <div ref={handleRef} className={`w-full ${maxWidthClass} mx-auto px-4 py-3 transition-[max-width] duration-300 ease-in-out`}>
+      <div ref={handleRef} className={`w-full ${maxWidthClass} mx-auto px-1.5 md:px-4 py-2 transition-[max-width] duration-300 ease-in-out`}>
         <div className={`flex ${msg.info.role === 'user' ? 'justify-end' : 'justify-start'}`}>
           <div className={`min-w-0 group ${msg.info.role === 'assistant' ? 'w-full' : ''}`}>
             <MessageRenderer
@@ -437,13 +448,13 @@ export const ChatArea = memo(forwardRef<ChatAreaHandle, ChatAreaProps>(({
             skipAnimationFrameInResizeObserver
             overscan={{ main: VIRTUOSO_OVERSCAN_PX, reverse: VIRTUOSO_OVERSCAN_PX }}
             components={{
-              Header: () => <div className="h-20" />,
+              Header: () => <div className={isMobile ? 'h-12' : 'h-20'} />,
               Footer: () => (
                 <div
                   style={{
                     height: bottomPadding > 0
-                      ? `${bottomPadding + 16}px`
-                      : '256px'
+                      ? `${bottomPadding + (isMobile ? 8 : 16)}px`
+                      : isMobile ? '160px' : '256px'
                   }}
                 />
               )

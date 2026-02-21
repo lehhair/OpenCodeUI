@@ -5,7 +5,7 @@ import {
   SunIcon, MoonIcon, SystemIcon, MaximizeIcon, MinimizeIcon, 
   PathAutoIcon, PathUnixIcon, PathWindowsIcon,
   GlobeIcon, PlusIcon, TrashIcon, CheckIcon, WifiIcon, WifiOffIcon, SpinnerIcon, KeyIcon,
-  SettingsIcon, KeyboardIcon, CloseIcon, BellIcon, BoltIcon, CompactIcon
+  SettingsIcon, KeyboardIcon, CloseIcon, BellIcon, BoltIcon, CompactIcon, CpuIcon
 } from '../../components/Icons'
 import { usePathMode, useServerStore, useIsMobile, useNotification, useRouter } from '../../hooks'
 import { autoApproveStore, messageStore, notificationStore } from '../../store'
@@ -299,6 +299,20 @@ function AppearanceSettings({ themeMode, onThemeChange, isWideMode, onToggleWide
   onCustomCSSChange?: (css: string) => void
 }) {
   const [fontSize, setFontSize] = useState(themeStore.fontSize)
+  const [mobileInputAutoDock, setMobileInputAutoDock] = useState(themeStore.mobileInputAutoDock)
+  const [showMessageUsageStats, setShowMessageUsageStats] = useState(themeStore.showMessageUsageStats)
+
+  const handleMobileInputAutoDockToggle = () => {
+    const v = !mobileInputAutoDock
+    setMobileInputAutoDock(v)
+    themeStore.setMobileInputAutoDock(v)
+  }
+
+  const handleShowMessageUsageStatsToggle = () => {
+    const v = !showMessageUsageStats
+    setShowMessageUsageStats(v)
+    themeStore.setShowMessageUsageStats(v)
+  }
 
   return (
     <div>
@@ -360,6 +374,26 @@ function AppearanceSettings({ themeMode, onThemeChange, isWideMode, onToggleWide
           <Toggle enabled={!!isWideMode} onChange={onToggleWideMode} />
         </SettingRow>
       )}
+
+      <Divider />
+
+      <SectionLabel>Chat</SectionLabel>
+      <SettingRow
+        label="Auto-hide Input on Mobile Scroll"
+        description="Hide input bar while scrolling on mobile"
+        icon={<CompactIcon size={14} />}
+        onClick={handleMobileInputAutoDockToggle}
+      >
+        <Toggle enabled={mobileInputAutoDock} onChange={handleMobileInputAutoDockToggle} />
+      </SettingRow>
+      <SettingRow
+        label="Show Message Tokens"
+        description="Display token and cache usage under messages"
+        icon={<CpuIcon size={14} />}
+        onClick={handleShowMessageUsageStatsToggle}
+      >
+        <Toggle enabled={showMessageUsageStats} onChange={handleShowMessageUsageStatsToggle} />
+      </SettingRow>
     </div>
   )
 }

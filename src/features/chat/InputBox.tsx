@@ -5,12 +5,14 @@ import { SlashCommandMenu, type SlashCommandMenuHandle } from '../slash-command'
 import { InputToolbar } from './input/InputToolbar'
 import { InputFooter } from './input/InputFooter'
 import { UndoStatus } from './input/UndoStatus'
+import { type ModelSelectorHandle } from './ModelSelector'
 import { useImageCompressor } from '../../hooks/useImageCompressor'
 import { keybindingStore, matchesKeybinding } from '../../store/keybindingStore'
 import { useIsMobile } from '../../hooks'
 import { ArrowDownIcon, PermissionListIcon, QuestionIcon } from '../../components/Icons'
 import type { ApiAgent } from '../../api/client'
 import type { Command } from '../../api/command'
+import type { ModelInfo } from '../../api'
 
 // ============================================
 // Types
@@ -35,6 +37,11 @@ export interface InputBoxProps {
   variants?: string[]
   selectedVariant?: string
   onVariantChange?: (variant: string | undefined) => void
+  models?: ModelInfo[]
+  selectedModelKey?: string | null
+  onModelChange?: (modelKey: string, model: ModelInfo) => void
+  modelsLoading?: boolean
+  modelSelectorRef?: React.RefObject<ModelSelectorHandle | null>
   supportsImages?: boolean
   rootPath?: string
   sessionId?: string | null
@@ -53,6 +60,8 @@ export interface InputBoxProps {
   // Collapsed dialog capsules
   collapsedPermission?: CollapsedDialogInfo
   collapsedQuestion?: CollapsedDialogInfo
+  isDocked?: boolean
+  onUndock?: () => void
 }
 
 // ============================================
@@ -72,6 +81,11 @@ function InputBoxComponent({
   variants = [],
   selectedVariant,
   onVariantChange,
+  models = [],
+  selectedModelKey = null,
+  onModelChange,
+  modelsLoading = false,
+  modelSelectorRef,
   supportsImages = false,
   rootPath = '',
   sessionId,
@@ -87,6 +101,8 @@ function InputBoxComponent({
   onScrollToBottom,
   collapsedPermission,
   collapsedQuestion,
+  isDocked = false,
+  onUndock,
 }: InputBoxProps) {
   // 文本状态
   const [text, setText] = useState('')
@@ -142,6 +158,7 @@ function InputBoxComponent({
   useEffect(() => {
     const textarea = textareaRef.current
     if (!textarea) return
+    if (isDocked) return
     
     // 文本为空时重置为最小高度
     if (!text.trim()) {
@@ -156,7 +173,7 @@ function InputBoxComponent({
     // 可用高度 = viewport - header(48px) - toolbar/padding/footer(~100px) - 安全余量
     const maxH = isMobile ? Math.max(80, viewportH - 48 - 100 - 72) : viewportH * 0.35
     textarea.style.height = Math.max(24, Math.min(scrollHeight, maxH)) + 'px'
-  }, [text, isMobile])
+  }, [text, isMobile, isDocked])
 
   // 计算
   const canSend = (text.trim().length > 0 || attachments.length > 0) && !disabled
@@ -554,10 +571,26 @@ function InputBoxComponent({
     if (a.agentName) excludeValues.add(a.agentName)
   })
 
+  if (isDocked) {
+    return (
+      <div className="pointer-events-auto">
+        <button
+          type="button"
+          onClick={onUndock}
+          className="h-10 px-3 rounded-full bg-bg-000/90 border border-border-200/70 shadow-xl shadow-black/15 backdrop-blur-md flex items-center gap-1.5 text-text-200"
+          aria-label="Expand input"
+        >
+          <span className="text-xs font-medium">Reply</span>
+          <ArrowDownIcon size={14} className="rotate-180" />
+        </button>
+      </div>
+    )
+  }
+
   return (
     <div className="w-full">
-      <div className="mx-auto max-w-3xl px-4 pb-4 pointer-events-auto transition-[max-width] duration-300 ease-in-out" style={{ paddingBottom: 'max(16px, var(--safe-area-inset-bottom, 16px))' }}>
-        <div className="flex flex-col gap-2">
+      <div className="mx-auto max-w-3xl px-3 md:px-4 pb-2 md:pb-4 pointer-events-auto transition-[max-width] duration-300 ease-in-out" style={{ paddingBottom: isMobile ? 'max(8px, var(--safe-area-inset-bottom, 8px))' : 'max(16px, var(--safe-area-inset-bottom, 16px))' }}>
+        <div className="flex flex-col gap-1 md:gap-2">
           {(showScrollToBottom || canRedo || collapsedPermission || collapsedQuestion) && (
             <div className={`flex items-center justify-center gap-2`}>
               {/* Collapsed Permission Capsule */}
@@ -645,7 +678,7 @@ function InputBoxComponent({
             />
             
             <div className="relative">
-              <div className="overflow-hidden">
+              <div className="overflow-visible">
                 {/* Attachments Preview - 显示在输入框上方 */}
                 <div className={`overflow-hidden transition-all duration-300 ease-out ${
                   attachments.length > 0 ? 'max-h-40 opacity-100' : 'max-h-0 opacity-0'
@@ -659,7 +692,7 @@ function InputBoxComponent({
                 </div>
 
                 {/* Text Input - 简单的 textarea，直接显示文本 */}
-                <div className="px-4 pt-4 pb-2">
+                <div className="px-3 md:px-4 pt-3 md:pt-4 pb-1.5 md:pb-2">
                   <textarea
                     ref={textareaRef}
                     value={text}
@@ -682,6 +715,11 @@ function InputBoxComponent({
 
                 {/* Bottom Bar -> InputToolbar */}
                 <InputToolbar 
+                  models={models}
+                  selectedModelKey={selectedModelKey}
+                  onModelChange={onModelChange}
+                  modelsLoading={modelsLoading}
+                  modelSelectorRef={modelSelectorRef}
                   agents={agents}
                   selectedAgent={selectedAgent}
                   onAgentChange={onAgentChange}
