@@ -50,9 +50,9 @@ function TodoList({ todos }: { todos: TodoItem[] }) {
           <span className={`text-text-400 transition-transform duration-200 ${collapsed ? '' : 'rotate-180'}`}>
             <ChevronDownIcon />
           </span>
-          <span className="text-text-300 font-medium font-mono">Tasks</span>
+          <span className="text-text-300 font-medium">Tasks</span>
         </div>
-        <span className="text-text-500 tabular-nums font-mono">{completed}/{total}</span>
+        <span className="text-text-500 tabular-nums">{completed}/{total}</span>
       </div>
       
       {/* List */}

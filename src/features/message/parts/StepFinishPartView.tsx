@@ -4,6 +4,7 @@ import type { StepFinishPart } from '../../../types/message'
 
 interface StepFinishPartViewProps {
   part: StepFinishPart
+  showUsageStats?: boolean
 }
 
 /**
@@ -23,7 +24,9 @@ function formatCost(cost: number): string {
   return '$' + cost.toFixed(3)
 }
 
-export const StepFinishPartView = memo(function StepFinishPartView({ part }: StepFinishPartViewProps) {
+export const StepFinishPartView = memo(function StepFinishPartView({ part, showUsageStats = true }: StepFinishPartViewProps) {
+  if (!showUsageStats) return null
+
   const { tokens, cost } = part
   const totalTokens = tokens.input + tokens.output + tokens.reasoning
   const cacheHit = tokens.cache.read
@@ -53,4 +56,3 @@ export const StepFinishPartView = memo(function StepFinishPartView({ part }: Ste
     </div>
   )
 })
-
