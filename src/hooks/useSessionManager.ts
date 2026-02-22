@@ -92,7 +92,13 @@ export function useSessionManager({
       const currentState = messageStore.getSessionState(sid)
       if (!force && currentState && currentState.messages.length > apiMessages.length) {
         // SSE 推送的消息比 API 返回的多，说明有新消息，跳过覆盖
-        messageStore.setLoadState(sid, 'loaded')
+        // 但仍需更新元数据，否则 hasMoreHistory 等状态可能停留在默认值
+        messageStore.updateSessionMetadata(sid, {
+          hasMoreHistory: apiMessages.length >= INITIAL_MESSAGE_LIMIT,
+          directory: sessionInfo?.directory ?? dir ?? '',
+          loadState: 'loaded',
+          shareUrl: sessionInfo?.share?.url,
+        })
         onLoadComplete?.()
         loadingRef.current = false
         return
