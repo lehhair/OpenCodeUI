@@ -150,7 +150,19 @@ function InputBoxComponent({
 
   // textarea focus/blur 追踪
   const handleFocus = useCallback(() => setIsFocused(true), [])
-  const handleBlur = useCallback(() => setIsFocused(false), [])
+  // blur 延迟：给输入框上方按钮（scroll-to-bottom、undo 等）的 click 事件时间先触发
+  // 否则 blur → 收起 → 按钮消失 → click 丢失
+  const blurTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const handleBlur = useCallback(() => {
+    blurTimerRef.current = setTimeout(() => setIsFocused(false), 150)
+  }, [])
+  // focus 时清掉 pending 的 blur timer（比如点了按钮后焦点又回到 textarea）
+  useEffect(() => {
+    if (isFocused && blurTimerRef.current) {
+      clearTimeout(blurTimerRef.current)
+      blurTimerRef.current = null
+    }
+  }, [isFocused])
 
   // 注册输入框容器用于动画
   useEffect(() => {
