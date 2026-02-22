@@ -135,7 +135,7 @@ export function InputToolbar({
       className="flex items-center justify-between px-3 pb-3 relative"
     >
       {/* Left side: Model (mobile) + Agent + Variant selectors */}
-      <div className="flex items-center gap-1.5 md:gap-2 min-w-0 flex-1 mr-1">
+      <div className="flex items-center gap-1 md:gap-2 min-w-0 flex-1 mr-1">
         {/* Model Selector — 移动端显示在最左边 */}
         {isMobile && onModelChange && (
           <InputToolbarModelSelector
