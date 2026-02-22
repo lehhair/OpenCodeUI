@@ -18,9 +18,7 @@
 services:
   # ---- 统一入口：网关 ----
   gateway:
-    build:
-      context: .
-      dockerfile: docker/Dockerfile.gateway
+    image: ghcr.io/lehhair/opencodeui-gateway:latest
     container_name: opencode-gateway
     restart: unless-stopped
     ports:

@@ -1,18 +1,17 @@
-name: Build & Push Backend Docker Image
+name: Build & Push Gateway Docker Image
 
 on:
   push:
     branches: [main]
     paths:
-      - 'docker/Dockerfile.backend'
-  schedule:
-    # 每天自动重建，跟进 opencode 最新版本
-    - cron: '0 4 * * *'
+      - 'docker/Dockerfile.gateway'
+      - 'docker/Caddyfile.gateway'
+      - 'docker/router/**'
   workflow_dispatch:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository_owner }}/opencodeui-backend
+  IMAGE_NAME: ${{ github.repository_owner }}/opencodeui-gateway
 
 jobs:
   build-and-push:
@@ -51,7 +50,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: docker/Dockerfile.backend
+          file: docker/Dockerfile.gateway
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
