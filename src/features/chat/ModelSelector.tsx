@@ -582,7 +582,7 @@ export const InputToolbarModelSelector = memo(function InputToolbarModelSelector
         ref={triggerRef}
         onClick={() => isOpen ? closeMenu() : openMenu()}
         disabled={disabled || isLoading}
-        className="flex items-center gap-1.5 px-2 py-1.5 text-sm rounded-lg transition-all duration-150 hover:bg-bg-200 active:scale-95 cursor-pointer min-w-0"
+        className="flex items-center gap-1.5 px-2 py-1.5 text-sm rounded-lg transition-all duration-150 hover:bg-bg-200 active:scale-95 cursor-pointer min-w-0 overflow-hidden"
         title={selectedModel?.name || 'Select model'}
       >
         <span className="text-xs text-text-300 truncate">{displayName}</span>
