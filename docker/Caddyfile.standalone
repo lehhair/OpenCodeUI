@@ -1,0 +1,21 @@
+# OpenCode WebUI - 纯前端独立部署
+# 静态文件 + API 反代到外部 opencode serve
+
+:3000 {
+	# API 反代（strip /api 前缀，SSE 需要 flush_interval -1）
+	handle_path /api/* {
+		reverse_proxy {$BACKEND_URL:host.docker.internal:4096} {
+			header_up Host {upstream_hostport}
+			flush_interval -1
+		}
+	}
+
+	# 前端静态文件
+	handle {
+		root * /srv
+		file_server
+		try_files {path} /index.html
+	}
+
+	encode gzip
+}

@@ -49,6 +49,31 @@ opencode serve --cors "https://lehhair.github.io"
 
 然后打开 https://lehhair.github.io/OpenCodeUI/
 
+## Docker 部署（纯前端）
+
+适用于已有 `opencode serve` 在运行的场景，只需一个前端 UI 容器连接到现有后端。
+
+```bash
+git clone https://github.com/lehhair/OpenCodeUI.git
+cd OpenCodeUI
+
+# 启动（默认连接宿主机的 opencode serve :4096）
+docker compose -f docker-compose.standalone.yml up -d
+```
+
+访问 `http://localhost:3000`。
+
+**连接远程后端：**
+
+```bash
+BACKEND_URL=your-server.com:4096 PORT=8080 docker compose -f docker-compose.standalone.yml up -d
+```
+
+| 环境变量 | 默认值 | 说明 |
+|---------|--------|------|
+| `BACKEND_URL` | `host.docker.internal:4096` | opencode serve 地址（不含协议前缀） |
+| `PORT` | `3000` | 前端监听端口 |
+
 ## Docker 部署
 
 ### 架构与端口

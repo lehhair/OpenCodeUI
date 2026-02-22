@@ -1,0 +1,26 @@
+# ============================================
+# OpenCode WebUI - 纯前端独立部署
+# ============================================
+# 适用于已有 opencode serve 的场景，只需前端 UI
+#
+# 使用方法：
+#   docker compose -f docker-compose.standalone.yml up -d
+#
+# 环境变量：
+#   BACKEND_URL  - opencode serve 地址（默认 host.docker.internal:4096）
+#   PORT         - 前端监听端口（默认 3000）
+
+services:
+  frontend:
+    image: ghcr.io/lehhair/opencodeui-frontend:latest
+    container_name: opencodeui
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      - BACKEND_URL=${BACKEND_URL:-host.docker.internal:4096}
+    volumes:
+      - ./docker/Caddyfile.standalone:/etc/caddy/Caddyfile:ro
+    # Linux 需要 host.docker.internal 支持
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
