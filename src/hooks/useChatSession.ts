@@ -215,6 +215,10 @@ export function useChatSession({ chatAreaRef, currentModel, refetchModels }: Use
         refreshPendingRequests(sessionFamily, effectiveDirectory)
       }
       refetchModels().catch(() => {})
+      // 重新获取 agents 列表（切换后端时 currentDirectory 可能没变，useEffect 不会触发）
+      getSelectableAgents(currentDirectory)
+        .then(setAgents)
+        .catch(() => {})
     },
   })
 
