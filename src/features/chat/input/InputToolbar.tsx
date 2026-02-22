@@ -135,7 +135,7 @@ export function InputToolbar({
       className="flex items-center justify-between px-3 pb-3 relative"
     >
       {/* Left side: Model (mobile) + Agent + Variant selectors */}
-      <div className="flex items-center gap-1 md:gap-2">
+      <div className="flex items-center gap-1 md:gap-2 min-w-0 flex-1 mr-1">
         {/* Model Selector — 移动端显示在最左边 */}
         {isMobile && onModelChange && (
           <InputToolbarModelSelector
@@ -148,19 +148,19 @@ export function InputToolbar({
         )}
 
         {/* Agent Selector */}
-        <AnimatedPresence show={selectableAgents.length > 1}>
-          <div className="relative">
+        <AnimatedPresence show={selectableAgents.length > 1} className="min-w-0">
+          <div className="relative min-w-0">
             <button
               ref={agentTriggerRef}
               onClick={() => setAgentMenuOpen(!agentMenuOpen)}
-              className="flex items-center gap-1.5 px-2 py-1.5 text-sm rounded-lg transition-all duration-150 hover:bg-bg-200 active:scale-95 cursor-pointer"
+              className="flex items-center gap-1.5 px-2 py-1.5 text-sm rounded-lg transition-all duration-150 hover:bg-bg-200 active:scale-95 cursor-pointer min-w-0"
               title={currentAgent ? `${currentAgent.name}${currentAgent.description ? ': ' + currentAgent.description : ''}` : selectedAgent || 'build'}
             >
               {/* 移动端隐藏 AgentIcon 节省空间 */}
               <span className="text-text-400 hidden md:inline" style={currentAgent?.color ? { color: currentAgent.color } : undefined}>
                 <AgentIcon />
               </span>
-              <span className="text-xs text-text-300 capitalize truncate max-w-[60px] md:max-w-[80px]">{selectedAgent || 'build'}</span>
+              <span className="text-xs text-text-300 capitalize truncate">{selectedAgent || 'build'}</span>
               <span className="text-text-400 hidden md:inline"><ChevronDownIcon /></span>
             </button>
 
@@ -182,17 +182,17 @@ export function InputToolbar({
         </AnimatedPresence>
 
         {/* Variant Selector */}
-        <AnimatedPresence show={variants.length > 0}>
-          <div className="relative">
+        <AnimatedPresence show={variants.length > 0} className="min-w-0">
+          <div className="relative min-w-0">
             <button
               ref={variantTriggerRef}
               onClick={() => setVariantMenuOpen(!variantMenuOpen)}
-              className="flex items-center gap-1.5 px-2 py-1.5 text-sm rounded-lg transition-all duration-150 hover:bg-bg-200 active:scale-95 cursor-pointer"
+              className="flex items-center gap-1.5 px-2 py-1.5 text-sm rounded-lg transition-all duration-150 hover:bg-bg-200 active:scale-95 cursor-pointer min-w-0"
               title={selectedVariant ? selectedVariant.charAt(0).toUpperCase() + selectedVariant.slice(1) : 'Default'}
             >
               {/* 移动端隐藏 ThinkingIcon */}
               <span className="text-text-400 hidden md:inline"><ThinkingIcon /></span>
-              <span className="text-xs text-text-300 truncate max-w-[60px] md:max-w-[80px]">
+              <span className="text-xs text-text-300 truncate">
                 {selectedVariant ? selectedVariant.charAt(0).toUpperCase() + selectedVariant.slice(1) : 'Default'}
               </span>
               <span className="text-text-400 hidden md:inline"><ChevronDownIcon /></span>
@@ -222,7 +222,7 @@ export function InputToolbar({
       </div>
 
       {/* Action Buttons */}
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-1 shrink-0">
         <AnimatedPresence show={supportsImages}>
           <>
             {/* 浏览器模式下的隐藏文件输入 */}

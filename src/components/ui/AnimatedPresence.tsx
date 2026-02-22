@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 
-export function AnimatedPresence({ show, children }: { show: boolean; children: React.ReactNode }) {
+export function AnimatedPresence({ show, children, className }: { show: boolean; children: React.ReactNode; className?: string }) {
   const [shouldRender, setShouldRender] = useState(show)
   const [isVisible, setIsVisible] = useState(false)
   
@@ -20,7 +20,7 @@ export function AnimatedPresence({ show, children }: { show: boolean; children: 
   if (!shouldRender) return null
   
   return (
-    <div style={{
+    <div className={className} style={{
       transition: 'opacity 200ms ease-out, transform 200ms cubic-bezier(0.34, 1.15, 0.64, 1)',
       opacity: isVisible ? 1 : 0,
       transform: isVisible ? 'scale(1)' : 'scale(0.9)',
