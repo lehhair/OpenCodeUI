@@ -135,7 +135,7 @@ export function InputToolbar({
       className="flex items-center justify-between px-3 pb-3 relative"
     >
       {/* Left side: Model (mobile) + Agent + Variant selectors */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1 md:gap-2">
         {/* Model Selector — 移动端显示在最左边 */}
         {isMobile && onModelChange && (
           <InputToolbarModelSelector
@@ -160,8 +160,8 @@ export function InputToolbar({
               <span className="text-text-400 hidden md:inline" style={currentAgent?.color ? { color: currentAgent.color } : undefined}>
                 <AgentIcon />
               </span>
-              <span className="text-xs text-text-300 capitalize truncate max-w-[80px]">{selectedAgent || 'build'}</span>
-              <span className="text-text-400"><ChevronDownIcon /></span>
+              <span className="text-xs text-text-300 capitalize truncate max-w-[60px] md:max-w-[80px]">{selectedAgent || 'build'}</span>
+              <span className="text-text-400 hidden md:inline"><ChevronDownIcon /></span>
             </button>
 
             <DropdownMenu triggerRef={agentTriggerRef} isOpen={agentMenuOpen} position="top" align="left" constrainToRef={inputContainerRef}>
@@ -192,10 +192,10 @@ export function InputToolbar({
             >
               {/* 移动端隐藏 ThinkingIcon */}
               <span className="text-text-400 hidden md:inline"><ThinkingIcon /></span>
-              <span className="text-xs text-text-300 truncate max-w-[80px]">
+              <span className="text-xs text-text-300 truncate max-w-[60px] md:max-w-[80px]">
                 {selectedVariant ? selectedVariant.charAt(0).toUpperCase() + selectedVariant.slice(1) : 'Default'}
               </span>
-              <span className="text-text-400"><ChevronDownIcon /></span>
+              <span className="text-text-400 hidden md:inline"><ChevronDownIcon /></span>
             </button>
 
             <DropdownMenu triggerRef={variantTriggerRef} isOpen={variantMenuOpen} position="top" align="left" minWidth="auto" constrainToRef={inputContainerRef}>

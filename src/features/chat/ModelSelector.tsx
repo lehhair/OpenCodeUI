@@ -585,8 +585,8 @@ export const InputToolbarModelSelector = memo(function InputToolbarModelSelector
         className="flex items-center gap-1.5 px-2 py-1.5 text-sm rounded-lg transition-all duration-150 hover:bg-bg-200 active:scale-95 cursor-pointer"
         title={selectedModel?.name || 'Select model'}
       >
-        <span className="text-xs text-text-300 truncate max-w-[100px]">{displayName}</span>
-        <span className="text-text-400"><ChevronDownIcon /></span>
+        <span className="text-xs text-text-300 truncate max-w-[100px] md:max-w-[120px]">{displayName}</span>
+        <span className="text-text-400 hidden md:inline"><ChevronDownIcon /></span>
       </button>
 
       {/* 菜单：向上弹出，和 PC 端列表样式一致 */}
