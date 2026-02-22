@@ -1,8 +1,11 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { ChevronDownIcon, SendIcon, StopIcon, ImageIcon, AgentIcon, ThinkingIcon } from '../../../components/Icons'
 import { DropdownMenu, MenuItem, IconButton, AnimatedPresence } from '../../../components/ui'
+import { InputToolbarModelSelector } from '../ModelSelector'
+import { useIsMobile } from '../../../hooks'
 import { isTauri } from '../../../utils/tauri'
 import type { ApiAgent } from '../../../api/client'
+import type { ModelInfo } from '../../../api'
 
 interface InputToolbarProps {
   agents: ApiAgent[]
@@ -21,6 +24,14 @@ interface InputToolbarProps {
   
   canSend: boolean
   onSend: () => void
+
+  // Model selection（移动端显示在工具栏）
+  models?: ModelInfo[]
+  selectedModelKey?: string | null
+  onModelChange?: (modelKey: string, model: ModelInfo) => void
+  modelsLoading?: boolean
+  // 输入框容器 ref，用于约束菜单边界
+  inputContainerRef?: React.RefObject<HTMLDivElement | null>
 }
 
 export function InputToolbar({ 
@@ -36,7 +47,13 @@ export function InputToolbar({
   onAbort,
   canSend,
   onSend,
+  models = [],
+  selectedModelKey = null,
+  onModelChange,
+  modelsLoading = false,
+  inputContainerRef,
 }: InputToolbarProps) {
+  const isMobile = useIsMobile()
   // State for menus
   const [agentMenuOpen, setAgentMenuOpen] = useState(false)
   const [variantMenuOpen, setVariantMenuOpen] = useState(false)
@@ -117,8 +134,19 @@ export function InputToolbar({
     <div
       className="flex items-center justify-between px-3 pb-3 relative"
     >
-      {/* Left side: Agent + Variant selectors */}
+      {/* Left side: Model (mobile) + Agent + Variant selectors */}
       <div className="flex items-center gap-2">
+        {/* Model Selector — 移动端显示在最左边 */}
+        {isMobile && onModelChange && (
+          <InputToolbarModelSelector
+            models={models}
+            selectedModelKey={selectedModelKey}
+            onSelect={onModelChange}
+            isLoading={modelsLoading}
+            constrainToRef={inputContainerRef}
+          />
+        )}
+
         {/* Agent Selector */}
         <AnimatedPresence show={selectableAgents.length > 1}>
           <div className="relative">
@@ -128,14 +156,15 @@ export function InputToolbar({
               className="flex items-center gap-1.5 px-2 py-1.5 text-sm rounded-lg transition-all duration-150 hover:bg-bg-200 active:scale-95 cursor-pointer"
               title={currentAgent ? `${currentAgent.name}${currentAgent.description ? ': ' + currentAgent.description : ''}` : selectedAgent || 'build'}
             >
-              <span className="text-text-400" style={currentAgent?.color ? { color: currentAgent.color } : undefined}>
+              {/* 移动端隐藏 AgentIcon 节省空间 */}
+              <span className="text-text-400 hidden md:inline" style={currentAgent?.color ? { color: currentAgent.color } : undefined}>
                 <AgentIcon />
               </span>
               <span className="text-xs text-text-300 capitalize truncate max-w-[80px]">{selectedAgent || 'build'}</span>
               <span className="text-text-400"><ChevronDownIcon /></span>
             </button>
 
-            <DropdownMenu triggerRef={agentTriggerRef} isOpen={agentMenuOpen} position="top" align="left">
+            <DropdownMenu triggerRef={agentTriggerRef} isOpen={agentMenuOpen} position="top" align="left" constrainToRef={inputContainerRef}>
               <div ref={agentMenuRef}>
                 {selectableAgents.map(agent => (
                   <MenuItem
@@ -161,14 +190,15 @@ export function InputToolbar({
               className="flex items-center gap-1.5 px-2 py-1.5 text-sm rounded-lg transition-all duration-150 hover:bg-bg-200 active:scale-95 cursor-pointer"
               title={selectedVariant ? selectedVariant.charAt(0).toUpperCase() + selectedVariant.slice(1) : 'Default'}
             >
-              <span className="text-text-400"><ThinkingIcon /></span>
+              {/* 移动端隐藏 ThinkingIcon */}
+              <span className="text-text-400 hidden md:inline"><ThinkingIcon /></span>
               <span className="text-xs text-text-300 truncate max-w-[80px]">
                 {selectedVariant ? selectedVariant.charAt(0).toUpperCase() + selectedVariant.slice(1) : 'Default'}
               </span>
               <span className="text-text-400"><ChevronDownIcon /></span>
             </button>
 
-            <DropdownMenu triggerRef={variantTriggerRef} isOpen={variantMenuOpen} position="top" align="left" minWidth="auto">
+            <DropdownMenu triggerRef={variantTriggerRef} isOpen={variantMenuOpen} position="top" align="left" minWidth="auto" constrainToRef={inputContainerRef}>
               <div ref={variantMenuRef}>
                 <MenuItem
                   label="Default"

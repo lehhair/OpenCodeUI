@@ -14,6 +14,8 @@ interface DropdownMenuProps {
   maxWidth?: number | string
   /** 移动端（<640px）全宽展开，左右留 gap 间距 */
   mobileFullWidth?: boolean
+  /** 约束菜单在此容器的边界内（宽度 ≤ 容器 65%，不溢出左右） */
+  constrainToRef?: React.RefObject<HTMLElement | null>
   className?: string
   children: React.ReactNode
 }
@@ -31,43 +33,77 @@ export function DropdownMenu({
   minWidth = '200px',
   maxWidth = 'min(320px, 90vw)',
   mobileFullWidth = false,
+  constrainToRef,
   className = '',
   children,
 }: DropdownMenuProps) {
   const [shouldRender, setShouldRender] = useState(isOpen)
   const [isVisible, setIsVisible] = useState(false)
-  const [style, setStyle] = useState<React.CSSProperties>({})
+  const [posStyle, setPosStyle] = useState<React.CSSProperties>({})
+  const [sizeStyle, setSizeStyle] = useState<React.CSSProperties>({})
 
   // 根据 trigger 位置计算 dropdown 定位
-  const calcStyle = () => {
-    if (!triggerRef.current) return {}
+  const calcStyles = () => {
+    if (!triggerRef.current) return { pos: {}, size: {} }
     const rect = triggerRef.current.getBoundingClientRect()
     const gap = 8
-    const isMobile = mobileFullWidth && window.innerWidth < 640
-    const s: React.CSSProperties = {}
+    const pos: React.CSSProperties = {}
+    const size: React.CSSProperties = {}
 
+    // --- 垂直定位 ---
     if (position === 'top') {
-      s.bottom = window.innerHeight - rect.top + gap
+      pos.bottom = window.innerHeight - rect.top + gap
     } else {
-      s.top = rect.bottom + gap
+      pos.top = rect.bottom + gap
     }
 
-    if (isMobile) {
-      s.left = 12
-      s.right = 12
-    } else if (align === 'right') {
-      s.right = window.innerWidth - rect.right
+    // --- 水平定位 + 宽度 ---
+    // constrainToRef 优先级最高
+    if (constrainToRef?.current) {
+      const cRect = constrainToRef.current.getBoundingClientRect()
+      // 按钮中点相对容器位置，决定对齐方向
+      const btnCenter = (rect.left + rect.right) / 2
+      const containerCenter = (cRect.left + cRect.right) / 2
+
+      if (btnCenter > containerCenter) {
+        // 按钮偏右 → 右对齐，maxWidth = 按钮右边缘到容器左边缘
+        pos.right = window.innerWidth - rect.right
+        size.maxWidth = rect.right - cRect.left
+        size.transformOrigin = position === 'top' ? 'bottom right' : 'top right'
+      } else {
+        // 按钮偏左 → 左对齐，maxWidth = 容器右边缘到按钮左边缘
+        pos.left = rect.left
+        size.maxWidth = cRect.right - rect.left
+        size.transformOrigin = position === 'top' ? 'bottom left' : 'top left'
+      }
+    } else if (mobileFullWidth && window.innerWidth < 640) {
+      // 移动端全宽（无 constrainToRef 时的 fallback）
+      pos.left = 12
+      pos.right = 12
+      size.transformOrigin = position === 'top' ? 'bottom' : 'top'
     } else {
-      s.left = rect.left
+      // 普通模式
+      if (align === 'right') {
+        pos.right = window.innerWidth - rect.right
+      } else {
+        pos.left = rect.left
+      }
+      size.width = width || 'auto'
+      size.minWidth = minWidth
+      size.maxWidth = maxWidth
+      size.transformOrigin = position === 'top' ? 'bottom' : 'top'
     }
-    return s
+
+    return { pos, size }
   }
 
-  // Handle animation lifecycle — 打开时同步算好初始位置再渲染
+  // Handle animation lifecycle
   useEffect(() => {
     if (isOpen) {
-      styleRef.current = calcStyle()
-      setStyle(styleRef.current)
+      const { pos, size } = calcStyles()
+      posRef.current = pos
+      setPosStyle(pos)
+      setSizeStyle(size)
       setShouldRender(true)
       requestAnimationFrame(() => {
         requestAnimationFrame(() => setIsVisible(true))
@@ -79,54 +115,43 @@ export function DropdownMenu({
     }
   }, [isOpen])
 
-  // 打开期间持续跟踪位置（键盘弹起/收起、窗口 resize 等）
-  const styleRef = useRef<React.CSSProperties>({})
+  // 打开期间持续跟踪位置
+  const posRef = useRef<React.CSSProperties>({})
   useEffect(() => {
     if (!shouldRender) return
 
     let rafId: number
     const tick = () => {
-      const newStyle = calcStyle()
+      const { pos, size } = calcStyles()
 
-      const prev = styleRef.current
-      if (prev.top !== newStyle.top || prev.bottom !== newStyle.bottom
-        || prev.left !== newStyle.left || prev.right !== newStyle.right) {
-        styleRef.current = newStyle
-        setStyle(newStyle)
+      const prev = posRef.current
+      if (prev.top !== pos.top || prev.bottom !== pos.bottom
+        || prev.left !== pos.left || prev.right !== pos.right) {
+        posRef.current = pos
+        setPosStyle(pos)
+        setSizeStyle(size)
       }
       rafId = requestAnimationFrame(tick)
     }
     rafId = requestAnimationFrame(tick)
 
     return () => cancelAnimationFrame(rafId)
-  }, [shouldRender, triggerRef, position, align, mobileFullWidth])
+  }, [shouldRender, triggerRef, position, align, mobileFullWidth, constrainToRef])
 
   if (!shouldRender) return null
 
-  // 移动端全宽模式下，宽度由外层 left/right 决定
-  const isMobileMode = mobileFullWidth && typeof window !== 'undefined' && window.innerWidth < 640
-  
   return createPortal(
     <div
-      className="fixed z-[100]"
-      style={style}
+      className={`
+        fixed z-[100]
+        p-1 bg-bg-000 border border-border-200/50 backdrop-blur-xl rounded-xl shadow-xl
+        transition-all duration-200 cubic-bezier(0.34, 1.15, 0.64, 1)
+        ${isVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}
+        ${className}
+      `}
+      style={{ ...posStyle, ...sizeStyle }}
     >
-      <div
-        className={`
-          p-1 bg-bg-000 border border-border-200/50 backdrop-blur-xl rounded-xl shadow-xl
-          transition-all duration-200 cubic-bezier(0.34, 1.15, 0.64, 1)
-          ${isVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}
-          ${className}
-        `}
-        style={{ 
-          width: isMobileMode ? 'auto' : (width || 'auto'),
-          minWidth: isMobileMode ? undefined : minWidth,
-          maxWidth: isMobileMode ? undefined : maxWidth,
-          transformOrigin: position === 'top' ? 'bottom' : 'top'
-        }}
-      >
-        {children}
-      </div>
+      {children}
     </div>,
     document.body
   )

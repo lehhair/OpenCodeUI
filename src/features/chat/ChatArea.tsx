@@ -17,6 +17,7 @@ import {
   VIRTUOSO_ESTIMATED_ITEM_HEIGHT,
   MESSAGE_PREFETCH_BUFFER,
 } from '../../constants'
+import { useIsMobile } from '../../hooks'
 
 interface ChatAreaProps {
   messages: Message[]
@@ -100,6 +101,9 @@ export const ChatArea = memo(forwardRef<ChatAreaHandle, ChatAreaProps>(({
   onAtBottomChange,
 }, ref) => {
   const virtuosoRef = useRef<VirtuosoHandle>(null)
+  const isMobile = useIsMobile()
+  // 移动端输入框收起/展开会导致 ~80px 高度差，加大阈值防止 isAtBottom 抖动
+  const atBottomThreshold = isMobile ? 150 : AT_BOTTOM_THRESHOLD_PX
   // 外部滚动容器
   const [scrollParent, setScrollParent] = useState<HTMLElement | null>(null)
   // 追踪用户是否在底部附近 - 用于决定是否自动滚动
@@ -434,7 +438,7 @@ export const ChatArea = memo(forwardRef<ChatAreaHandle, ChatAreaProps>(({
             followOutput={handleFollowOutput}
             atBottomStateChange={handleAtBottomStateChange}
             isScrolling={handleIsScrolling}
-            atBottomThreshold={AT_BOTTOM_THRESHOLD_PX}
+            atBottomThreshold={atBottomThreshold}
             defaultItemHeight={VIRTUOSO_ESTIMATED_ITEM_HEIGHT}
             skipAnimationFrameInResizeObserver
             overscan={{ main: VIRTUOSO_OVERSCAN_PX, reverse: VIRTUOSO_OVERSCAN_PX }}

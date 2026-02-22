@@ -8,8 +8,9 @@ import { UndoStatus } from './input/UndoStatus'
 import { useImageCompressor } from '../../hooks/useImageCompressor'
 import { keybindingStore, matchesKeybinding } from '../../store/keybindingStore'
 import { useIsMobile } from '../../hooks'
-import { ArrowDownIcon, PermissionListIcon, QuestionIcon } from '../../components/Icons'
+import { ArrowDownIcon, ArrowUpIcon, PermissionListIcon, QuestionIcon } from '../../components/Icons'
 import type { ApiAgent } from '../../api/client'
+import type { ModelInfo } from '../../api'
 import type { Command } from '../../api/command'
 
 // ============================================
@@ -36,6 +37,11 @@ export interface InputBoxProps {
   selectedVariant?: string
   onVariantChange?: (variant: string | undefined) => void
   supportsImages?: boolean
+  // Model（移动端 InputToolbar 用）
+  models?: ModelInfo[]
+  selectedModelKey?: string | null
+  onModelChange?: (modelKey: string, model: ModelInfo) => void
+  modelsLoading?: boolean
   rootPath?: string
   sessionId?: string | null
   // Undo/Redo
@@ -48,6 +54,7 @@ export interface InputBoxProps {
   onClearRevert?: () => void
   // Animation
   registerInputBox?: (element: HTMLElement | null) => void
+  isAtBottom?: boolean
   showScrollToBottom?: boolean
   onScrollToBottom?: () => void
   // Collapsed dialog capsules
@@ -73,6 +80,10 @@ function InputBoxComponent({
   selectedVariant,
   onVariantChange,
   supportsImages = false,
+  models = [],
+  selectedModelKey = null,
+  onModelChange,
+  modelsLoading = false,
   rootPath = '',
   sessionId,
   revertedText,
@@ -83,6 +94,7 @@ function InputBoxComponent({
   onRedoAll,
   onClearRevert,
   registerInputBox,
+  isAtBottom = true,
   showScrollToBottom = false,
   onScrollToBottom,
   collapsedPermission,
@@ -113,13 +125,40 @@ function InputBoxComponent({
   const slashMenuRef = useRef<SlashCommandMenuHandle>(null)
   const prevRevertedTextRef = useRef<string | undefined>(undefined)
 
+  // ============================================
+  // Mobile Input Dock: 滚动收起/展开
+  // ============================================
+  // isFocused: textarea 是否聚焦中
+  const [isFocused, setIsFocused] = useState(false)
+
+  // 直接计算是否收起（纯派生值）
+  const hasContent = text.trim().length > 0 || attachments.length > 0
+  const hasPendingDialogs = !!collapsedPermission || !!collapsedQuestion
+  const isCollapsed = isMobile
+    && !isAtBottom
+    && !hasContent
+    && !isFocused
+    && !hasPendingDialogs
+
+  // 点击胶囊展开：先标记聚焦（阻止收起），等输入框渲染后 focus textarea
+  const handleExpandInput = useCallback(() => {
+    setIsFocused(true)
+    requestAnimationFrame(() => {
+      textareaRef.current?.focus()
+    })
+  }, [])
+
+  // textarea focus/blur 追踪
+  const handleFocus = useCallback(() => setIsFocused(true), [])
+  const handleBlur = useCallback(() => setIsFocused(false), [])
+
   // 注册输入框容器用于动画
   useEffect(() => {
     if (registerInputBox) {
-      registerInputBox(inputContainerRef.current)
+      registerInputBox(isCollapsed ? null : inputContainerRef.current)
       return () => registerInputBox(null)
     }
-  }, [registerInputBox])
+  }, [registerInputBox, isCollapsed])
 
   // 处理 revert 恢复
   useEffect(() => {
@@ -598,7 +637,7 @@ function InputBoxComponent({
                   onRedoAll={onRedoAll} 
                 />
               )}
-              {showScrollToBottom && (
+              {showScrollToBottom && !isCollapsed && (
                 <button
                   type="button"
                   onClick={onScrollToBottom}
@@ -610,97 +649,130 @@ function InputBoxComponent({
               )}
             </div>
           )}
-          
-          {/* Input Container */}
-          <div 
-            ref={inputContainerRef}
-            data-input-box
-            className={`bg-bg-000 rounded-2xl relative z-30 transition-all focus-within:outline-none shadow-lg shadow-black/5 ${
-              isStreaming 
-                ? 'border border-accent-main-100/50 animate-border-pulse' 
-                : 'border border-border-200/50'
-            }`}
-          >
-            {/* @ Mention Menu */}
-            <MentionMenu
-              ref={mentionMenuRef}
-              isOpen={mentionOpen}
-              query={mentionQuery}
-              agents={agents}
-              rootPath={rootPath}
-              excludeValues={excludeValues}
-              onSelect={handleMentionSelect}
-              onNavigate={updateMentionQuery}
-              onClose={handleMentionClose}
-            />
-            
-            {/* / Slash Command Menu */}
-            <SlashCommandMenu
-              ref={slashMenuRef}
-              isOpen={slashOpen}
-              query={slashQuery}
-              rootPath={rootPath}
-              onSelect={handleSlashSelect}
-              onClose={handleSlashClose}
-            />
-            
-            <div className="relative">
-              <div className="overflow-hidden">
-                {/* Attachments Preview - 显示在输入框上方 */}
-                <div className={`overflow-hidden transition-all duration-300 ease-out ${
-                  attachments.length > 0 ? 'max-h-40 opacity-100' : 'max-h-0 opacity-0'
-                }`}>
-                  <div className="px-4 pt-3">
-                    <AttachmentPreview 
-                      attachments={attachments}
-                      onRemove={handleRemoveAttachment}
+
+          {/* Collapsed Capsule - 移动端收起状态 */}
+          {isCollapsed ? (
+            <div className="flex items-center justify-center gap-2 animate-in fade-in slide-in-from-bottom-2 duration-200">
+              <button
+                type="button"
+                onClick={handleExpandInput}
+                className="flex items-center gap-1.5 px-3 h-[32px] rounded-full bg-bg-000/95 backdrop-blur-md border border-border-200/50 shadow-lg shadow-black/5 text-text-300 hover:text-text-200 hover:bg-bg-000 active:scale-95 transition-all"
+              >
+                <ArrowUpIcon size={14} />
+                <span className="text-[11px]">Reply...</span>
+              </button>
+              {showScrollToBottom && (
+                <button
+                  type="button"
+                  onClick={onScrollToBottom}
+                  className="h-[32px] w-[32px] min-w-[32px] rounded-full bg-accent-main-100/10 border border-accent-main-100/20 backdrop-blur-md flex items-center justify-center text-accent-main-000 hover:bg-accent-main-100/20 transition-colors shrink-0"
+                  aria-label="Scroll to bottom"
+                >
+                  <ArrowDownIcon size={16} />
+                </button>
+              )}
+            </div>
+          ) : (
+            <>
+              {/* Input Container */}
+              <div 
+                ref={inputContainerRef}
+                data-input-box
+                className={`bg-bg-000 rounded-2xl relative z-30 transition-all focus-within:outline-none shadow-lg shadow-black/5 ${
+                  isStreaming 
+                    ? 'border border-accent-main-100/50 animate-border-pulse' 
+                    : 'border border-border-200/50'
+                }`}
+              >
+                {/* @ Mention Menu */}
+                <MentionMenu
+                  ref={mentionMenuRef}
+                  isOpen={mentionOpen}
+                  query={mentionQuery}
+                  agents={agents}
+                  rootPath={rootPath}
+                  excludeValues={excludeValues}
+                  onSelect={handleMentionSelect}
+                  onNavigate={updateMentionQuery}
+                  onClose={handleMentionClose}
+                />
+                
+                {/* / Slash Command Menu */}
+                <SlashCommandMenu
+                  ref={slashMenuRef}
+                  isOpen={slashOpen}
+                  query={slashQuery}
+                  rootPath={rootPath}
+                  onSelect={handleSlashSelect}
+                  onClose={handleSlashClose}
+                />
+                
+                <div className="relative">
+                  <div className="overflow-hidden">
+                    {/* Attachments Preview - 显示在输入框上方 */}
+                    <div className={`overflow-hidden transition-all duration-300 ease-out ${
+                      attachments.length > 0 ? 'max-h-40 opacity-100' : 'max-h-0 opacity-0'
+                    }`}>
+                      <div className="px-4 pt-3">
+                        <AttachmentPreview 
+                          attachments={attachments}
+                          onRemove={handleRemoveAttachment}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Text Input - 简单的 textarea，直接显示文本 */}
+                    <div className="px-4 pt-4 pb-2">
+                      <textarea
+                        ref={textareaRef}
+                        value={text}
+                        onChange={handleChange}
+                        onKeyDown={handleKeyDown}
+                        onPaste={handlePaste}
+                        onScroll={handleScroll}
+                        onFocus={handleFocus}
+                        onBlur={handleBlur}
+                        placeholder={isMobile ? "Reply to Agent..." : "Reply to Agent (type @ to mention, / for commands)"}
+                        className="w-full resize-none focus:outline-none focus:ring-0 bg-transparent text-text-100 placeholder:text-text-400 custom-scrollbar"
+                        style={{ 
+                          ...TEXT_STYLE,
+                          minHeight: '24px', 
+                          maxHeight: isMobile
+                            ? 'calc(var(--app-height, 100vh) - 220px)'
+                            : '35vh',
+                        }}
+                        rows={1}
+                      />
+                    </div>
+
+                    {/* Bottom Bar -> InputToolbar */}
+                    <InputToolbar 
+                      agents={agents}
+                      selectedAgent={selectedAgent}
+                      onAgentChange={onAgentChange}
+                      variants={variants}
+                      selectedVariant={selectedVariant}
+                      onVariantChange={onVariantChange}
+                      supportsImages={supportsImages}
+                      onImageUpload={handleImageUpload}
+                      isStreaming={isStreaming}
+                      onAbort={onAbort}
+                      canSend={canSend || false} 
+                      onSend={handleSend}
+                      models={models}
+                      selectedModelKey={selectedModelKey}
+                      onModelChange={onModelChange}
+                      modelsLoading={modelsLoading}
+                      inputContainerRef={inputContainerRef}
                     />
                   </div>
                 </div>
-
-                {/* Text Input - 简单的 textarea，直接显示文本 */}
-                <div className="px-4 pt-4 pb-2">
-                  <textarea
-                    ref={textareaRef}
-                    value={text}
-                    onChange={handleChange}
-                    onKeyDown={handleKeyDown}
-                    onPaste={handlePaste}
-                    onScroll={handleScroll}
-                    placeholder={isMobile ? "Reply to Agent..." : "Reply to Agent (type @ to mention, / for commands)"}
-                    className="w-full resize-none focus:outline-none focus:ring-0 bg-transparent text-text-100 placeholder:text-text-400 custom-scrollbar"
-                    style={{ 
-                      ...TEXT_STYLE,
-                      minHeight: '24px', 
-                      maxHeight: isMobile
-                        ? 'calc(var(--app-height, 100vh) - 220px)'
-                        : '35vh',
-                    }}
-                    rows={1}
-                  />
-                </div>
-
-                {/* Bottom Bar -> InputToolbar */}
-                <InputToolbar 
-                  agents={agents}
-                  selectedAgent={selectedAgent}
-                  onAgentChange={onAgentChange}
-                  variants={variants}
-                  selectedVariant={selectedVariant}
-                  onVariantChange={onVariantChange}
-                  supportsImages={supportsImages}
-                  onImageUpload={handleImageUpload}
-                  isStreaming={isStreaming}
-                  onAbort={onAbort}
-                  canSend={canSend || false} 
-                  onSend={handleSend}
-                />
               </div>
-            </div>
-          </div>
 
-          {/* Footer: disclaimer + todo progress — 键盘弹起时被键盘遮挡，无需隐藏 */}
-          <InputFooter sessionId={sessionId} onNewChat={onNewChat} inputContainerRef={inputContainerRef} />
+              {/* Footer: disclaimer + todo progress — 键盘弹起时被键盘遮挡，无需隐藏 */}
+              <InputFooter sessionId={sessionId} onNewChat={onNewChat} inputContainerRef={inputContainerRef} />
+            </>
+          )}
         </div>
       </div>
     </div>

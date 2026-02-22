@@ -544,6 +544,10 @@ function App() {
                 selectedVariant={selectedVariant}
                 onVariantChange={handleVariantChange}
                 supportsImages={currentModel?.supportsImages ?? false}
+                models={models}
+                selectedModelKey={selectedModelKey}
+                onModelChange={handleModelChange}
+                modelsLoading={modelsLoading}
                 rootPath={effectiveDirectory}
                 sessionId={routeSessionId}
                 revertedText={revertedMessage?.text}
@@ -554,6 +558,7 @@ function App() {
                 onRedoAll={handleRedoAll}
                 onClearRevert={clearRevert}
                 registerInputBox={registerInputBox}
+                isAtBottom={isAtBottom}
                 showScrollToBottom={!isAtBottom}
                 onScrollToBottom={() => chatAreaRef.current?.scrollToBottom()}
                 collapsedPermission={
