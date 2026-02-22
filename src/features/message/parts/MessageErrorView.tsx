@@ -1,39 +1,78 @@
-import { memo } from 'react'
+import { memo, useState, useMemo } from 'react'
 import type { MessageError } from '../../../types/message'
-import { AlertCircleIcon } from '../../../components/Icons'
+import { AlertCircleIcon, ChevronDownIcon } from '../../../components/Icons'
+import { useDelayedRender } from '../../../hooks/useDelayedRender'
+import { CodeBlock } from '../../../components/CodeBlock'
 
 interface MessageErrorViewProps {
   error: MessageError
 }
 
 /**
- * 消息级别的错误显示
+ * 消息级别的错误显示（紧凑折叠式）
  * 用于 AssistantMessage 的 error 字段
  */
 export const MessageErrorView = memo(function MessageErrorView({ error }: MessageErrorViewProps) {
   const { title, description, details, severity } = getErrorInfo(error)
-  
-  const bgClass = severity === 'error' ? 'bg-danger-100/10' : 'bg-warning-100/10'
-  const borderClass = severity === 'error' ? 'border-danger-100/30' : 'border-warning-100/30'
-  const iconClass = severity === 'error' ? 'text-danger-100' : 'text-warning-100'
-  const titleClass = severity === 'error' ? 'text-danger-100' : 'text-warning-100'
-  
+  const hasDetails = !!(details || description)
+  const [expanded, setExpanded] = useState(false)
+  const shouldRenderBody = useDelayedRender(expanded)
+
+  const colorClass = severity === 'error' ? 'text-danger-100' : 'text-warning-100'
+  const borderClass = severity === 'error' ? 'border-danger-100/20' : 'border-warning-100/20'
+
+  // details 如果是 JSON 就格式化方便阅读，否则原样展示
+  const formattedDetails = useMemo(() => {
+    if (!details) return undefined
+    try {
+      return JSON.stringify(JSON.parse(details), null, 2)
+    } catch {
+      return details
+    }
+  }, [details])
+
+  // 检测 details 是否为 JSON，决定 CodeBlock 语言
+  const detailsLang = useMemo(() => {
+    if (!details) return 'text'
+    try {
+      JSON.parse(details)
+      return 'json'
+    } catch {
+      return 'text'
+    }
+  }, [details])
+
   return (
-    <div className={`rounded-xl border ${borderClass} ${bgClass} overflow-hidden`}>
-      <div className="flex items-start gap-3 px-4 py-3">
-        <AlertCircleIcon className={`w-5 h-5 flex-shrink-0 mt-0.5 ${iconClass}`} />
-        <div className="flex-1 min-w-0">
-          <h4 className={`text-sm font-medium ${titleClass}`}>
-            {title}
-          </h4>
-          <p className="text-sm text-text-300 mt-1">
-            {description}
-          </p>
-          {details && (
-            <div className="mt-2 p-2 rounded-lg bg-bg-300/50 border border-border-200/30">
-              <pre className="text-xs text-text-400 font-mono whitespace-pre-wrap break-all">
-                {details}
-              </pre>
+    <div className={`my-2 px-3 py-2 rounded-lg border ${borderClass} bg-bg-100/50`}>
+      <div
+        className={`flex items-center gap-2 ${hasDetails ? 'cursor-pointer' : ''}`}
+        onClick={() => hasDetails && setExpanded(!expanded)}
+      >
+        <AlertCircleIcon className={`w-4 h-4 ${colorClass} flex-shrink-0`} />
+        <span className={`text-sm ${colorClass} flex-1 min-w-0 truncate`}>
+          {title}
+        </span>
+        {hasDetails && (
+          <ChevronDownIcon className={`w-4 h-4 text-text-400 transition-transform duration-300 ${expanded ? 'rotate-180' : ''}`} />
+        )}
+      </div>
+
+      <div className={`grid transition-[grid-template-rows,opacity] duration-300 ease-out ${
+        expanded ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
+      }`}>
+        <div className="overflow-hidden">
+          {shouldRenderBody && (
+            <div className={`mt-2 pt-2 space-y-1.5 border-t ${borderClass}`}>
+              <p className="text-xs text-text-300 break-words">
+                {description}
+              </p>
+              {formattedDetails && (
+                <CodeBlock
+                  code={formattedDetails}
+                  language={detailsLang}
+                  maxHeight={240}
+                />
+              )}
             </div>
           )}
         </div>
@@ -90,4 +129,3 @@ function getErrorInfo(error: MessageError): {
       }
   }
 }
-

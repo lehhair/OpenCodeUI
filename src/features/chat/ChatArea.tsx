@@ -56,8 +56,10 @@ export type ChatAreaHandle = {
 // 检查消息是否有可见内容
 function messageHasContent(msg: Message): boolean {
   if (msg.parts.length === 0) {
-    // 被中止或出错且从未产生内容的 assistant 消息，不显示
-    if (msg.info.role === 'assistant' && 'error' in msg.info && msg.info.error) return false
+    // 有错误的 assistant 消息：中止类错误不显示，其他错误（API错误等）需要展示给用户
+    if (msg.info.role === 'assistant' && 'error' in msg.info && msg.info.error) {
+      return msg.info.error.name !== 'MessageAbortedError'
+    }
     return true
   }
   return msg.parts.some(part => {

@@ -255,6 +255,14 @@ const AssistantMessageView = memo(function AssistantMessageView({ message, onEns
   const messageError = (info as AssistantMessageInfo).error
 
   if (!isStreaming && parts.length === 0) {
+    // 有错误时直接显示错误信息
+    if (messageError) {
+      return (
+        <div className="flex flex-col gap-2 w-full">
+          <MessageErrorView error={messageError} />
+        </div>
+      )
+    }
     // 使用骨架屏占位，预留合理高度减少 CLS
     return (
       <div className="flex flex-col gap-2 w-full min-h-[80px]">
