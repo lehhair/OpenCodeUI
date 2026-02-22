@@ -576,17 +576,17 @@ export const InputToolbarModelSelector = memo(function InputToolbarModelSelector
   }, [itemIndices, flatList, highlightedIndex, handleSelect, closeMenu])
 
   return (
-    <div ref={containerRef} className="relative font-sans min-w-0">
+    <div ref={containerRef} className="relative font-sans min-w-0 overflow-hidden">
       {/* 触发按钮：和 agent/variant 按钮统一风格 */}
       <button
         ref={triggerRef}
         onClick={() => isOpen ? closeMenu() : openMenu()}
         disabled={disabled || isLoading}
-        className="flex items-center gap-1.5 px-2 py-1.5 text-sm rounded-lg transition-all duration-150 hover:bg-bg-200 active:scale-95 cursor-pointer min-w-0 overflow-hidden"
+        className="flex items-center gap-1.5 px-2 py-1.5 text-sm rounded-lg transition-all duration-150 hover:bg-bg-200 active:scale-95 cursor-pointer min-w-0 overflow-hidden w-full"
         title={selectedModel?.name || 'Select model'}
       >
         <span className="text-xs text-text-300 truncate">{displayName}</span>
-        <span className="text-text-400 hidden md:inline"><ChevronDownIcon /></span>
+        <span className="text-text-400 hidden md:inline shrink-0"><ChevronDownIcon /></span>
       </button>
 
       {/* 菜单：向上弹出，和 PC 端列表样式一致 */}
