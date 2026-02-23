@@ -447,54 +447,56 @@ type RenderItem =
   | { type: 'single'; part: Part }
   | { type: 'tool-group'; parts: Part[]; stepFinish?: StepFinishPart }
 
+/** parts[from..] 跳过基础设施和空内容后，下一个有意义的 part 是否为 tool */
+function hasMoreToolsAhead(parts: Part[], from: number): boolean {
+  for (let k = from; k < parts.length; k++) {
+    const t = parts[k].type
+    if (t === 'step-start' || t === 'step-finish' || t === 'snapshot' || t === 'patch') continue
+    if (t === 'text' && !(parts[k] as TextPart).text?.trim()) continue
+    if (t === 'reasoning' && !(parts[k] as ReasoningPart).text?.trim()) continue
+    return t === 'tool'
+  }
+  return false
+}
+
 function groupPartsForRender(parts: Part[]): RenderItem[] {
   const result: RenderItem[] = []
-  let currentToolGroup: ToolPart[] = []
+  let toolGroup: ToolPart[] = []
+  let stepFinish: StepFinishPart | undefined
+  
+  const flushToolGroup = (sf?: StepFinishPart) => {
+    if (toolGroup.length === 0) return
+    result.push({ type: 'tool-group', parts: toolGroup, stepFinish: sf })
+    toolGroup = []
+    stepFinish = undefined
+  }
   
   for (let i = 0; i < parts.length; i++) {
     const part = parts[i]
     
-    // 跳过不渲染的 parts（内部状态 + 冗余信息）
-    // patch: 文件变更已在 tool diff 中显示
-    if (part.type === 'step-start' || part.type === 'snapshot' || part.type === 'patch') {
-      continue
-    }
-    
-    // 跳过空 text
-    if (part.type === 'text' && !(part as TextPart).text?.trim()) {
-      continue
-    }
-    
-    // 跳过 synthetic text（用户消息处理）
-    if (part.type === 'text' && (part as TextPart).synthetic) {
-      continue
-    }
+    // 跳过不渲染的 parts
+    if (part.type === 'step-start' || part.type === 'snapshot' || part.type === 'patch') continue
+    if (part.type === 'text' && (!(part as TextPart).text?.trim() || (part as TextPart).synthetic)) continue
+    if (part.type === 'reasoning' && !(part as ReasoningPart).text?.trim()) continue
     
     if (part.type === 'tool') {
-      currentToolGroup.push(part as ToolPart)
+      toolGroup.push(part as ToolPart)
     } else if (part.type === 'step-finish') {
-      // 如果有 tool group，把 step-finish 附加到它上面
-      if (currentToolGroup.length > 0) {
-        result.push({ type: 'tool-group', parts: currentToolGroup, stepFinish: part as StepFinishPart })
-        currentToolGroup = []
+      if (toolGroup.length > 0 && hasMoreToolsAhead(parts, i + 1)) {
+        // 中间 step-finish：后面还有 tool，暂存不 flush
+        stepFinish = part as StepFinishPart
+      } else if (toolGroup.length > 0) {
+        // 最后一个 step-finish，结束 tool group
+        flushToolGroup(part as StepFinishPart)
       } else {
-        // 独立的 step-finish（没有 tools）
         result.push({ type: 'single', part })
       }
     } else {
-      // 遇到非 tool part，先输出累积的 tool group
-      if (currentToolGroup.length > 0) {
-        result.push({ type: 'tool-group', parts: currentToolGroup })
-        currentToolGroup = []
-      }
+      flushToolGroup(stepFinish)
       result.push({ type: 'single', part })
     }
   }
   
-  // 输出最后的 tool group
-  if (currentToolGroup.length > 0) {
-    result.push({ type: 'tool-group', parts: currentToolGroup })
-  }
-  
+  flushToolGroup(stepFinish)
   return result
 }

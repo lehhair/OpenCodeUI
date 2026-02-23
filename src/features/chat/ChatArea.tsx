@@ -81,6 +81,55 @@ function messageHasContent(msg: Message): boolean {
   })
 }
 
+/** assistant 消息最后一个有意义的 part 是否为 tool（跳过 step-finish 等基础设施） */
+function endsWithTool(msg: Message): boolean {
+  if (msg.info.role !== 'assistant') return false
+  for (let i = msg.parts.length - 1; i >= 0; i--) {
+    const t = msg.parts[i].type
+    if (t === 'step-finish' || t === 'snapshot' || t === 'patch') continue
+    return t === 'tool'
+  }
+  return false
+}
+
+/** 后续 assistant 消息是否为纯工具调用（无可见正文、无可见思考） */
+function isToolOnlyFollowUp(msg: Message): boolean {
+  if (msg.info.role !== 'assistant') return false
+  let hasTool = false
+  for (const p of msg.parts) {
+    if (p.type === 'tool') { hasTool = true; continue }
+    if (p.type === 'step-start' || p.type === 'step-finish' || p.type === 'snapshot' || p.type === 'patch') continue
+    if (p.type === 'text' && !(p as any).text?.trim()) continue
+    if (p.type === 'reasoning' && !(p as any).text?.trim()) continue
+    // 有可见内容（非空 text/reasoning、subtask、file、agent 等）→ 不可合并
+    return false
+  }
+  return hasTool
+}
+
+/**
+ * 合并连续的工具消息：以 tool 结尾的 assistant 消息吸收后续的纯工具 assistant 消息，
+ * 使它们在渲染层作为同一条消息处理，tool parts 合并到一个 group 中
+ */
+function mergeConsecutiveToolMessages(messages: Message[]): Message[] {
+  const result: Message[] = []
+  for (let i = 0; i < messages.length; i++) {
+    const msg = messages[i]
+    if (!endsWithTool(msg)) { result.push(msg); continue }
+    // 收集后续可合并的纯工具消息
+    let j = i + 1
+    while (j < messages.length && isToolOnlyFollowUp(messages[j])) j++
+    if (j === i + 1) {
+      result.push(msg)
+    } else {
+      const tailParts = messages.slice(i + 1, j).flatMap(m => m.parts)
+      result.push({ ...msg, parts: [...msg.parts, ...tailParts] })
+      i = j - 1
+    }
+  }
+  return result
+}
+
 // 大数字作为起始索引，允许向前 prepend
 const START_INDEX = VIRTUOSO_START_INDEX
 
@@ -176,8 +225,11 @@ export const ChatArea = memo(forwardRef<ChatAreaHandle, ChatAreaProps>(({
     }
   }, [onLoadMore, hasMoreHistory])
   
-  // 过滤空消息（有 memo 避免每次 render 都创建新数组）
-  const visibleMessages = useMemo(() => messages.filter(messageHasContent), [messages])
+  // 过滤空消息 + 合并连续工具 assistant 消息
+  const visibleMessages = useMemo(
+    () => mergeConsecutiveToolMessages(messages.filter(messageHasContent)),
+    [messages]
+  )
   
   // 用 ref 追踪最新的消息数量，确保回调和 effect 中能获取到
   const visibleMessagesCountRef = useRef(visibleMessages.length)
