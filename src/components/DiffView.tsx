@@ -285,8 +285,9 @@ export const DiffView = memo(function DiffView({
           >
             <table className="min-w-full border-collapse">
               <colgroup>
-                <col className="w-[40px]" />
-                <col className="w-[40px]" />
+                <col className="w-[32px]" />
+                <col className="w-[32px]" />
+                <col className="w-[20px]" />
                 <col />
               </colgroup>
               <tbody>
@@ -301,20 +302,23 @@ export const DiffView = memo(function DiffView({
                     className="hover:bg-opacity-50 transition-colors"
                   >
                     {/* Old Line Number */}
-                    <td className={clsx("px-2 py-0.5 text-right text-text-500 border-r border-border-200/10 select-none opacity-50 tabular-nums align-top", rowBgClass)}>
-                      {line.type === 'delete' && <span className="text-danger-100 opacity-100 font-bold">−</span>}
+                    <td className={clsx("px-1 py-0.5 text-right text-text-500 border-r border-border-200/10 select-none opacity-50 tabular-nums align-top", rowBgClass)}>
                       {line.type !== 'add' && (line.oldLineNo! + startLines.old - 1)}
                     </td>
                     
                     {/* New Line Number */}
-                    <td className={clsx("px-2 py-0.5 text-right text-text-500 border-r border-border-200/10 select-none opacity-50 tabular-nums align-top", rowBgClass)}>
-                      {line.type === 'add' && <span className="text-success-100 opacity-100 font-bold">+</span>}
+                    <td className={clsx("px-1 py-0.5 text-right text-text-500 border-r border-border-200/10 select-none opacity-50 tabular-nums align-top", rowBgClass)}>
                       {line.type !== 'delete' && (line.newLineNo! + startLines.new - 1)}
                     </td>
 
+                    {/* +/- Indicator */}
+                    <td className={clsx("py-0.5 text-center select-none align-top", rowBgClass)}>
+                      {line.type === 'add' && <span className="text-success-100 font-bold">+</span>}
+                      {line.type === 'delete' && <span className="text-danger-100 font-bold">−</span>}
+                    </td>
+
                     {/* Code Content */}
-                    <td className={clsx("px-4 py-0.5 relative group align-top", rowBgClass)}>
-                      {/* The code itself */}
+                    <td className={clsx("pr-4 py-0.5 align-top", rowBgClass)}>
                       <div 
                         className="whitespace-pre font-mono text-text-100"
                         dangerouslySetInnerHTML={{ __html: line.content }}
