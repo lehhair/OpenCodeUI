@@ -654,7 +654,7 @@ function GeneralSettings() {
                       }}
                       placeholder="KEY"
                       className="w-[120px] shrink-0 h-7 px-2 text-[11px] font-mono bg-bg-200/50 border border-border-200 rounded 
-                        focus:outline-none focus:border-accent-main-100/50 text-text-100 placeholder:text-text-500 uppercase"
+                        focus:outline-none focus:border-accent-main-100/50 text-text-100 placeholder:text-text-500"
                     />
                     <span className="text-text-500 text-[11px] shrink-0">=</span>
                     <input
