@@ -8,7 +8,7 @@ import { UndoStatus } from './input/UndoStatus'
 import { useImageCompressor } from '../../hooks/useImageCompressor'
 import { keybindingStore, matchesKeybinding } from '../../store/keybindingStore'
 import { useMessages } from '../../store/messageStore'
-import { getMessageText } from '../../types/message'
+import { getMessageText, type FilePart, type AgentPart } from '../../types/message'
 import { useIsMobile } from '../../hooks'
 import { ArrowDownIcon, ArrowUpIcon, PermissionListIcon, QuestionIcon } from '../../components/Icons'
 import type { ApiAgent } from '../../api/client'
@@ -130,25 +130,63 @@ function InputBoxComponent({
   // ============================================
   // 历史消息导航（类终端体验）
   // ============================================
+  interface HistoryEntry { text: string; attachments: Attachment[] }
+
   const messages = useMessages()
-  const userHistory = useMemo(() => {
-    // 从消息列表中提取用户输入文本，按时间正序，去重
-    const texts: string[] = []
+  const userHistory = useMemo((): HistoryEntry[] => {
+    const entries: HistoryEntry[] = []
     const seen = new Set<string>()
     for (const msg of messages) {
       if (msg.info.role !== 'user') continue
       const t = getMessageText(msg).trim()
-      if (t && !seen.has(t)) {
-        seen.add(t)
-        texts.push(t)
+      if (!t || seen.has(t)) continue
+      seen.add(t)
+
+      // 提取附件（复用 undo 的逻辑）
+      const atts: Attachment[] = []
+      for (const part of msg.parts) {
+        if (part.type === 'file') {
+          const fp = part as FilePart
+          const isFolder = fp.mime === 'application/x-directory'
+          const sourcePath = fp.source && 'path' in fp.source ? fp.source.path :
+                            fp.source && 'uri' in fp.source ? (fp.source as any).uri : undefined
+          atts.push({
+            id: fp.id || crypto.randomUUID(),
+            type: isFolder ? 'folder' : 'file',
+            displayName: fp.filename || sourcePath || 'file',
+            url: fp.url,
+            mime: fp.mime,
+            relativePath: sourcePath,
+            textRange: fp.source?.text ? {
+              value: fp.source.text.value,
+              start: fp.source.text.start,
+              end: fp.source.text.end,
+            } : undefined,
+          })
+        } else if (part.type === 'agent') {
+          const ap = part as AgentPart
+          atts.push({
+            id: ap.id || crypto.randomUUID(),
+            type: 'agent',
+            displayName: ap.name,
+            agentName: ap.name,
+            textRange: ap.source ? {
+              value: ap.source.value,
+              start: ap.source.start,
+              end: ap.source.end,
+            } : undefined,
+          })
+        }
       }
+      entries.push({ text: t, attachments: atts })
     }
-    return texts
+    return entries
   }, [messages])
-  // -1 表示未进入历史模式，0 = 最后一条，往上递增
+
+  // -1 = 未进入历史模式，0 = 最后一条，往上递增
   const historyIndexRef = useRef(-1)
-  // 进入历史前暂存的输入（可能用户已经打了一半字又取消了）
-  const savedInputRef = useRef('')
+  // 进入历史前暂存用户的输入
+  const savedInputRef = useRef<HistoryEntry>({ text: '', attachments: [] })
 
   // ============================================
   // Mobile Input Dock: 滚动收起/展开
@@ -355,30 +393,62 @@ function InputBoxComponent({
       return
     }
     
-    // 历史消息导航（仅输入框为空时，类终端体验）
-    if (e.key === 'ArrowUp' && text.trim() === '' && userHistory.length > 0) {
-      e.preventDefault()
-      if (historyIndexRef.current === -1) {
-        // 刚进入历史模式，暂存当前输入
-        savedInputRef.current = text
+    // 历史消息导航（类终端体验）
+    // 进入条件：光标在首行 + (内容为空 或 正在浏览历史且内容未被修改)
+    if (e.key === 'ArrowUp' && userHistory.length > 0) {
+      const ta = textareaRef.current
+      if (ta) {
+        const cursorAtFirstLine = ta.selectionStart === ta.selectionEnd
+          && ta.value.lastIndexOf('\n', ta.selectionStart - 1) === -1
+
+        const inHistory = historyIndexRef.current >= 0
+        const currentEntry = inHistory
+          ? userHistory[userHistory.length - 1 - historyIndexRef.current]
+          : null
+        const contentUnmodified = inHistory && currentEntry && text === currentEntry.text
+
+        if (cursorAtFirstLine && (text.trim() === '' || contentUnmodified)) {
+          e.preventDefault()
+          if (!inHistory) {
+            // 刚进入历史模式，暂存当前输入
+            savedInputRef.current = { text, attachments: [...attachments] }
+          }
+          const nextIndex = Math.min(historyIndexRef.current + 1, userHistory.length - 1)
+          if (nextIndex !== historyIndexRef.current) {
+            historyIndexRef.current = nextIndex
+            const entry = userHistory[userHistory.length - 1 - nextIndex]
+            setText(entry.text)
+            setAttachments(entry.attachments)
+          }
+          return
+        }
       }
-      const nextIndex = Math.min(historyIndexRef.current + 1, userHistory.length - 1)
-      historyIndexRef.current = nextIndex
-      // 从末尾往前拿
-      setText(userHistory[userHistory.length - 1 - nextIndex])
-      return
     }
     if (e.key === 'ArrowDown' && historyIndexRef.current >= 0) {
-      e.preventDefault()
-      const nextIndex = historyIndexRef.current - 1
-      historyIndexRef.current = nextIndex
-      if (nextIndex < 0) {
-        // 退出历史模式，恢复暂存的输入
-        setText(savedInputRef.current)
-      } else {
-        setText(userHistory[userHistory.length - 1 - nextIndex])
+      const ta = textareaRef.current
+      if (ta) {
+        const cursorAtLastLine = ta.selectionStart === ta.selectionEnd
+          && ta.value.indexOf('\n', ta.selectionStart) === -1
+
+        const currentEntry = userHistory[userHistory.length - 1 - historyIndexRef.current]
+        const contentUnmodified = currentEntry && text === currentEntry.text
+
+        if (cursorAtLastLine && contentUnmodified) {
+          e.preventDefault()
+          const nextIndex = historyIndexRef.current - 1
+          historyIndexRef.current = nextIndex
+          if (nextIndex < 0) {
+            // 退出历史模式，恢复暂存的输入
+            setText(savedInputRef.current.text)
+            setAttachments(savedInputRef.current.attachments)
+          } else {
+            const entry = userHistory[userHistory.length - 1 - nextIndex]
+            setText(entry.text)
+            setAttachments(entry.attachments)
+          }
+          return
+        }
       }
-      return
     }
     
     // 发送消息（读取 keybinding 配置）
@@ -387,7 +457,7 @@ function InputBoxComponent({
       e.preventDefault()
       handleSend()
     }
-  }, [mentionOpen, slashOpen, mentionQuery, handleSend, text, userHistory])
+  }, [mentionOpen, slashOpen, mentionQuery, handleSend, text, attachments, userHistory])
   
   // 更新 @ 查询文本（用于进入/退出文件夹）
   const updateMentionQuery = useCallback((newQuery: string) => {
@@ -413,8 +483,13 @@ function InputBoxComponent({
     const newText = e.target.value
     setText(newText)
     
-    // 用户手动输入，退出历史导航模式
-    historyIndexRef.current = -1
+    // 用户修改了内容，检查是否应退出历史模式
+    if (historyIndexRef.current >= 0) {
+      const currentEntry = userHistory[userHistory.length - 1 - historyIndexRef.current]
+      if (!currentEntry || newText !== currentEntry.text) {
+        historyIndexRef.current = -1
+      }
+    }
     
     // 同步检测 mention 是否被破坏/删除
     // 比对 attachments 的 textRange：如果文本中对应位置不再匹配，删除该 attachment
