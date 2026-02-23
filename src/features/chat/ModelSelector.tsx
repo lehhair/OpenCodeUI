@@ -5,7 +5,7 @@
  */
 
 import { useState, useRef, useEffect, useMemo, useCallback, memo, forwardRef, useImperativeHandle } from 'react'
-import { ChevronDownIcon, SearchIcon, ThinkingIcon, EyeIcon, CheckIcon } from '../../components/Icons'
+import { ChevronDownIcon, SearchIcon, ThinkingIcon, EyeIcon, CheckIcon, PinIcon } from '../../components/Icons'
 import { DropdownMenu } from '../../components/ui'
 import type { ModelInfo } from '../../api'
 import {
@@ -13,6 +13,9 @@ import {
   groupModelsByProvider,
   getRecentModels,
   recordModelUsage,
+  getPinnedModels,
+  isModelPinned,
+  toggleModelPin,
 } from '../../utils/modelUtils'
 
 interface ModelSelectorProps {
@@ -69,17 +72,32 @@ export const ModelSelector = memo(forwardRef<ModelSelectorHandle, ModelSelectorP
   const { flatList } = useMemo(() => {
     const groups = groupModelsByProvider(filteredModels)
     const recent = searchQuery ? [] : getRecentModels(models, 5)
+    const pinned = searchQuery ? [] : getPinnedModels(models)
     
     let flat: Array<{ type: 'header' | 'item', data: any, key: string }> = []
     const addedKeys = new Set<string>()
     
-    if (recent.length > 0) {
-      flat.push({ type: 'header', data: { name: 'Recent' }, key: 'header-recent' })
-      recent.forEach(m => {
+    // Pinned 分组优先
+    if (pinned.length > 0) {
+      flat.push({ type: 'header', data: { name: 'Pinned' }, key: 'header-pinned' })
+      pinned.forEach(m => {
         const key = getModelKey(m)
-        flat.push({ type: 'item', data: m, key: `recent-${key}` })
+        flat.push({ type: 'item', data: m, key: `pinned-${key}` })
         addedKeys.add(key)
       })
+    }
+    
+    if (recent.length > 0) {
+      // 排除已置顶的
+      const recentFiltered = recent.filter(m => !addedKeys.has(getModelKey(m)))
+      if (recentFiltered.length > 0) {
+        flat.push({ type: 'header', data: { name: 'Recent' }, key: 'header-recent' })
+        recentFiltered.forEach(m => {
+          const key = getModelKey(m)
+          flat.push({ type: 'item', data: m, key: `recent-${key}` })
+          addedKeys.add(key)
+        })
+      }
     }
     
     groups.forEach(g => {
@@ -152,6 +170,12 @@ export const ModelSelector = memo(forwardRef<ModelSelectorHandle, ModelSelectorP
     // 选择后刷新列表顺序，确保 Recent 更新
     setRefreshTrigger(c => c + 1)
   }, [onSelect, closeMenu])
+
+  const handleTogglePin = useCallback((e: React.MouseEvent, model: ModelInfo) => {
+    e.stopPropagation()
+    toggleModelPin(model)
+    setRefreshTrigger(c => c + 1)
+  }, [])
 
   useEffect(() => {
     if (isOpen) setTimeout(() => searchInputRef.current?.focus(), 50)
@@ -303,6 +327,7 @@ export const ModelSelector = memo(forwardRef<ModelSelectorHandle, ModelSelectorP
                   const itemKey = getModelKey(model)
                   const isSelected = selectedModelKey === itemKey
                   const isCurrentlyHighlighted = itemIndices[highlightedIndex] === index
+                  const pinned = isModelPinned(model)
 
                   return (
                     <div key={item.key}>
@@ -344,7 +369,7 @@ export const ModelSelector = memo(forwardRef<ModelSelectorHandle, ModelSelectorP
                           </div>
                         </div>
 
-                        {/* Right: Meta Info */}
+                        {/* Right: Meta Info + Pin */}
                         <div className="flex items-center gap-3 text-xs font-mono flex-shrink-0 ml-4">
                           <span className="text-text-500 max-w-[100px] truncate text-right">
                             {model.providerName}
@@ -352,6 +377,17 @@ export const ModelSelector = memo(forwardRef<ModelSelectorHandle, ModelSelectorP
                           <span className="text-text-500 w-[4ch] text-right">
                             {formatContext(model.contextLimit)}
                           </span>
+                          <button
+                            onClick={(e) => handleTogglePin(e, model)}
+                            title={pinned ? 'Unpin' : 'Pin to top'}
+                            className={`flex-shrink-0 p-0.5 rounded transition-all duration-150 ${
+                              pinned
+                                ? 'text-accent-main-100 opacity-80 hover:opacity-100'
+                                : 'text-text-500 opacity-0 group-hover:opacity-50 hover:!opacity-100'
+                            }`}
+                          >
+                            <PinIcon size={13} />
+                          </button>
                           {isSelected && (
                             <span className="text-accent-secondary-100 flex-shrink-0">
                               <CheckIcon />
@@ -430,17 +466,31 @@ export const InputToolbarModelSelector = memo(function InputToolbarModelSelector
   const { flatList } = useMemo(() => {
     const groups = groupModelsByProvider(filteredModels)
     const recent = searchQuery ? [] : getRecentModels(models, 5)
+    const pinned = searchQuery ? [] : getPinnedModels(models)
     
     let flat: Array<{ type: 'header' | 'item', data: any, key: string }> = []
     const addedKeys = new Set<string>()
     
-    if (recent.length > 0) {
-      flat.push({ type: 'header', data: { name: 'Recent' }, key: 'header-recent' })
-      recent.forEach(m => {
+    // Pinned 分组优先
+    if (pinned.length > 0) {
+      flat.push({ type: 'header', data: { name: 'Pinned' }, key: 'header-pinned' })
+      pinned.forEach(m => {
         const key = getModelKey(m)
-        flat.push({ type: 'item', data: m, key: `recent-${key}` })
+        flat.push({ type: 'item', data: m, key: `pinned-${key}` })
         addedKeys.add(key)
       })
+    }
+    
+    if (recent.length > 0) {
+      const recentFiltered = recent.filter(m => !addedKeys.has(getModelKey(m)))
+      if (recentFiltered.length > 0) {
+        flat.push({ type: 'header', data: { name: 'Recent' }, key: 'header-recent' })
+        recentFiltered.forEach(m => {
+          const key = getModelKey(m)
+          flat.push({ type: 'item', data: m, key: `recent-${key}` })
+          addedKeys.add(key)
+        })
+      }
     }
     
     groups.forEach(g => {
@@ -498,6 +548,37 @@ export const InputToolbarModelSelector = memo(function InputToolbarModelSelector
     closeMenu()
     setRefreshTrigger(c => c + 1)
   }, [onSelect, closeMenu])
+
+  // 长按置顶：touchStart 开始计时，touchEnd/touchMove 取消
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const longPressFiredRef = useRef(false)
+
+  const handleTouchStart = useCallback((model: ModelInfo) => {
+    longPressFiredRef.current = false
+    longPressTimerRef.current = setTimeout(() => {
+      longPressFiredRef.current = true
+      toggleModelPin(model)
+      setRefreshTrigger(c => c + 1)
+      // 触觉反馈
+      if (navigator.vibrate) navigator.vibrate(30)
+    }, 500)
+  }, [])
+
+  const handleTouchEnd = useCallback(() => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current)
+      longPressTimerRef.current = null
+    }
+  }, [])
+
+  const handleItemClick = useCallback((model: ModelInfo) => {
+    // 长按已触发则不走 select
+    if (longPressFiredRef.current) {
+      longPressFiredRef.current = false
+      return
+    }
+    handleSelect(model)
+  }, [handleSelect])
 
   useEffect(() => {
     if (isOpen) setTimeout(() => searchInputRef.current?.focus(), 50)
@@ -642,12 +723,16 @@ export const InputToolbarModelSelector = memo(function InputToolbarModelSelector
                   const itemKey = getModelKey(model)
                   const isSelected = selectedModelKey === itemKey
                   const isHL = itemIndices[highlightedIndex] === index
+                  const pinned = isModelPinned(model)
 
                   return (
                     <div key={item.key}>
                       <div
                         id={`itms-item-${index}`}
-                        onClick={() => handleSelect(model)}
+                        onClick={() => handleItemClick(model)}
+                        onTouchStart={() => handleTouchStart(model)}
+                        onTouchEnd={handleTouchEnd}
+                        onTouchMove={handleTouchEnd}
                         title={`${model.name} · ${model.providerName}${model.contextLimit ? ` · ${formatContext(model.contextLimit)}` : ''}`}
                         onMouseMove={(e) => {
                           if (ignoreMouseRef.current) return
@@ -657,13 +742,18 @@ export const InputToolbarModelSelector = memo(function InputToolbarModelSelector
                           if (hIndex !== -1 && hIndex !== highlightedIndex) setHighlightedIndex(hIndex)
                         }}
                         className={`
-                          scroll-mt-7 grid grid-cols-[minmax(0,1fr)_auto] gap-x-2 items-center px-2 py-2 rounded-lg cursor-pointer text-sm font-sans transition-all duration-150 mt-px active:scale-[0.98]
+                          scroll-mt-7 group grid grid-cols-[minmax(0,1fr)_auto] gap-x-2 items-center px-2 py-2 rounded-lg cursor-pointer text-sm font-sans transition-all duration-150 mt-px select-none
                           ${isSelected ? 'bg-accent-main-100/10 text-accent-main-100' : 'text-text-200'}
                           ${isHL && !isSelected ? 'bg-bg-200 text-text-100' : ''}
                         `}
                       >
-                        {/* Row 1 left: Name + capability icons */}
+                        {/* Row 1 left: Name + pin indicator + capability icons */}
                         <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
+                          {pinned && (
+                            <span className="text-accent-main-100/60 shrink-0">
+                              <PinIcon size={11} />
+                            </span>
+                          )}
                           <span className={`truncate font-medium ${isSelected ? 'text-accent-main-100' : 'text-text-100'}`}>
                             {model.name}
                           </span>

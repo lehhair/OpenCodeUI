@@ -229,20 +229,20 @@ const TodoRow = memo(function TodoRow({ todo }: { todo: TodoItem }) {
   const isCancelled = todo.status === 'cancelled'
 
   return (
-    <div className={`flex items-start gap-2 px-3 py-1.5 text-xs ${
+    <div className={`flex items-center gap-2 px-3 py-1.5 text-xs ${
       isCompleted ? 'text-text-500' : isInProgress ? 'text-text-100' : 'text-text-300'
     }`}>
-      <span className="shrink-0 mt-[1px]">
+      <span className="shrink-0 flex items-center justify-center w-[13px] h-[13px]">
         {isCompleted && <CheckIcon size={13} className="text-accent-secondary-100" strokeWidth={2.5} />}
         {isInProgress && <ClockIcon size={13} className="text-accent-main-100" />}
         {isCancelled && <CloseIcon size={13} className="text-text-500" />}
         {todo.status === 'pending' && <CircleIcon size={13} className="text-text-500" />}
       </span>
-      <span className={`flex-1 leading-relaxed ${isCompleted ? 'line-through' : ''}`}>
+      <span className={`flex-1 ${isCompleted ? 'line-through' : ''}`}>
         {todo.content}
       </span>
       {todo.priority === 'high' && !isCompleted && (
-        <span className="text-[10px] text-warning-100 bg-warning-100/10 px-1 rounded shrink-0 mt-[1px]">!</span>
+        <span className="text-[10px] text-warning-100 bg-warning-100/10 px-1 rounded shrink-0">!</span>
       )}
     </div>
   )

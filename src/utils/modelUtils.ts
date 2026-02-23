@@ -46,6 +46,7 @@ export function findModelByKey(models: ModelInfo[], key: string): ModelInfo | un
 
 const STORAGE_KEY = 'model-usage-stats'
 const VARIANT_STORAGE_KEY = 'model-variant-prefs'
+const PINNED_STORAGE_KEY = 'model-pinned'
 
 interface ModelUsageStats {
   [modelKey: string]: {
@@ -289,4 +290,73 @@ export function getRecentModels(models: ModelInfo[], limit = 5): ModelInfo[] {
     })
   
   return usedModels.slice(0, limit)
+}
+
+// ============================================
+// 模型置顶
+// ============================================
+
+/**
+ * 获取所有置顶的模型 key 列表（有序）
+ */
+export function getPinnedModelKeys(): string[] {
+  try {
+    const stored = serverStorage.get(PINNED_STORAGE_KEY)
+    return stored ? JSON.parse(stored) : []
+  } catch {
+    return []
+  }
+}
+
+/**
+ * 判断模型是否已置顶
+ */
+export function isModelPinned(model: ModelInfo): boolean {
+  const key = getModelKey(model)
+  return getPinnedModelKeys().includes(key)
+}
+
+/**
+ * 切换模型置顶状态
+ */
+export function toggleModelPin(model: ModelInfo): boolean {
+  const key = getModelKey(model)
+  const pinned = getPinnedModelKeys()
+  const index = pinned.indexOf(key)
+  let nowPinned: boolean
+
+  if (index !== -1) {
+    pinned.splice(index, 1)
+    nowPinned = false
+  } else {
+    pinned.push(key)
+    nowPinned = true
+  }
+
+  try {
+    serverStorage.set(PINNED_STORAGE_KEY, JSON.stringify(pinned))
+  } catch (e) {
+    console.warn('Failed to save pinned models:', e)
+  }
+  return nowPinned
+}
+
+/**
+ * 获取置顶模型列表（保持置顶顺序）
+ */
+export function getPinnedModels(models: ModelInfo[]): ModelInfo[] {
+  const pinnedKeys = getPinnedModelKeys()
+  if (pinnedKeys.length === 0) return []
+  
+  const keySet = new Set(pinnedKeys)
+  const modelMap = new Map<string, ModelInfo>()
+  for (const m of models) {
+    const k = getModelKey(m)
+    if (keySet.has(k)) modelMap.set(k, m)
+  }
+  
+  // 保持置顶顺序
+  return pinnedKeys
+    .map(k => modelMap.get(k))
+    .filter((m): m is ModelInfo => !!m)
 }
