@@ -82,8 +82,6 @@ let reconnectTimer: ReturnType<typeof setTimeout> | null = null
 let keepaliveTimer: ReturnType<typeof setInterval> | null = null
 let isConnecting = false
 let lifecycleListenersRegistered = false
-/** 标记连接曾经成功过（用于判断是否为"重连"） */
-let hasConnectedBefore = false
 /** 连接代次，每次 reconnectSSE() 递增，旧代次的事件会被丢弃 */
 let connectionGeneration = 0
 /** 当前是否在后台 */
@@ -203,8 +201,6 @@ async function connectViaTauri() {
       switch (msg.event) {
         case 'connected': {
           isConnecting = false
-          const isReconnect = hasConnectedBefore
-          hasConnectedBefore = true
 
           updateConnectionState({
             state: 'connected',
@@ -213,13 +209,13 @@ async function connectViaTauri() {
           })
           resetHeartbeat()
           if (import.meta.env.DEV) {
-            console.log('[SSE/Tauri] Connected', isReconnect ? '(reconnected)' : '(first)')
+            console.log('[SSE/Tauri] Connected')
           }
-          if (isReconnect) {
-            const reason = isServerSwitch ? 'server-switch' as const : 'network' as const
-            isServerSwitch = false
-            allSubscribers.forEach(cb => cb.onReconnected?.(reason))
-          }
+          // 每次连接成功都通知订阅者刷新数据
+          // 覆盖场景：首次连接（先开 UI 后开 server）、网络重连、服务器切换
+          const reason = isServerSwitch ? 'server-switch' as const : 'network' as const
+          isServerSwitch = false
+          allSubscribers.forEach(cb => cb.onReconnected?.(reason))
           break
         }
         case 'message': {
@@ -314,10 +310,6 @@ function connectViaBrowser() {
         throw new Error(`Failed to subscribe: ${response.status}`)
       }
 
-      // 如果之前连接过，这次就是"重连"，通知订阅者刷新数据
-      const isReconnect = hasConnectedBefore
-      hasConnectedBefore = true
-
       updateConnectionState({ 
         state: 'connected', 
         reconnectAttempt: 0,
@@ -325,15 +317,14 @@ function connectViaBrowser() {
       })
       resetHeartbeat()
       if (import.meta.env.DEV) {
-        console.log('[SSE] Singleton connected', isReconnect ? '(reconnected)' : '(first)')
+        console.log('[SSE] Singleton connected')
       }
 
-      // 重连成功后通知所有订阅者
-      if (isReconnect) {
-        const reason = isServerSwitch ? 'server-switch' as const : 'network' as const
-        isServerSwitch = false
-        allSubscribers.forEach(cb => cb.onReconnected?.(reason))
-      }
+      // 每次连接成功都通知订阅者刷新数据
+      // 覆盖场景：首次连接（先开 UI 后开 server）、网络重连、服务器切换
+      const reason = isServerSwitch ? 'server-switch' as const : 'network' as const
+      isServerSwitch = false
+      allSubscribers.forEach(cb => cb.onReconnected?.(reason))
 
       const reader = response.body?.getReader()
       if (!reader) {
@@ -741,8 +732,7 @@ export function reconnectSSE() {
   }
   isConnecting = false
 
-  // 重置重连计数，但保留 hasConnectedBefore=true 以便触发 onReconnected
-  hasConnectedBefore = true
+  // 重置重连计数
   updateConnectionState({
     state: 'disconnected',
     reconnectAttempt: 0,
