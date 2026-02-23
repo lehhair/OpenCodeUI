@@ -377,7 +377,7 @@ function GeneralSettings() {
   const [collapseUserMessages, setCollapseUserMessages] = useState(themeStore.collapseUserMessages)
   const [toastEnabled, setToastEnabledState] = useState(notificationStore.toastEnabled)
   const isMobile = useIsMobile()
-  const { autoStart: autoStartService, binaryPath, running: serviceRunning, startedByUs, starting: serviceStarting } = useServiceStore()
+  const { autoStart: autoStartService, binaryPath, envVars, running: serviceRunning, startedByUs, starting: serviceStarting } = useServiceStore()
   const { activeServer } = useServerStore()
   const isTauriDesktop = isTauri() && !isMobile
 
@@ -440,6 +440,7 @@ function GeneralSettings() {
       const weStarted = await invoke<boolean>('start_opencode_service', {
         url: getServerUrl(),
         binaryPath: serviceStore.effectiveBinaryPath,
+        envVars: serviceStore.envVarsRecord,
       })
       serviceStore.setStartedByUs(weStarted)
       serviceStore.setRunning(true)
@@ -624,6 +625,66 @@ function GeneralSettings() {
               </Button>
             </div>
           </SettingRow>
+
+          {/* Environment Variables */}
+          <div className="mt-3">
+            <div className="flex items-center justify-between mb-1">
+              <div className="text-[11px] font-medium text-text-300">Environment Variables</div>
+              <button
+                className="text-[11px] text-accent-main-100 hover:text-accent-main-100/80 transition-colors"
+                onClick={() => serviceStore.setEnvVars([...envVars, { key: '', value: '' }])}
+              >
+                + Add
+              </button>
+            </div>
+            <div className="text-[11px] text-text-400 mb-2">
+              Passed to the opencode serve process (e.g. HTTPS_PROXY, API keys)
+            </div>
+            {envVars.length > 0 && (
+              <div className="flex flex-col gap-1.5">
+                {envVars.map((env, idx) => (
+                  <div key={idx} className="flex items-center gap-1.5">
+                    <input
+                      type="text"
+                      value={env.key}
+                      onChange={(e) => {
+                        const updated = [...envVars]
+                        updated[idx] = { ...updated[idx], key: e.target.value }
+                        serviceStore.setEnvVars(updated)
+                      }}
+                      placeholder="KEY"
+                      className="w-[120px] shrink-0 h-7 px-2 text-[11px] font-mono bg-bg-200/50 border border-border-200 rounded 
+                        focus:outline-none focus:border-accent-main-100/50 text-text-100 placeholder:text-text-500 uppercase"
+                    />
+                    <span className="text-text-500 text-[11px] shrink-0">=</span>
+                    <input
+                      type="text"
+                      value={env.value}
+                      onChange={(e) => {
+                        const updated = [...envVars]
+                        updated[idx] = { ...updated[idx], value: e.target.value }
+                        serviceStore.setEnvVars(updated)
+                      }}
+                      placeholder="value"
+                      className="flex-1 min-w-0 h-7 px-2 text-[11px] font-mono bg-bg-200/50 border border-border-200 rounded 
+                        focus:outline-none focus:border-accent-main-100/50 text-text-100 placeholder:text-text-500"
+                    />
+                    <button
+                      className="shrink-0 w-7 h-7 flex items-center justify-center text-text-400 hover:text-danger-100 
+                        hover:bg-danger-100/10 rounded transition-colors"
+                      onClick={() => {
+                        const updated = envVars.filter((_, i) => i !== idx)
+                        serviceStore.setEnvVars(updated)
+                      }}
+                      title="Remove"
+                    >
+                      <TrashIcon size={12} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
 
           {/* Error message */}
           {serviceError && (

@@ -58,7 +58,7 @@ if (isTauri()) {
     const binaryPath = serviceStore.effectiveBinaryPath
     import('@tauri-apps/api/core').then(({ invoke }) => {
       serviceStore.setStarting(true)
-      invoke<boolean>('start_opencode_service', { url: serverUrl, binaryPath })
+      invoke<boolean>('start_opencode_service', { url: serverUrl, binaryPath, envVars: serviceStore.envVarsRecord })
         .then((weStarted) => {
           serviceStore.setStartedByUs(weStarted)
           serviceStore.setRunning(true)

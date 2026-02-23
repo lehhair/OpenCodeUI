@@ -260,13 +260,24 @@ mod service {
     }
 
     /// 启动 opencode serve 进程
-    fn spawn_opencode_serve(binary_path: &str) -> Result<std::process::Child, String> {
+    fn spawn_opencode_serve(
+        binary_path: &str,
+        env_vars: &std::collections::HashMap<String, String>,
+    ) -> Result<std::process::Child, String> {
         log::info!("Starting opencode serve with binary: {}", binary_path);
+        if !env_vars.is_empty() {
+            log::info!("Injecting {} environment variable(s)", env_vars.len());
+        }
 
         let mut cmd = Command::new(binary_path);
         cmd.arg("serve")
             .stdout(Stdio::null())
             .stderr(Stdio::null());
+
+        // 注入用户配置的环境变量
+        for (key, value) in env_vars {
+            cmd.env(key, value);
+        }
 
         #[cfg(target_os = "windows")]
         {
@@ -316,13 +327,14 @@ mod service {
         state: State<'_, ServiceState>,
         url: String,
         binary_path: String,
+        env_vars: std::collections::HashMap<String, String>,
     ) -> Result<bool, String> {
         if is_service_running(&url).await {
             log::info!("opencode service already running at {}", url);
             return Ok(false);
         }
 
-        let child = spawn_opencode_serve(&binary_path)?;
+        let child = spawn_opencode_serve(&binary_path, &env_vars)?;
         let pid = child.id();
         log::info!("Started opencode serve, PID: {}", pid);
 
