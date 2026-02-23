@@ -298,10 +298,13 @@ mod service {
     pub fn kill_process_by_pid(pid: u32) {
         #[cfg(target_os = "windows")]
         {
+            use std::os::windows::process::CommandExt;
+            const CREATE_NO_WINDOW: u32 = 0x08000000;
             let _ = Command::new("taskkill")
                 .args(["/PID", &pid.to_string(), "/F", "/T"])
                 .stdout(Stdio::null())
                 .stderr(Stdio::null())
+                .creation_flags(CREATE_NO_WINDOW)
                 .spawn();
         }
 
