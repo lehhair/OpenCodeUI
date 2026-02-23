@@ -259,7 +259,7 @@ export const toolRegistry: ToolRegistry = [
   
   // Edit file
   {
-    match: includes('edit', 'replace'),
+    match: includes('edit', 'replace', 'patch'),
     icon: <FileWriteIcon />,
     extractData: editExtractData,
   },
