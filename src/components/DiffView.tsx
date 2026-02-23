@@ -302,26 +302,18 @@ export const DiffView = memo(function DiffView({
                   >
                     {/* Old Line Number */}
                     <td className={clsx("px-2 py-0.5 text-right text-text-500 border-r border-border-200/10 select-none opacity-50 tabular-nums align-top", rowBgClass)}>
+                      {line.type === 'delete' && <span className="text-danger-100 opacity-100 font-bold">−</span>}
                       {line.type !== 'add' && (line.oldLineNo! + startLines.old - 1)}
                     </td>
                     
                     {/* New Line Number */}
                     <td className={clsx("px-2 py-0.5 text-right text-text-500 border-r border-border-200/10 select-none opacity-50 tabular-nums align-top", rowBgClass)}>
+                      {line.type === 'add' && <span className="text-success-100 opacity-100 font-bold">+</span>}
                       {line.type !== 'delete' && (line.newLineNo! + startLines.new - 1)}
                     </td>
 
                     {/* Code Content */}
                     <td className={clsx("px-4 py-0.5 relative group align-top", rowBgClass)}>
-                      {/* Indicator for add/delete */}
-                      {(line.type === 'add' || line.type === 'delete') && (
-                        <span className={clsx(
-                          "absolute left-1 top-0.5 select-none font-bold opacity-70",
-                          line.type === 'add' ? "text-success-100" : "text-danger-100"
-                        )}>
-                          {line.type === 'add' ? '+' : '-'}
-                        </span>
-                      )}
-                      
                       {/* The code itself */}
                       <div 
                         className="whitespace-pre font-mono text-text-100"

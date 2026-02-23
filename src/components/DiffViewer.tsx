@@ -298,11 +298,11 @@ const SplitDiffView = memo(function SplitDiffView({
     
     leftRows.push(
       <div key={i} className={`flex min-w-full ${getLineBgClass(pair.left.type)}`} style={{ height: LINE_HEIGHT }}>
-        <div className="w-10 shrink-0 px-1 text-right text-text-500 text-[11px] leading-5 select-none opacity-60">
-          {pair.left.lineNo}
+        <div className="w-10 shrink-0 px-1 text-right text-[11px] leading-5 select-none opacity-60">
+          {pair.left.type === 'delete' && <span className="text-danger-100 opacity-100">−</span>}
+          <span className="text-text-500">{pair.left.lineNo}</span>
         </div>
         <div className="flex-1 px-2 leading-5 text-[11px] whitespace-pre">
-          {pair.left.type === 'delete' && <span className="text-danger-100 select-none mr-1">−</span>}
           {pair.left.type !== 'empty' && <LineContent line={pair.left} tokens={beforeTokens as any[][] | null} />}
         </div>
       </div>
@@ -310,11 +310,11 @@ const SplitDiffView = memo(function SplitDiffView({
     
     rightRows.push(
       <div key={i} className={`flex min-w-full ${getLineBgClass(pair.right.type)}`} style={{ height: LINE_HEIGHT }}>
-        <div className="w-10 shrink-0 px-1 text-right text-text-500 text-[11px] leading-5 select-none opacity-60">
-          {pair.right.lineNo}
+        <div className="w-10 shrink-0 px-1 text-right text-[11px] leading-5 select-none opacity-60">
+          {pair.right.type === 'add' && <span className="text-success-100 opacity-100">+</span>}
+          <span className="text-text-500">{pair.right.lineNo}</span>
         </div>
         <div className="flex-1 px-2 leading-5 text-[11px] whitespace-pre">
-          {pair.right.type === 'add' && <span className="text-success-100 select-none mr-1">+</span>}
           {pair.right.type !== 'empty' && <LineContent line={pair.right} tokens={afterTokens as any[][] | null} />}
         </div>
       </div>
@@ -471,15 +471,15 @@ const UnifiedDiffView = memo(function UnifiedDiffView({
     
     visibleRows.push(
       <div key={i} className={`flex min-w-full ${getLineBgClass(line.type)}`} style={{ height: LINE_HEIGHT }}>
-        <div className="w-10 shrink-0 px-1 text-right text-text-500 text-[11px] leading-5 select-none opacity-60">
-          {line.oldLineNo}
+        <div className="w-10 shrink-0 px-1 text-right text-[11px] leading-5 select-none opacity-60">
+          {line.type === 'delete' && <span className="text-danger-100 opacity-100">−</span>}
+          <span className="text-text-500">{line.oldLineNo}</span>
         </div>
-        <div className="w-10 shrink-0 px-1 text-right text-text-500 text-[11px] leading-5 select-none opacity-60">
-          {line.newLineNo}
+        <div className="w-10 shrink-0 px-1 text-right text-[11px] leading-5 select-none opacity-60">
+          {line.type === 'add' && <span className="text-success-100 opacity-100">+</span>}
+          <span className="text-text-500">{line.newLineNo}</span>
         </div>
         <div className="flex-1 px-2 leading-5 text-[11px] whitespace-pre">
-          {line.type === 'add' && <span className="text-success-100 select-none mr-1">+</span>}
-          {line.type === 'delete' && <span className="text-danger-100 select-none mr-1">−</span>}
           <LineContent line={{ ...line, lineNo }} tokens={tokens} />
         </div>
       </div>
