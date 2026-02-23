@@ -7,6 +7,7 @@ import { ToastContainer } from './components/ToastContainer'
 import { RightPanel } from './components/RightPanel'
 import { OutlineIndex } from './components/OutlineIndex'
 import { BottomPanel } from './components/BottomPanel'
+import { CloseServiceDialog } from './components/CloseServiceDialog'
 import { useTheme, useModels, useModelSelection, useChatSession, useGlobalKeybindings } from './hooks'
 import type { KeybindingHandlers } from './hooks/useKeybindings'
 import { keybindingStore } from './store/keybindingStore'
@@ -14,6 +15,7 @@ import { layoutStore } from './store/layoutStore'
 import { STORAGE_KEY_WIDE_MODE } from './constants'
 import { restoreModelSelection } from './utils/sessionHelpers'
 import { findModelByKey } from './utils/modelUtils'
+import { isTauri } from './utils/tauri'
 import type { Attachment } from './api'
 import { createPtySession } from './api/pty'
 import type { TerminalTab } from './store/layoutStore'
@@ -414,6 +416,37 @@ function App() {
   // ============================================
 
   // ============================================
+  // Close Service Dialog (Tauri desktop only)
+  // 监听 Rust 侧的 close-requested 事件
+  // ============================================
+  const [showCloseDialog, setShowCloseDialog] = useState(false)
+
+  useEffect(() => {
+    if (!isTauri()) return
+
+    let unlisten: (() => void) | undefined
+
+    // 动态 import Tauri event API
+    import('@tauri-apps/api/event').then(({ listen }) => {
+      listen('close-requested', () => {
+        setShowCloseDialog(true)
+      }).then(fn => { unlisten = fn })
+    })
+
+    return () => { unlisten?.() }
+  }, [])
+
+  const handleCloseDialogConfirm = useCallback(async (stopService: boolean) => {
+    if (!isTauri()) return
+    try {
+      const { invoke } = await import('@tauri-apps/api/core')
+      await invoke('confirm_close_app', { stopService })
+    } catch (e) {
+      console.error('[CloseDialog] Failed to close app:', e)
+    }
+  }, [])
+
+  // ============================================
   // Dialog Collapsed State
   // ============================================
   const [permissionCollapsed, setPermissionCollapsed] = useState(false)
@@ -634,6 +667,12 @@ function App() {
 
       {/* Toast Notifications */}
       <ToastContainer />
+
+      {/* Close Service Dialog (Tauri desktop) */}
+      <CloseServiceDialog
+        isOpen={showCloseDialog}
+        onClose={handleCloseDialogConfirm}
+      />
     </div>
   )
 }

@@ -5,11 +5,13 @@ import {
   SunIcon, MoonIcon, SystemIcon, MaximizeIcon, MinimizeIcon, 
   PathAutoIcon, PathUnixIcon, PathWindowsIcon,
   GlobeIcon, PlusIcon, TrashIcon, CheckIcon, WifiIcon, WifiOffIcon, SpinnerIcon, KeyIcon,
-  SettingsIcon, KeyboardIcon, CloseIcon, BellIcon, BoltIcon, CompactIcon
+  SettingsIcon, KeyboardIcon, CloseIcon, BellIcon, BoltIcon, CompactIcon, PlugIcon, StopIcon
 } from '../../components/Icons'
 import { usePathMode, useServerStore, useIsMobile, useNotification, useRouter } from '../../hooks'
 import { autoApproveStore, messageStore, notificationStore } from '../../store'
+import { serviceStore, useServiceStore } from '../../store/serviceStore'
 import { themeStore } from '../../store/themeStore'
+import { isTauri } from '../../utils/tauri'
 import { KeybindingsSection } from './KeybindingsSection'
 import type { ThemeMode } from '../../hooks'
 import type { PathMode } from '../../utils/directoryUtils'
@@ -374,6 +376,26 @@ function GeneralSettings() {
   const { enabled: notificationsEnabled, setEnabled: setNotificationsEnabled, supported: notificationsSupported, permission: notificationPermission, sendNotification } = useNotification()
   const [collapseUserMessages, setCollapseUserMessages] = useState(themeStore.collapseUserMessages)
   const [toastEnabled, setToastEnabledState] = useState(notificationStore.toastEnabled)
+  const isMobile = useIsMobile()
+  const { autoStart: autoStartService, binaryPath, running: serviceRunning, startedByUs, starting: serviceStarting } = useServiceStore()
+  const { activeServer } = useServerStore()
+  const isTauriDesktop = isTauri() && !isMobile
+
+  // 本地编辑状态（debounce 保存）
+  const [localBinaryPath, setLocalBinaryPath] = useState(binaryPath)
+  const pathDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // 启动失败的错误信息
+  const [serviceError, setServiceError] = useState('')
+
+  // 同步外部变化
+  useEffect(() => { setLocalBinaryPath(binaryPath) }, [binaryPath])
+
+  // 打开设置页时自动检测一次服务状态
+  useEffect(() => {
+    if (!isTauriDesktop) return
+    handleCheckService()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isTauriDesktop])
 
   const handleAutoApprove = () => {
     const v = !autoApprove
@@ -396,6 +418,66 @@ function GeneralSettings() {
     const v = !toastEnabled
     setToastEnabledState(v)
     notificationStore.setToastEnabled(v)
+  }
+
+  const handleAutoStartToggle = () => {
+    serviceStore.setAutoStart(!autoStartService)
+  }
+
+  const handleBinaryPathChange = (v: string) => {
+    setLocalBinaryPath(v)
+    if (pathDebounceRef.current) clearTimeout(pathDebounceRef.current)
+    pathDebounceRef.current = setTimeout(() => serviceStore.setBinaryPath(v), 400)
+  }
+
+  const getServerUrl = () => activeServer?.url || 'http://127.0.0.1:4096'
+
+  const handleStartService = async () => {
+    setServiceError('')
+    try {
+      const { invoke } = await import('@tauri-apps/api/core')
+      serviceStore.setStarting(true)
+      const weStarted = await invoke<boolean>('start_opencode_service', {
+        url: getServerUrl(),
+        binaryPath: serviceStore.effectiveBinaryPath,
+      })
+      serviceStore.setStartedByUs(weStarted)
+      serviceStore.setRunning(true)
+    } catch (e) {
+      const msg = String(e)
+      console.error('[Service] Start failed:', msg)
+      setServiceError(msg)
+    } finally {
+      serviceStore.setStarting(false)
+    }
+  }
+
+  const handleStopService = async () => {
+    setServiceError('')
+    try {
+      const { invoke } = await import('@tauri-apps/api/core')
+      await invoke('stop_opencode_service')
+      serviceStore.setStartedByUs(false)
+      serviceStore.setRunning(false)
+    } catch (e) {
+      console.error('[Service] Stop failed:', e)
+    }
+  }
+
+  const handleCheckService = async () => {
+    try {
+      const { invoke } = await import('@tauri-apps/api/core')
+      const running = await invoke<boolean>('check_opencode_service', { url: getServerUrl() })
+      serviceStore.setRunning(running)
+      if (running) {
+        const byUs = await invoke<boolean>('get_service_started_by_us')
+        serviceStore.setStartedByUs(byUs)
+      } else {
+        serviceStore.setStartedByUs(false)
+      }
+    } catch (e) {
+      console.error('[Service] Check failed:', e)
+    }
   }
 
   return (
@@ -475,6 +557,82 @@ function GeneralSettings() {
       >
         <Toggle enabled={collapseUserMessages} onChange={handleCollapseToggle} />
       </SettingRow>
+
+      {/* Service Management - Tauri desktop only */}
+      {isTauriDesktop && (
+        <>
+          <Divider />
+          <SectionLabel>Service</SectionLabel>
+
+          {/* Binary path */}
+          <div className="mb-3">
+            <div className="text-[11px] font-medium text-text-300 mb-1">Binary Path</div>
+            <input
+              type="text"
+              value={localBinaryPath}
+              onChange={(e) => handleBinaryPathChange(e.target.value)}
+              placeholder="opencode (default, uses PATH)"
+              className="w-full h-8 px-3 text-[13px] font-mono bg-bg-200/50 border border-border-200 rounded-md 
+                focus:outline-none focus:border-accent-main-100/50 text-text-100 placeholder:text-text-400"
+            />
+            <div className="text-[11px] text-text-400 mt-1">
+              Leave empty to use <code className="text-[10px] px-1 py-0.5 bg-bg-200 rounded font-mono">opencode</code> from PATH. Or enter full path, e.g. <code className="text-[10px] px-1 py-0.5 bg-bg-200 rounded font-mono">/usr/local/bin/opencode</code>
+            </div>
+          </div>
+
+          {/* Auto start toggle */}
+          <SettingRow
+            label="Auto-start Service"
+            description="Run opencode serve automatically when app launches"
+            icon={<PlugIcon size={14} />}
+            onClick={handleAutoStartToggle}
+          >
+            <Toggle enabled={autoStartService} onChange={handleAutoStartToggle} />
+          </SettingRow>
+
+          {/* Status + controls */}
+          <SettingRow
+            label="Service Status"
+            description={
+              serviceStarting ? 'Starting opencode serve...' :
+              serviceRunning
+                ? startedByUs ? 'Running (started by app)' : 'Running (external)'
+                : 'Not running'
+            }
+            icon={
+              serviceStarting
+                ? <SpinnerIcon size={14} className="animate-spin text-text-400" />
+                : serviceRunning
+                  ? <WifiIcon size={14} className="text-green-500" />
+                  : <WifiOffIcon size={14} className="text-text-400" />
+            }
+          >
+            <div className="flex items-center gap-2">
+              {!serviceStarting && !serviceRunning && (
+                <Button size="sm" variant="ghost" onClick={handleStartService}>
+                  Start
+                </Button>
+              )}
+              {!serviceStarting && serviceRunning && startedByUs && (
+                <Button size="sm" variant="ghost" onClick={handleStopService}>
+                  <StopIcon size={12} className="mr-1" />
+                  Stop
+                </Button>
+              )}
+              <Button size="sm" variant="ghost" onClick={handleCheckService} disabled={serviceStarting}>
+                Refresh
+              </Button>
+            </div>
+          </SettingRow>
+
+          {/* Error message */}
+          {serviceError && (
+            <div className="text-[11px] text-danger-100 bg-danger-100/10 border border-danger-100/20 rounded-md px-2.5 py-2 mt-1 leading-relaxed break-all">
+              {serviceError}
+            </div>
+          )}
+        </>
+      )}
     </div>
   )
 }

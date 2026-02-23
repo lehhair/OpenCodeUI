@@ -36,3 +36,5 @@ export type { NotificationEntry, NotificationType, ToastItem } from './notificat
 
 export { activeSessionStore, useActiveSessionStore, useBusySessions, useBusyCount } from './activeSessionStore'
 export type { ActiveSessionEntry } from './activeSessionStore'
+
+export { serviceStore, useServiceStore } from './serviceStore'

@@ -10,6 +10,7 @@ import { childSessionStore } from './store/childSessionStore'
 import { todoStore } from './store/todoStore'
 import { messageCacheStore } from './store/messageCacheStore'
 import { autoApproveStore } from './store/autoApproveStore'
+import { serviceStore } from './store/serviceStore'
 import { reconnectSSE } from './api/events'
 import { resetPathModeCache } from './utils/directoryUtils'
 import { isTauri } from './utils/tauri'
@@ -49,6 +50,30 @@ if (isTauri()) {
     if (!content.includes('viewport-fit=cover')) {
       viewportMeta.setAttribute('content', content + ', viewport-fit=cover')
     }
+  }
+
+  // Auto-start opencode serve（如果设置开启）
+  if (serviceStore.autoStart) {
+    const serverUrl = serverStore.getActiveServer()?.url || 'http://127.0.0.1:4096'
+    const binaryPath = serviceStore.effectiveBinaryPath
+    import('@tauri-apps/api/core').then(({ invoke }) => {
+      serviceStore.setStarting(true)
+      invoke<boolean>('start_opencode_service', { url: serverUrl, binaryPath })
+        .then((weStarted) => {
+          serviceStore.setStartedByUs(weStarted)
+          serviceStore.setRunning(true)
+          serviceStore.setStarting(false)
+          if (weStarted) {
+            console.info('[Service] opencode serve started by app')
+          } else {
+            console.info('[Service] opencode serve already running')
+          }
+        })
+        .catch((err) => {
+          serviceStore.setStarting(false)
+          console.error('[Service] Failed to auto-start opencode serve:', err)
+        })
+    })
   }
 }
 

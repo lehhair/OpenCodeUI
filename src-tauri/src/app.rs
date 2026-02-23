@@ -1,16 +1,15 @@
 // ============================================
 // Tauri Application Entry Point
-// SSE Bridge + Plugin Registration
+// SSE Bridge + Plugin Registration + Service Management
 // ============================================
 
 use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::process::{Command, Stdio};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::Mutex;
 use std::time::Duration;
-use tauri::{ipc::Channel, State};
-
-#[cfg(debug_assertions)]
-use tauri::Manager;
+use tauri::{ipc::Channel, Emitter, Manager, State};
 
 // ============================================
 // SSE Connection State
@@ -208,9 +207,178 @@ async fn sse_disconnect(state: State<'_, SseState>) -> Result<(), String> {
     Ok(())
 }
 
+// ============================================
+// OpenCode Service Management
+// ============================================
+
+/// 跟踪我们是否启动了 opencode serve 进程
+struct ServiceState {
+    /// 我们启动的子进程 PID
+    child_pid: Mutex<Option<u32>>,
+    /// 是否由我们启动（用于关闭时判断是否需要询问）
+    we_started: AtomicBool,
+}
+
+impl Default for ServiceState {
+    fn default() -> Self {
+        Self {
+            child_pid: Mutex::new(None),
+            we_started: AtomicBool::new(false),
+        }
+    }
+}
+
+/// 检查 opencode 服务是否在运行（通过 health endpoint）
+async fn is_service_running(url: &str) -> bool {
+    let health_url = format!("{}/global/health", url.trim_end_matches('/'));
+    match reqwest::Client::builder()
+        .connect_timeout(Duration::from_secs(3))
+        .build()
+    {
+        Ok(client) => client
+            .get(&health_url)
+            .timeout(Duration::from_secs(5))
+            .send()
+            .await
+            .map(|r| r.status().is_success())
+            .unwrap_or(false),
+        Err(_) => false,
+    }
+}
+
+/// 启动 opencode serve 进程
+/// binary_path: 用户配置的可执行文件路径，如 "opencode" 或 "/usr/local/bin/opencode"
+fn spawn_opencode_serve(binary_path: &str) -> Result<std::process::Child, String> {
+    log::info!("Starting opencode serve with binary: {}", binary_path);
+
+    let mut cmd = Command::new(binary_path);
+    cmd.arg("serve")
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
+
+    // Windows: 隐藏控制台窗口
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+
+    cmd.spawn().map_err(|e| {
+        format!(
+            "Failed to start '{}': {}. Check that the path is correct.",
+            binary_path, e
+        )
+    })
+}
+
+/// 跨平台杀进程
+fn kill_process_by_pid(pid: u32) {
+    #[cfg(target_os = "windows")]
+    {
+        let _ = Command::new("taskkill")
+            .args(["/PID", &pid.to_string(), "/F", "/T"])
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn();
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = Command::new("kill")
+            .arg(pid.to_string())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn();
+    }
+}
+
+/// 检查 opencode 服务是否在运行
+#[tauri::command]
+async fn check_opencode_service(url: String) -> Result<bool, String> {
+    Ok(is_service_running(&url).await)
+}
+
+/// 启动 opencode serve
+/// 返回 true 表示我们启动了新进程，false 表示已有实例在运行
+#[tauri::command]
+async fn start_opencode_service(
+    state: State<'_, ServiceState>,
+    url: String,
+    binary_path: String,
+) -> Result<bool, String> {
+    // 先检查是否已在运行
+    if is_service_running(&url).await {
+        log::info!("opencode service already running at {}", url);
+        return Ok(false);
+    }
+
+    // 启动进程
+    let child = spawn_opencode_serve(&binary_path)?;
+    let pid = child.id();
+    log::info!("Started opencode serve, PID: {}", pid);
+
+    *state.child_pid.lock().map_err(|e| e.to_string())? = Some(pid);
+    state.we_started.store(true, Ordering::SeqCst);
+
+    // 等待服务就绪（最多 15 秒）
+    for _ in 0..30 {
+        tokio::time::sleep(Duration::from_millis(500)).await;
+        if is_service_running(&url).await {
+            log::info!("opencode service is ready at {}", url);
+            return Ok(true);
+        }
+    }
+
+    log::warn!("opencode service started but health check not passing yet");
+    Ok(true)
+}
+
+/// 停止 opencode serve
+#[tauri::command]
+async fn stop_opencode_service(state: State<'_, ServiceState>) -> Result<(), String> {
+    let pid = state.child_pid.lock().map_err(|e| e.to_string())?.take();
+    state.we_started.store(false, Ordering::SeqCst);
+
+    if let Some(pid) = pid {
+        log::info!("Stopping opencode serve, PID: {}", pid);
+        kill_process_by_pid(pid);
+    }
+
+    Ok(())
+}
+
+/// 查询是否由我们启动了 opencode 服务
+#[tauri::command]
+async fn get_service_started_by_us(state: State<'_, ServiceState>) -> Result<bool, String> {
+    Ok(state.we_started.load(Ordering::SeqCst))
+}
+
+/// 确认关闭应用（前端调用，可选择是否同时停止服务）
+#[tauri::command]
+async fn confirm_close_app(
+    window: tauri::Window,
+    state: State<'_, ServiceState>,
+    stop_service: bool,
+) -> Result<(), String> {
+    if stop_service {
+        let pid = state.child_pid.lock().map_err(|e| e.to_string())?.take();
+        if let Some(pid) = pid {
+            log::info!("Closing app and stopping opencode serve, PID: {}", pid);
+            kill_process_by_pid(pid);
+        }
+        state.we_started.store(false, Ordering::SeqCst);
+    } else {
+        log::info!("Closing app, keeping opencode serve running");
+    }
+
+    window.destroy().map_err(|e| e.to_string())
+}
+
 pub fn run() {
     tauri::Builder::default()
         .manage(SseState::default())
+        .manage(ServiceState::default())
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_dialog::init())
@@ -232,7 +400,26 @@ pub fn run() {
 
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![sse_connect, sse_disconnect])
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                let state = window.state::<ServiceState>();
+                if state.we_started.load(Ordering::SeqCst) {
+                    // 我们启动了服务 → 阻止默认关闭，让前端弹窗询问
+                    api.prevent_close();
+                    let _ = window.emit("close-requested", ());
+                }
+                // 如果不是我们启动的服务，直接正常关闭
+            }
+        })
+        .invoke_handler(tauri::generate_handler![
+            sse_connect,
+            sse_disconnect,
+            check_opencode_service,
+            start_opencode_service,
+            stop_opencode_service,
+            get_service_started_by_us,
+            confirm_close_app,
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
