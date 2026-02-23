@@ -19,6 +19,11 @@ import type { Command } from '../../api/command'
 // Types
 // ============================================
 
+interface HistoryEntry {
+  text: string
+  attachments: Attachment[]
+}
+
 export interface CollapsedDialogInfo {
   label: string
   queueLength: number
@@ -130,8 +135,6 @@ function InputBoxComponent({
   // ============================================
   // 历史消息导航（类终端体验）
   // ============================================
-  interface HistoryEntry { text: string; attachments: Attachment[] }
-
   const messages = useMessages()
   const userHistory = useMemo((): HistoryEntry[] => {
     const entries: HistoryEntry[] = []
@@ -395,6 +398,15 @@ function InputBoxComponent({
     
     // 历史消息导航（类终端体验）
     // 进入条件：光标在首行 + (内容为空 或 正在浏览历史且内容未被修改)
+    const isHistoryUnmodified = () => {
+      if (historyIndexRef.current < 0) return false
+      const entry = userHistory[userHistory.length - 1 - historyIndexRef.current]
+      if (!entry || text !== entry.text) return false
+      // 附件比较：数量一致 且 id 序列一致
+      if (attachments.length !== entry.attachments.length) return false
+      return attachments.every((a, i) => a.id === entry.attachments[i].id)
+    }
+
     if (e.key === 'ArrowUp' && userHistory.length > 0) {
       const ta = textareaRef.current
       if (ta) {
@@ -402,15 +414,11 @@ function InputBoxComponent({
           && ta.value.lastIndexOf('\n', ta.selectionStart - 1) === -1
 
         const inHistory = historyIndexRef.current >= 0
-        const currentEntry = inHistory
-          ? userHistory[userHistory.length - 1 - historyIndexRef.current]
-          : null
-        const contentUnmodified = inHistory && currentEntry && text === currentEntry.text
+        const isEmpty = text.trim() === '' && attachments.length === 0
 
-        if (cursorAtFirstLine && (text.trim() === '' || contentUnmodified)) {
+        if (cursorAtFirstLine && (isEmpty || isHistoryUnmodified())) {
           e.preventDefault()
           if (!inHistory) {
-            // 刚进入历史模式，暂存当前输入
             savedInputRef.current = { text, attachments: [...attachments] }
           }
           const nextIndex = Math.min(historyIndexRef.current + 1, userHistory.length - 1)
@@ -430,15 +438,11 @@ function InputBoxComponent({
         const cursorAtLastLine = ta.selectionStart === ta.selectionEnd
           && ta.value.indexOf('\n', ta.selectionStart) === -1
 
-        const currentEntry = userHistory[userHistory.length - 1 - historyIndexRef.current]
-        const contentUnmodified = currentEntry && text === currentEntry.text
-
-        if (cursorAtLastLine && contentUnmodified) {
+        if (cursorAtLastLine && isHistoryUnmodified()) {
           e.preventDefault()
           const nextIndex = historyIndexRef.current - 1
           historyIndexRef.current = nextIndex
           if (nextIndex < 0) {
-            // 退出历史模式，恢复暂存的输入
             setText(savedInputRef.current.text)
             setAttachments(savedInputRef.current.attachments)
           } else {
