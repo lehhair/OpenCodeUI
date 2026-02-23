@@ -1,29 +1,33 @@
 import { memo } from 'react'
-import { CpuIcon, DollarSignIcon } from '../../../components/Icons'
 import type { StepFinishPart } from '../../../types/message'
 
 interface StepFinishPartViewProps {
   part: StepFinishPart
+  /** 消息总耗时（毫秒），从外部传入 */
+  duration?: number
 }
 
-/**
- * 格式化数字，如 1234 -> 1.2k
- */
 function formatNumber(num: number): string {
   if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M'
   if (num >= 1000) return (num / 1000).toFixed(1) + 'k'
   return num.toString()
 }
 
-/**
- * 格式化 cost
- */
 function formatCost(cost: number): string {
   if (cost < 0.01) return '<$0.01'
   return '$' + cost.toFixed(3)
 }
 
-export const StepFinishPartView = memo(function StepFinishPartView({ part }: StepFinishPartViewProps) {
+function formatDuration(ms: number): string {
+  if (ms < 1000) return `${ms}ms`
+  const s = ms / 1000
+  if (s < 60) return `${s.toFixed(1)}s`
+  const m = Math.floor(s / 60)
+  const rem = Math.round(s % 60)
+  return rem > 0 ? `${m}m${rem}s` : `${m}m`
+}
+
+export const StepFinishPartView = memo(function StepFinishPartView({ part, duration }: StepFinishPartViewProps) {
   const { tokens, cost } = part
   const totalTokens = tokens.input + tokens.output + tokens.reasoning + tokens.cache.read + tokens.cache.write
   const cacheHit = tokens.cache.read
@@ -31,26 +35,25 @@ export const StepFinishPartView = memo(function StepFinishPartView({ part }: Ste
   return (
     <div className="flex items-center gap-3 text-[10px] text-text-500 px-1 py-0.5">
       {/* Tokens */}
-      <div className="flex items-center gap-1.5">
-        <CpuIcon size={10} className="opacity-50" />
-        <span
-          title={`Input: ${tokens.input}, Output: ${tokens.output}, Reasoning: ${tokens.reasoning}, Cache read: ${tokens.cache.read}, Cache write: ${tokens.cache.write}`}
-        >
-          {formatNumber(totalTokens)} tokens
+      <span
+        title={`Input: ${tokens.input}, Output: ${tokens.output}, Reasoning: ${tokens.reasoning}, Cache read: ${tokens.cache.read}, Cache write: ${tokens.cache.write}`}
+      >
+        {formatNumber(totalTokens)} tokens
+      </span>
+      {cacheHit > 0 && (
+        <span className="text-text-600" title={`Cache read: ${tokens.cache.read}, write: ${tokens.cache.write}`}>
+          ({formatNumber(cacheHit)} cached)
         </span>
-        {cacheHit > 0 && (
-          <span className="text-text-600" title={`Cache read: ${tokens.cache.read}, write: ${tokens.cache.write}`}>
-            ({formatNumber(cacheHit)} cached)
-          </span>
-        )}
-      </div>
-      
+      )}
+
       {/* Cost */}
       {cost > 0 && (
-        <div className="flex items-center gap-1">
-          <DollarSignIcon size={10} className="opacity-50" />
-          <span>{formatCost(cost)}</span>
-        </div>
+        <span>{formatCost(cost)}</span>
+      )}
+
+      {/* Duration */}
+      {duration != null && duration > 0 && (
+        <span>{formatDuration(duration)}</span>
       )}
     </div>
   )

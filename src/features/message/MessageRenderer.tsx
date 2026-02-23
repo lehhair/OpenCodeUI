@@ -253,6 +253,10 @@ const AssistantMessageView = memo(function AssistantMessageView({ message, onEns
   
   // 检查消息级别错误
   const messageError = (info as AssistantMessageInfo).error
+  
+  // 消息总耗时
+  const { created, completed } = info.time
+  const duration = completed ? completed - created : undefined
 
   if (!isStreaming && parts.length === 0) {
     // 有错误时直接显示错误信息
@@ -283,13 +287,19 @@ const AssistantMessageView = memo(function AssistantMessageView({ message, onEns
     <div className="flex flex-col gap-2 w-full group">
 
 
-      {renderItems.map((item: RenderItem) => {
+      {renderItems.map((item: RenderItem, idx: number) => {
+        // 耗时只在最后一个含 stepFinish 的 item 上显示
+        const isLastStepFinish = idx === renderItems.findLastIndex(
+          it => it.type === 'tool-group' ? !!it.stepFinish : it.part.type === 'step-finish'
+        )
+        
         if (item.type === 'tool-group') {
           return (
             <ToolGroup 
               key={item.parts[0].id} 
               parts={item.parts as ToolPart[]}
               stepFinish={item.stepFinish}
+              duration={isLastStepFinish ? duration : undefined}
             />
           )
         }
@@ -321,6 +331,7 @@ const AssistantMessageView = memo(function AssistantMessageView({ message, onEns
               <StepFinishPartView 
                 key={part.id} 
                 part={part as StepFinishPart}
+                duration={isLastStepFinish ? duration : undefined}
               />
             )
           case 'subtask':
@@ -371,9 +382,10 @@ const AssistantMessageView = memo(function AssistantMessageView({ message, onEns
 interface ToolGroupProps {
   parts: ToolPart[]
   stepFinish?: StepFinishPart
+  duration?: number
 }
 
-const ToolGroup = memo(function ToolGroup({ parts, stepFinish }: ToolGroupProps) {
+const ToolGroup = memo(function ToolGroup({ parts, stepFinish, duration }: ToolGroupProps) {
   const [expanded, setExpanded] = useState(true)
   const shouldRenderBody = useDelayedRender(expanded)
   
@@ -404,25 +416,20 @@ const ToolGroup = memo(function ToolGroup({ parts, stepFinish }: ToolGroupProps)
         expanded ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
       }`}>
         <div className="flex flex-col overflow-hidden">
-          {shouldRenderBody && (
-            <>
-              {parts.map((part, idx) => (
-                <ToolPartView 
-                  key={part.id} 
-                  part={part} 
-                  isFirst={idx === 0}
-                  isLast={idx === parts.length - 1}
-                />
-              ))}
-              {stepFinish && (
-                <div className="pl-8 pt-1 pb-1">
-                  <StepFinishPartView part={stepFinish} />
-                </div>
-              )}
-            </>
-          )}
+          {shouldRenderBody && parts.map((part, idx) => (
+            <ToolPartView 
+              key={part.id} 
+              part={part} 
+              isFirst={idx === 0}
+              isLast={idx === parts.length - 1}
+            />
+          ))}
         </div>
       </div>
+
+      {stepFinish && (
+        <StepFinishPartView part={stepFinish} duration={duration} />
+      )}
     </div>
   )
 })
