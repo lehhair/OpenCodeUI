@@ -10,19 +10,20 @@ import { PlugIcon, SpinnerIcon } from './Icons'
 
 interface CloseServiceDialogProps {
   isOpen: boolean
-  onClose: (stopService: boolean) => void
+  onConfirm: (stopService: boolean) => void
+  onCancel: () => void
 }
 
-export function CloseServiceDialog({ isOpen, onClose }: CloseServiceDialogProps) {
+export function CloseServiceDialog({ isOpen, onConfirm, onCancel }: CloseServiceDialogProps) {
   const [closing, setClosing] = useState(false)
 
-  const handleClose = (stopService: boolean) => {
+  const handleConfirm = (stopService: boolean) => {
     setClosing(true)
-    onClose(stopService)
+    onConfirm(stopService)
   }
 
   return (
-    <Dialog isOpen={isOpen} onClose={() => handleClose(false)} title="" width={420} showCloseButton={false}>
+    <Dialog isOpen={isOpen} onClose={onCancel} title="" width={420} showCloseButton={false}>
       <div className="flex flex-col items-center text-center py-2">
         {/* Icon */}
         <div className="w-12 h-12 rounded-full bg-accent-main-100/10 flex items-center justify-center mb-4">
@@ -48,17 +49,24 @@ export function CloseServiceDialog({ isOpen, onClose }: CloseServiceDialogProps)
         ) : (
           <div className="flex flex-col w-full gap-2">
             <Button
-              onClick={() => handleClose(true)}
+              onClick={() => handleConfirm(true)}
               className="w-full justify-center"
             >
               Close and stop service
             </Button>
             <Button
               variant="ghost"
-              onClick={() => handleClose(false)}
+              onClick={() => handleConfirm(false)}
               className="w-full justify-center"
             >
               Close, keep service running
+            </Button>
+            <Button
+              variant="ghost"
+              onClick={onCancel}
+              className="w-full justify-center text-text-400"
+            >
+              Cancel
             </Button>
           </div>
         )}

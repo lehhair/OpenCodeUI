@@ -671,7 +671,8 @@ function App() {
       {/* Close Service Dialog (Tauri desktop) */}
       <CloseServiceDialog
         isOpen={showCloseDialog}
-        onClose={handleCloseDialogConfirm}
+        onConfirm={handleCloseDialogConfirm}
+        onCancel={() => setShowCloseDialog(false)}
       />
     </div>
   )
