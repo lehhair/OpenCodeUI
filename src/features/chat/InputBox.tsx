@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback, memo } from 'react'
+import { useState, useRef, useEffect, useCallback, useMemo, memo } from 'react'
 import { AttachmentPreview, type Attachment } from '../attachment'
 import { MentionMenu, detectMentionTrigger, type MentionMenuHandle, type MentionItem } from '../mention'
 import { SlashCommandMenu, type SlashCommandMenuHandle } from '../slash-command'
@@ -7,6 +7,8 @@ import { InputFooter } from './input/InputFooter'
 import { UndoStatus } from './input/UndoStatus'
 import { useImageCompressor } from '../../hooks/useImageCompressor'
 import { keybindingStore, matchesKeybinding } from '../../store/keybindingStore'
+import { useMessages } from '../../store/messageStore'
+import { getMessageText } from '../../types/message'
 import { useIsMobile } from '../../hooks'
 import { ArrowDownIcon, ArrowUpIcon, PermissionListIcon, QuestionIcon } from '../../components/Icons'
 import type { ApiAgent } from '../../api/client'
@@ -124,6 +126,29 @@ function InputBoxComponent({
   const mentionMenuRef = useRef<MentionMenuHandle>(null)
   const slashMenuRef = useRef<SlashCommandMenuHandle>(null)
   const prevRevertedTextRef = useRef<string | undefined>(undefined)
+
+  // ============================================
+  // 历史消息导航（类终端体验）
+  // ============================================
+  const messages = useMessages()
+  const userHistory = useMemo(() => {
+    // 从消息列表中提取用户输入文本，按时间正序，去重
+    const texts: string[] = []
+    const seen = new Set<string>()
+    for (const msg of messages) {
+      if (msg.info.role !== 'user') continue
+      const t = getMessageText(msg).trim()
+      if (t && !seen.has(t)) {
+        seen.add(t)
+        texts.push(t)
+      }
+    }
+    return texts
+  }, [messages])
+  // -1 表示未进入历史模式，0 = 最后一条，往上递增
+  const historyIndexRef = useRef(-1)
+  // 进入历史前暂存的输入（可能用户已经打了一半字又取消了）
+  const savedInputRef = useRef('')
 
   // ============================================
   // Mobile Input Dock: 滚动收起/展开
@@ -246,6 +271,7 @@ function InputBoxComponent({
     // 清空
     setText('')
     setAttachments([])
+    historyIndexRef.current = -1
     onClearRevert?.()
   }, [canSend, text, attachments, selectedAgent, selectedVariant, onSend, onCommand, onClearRevert])
 
@@ -329,13 +355,39 @@ function InputBoxComponent({
       return
     }
     
+    // 历史消息导航（仅输入框为空时，类终端体验）
+    if (e.key === 'ArrowUp' && text.trim() === '' && userHistory.length > 0) {
+      e.preventDefault()
+      if (historyIndexRef.current === -1) {
+        // 刚进入历史模式，暂存当前输入
+        savedInputRef.current = text
+      }
+      const nextIndex = Math.min(historyIndexRef.current + 1, userHistory.length - 1)
+      historyIndexRef.current = nextIndex
+      // 从末尾往前拿
+      setText(userHistory[userHistory.length - 1 - nextIndex])
+      return
+    }
+    if (e.key === 'ArrowDown' && historyIndexRef.current >= 0) {
+      e.preventDefault()
+      const nextIndex = historyIndexRef.current - 1
+      historyIndexRef.current = nextIndex
+      if (nextIndex < 0) {
+        // 退出历史模式，恢复暂存的输入
+        setText(savedInputRef.current)
+      } else {
+        setText(userHistory[userHistory.length - 1 - nextIndex])
+      }
+      return
+    }
+    
     // 发送消息（读取 keybinding 配置）
     const sendKey = keybindingStore.getKey('sendMessage')
     if (sendKey && matchesKeybinding(e.nativeEvent, sendKey)) {
       e.preventDefault()
       handleSend()
     }
-  }, [mentionOpen, slashOpen, mentionQuery, handleSend])
+  }, [mentionOpen, slashOpen, mentionQuery, handleSend, text, userHistory])
   
   // 更新 @ 查询文本（用于进入/退出文件夹）
   const updateMentionQuery = useCallback((newQuery: string) => {
@@ -360,6 +412,9 @@ function InputBoxComponent({
   const handleChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newText = e.target.value
     setText(newText)
+    
+    // 用户手动输入，退出历史导航模式
+    historyIndexRef.current = -1
     
     // 同步检测 mention 是否被破坏/删除
     // 比对 attachments 的 textRange：如果文本中对应位置不再匹配，删除该 attachment
