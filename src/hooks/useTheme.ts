@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef, useSyncExternalStore } from '
 import { flushSync } from 'react-dom'
 import { THEME_SWITCH_DISABLE_MS } from '../constants'
 import { themeStore, type ColorMode } from '../store/themeStore'
+import type { StepFinishDisplay } from '../store/themeStore'
 
 // 保持向后兼容的类型别名
 export type ThemeMode = ColorMode
@@ -162,6 +163,12 @@ export function useTheme() {
   const setCollapseUserMessages = useCallback((enabled: boolean) => {
     themeStore.setCollapseUserMessages(enabled)
   }, [])
+  
+  // ---- Step Finish Display ----
+  
+  const setStepFinishDisplay = useCallback((display: Partial<StepFinishDisplay>) => {
+    themeStore.setStepFinishDisplay(display)
+  }, [])
 
   return {
     // 日夜模式（向后兼容）
@@ -190,5 +197,9 @@ export function useTheme() {
     // 折叠长用户消息
     collapseUserMessages: state.collapseUserMessages,
     setCollapseUserMessages,
+    
+    // step-finish 信息栏显示
+    stepFinishDisplay: state.stepFinishDisplay,
+    setStepFinishDisplay,
   }
 }

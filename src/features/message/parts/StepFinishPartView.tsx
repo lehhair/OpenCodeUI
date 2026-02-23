@@ -1,4 +1,5 @@
 import { memo } from 'react'
+import { useTheme } from '../../../hooks/useTheme'
 import type { StepFinishPart } from '../../../types/message'
 
 interface StepFinishPartViewProps {
@@ -30,36 +31,40 @@ function formatDuration(ms: number): string {
 }
 
 export const StepFinishPartView = memo(function StepFinishPartView({ part, duration, turnDuration }: StepFinishPartViewProps) {
+  const { stepFinishDisplay: show } = useTheme()
   const { tokens, cost } = part
   const totalTokens = tokens.input + tokens.output + tokens.reasoning + tokens.cache.read + tokens.cache.write
   const cacheHit = tokens.cache.read
   
+  // 所有项都关闭时不渲染
+  const hasAny = (show.tokens && totalTokens > 0)
+    || (show.cache && cacheHit > 0)
+    || (show.cost && cost > 0)
+    || (show.duration && duration != null && duration > 0)
+    || (show.turnDuration && turnDuration != null && turnDuration > 0)
+  if (!hasAny) return null
+  
   return (
     <div className="flex items-center gap-3 text-[10px] text-text-500 px-1 py-0.5">
-      {/* Tokens */}
-      <span
-        title={`Input: ${tokens.input}, Output: ${tokens.output}, Reasoning: ${tokens.reasoning}, Cache read: ${tokens.cache.read}, Cache write: ${tokens.cache.write}`}
-      >
-        {formatNumber(totalTokens)} tokens
-      </span>
-      {cacheHit > 0 && (
+      {show.tokens && totalTokens > 0 && (
+        <span
+          title={`Input: ${tokens.input}, Output: ${tokens.output}, Reasoning: ${tokens.reasoning}, Cache read: ${tokens.cache.read}, Cache write: ${tokens.cache.write}`}
+        >
+          {formatNumber(totalTokens)} tokens
+        </span>
+      )}
+      {show.cache && cacheHit > 0 && (
         <span className="text-text-600" title={`Cache read: ${tokens.cache.read}, write: ${tokens.cache.write}`}>
           ({formatNumber(cacheHit)} cached)
         </span>
       )}
-
-      {/* Cost */}
-      {cost > 0 && (
+      {show.cost && cost > 0 && (
         <span>{formatCost(cost)}</span>
       )}
-
-      {/* Duration */}
-      {duration != null && duration > 0 && (
+      {show.duration && duration != null && duration > 0 && (
         <span>{formatDuration(duration)}</span>
       )}
-
-      {/* Turn total duration */}
-      {turnDuration != null && turnDuration > 0 && (
+      {show.turnDuration && turnDuration != null && turnDuration > 0 && (
         <span>total {formatDuration(turnDuration)}</span>
       )}
     </div>

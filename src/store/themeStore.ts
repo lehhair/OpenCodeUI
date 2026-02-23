@@ -65,6 +65,23 @@ function clampFontSize(v: number): number {
   return Math.max(MIN_FONT_SIZE, Math.min(MAX_FONT_SIZE, Math.round(v)))
 }
 
+/** step-finish 信息栏各项显示开关 */
+export interface StepFinishDisplay {
+  tokens: boolean
+  cache: boolean
+  cost: boolean
+  duration: boolean
+  turnDuration: boolean
+}
+
+const DEFAULT_STEP_FINISH_DISPLAY: StepFinishDisplay = {
+  tokens: true,
+  cache: true,
+  cost: true,
+  duration: true,
+  turnDuration: true,
+}
+
 export interface ThemeState {
   /** 当前选中的主题风格 ID */
   presetId: string
@@ -76,6 +93,8 @@ export interface ThemeState {
   fontSize: FontSize
   /** 是否自动折叠长用户消息 */
   collapseUserMessages: boolean
+  /** step-finish 信息栏显示开关 */
+  stepFinishDisplay: StepFinishDisplay
 }
 
 // ============================================
@@ -87,6 +106,7 @@ const STORAGE_KEY_COLOR_MODE = 'theme-mode'
 const STORAGE_KEY_CUSTOM_CSS = 'theme-custom-css'
 const STORAGE_KEY_FONT_SIZE = 'theme-font-size'
 const STORAGE_KEY_COLLAPSE_USER_MESSAGES = 'collapse-user-messages'
+const STORAGE_KEY_STEP_FINISH_DISPLAY = 'step-finish-display'
 
 // ============================================
 // DOM Style Element IDs
@@ -111,12 +131,19 @@ class ThemeStore {
     const savedCollapse = localStorage.getItem(STORAGE_KEY_COLLAPSE_USER_MESSAGES)
     const collapseUserMessages = savedCollapse === null ? true : savedCollapse === 'true'
     
+    let stepFinishDisplay = DEFAULT_STEP_FINISH_DISPLAY
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY_STEP_FINISH_DISPLAY)
+      if (saved) stepFinishDisplay = { ...DEFAULT_STEP_FINISH_DISPLAY, ...JSON.parse(saved) }
+    } catch { /* ignore */ }
+    
     this.state = {
       presetId: savedPreset,
       colorMode: savedMode,
       customCSS: savedCSS,
       fontSize: savedFontSize,
       collapseUserMessages,
+      stepFinishDisplay,
     }
   }
   
@@ -131,6 +158,7 @@ class ThemeStore {
   get customCSS() { return this.state.customCSS }
   get fontSize() { return this.state.fontSize }
   get collapseUserMessages() { return this.state.collapseUserMessages }
+  get stepFinishDisplay() { return this.state.stepFinishDisplay }
   
   /** 获取当前主题预设（内置主题返回对象，自定义返回 undefined） */
   getPreset(): ThemePreset | undefined {
@@ -202,6 +230,13 @@ class ThemeStore {
     if (this.state.collapseUserMessages === enabled) return
     this.state = { ...this.state, collapseUserMessages: enabled }
     localStorage.setItem(STORAGE_KEY_COLLAPSE_USER_MESSAGES, String(enabled))
+    this.emit()
+  }
+  
+  setStepFinishDisplay(display: Partial<StepFinishDisplay>) {
+    const next = { ...this.state.stepFinishDisplay, ...display }
+    this.state = { ...this.state, stepFinishDisplay: next }
+    localStorage.setItem(STORAGE_KEY_STEP_FINISH_DISPLAY, JSON.stringify(next))
     this.emit()
   }
   

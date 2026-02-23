@@ -5,7 +5,7 @@ import {
   SunIcon, MoonIcon, SystemIcon, MaximizeIcon, MinimizeIcon, 
   PathAutoIcon, PathUnixIcon, PathWindowsIcon,
   GlobeIcon, PlusIcon, TrashIcon, CheckIcon, WifiIcon, WifiOffIcon, SpinnerIcon, KeyIcon,
-  SettingsIcon, KeyboardIcon, CloseIcon, BellIcon, BoltIcon, CompactIcon, PlugIcon, StopIcon
+  SettingsIcon, KeyboardIcon, CloseIcon, BellIcon, BoltIcon, CompactIcon, PlugIcon, StopIcon, EyeIcon
 } from '../../components/Icons'
 import { usePathMode, useServerStore, useIsMobile, useNotification, useRouter } from '../../hooks'
 import { autoApproveStore, messageStore, notificationStore } from '../../store'
@@ -375,6 +375,7 @@ function GeneralSettings() {
   const [autoApprove, setAutoApprove] = useState(autoApproveStore.enabled)
   const { enabled: notificationsEnabled, setEnabled: setNotificationsEnabled, supported: notificationsSupported, permission: notificationPermission, sendNotification } = useNotification()
   const [collapseUserMessages, setCollapseUserMessages] = useState(themeStore.collapseUserMessages)
+  const [stepFinishDisplay, setStepFinishDisplay] = useState(themeStore.stepFinishDisplay)
   const [toastEnabled, setToastEnabledState] = useState(notificationStore.toastEnabled)
   const isMobile = useIsMobile()
   const { autoStart: autoStartService, binaryPath, envVars, running: serviceRunning, startedByUs, starting: serviceStarting } = useServiceStore()
@@ -558,6 +559,39 @@ function GeneralSettings() {
       >
         <Toggle enabled={collapseUserMessages} onChange={handleCollapseToggle} />
       </SettingRow>
+
+      <Divider />
+
+      {/* Step Finish Info Display */}
+      <SectionLabel>Step Info Display</SectionLabel>
+      {([
+        { key: 'tokens', label: 'Tokens', desc: 'Show token usage' },
+        { key: 'cache', label: 'Cache', desc: 'Show cache hit info' },
+        { key: 'cost', label: 'Cost', desc: 'Show API cost' },
+        { key: 'duration', label: 'Duration', desc: 'Show message response time' },
+        { key: 'turnDuration', label: 'Total Duration', desc: 'Show full turn elapsed time' },
+      ] as const).map(({ key, label, desc }) => (
+        <SettingRow
+          key={key}
+          label={label}
+          description={desc}
+          icon={<EyeIcon size={14} />}
+          onClick={() => {
+            const next = { [key]: !stepFinishDisplay[key] }
+            setStepFinishDisplay(prev => ({ ...prev, ...next }))
+            themeStore.setStepFinishDisplay(next)
+          }}
+        >
+          <Toggle
+            enabled={stepFinishDisplay[key]}
+            onChange={() => {
+              const next = { [key]: !stepFinishDisplay[key] }
+              setStepFinishDisplay(prev => ({ ...prev, ...next }))
+              themeStore.setStepFinishDisplay(next)
+            }}
+          />
+        </SettingRow>
+      ))}
 
       {/* Service Management - Tauri desktop only */}
       {isTauriDesktop && (
