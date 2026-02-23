@@ -33,12 +33,14 @@ import type {
 
 interface MessageRendererProps {
   message: Message
+  /** 回合总时长（毫秒），仅在回合最后一条 assistant 消息上有值 */
+  turnDuration?: number
   onUndo?: (userMessageId: string) => void
   canUndo?: boolean
   onEnsureParts?: (messageId: string) => void
 }
 
-export const MessageRenderer = memo(function MessageRenderer({ message, onUndo, canUndo, onEnsureParts }: MessageRendererProps) {
+export const MessageRenderer = memo(function MessageRenderer({ message, turnDuration, onUndo, canUndo, onEnsureParts }: MessageRendererProps) {
   const { info } = message
   const isUser = info.role === 'user'
   
@@ -46,7 +48,7 @@ export const MessageRenderer = memo(function MessageRenderer({ message, onUndo, 
     return <UserMessageView message={message} onUndo={onUndo} canUndo={canUndo} />
   }
   
-  return <AssistantMessageView message={message} onEnsureParts={onEnsureParts} />
+  return <AssistantMessageView message={message} turnDuration={turnDuration} onEnsureParts={onEnsureParts} />
 })
 
 // ============================================
@@ -214,7 +216,7 @@ const UserMessageView = memo(function UserMessageView({ message, onUndo, canUndo
 // Assistant Message View
 // ============================================
 
-const AssistantMessageView = memo(function AssistantMessageView({ message, onEnsureParts }: { message: Message; onEnsureParts?: (messageId: string) => void }) {
+const AssistantMessageView = memo(function AssistantMessageView({ message, turnDuration, onEnsureParts }: { message: Message; turnDuration?: number; onEnsureParts?: (messageId: string) => void }) {
   const { parts, isStreaming, info } = message
 
   useEffect(() => {
@@ -300,6 +302,7 @@ const AssistantMessageView = memo(function AssistantMessageView({ message, onEns
               parts={item.parts as ToolPart[]}
               stepFinish={item.stepFinish}
               duration={isLastStepFinish ? duration : undefined}
+              turnDuration={isLastStepFinish ? turnDuration : undefined}
             />
           )
         }
@@ -332,6 +335,7 @@ const AssistantMessageView = memo(function AssistantMessageView({ message, onEns
                 key={part.id} 
                 part={part as StepFinishPart}
                 duration={isLastStepFinish ? duration : undefined}
+                turnDuration={isLastStepFinish ? turnDuration : undefined}
               />
             )
           case 'subtask':
@@ -383,9 +387,10 @@ interface ToolGroupProps {
   parts: ToolPart[]
   stepFinish?: StepFinishPart
   duration?: number
+  turnDuration?: number
 }
 
-const ToolGroup = memo(function ToolGroup({ parts, stepFinish, duration }: ToolGroupProps) {
+const ToolGroup = memo(function ToolGroup({ parts, stepFinish, duration, turnDuration }: ToolGroupProps) {
   const [expanded, setExpanded] = useState(true)
   const shouldRenderBody = useDelayedRender(expanded)
   
@@ -428,7 +433,7 @@ const ToolGroup = memo(function ToolGroup({ parts, stepFinish, duration }: ToolG
       </div>
 
       {stepFinish && (
-        <StepFinishPartView part={stepFinish} duration={duration} />
+        <StepFinishPartView part={stepFinish} duration={duration} turnDuration={turnDuration} />
       )}
     </div>
   )

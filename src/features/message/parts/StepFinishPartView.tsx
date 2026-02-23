@@ -3,8 +3,10 @@ import type { StepFinishPart } from '../../../types/message'
 
 interface StepFinishPartViewProps {
   part: StepFinishPart
-  /** 消息总耗时（毫秒），从外部传入 */
+  /** 单条消息耗时（毫秒） */
   duration?: number
+  /** 整个回合总耗时（毫秒），从用户发送到最后一条 assistant 完成 */
+  turnDuration?: number
 }
 
 function formatNumber(num: number): string {
@@ -27,7 +29,7 @@ function formatDuration(ms: number): string {
   return rem > 0 ? `${m}m${rem}s` : `${m}m`
 }
 
-export const StepFinishPartView = memo(function StepFinishPartView({ part, duration }: StepFinishPartViewProps) {
+export const StepFinishPartView = memo(function StepFinishPartView({ part, duration, turnDuration }: StepFinishPartViewProps) {
   const { tokens, cost } = part
   const totalTokens = tokens.input + tokens.output + tokens.reasoning + tokens.cache.read + tokens.cache.write
   const cacheHit = tokens.cache.read
@@ -54,6 +56,11 @@ export const StepFinishPartView = memo(function StepFinishPartView({ part, durat
       {/* Duration */}
       {duration != null && duration > 0 && (
         <span>{formatDuration(duration)}</span>
+      )}
+
+      {/* Turn total duration */}
+      {turnDuration != null && turnDuration > 0 && (
+        <span>total {formatDuration(turnDuration)}</span>
       )}
     </div>
   )

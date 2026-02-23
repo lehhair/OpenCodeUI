@@ -231,6 +231,25 @@ export const ChatArea = memo(forwardRef<ChatAreaHandle, ChatAreaProps>(({
     [messages]
   )
   
+  // 计算每个回合的总时长：user.created → 最后一条 assistant.completed
+  // 只在回合最后一条 assistant 消息上标记
+  const turnDurationMap = useMemo(() => {
+    const map = new Map<string, number>()
+    for (let i = 0; i < visibleMessages.length; i++) {
+      if (visibleMessages[i].info.role !== 'user') continue
+      const userCreated = visibleMessages[i].info.time.created
+      // 找到这个 user 之后的最后一条 assistant（直到下一个 user 或末尾）
+      let lastAssistant: Message | undefined
+      for (let j = i + 1; j < visibleMessages.length && visibleMessages[j].info.role !== 'user'; j++) {
+        lastAssistant = visibleMessages[j]
+      }
+      if (lastAssistant?.info.time.completed) {
+        map.set(lastAssistant.info.id, lastAssistant.info.time.completed - userCreated)
+      }
+    }
+    return map
+  }, [visibleMessages])
+  
   // 用 ref 追踪最新的消息数量，确保回调和 effect 中能获取到
   const visibleMessagesCountRef = useRef(visibleMessages.length)
   visibleMessagesCountRef.current = visibleMessages.length
@@ -439,6 +458,7 @@ export const ChatArea = memo(forwardRef<ChatAreaHandle, ChatAreaProps>(({
           <div className={`min-w-0 group ${msg.info.role === 'assistant' ? 'w-full' : ''}`}>
             <MessageRenderer
               message={msg}
+              turnDuration={turnDurationMap.get(msg.info.id)}
               onUndo={onUndo}
               canUndo={canUndo}
               onEnsureParts={(id) => {
@@ -450,7 +470,7 @@ export const ChatArea = memo(forwardRef<ChatAreaHandle, ChatAreaProps>(({
         </div>
       </div>
     )
-  }, [registerMessage, onUndo, canUndo, isWideMode, sessionId])
+  }, [registerMessage, onUndo, canUndo, isWideMode, sessionId, turnDurationMap])
 
   // Session 正在加载且没有消息 → 显示全屏 spinner（仅在有 sessionId 时，新建对话不显示）
   const showSessionLoading = !!sessionId && loadState === 'loading' && visibleMessages.length === 0
