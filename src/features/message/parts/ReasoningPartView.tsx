@@ -188,11 +188,11 @@ export const ReasoningPartView = memo(function ReasoningPartView({ part, isStrea
       <button
         onClick={() => setExpanded(!expanded)}
         disabled={!hasContent && !isPartStreaming} // 没内容且没流式时禁用点击（其实这种情况下组件都不渲染了）
-        className={`w-full flex items-start gap-1.5 pl-0 pr-3 py-2 text-text-400 hover:bg-bg-200/50 transition-colors ${
+        className={`w-full flex items-start gap-1.5 pl-3 pr-3 py-2 text-text-400 hover:bg-bg-200/50 transition-colors ${
           !hasContent ? 'cursor-default' : ''
         }`}
       >
-        <span className="inline-flex h-5 w-[14px] items-start justify-center pt-[2px] shrink-0">
+        <span className="inline-flex h-5 w-[14px] -ml-px items-start justify-center pt-[2px] shrink-0">
           {isPartStreaming ? (
             <SpinnerIcon className="animate-spin shrink-0" size={14} />
           ) : (
