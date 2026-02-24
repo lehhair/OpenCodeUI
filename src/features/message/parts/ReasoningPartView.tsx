@@ -137,7 +137,7 @@ export const ReasoningPartView = memo(function ReasoningPartView({ part, isStrea
                       {summaryText}
                     </span>
                   </div>
-                  <span className={`inline-flex h-5 w-3 items-start justify-center pt-[2px] shrink-0 text-text-500/60 group-hover:text-text-300 transition-[transform,color] duration-200 ${expanded ? 'rotate-180' : ''}`}>
+                  <span className={`inline-flex h-5 w-3 items-center justify-center shrink-0 text-text-500/60 group-hover:text-text-300 transition-[transform,color] duration-200 ${expanded ? 'rotate-180' : ''}`}>
                     <ChevronDownIcon size={12} />
                   </span>
                 </button>
@@ -168,7 +168,7 @@ export const ReasoningPartView = memo(function ReasoningPartView({ part, isStrea
                     {summaryText}
                   </span>
                 </div>
-                <span className="inline-flex h-5 w-3 items-start justify-center pt-[2px] shrink-0" aria-hidden="true" />
+                <span className="inline-flex h-5 w-3 items-center justify-center shrink-0" aria-hidden="true" />
               </div>
             )}
           </div>
@@ -209,7 +209,7 @@ export const ReasoningPartView = memo(function ReasoningPartView({ part, isStrea
             <span className="w-1 h-1 bg-text-400 rounded-full animate-bounce" />
           </span>
         )}
-        <span className={`ml-auto inline-flex h-5 items-start pt-[2px] transition-transform duration-300 ${expanded ? 'rotate-180' : ''}`}>
+        <span className={`ml-auto inline-flex h-5 items-center transition-transform duration-300 ${expanded ? 'rotate-180' : ''}`}>
           <ChevronDownIcon size={12} />
         </span>
       </button>
