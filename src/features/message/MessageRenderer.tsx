@@ -402,9 +402,9 @@ const ToolGroup = memo(function ToolGroup({ parts, stepFinish, duration, turnDur
     <div className="flex flex-col">
       <button
         onClick={() => setExpanded(!expanded)}
-        className="flex items-center gap-1.5 py-1.5 text-text-400 text-sm hover:text-text-200 rounded-md transition-colors w-fit"
+        className="flex items-start gap-1.5 py-1.5 text-text-400 text-sm hover:text-text-200 rounded-md transition-colors w-fit"
       >
-        <span className="inline-flex h-5 w-[14px] items-center justify-center shrink-0">
+        <span className="inline-flex h-5 w-[14px] items-start justify-center pt-[2px] shrink-0">
           {expanded ? <ChevronDownIcon size={14} /> : <ChevronRightIcon size={14} />}
         </span>
         <span className="whitespace-nowrap tabular-nums leading-5">
