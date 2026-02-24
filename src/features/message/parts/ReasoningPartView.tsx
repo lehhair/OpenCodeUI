@@ -121,7 +121,7 @@ export const ReasoningPartView = memo(function ReasoningPartView({ part, isStrea
                   aria-expanded={expanded}
                   className="group w-full m-0 p-0 border-0 bg-transparent grid grid-cols-[minmax(0,1fr)_12px] items-start gap-x-2 text-left cursor-pointer text-text-400 hover:text-text-200"
                 >
-                  <div ref={summaryContainerRef} className="min-w-0 flex-1 relative">
+                  <div ref={summaryContainerRef} className="min-w-0 flex-1 relative overflow-hidden">
                     <span className={`block min-w-0 italic ${
                       expanded
                         ? 'text-[12px] leading-5 text-text-500/80'
@@ -147,7 +147,7 @@ export const ReasoningPartView = memo(function ReasoningPartView({ part, isStrea
                 }`}>
                   <div className="overflow-hidden">
                     {shouldRenderBody && (
-                      <div className="pt-0.5 text-[12px] leading-6 italic text-text-300 whitespace-pre-wrap break-words">
+                      <div className="pt-0.5 text-[12px] leading-6 italic text-text-300 whitespace-pre-wrap break-words overflow-x-hidden">
                         {displayText}
                       </div>
                     )}
@@ -156,7 +156,7 @@ export const ReasoningPartView = memo(function ReasoningPartView({ part, isStrea
               </>
             ) : (
               <div className="grid grid-cols-[minmax(0,1fr)_12px] items-start gap-x-2 text-text-400">
-                <div ref={summaryContainerRef} className="min-w-0 flex-1 relative">
+                <div ref={summaryContainerRef} className="min-w-0 flex-1 relative overflow-hidden">
                   <span className="block min-w-0 text-[12px] leading-5 italic text-text-300 whitespace-pre-wrap break-words">
                     {displayText}
                   </span>
@@ -220,7 +220,7 @@ export const ReasoningPartView = memo(function ReasoningPartView({ part, isStrea
           <div className="overflow-hidden">
             {shouldRenderBody && (
               <ScrollArea ref={scrollAreaRef} maxHeight={192} className="border-t border-border-300/20 bg-bg-200/30">
-                <div className="pl-4 pr-3 py-2 text-text-300 text-xs font-mono whitespace-pre-wrap">
+                <div className="pl-4 pr-3 py-2 text-text-300 text-xs font-mono whitespace-pre-wrap break-words overflow-x-hidden">
                   {displayText}
                 </div>
               </ScrollArea>
