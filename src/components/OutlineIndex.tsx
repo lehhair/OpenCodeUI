@@ -17,14 +17,13 @@ import { isUserMessage } from '../types/message'
 // ============================================
 
 interface OutlineEntry {
-  index: number
   title: string
   messageId: string
 }
 
 interface OutlineIndexProps {
   messages: Message[]
-  onScrollToIndex: (index: number) => void
+  onScrollToMessageId: (messageId: string) => void
   visibleMessageIds?: string[]
 }
 
@@ -80,7 +79,6 @@ function extractOutlineEntries(messages: Message[]): OutlineEntry[] {
     const msg = visible[i]
     if (isUserMessage(msg.info) && msg.info.summary?.title) {
       entries.push({
-        index: i,
         title: msg.info.summary.title,
         messageId: msg.info.id,
       })
@@ -99,7 +97,7 @@ function truncate(s: string, max: number) {
 
 export const OutlineIndex = memo(function OutlineIndex({
   messages,
-  onScrollToIndex,
+  onScrollToMessageId,
   visibleMessageIds,
 }: OutlineIndexProps) {
   const entries = useMemo(() => extractOutlineEntries(messages), [messages])
@@ -110,12 +108,12 @@ export const OutlineIndex = memo(function OutlineIndex({
     <>
       <DesktopAperture
         entries={entries}
-        onScrollToIndex={onScrollToIndex}
+        onScrollToMessageId={onScrollToMessageId}
         visibleMessageIds={visibleMessageIds}
       />
       <MobileAperture
         entries={entries}
-        onScrollToIndex={onScrollToIndex}
+        onScrollToMessageId={onScrollToMessageId}
         visibleMessageIds={visibleMessageIds}
       />
     </>
@@ -128,7 +126,7 @@ export const OutlineIndex = memo(function OutlineIndex({
 
 interface ApertureProps {
   entries: OutlineEntry[]
-  onScrollToIndex: (index: number) => void
+  onScrollToMessageId: (messageId: string) => void
   visibleMessageIds?: string[]
 }
 
@@ -138,7 +136,7 @@ interface ApertureProps {
 
 const DesktopAperture = memo(function DesktopAperture({
   entries,
-  onScrollToIndex,
+  onScrollToMessageId,
   visibleMessageIds,
 }: ApertureProps) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -261,9 +259,9 @@ const DesktopAperture = memo(function DesktopAperture({
     ensureLoop()
   }, [ensureLoop])
 
-  const handleClick = useCallback((entryIndex: number) => {
-    onScrollToIndex(entryIndex)
-  }, [onScrollToIndex])
+  const handleClick = useCallback((messageId: string) => {
+    onScrollToMessageId(messageId)
+  }, [onScrollToMessageId])
 
   useEffect(() => {
     return () => cancelAnimationFrame(rafIdRef.current)
@@ -290,7 +288,7 @@ const DesktopAperture = memo(function DesktopAperture({
             data-active={isActive ? '1' : '0'}
             className="relative flex items-center justify-end cursor-pointer"
             style={{ marginTop: `${MARGIN_MIN}px`, marginBottom: `${MARGIN_MIN}px` }}
-            onClick={() => handleClick(entry.index)}
+            onClick={() => handleClick(entry.messageId)}
           >
             {/* Label — absolute 定位，不撑大触发区域 */}
             <div
@@ -333,7 +331,7 @@ const MOBILE_LABEL_THRESHOLD = 0.6
 
 const MobileAperture = memo(function MobileAperture({
   entries,
-  onScrollToIndex,
+  onScrollToMessageId,
   visibleMessageIds,
 }: ApertureProps) {
   const [overlayVisible, setOverlayVisible] = useState(false)
@@ -466,7 +464,7 @@ const MobileAperture = memo(function MobileAperture({
       // 所有 strength 归零后收起 overlay
       setOverlayVisible(false)
     }
-  }, [entries, vibrate, onScrollToIndex]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [entries, vibrate]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const ensureLoop = useCallback(() => {
     cancelAnimationFrame(rafIdRef.current)
@@ -492,7 +490,7 @@ const MobileAperture = memo(function MobileAperture({
     // 松手 → 跳转到最后聚焦的条目
     const idx = prevFocusIdxRef.current
     if (idx >= 0 && idx < entries.length) {
-      onScrollToIndex(entries[idx].index)
+      onScrollToMessageId(entries[idx].messageId)
     }
     isTouchingRef.current = false
     touchYRef.current = null
@@ -505,7 +503,7 @@ const MobileAperture = memo(function MobileAperture({
     }
     // 回弹动画继续跑，归零后 runLoop 会 setOverlayVisible(false)
     ensureLoop()
-  }, [entries, onScrollToIndex, ensureLoop])
+  }, [entries, onScrollToMessageId, ensureLoop])
 
   useEffect(() => {
     return () => cancelAnimationFrame(rafIdRef.current)

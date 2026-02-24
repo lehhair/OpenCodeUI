@@ -52,6 +52,8 @@ export type ChatAreaHandle = {
   suppressAutoScroll: (duration?: number) => void
   /** 滚动到指定索引的消息（用于目录导航） */
   scrollToMessageIndex: (index: number) => void
+  /** 按消息 ID 滚动（避免渲染合并导致的索引漂移） */
+  scrollToMessageId: (messageId: string) => void
 }
 
 // 检查消息是否有可见内容
@@ -391,6 +393,19 @@ export const ChatArea = memo(forwardRef<ChatAreaHandle, ChatAreaProps>(({
           behavior: 'smooth',
         })
       }
+    },
+    scrollToMessageId: (messageId: string) => {
+      const index = visibleMessages.findIndex(m => m.info.id === messageId)
+      if (index < 0) return
+
+      suppressScrollRef.current = true
+      setTimeout(() => { suppressScrollRef.current = false }, 1000)
+
+      virtuosoRef.current?.scrollToIndex({
+        index,
+        align: 'start',
+        behavior: 'smooth',
+      })
     },
   }))
   

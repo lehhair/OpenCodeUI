@@ -546,7 +546,7 @@ function App() {
             {/* Outline Index - 消息目录索引 */}
             <OutlineIndex
               messages={messages}
-              onScrollToIndex={(index) => chatAreaRef.current?.scrollToMessageIndex(index)}
+              onScrollToMessageId={(messageId) => chatAreaRef.current?.scrollToMessageId(messageId)}
               visibleMessageIds={visibleMessageIds}
             />
 

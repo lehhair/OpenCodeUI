@@ -86,12 +86,13 @@ export function useSessionManager({
       const dir = directoryRef.current
       Promise.all([
         getSession(sid, dir).catch(() => null),
-        getSessionMessages(sid, INITIAL_MESSAGE_LIMIT, dir).catch(() => []),
-      ]).then(([sessionInfo, apiMessages]) => {
+        getSessionMessages(sid, INITIAL_MESSAGE_LIMIT, dir)
+          .then((messages) => ({ ok: true as const, messages }))
+          .catch(() => ({ ok: false as const, messages: [] as ApiMessageWithParts[] })),
+      ]).then(([sessionInfo, messagesResult]) => {
         messageStore.updateSessionMetadata(sid, {
-          hasMoreHistory: apiMessages.length >= INITIAL_MESSAGE_LIMIT,
+          ...(messagesResult.ok ? { hasMoreHistory: messagesResult.messages.length >= INITIAL_MESSAGE_LIMIT } : {}),
           directory: sessionInfo?.directory ?? dir ?? '',
-          loadState: 'loaded',
           shareUrl: sessionInfo?.share?.url,
         })
       }).catch(() => {
