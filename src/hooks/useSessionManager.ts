@@ -54,7 +54,8 @@ export function useSessionManager({
   onLoadComplete,
   onError,
 }: UseSessionManagerOptions) {
-  const loadingRef = useRef(false)
+  const loadingSessionsRef = useRef<Set<string>>(new Set())
+  const loadSessionRef = useRef<(sid: string, options?: { force?: boolean }) => Promise<void>>(async () => {})
   
   // 使用 ref 保存 directory，避免依赖变化
   const directoryRef = useRef(directory)
@@ -67,8 +68,8 @@ export function useSessionManager({
   const loadSession = useCallback(async (sid: string, options?: { force?: boolean }) => {
     const force = options?.force ?? false
     
-    if (loadingRef.current && !force) return
-    loadingRef.current = true
+    if (loadingSessionsRef.current.has(sid) && !force) return
+    loadingSessionsRef.current.add(sid)
 
     const dir = directoryRef.current
 
@@ -98,7 +99,7 @@ export function useSessionManager({
       }).catch(() => {
         // 元数据加载失败不影响 streaming，静默忽略
       })
-      loadingRef.current = false
+      loadingSessionsRef.current.delete(sid)
       onLoadComplete?.()
       return
     }
@@ -131,7 +132,7 @@ export function useSessionManager({
           shareUrl: sessionInfo?.share?.url,
         })
         onLoadComplete?.()
-        loadingRef.current = false
+        loadingSessionsRef.current.delete(sid)
         return
       }
 
@@ -154,9 +155,14 @@ export function useSessionManager({
       messageStore.setLoadState(sid, 'error')
       onError?.(error instanceof Error ? error : new Error(String(error)))
     } finally {
-      loadingRef.current = false
+      loadingSessionsRef.current.delete(sid)
     }
   }, [onLoadComplete, onError])
+
+  // 保持 ref 同步，避免 effect 依赖 loadSession 导致重复触发
+  useEffect(() => {
+    loadSessionRef.current = loadSession
+  }, [loadSession])
 
   // ============================================
   // Load More History
@@ -363,20 +369,16 @@ export function useSessionManager({
   // Effects
   // ============================================
 
-  // 同步 sessionId 到 store，并加载数据
+  // 同步 sessionId 到 store，并在每次切换时重新拉取 session（避免仅用内存态/缓存态）
   useEffect(() => {
     // 先更新 currentSessionId
     messageStore.setCurrentSession(sessionId)
 
     if (sessionId) {
-      const state = messageStore.getSessionState(sessionId)
-      // 只有未加载时才加载
-      if (!state || state.loadState === 'idle') {
-        loadSession(sessionId)
-      }
+      void loadSessionRef.current(sessionId)
     }
 
-  }, [sessionId, loadSession])
+  }, [sessionId])
 
   return {
     loadSession,
