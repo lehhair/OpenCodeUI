@@ -136,8 +136,8 @@ function App() {
   // Settings Dialog
   // ============================================
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false)
-  const [settingsInitialTab, setSettingsInitialTab] = useState<'appearance' | 'general' | 'servers' | 'keybindings'>('appearance')
-  const openSettings = useCallback(() => { setSettingsInitialTab('appearance'); setSettingsDialogOpen(true) }, [])
+  const [settingsInitialTab, setSettingsInitialTab] = useState<'appearance' | 'chat' | 'notifications' | 'service' | 'servers' | 'keybindings'>('servers')
+  const openSettings = useCallback(() => { setSettingsInitialTab('servers'); setSettingsDialogOpen(true) }, [])
   const closeSettings = useCallback(() => setSettingsDialogOpen(false), [])
 
   // ============================================

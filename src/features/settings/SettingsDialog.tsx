@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { Dialog } from '../../components/ui/Dialog'
 import { Button } from '../../components/ui/Button'
 import { 
@@ -21,7 +21,7 @@ import type { ServerConfig, ServerHealth } from '../../store/serverStore'
 // Types
 // ============================================
 
-type SettingsTab = 'appearance' | 'general' | 'servers' | 'keybindings'
+type SettingsTab = 'appearance' | 'chat' | 'notifications' | 'service' | 'servers' | 'keybindings'
 
 interface SettingsDialogProps {
   isOpen: boolean
@@ -30,7 +30,7 @@ interface SettingsDialogProps {
   onThemeChange: (mode: ThemeMode, event?: React.MouseEvent) => void
   isWideMode?: boolean
   onToggleWideMode?: () => void
-  initialTab?: SettingsTab
+  initialTab?: SettingsTab | 'general'
   // Theme preset
   presetId?: string
   onPresetChange?: (presetId: string, event?: React.MouseEvent) => void
@@ -113,13 +113,15 @@ interface SettingRowProps {
   icon?: React.ReactNode
   children: React.ReactNode
   onClick?: () => void
+  className?: string
 }
 
-function SettingRow({ label, description, icon, children, onClick }: SettingRowProps) {
+function SettingRow({ label, description, icon, children, onClick, className }: SettingRowProps) {
   return (
     <div 
-      className={`flex items-center justify-between py-3 px-3 -mx-3 rounded-lg transition-colors
-        ${onClick ? 'cursor-pointer hover:bg-bg-100/50' : ''}`}
+      className={`flex items-center justify-between py-2.5 px-2.5 rounded-lg border border-transparent transition-colors
+        ${onClick ? 'cursor-pointer hover:bg-bg-100/55 hover:border-border-200/45' : ''}
+        ${className || ''}`}
       onClick={onClick}
     >
       <div className="flex items-center gap-3 min-w-0 flex-1">
@@ -134,12 +136,31 @@ function SettingRow({ label, description, icon, children, onClick }: SettingRowP
   )
 }
 
-function SectionLabel({ children }: { children: React.ReactNode }) {
-  return <div className="text-[11px] font-medium text-text-400 uppercase tracking-wider mb-2 mt-1">{children}</div>
-}
-
-function Divider() {
-  return <div className="border-t border-border-100/50 my-2" />
+function SettingsCard({
+  title,
+  description,
+  actions,
+  children,
+  className,
+}: {
+  title: string
+  description?: string
+  actions?: React.ReactNode
+  children: React.ReactNode
+  className?: string
+}) {
+  return (
+    <section className={`rounded-xl border border-border-200/55 bg-bg-050/55 p-3.5 ${className || ''}`}>
+      <div className="flex items-start justify-between gap-3 mb-3">
+        <div className="min-w-0">
+          <div className="text-[13px] font-semibold text-text-100">{title}</div>
+          {description && <div className="text-[11px] text-text-400 mt-0.5 leading-relaxed">{description}</div>}
+        </div>
+        {actions && <div className="shrink-0">{actions}</div>}
+      </div>
+      {children}
+    </section>
+  )
 }
 
 // ============================================
@@ -303,12 +324,13 @@ function AppearanceSettings({ themeMode, onThemeChange, isWideMode, onToggleWide
   const [fontSize, setFontSize] = useState(themeStore.fontSize)
 
   return (
-    <div>
-      {/* Theme Preset */}
+    <div className="space-y-4">
       {availablePresets && availablePresets.length > 0 && (
-        <>
-          <SectionLabel>Theme</SectionLabel>
-          <div className="space-y-1.5 mb-3">
+        <SettingsCard
+          title="Theme Presets"
+          description="Choose a base visual style for the app"
+        >
+          <div className="grid gap-2 sm:grid-cols-2">
             {availablePresets.map(p => (
               <PresetCard
                 key={p.id}
@@ -320,48 +342,58 @@ function AppearanceSettings({ themeMode, onThemeChange, isWideMode, onToggleWide
               />
             ))}
           </div>
-          
-          {presetId === 'custom' && onCustomCSSChange && (
-            <CustomCSSEditor value={customCSS || ''} onChange={onCustomCSSChange} />
-          )}
-        </>
+        </SettingsCard>
       )}
 
-      {/* Color Mode */}
-      <SectionLabel>Color Mode</SectionLabel>
-      <SegmentedControl
-        value={themeMode}
-        options={[
-          { value: 'system', label: 'Auto', icon: <SystemIcon size={14} /> },
-          { value: 'light', label: 'Light', icon: <SunIcon size={14} /> },
-          { value: 'dark', label: 'Dark', icon: <MoonIcon size={14} /> },
-        ]}
-        onChange={(v, e) => onThemeChange(v, e)}
-      />
-      
-      <Divider />
-
-      {/* Font Size */}
-      <SectionLabel>Font Size</SectionLabel>
-      <FontSizeSlider
-        value={fontSize}
-        onChange={(v) => { setFontSize(v); themeStore.setFontSize(v) }}
-      />
-      
-      <Divider />
-
-      {/* Layout */}
-      <SectionLabel>Layout</SectionLabel>
-      {onToggleWideMode && (
-        <SettingRow 
-          label="Wide Mode" 
-          description="Expand chat to full width"
-          icon={isWideMode ? <MinimizeIcon size={14} /> : <MaximizeIcon size={14} />}
-          onClick={onToggleWideMode}
+      {presetId === 'custom' && onCustomCSSChange && (
+        <SettingsCard
+          title="Custom CSS"
+          description="Advanced theme overrides via CSS variables"
         >
-          <Toggle enabled={!!isWideMode} onChange={onToggleWideMode} />
-        </SettingRow>
+          <CustomCSSEditor value={customCSS || ''} onChange={onCustomCSSChange} />
+        </SettingsCard>
       )}
+
+      <SettingsCard
+        title="Display"
+        description="Control color mode, typography, and layout"
+      >
+        <div className="space-y-4">
+          <div>
+            <div className="text-[11px] font-medium text-text-400 uppercase tracking-wider mb-1.5">Color Mode</div>
+            <SegmentedControl
+              value={themeMode}
+              options={[
+                { value: 'system', label: 'Auto', icon: <SystemIcon size={14} /> },
+                { value: 'light', label: 'Light', icon: <SunIcon size={14} /> },
+                { value: 'dark', label: 'Dark', icon: <MoonIcon size={14} /> },
+              ]}
+              onChange={(v, e) => onThemeChange(v, e)}
+            />
+          </div>
+
+          <div className="pt-3 border-t border-border-100/55">
+            <div className="text-[11px] font-medium text-text-400 uppercase tracking-wider mb-1.5">Font Size</div>
+            <FontSizeSlider
+              value={fontSize}
+              onChange={(v) => { setFontSize(v); themeStore.setFontSize(v) }}
+            />
+          </div>
+
+          {onToggleWideMode && (
+            <div className="pt-3 border-t border-border-100/55">
+              <SettingRow 
+                label="Wide Mode" 
+                description="Expand chat area for long outputs"
+                icon={isWideMode ? <MinimizeIcon size={14} /> : <MaximizeIcon size={14} />}
+                onClick={onToggleWideMode}
+              >
+                <Toggle enabled={!!isWideMode} onChange={onToggleWideMode} />
+              </SettingRow>
+            </div>
+          )}
+        </div>
+      </SettingsCard>
     </div>
   )
 }
@@ -370,7 +402,7 @@ function AppearanceSettings({ themeMode, onThemeChange, isWideMode, onToggleWide
 // Tab: General
 // ============================================
 
-function GeneralSettings() {
+function GeneralSettings({ mode }: { mode: 'chat' | 'notifications' | 'service' }) {
   const { pathMode, setPathMode, effectiveStyle, detectedStyle, isAutoMode } = usePathMode()
   const [autoApprove, setAutoApprove] = useState(autoApproveStore.enabled)
   const { enabled: notificationsEnabled, setEnabled: setNotificationsEnabled, supported: notificationsSupported, permission: notificationPermission, sendNotification } = useNotification()
@@ -489,277 +521,323 @@ function GeneralSettings() {
   }
 
   return (
-    <div>
-      {/* Path Style */}
-      <SectionLabel>Path Style</SectionLabel>
-      <SegmentedControl
-        value={pathMode}
-        options={[
-          { value: 'auto', label: 'Auto', icon: <PathAutoIcon size={14} /> },
-          { value: 'unix', label: 'Unix /', icon: <PathUnixIcon size={14} /> },
-          { value: 'windows', label: 'Win \\', icon: <PathWindowsIcon size={14} /> },
-        ]}
-        onChange={(v) => setPathMode(v as PathMode)}
-      />
-      {isAutoMode && (
-        <div className="text-[11px] text-text-400 mt-1.5 px-1">
-          Using <span className="font-mono text-text-300">{effectiveStyle === 'windows' ? '\\' : '/'}</span>
-          {detectedStyle && <>, detected <span className="font-mono text-text-300">{detectedStyle === 'windows' ? 'Windows' : 'Unix'}</span></>}
-        </div>
-      )}
-
-      <Divider />
-      
-      {/* Behavior */}
-      <SectionLabel>Behavior</SectionLabel>
-      <SettingRow
-        label="Auto-Approve"
-        description="Use local rules for always, send once to server"
-        icon={<BoltIcon size={14} />}
-        onClick={handleAutoApprove}
-      >
-        <Toggle enabled={autoApprove} onChange={handleAutoApprove} />
-      </SettingRow>
-      {notificationsSupported && (
-        <SettingRow
-          label="Notifications"
-          description={notificationPermission === 'denied' ? 'Blocked by browser' : 'Notify when AI completes a response'}
-          icon={<BellIcon size={14} />}
-          onClick={() => notificationPermission !== 'denied' && setNotificationsEnabled(!notificationsEnabled)}
-        >
-          <Toggle 
-            enabled={notificationsEnabled && notificationPermission !== 'denied'} 
-            onChange={() => notificationPermission !== 'denied' && setNotificationsEnabled(!notificationsEnabled)} 
-          />
-        </SettingRow>
-      )}
-      <SettingRow
-        label="Toast Notifications"
-        description="Show in-app toast popups for background session events"
-        icon={<BellIcon size={14} />}
-        onClick={handleToastToggle}
-      >
-        <Toggle enabled={toastEnabled} onChange={handleToastToggle} />
-      </SettingRow>
-      {notificationsSupported && (
-        <SettingRow
-          label="Test Notification"
-          description={notificationsEnabled ? 'Send a sample notification' : 'Enable notifications to test'}
-          icon={<BellIcon size={14} />}
-        >
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={handleTestNotification}
-            disabled={!notificationsEnabled || notificationPermission === 'denied'}
-          >
-            Send
-          </Button>
-        </SettingRow>
-      )}
-      <SettingRow
-        label="Collapse Long Messages"
-        description="Auto-collapse lengthy user messages"
-        icon={<CompactIcon size={14} />}
-        onClick={handleCollapseToggle}
-      >
-        <Toggle enabled={collapseUserMessages} onChange={handleCollapseToggle} />
-      </SettingRow>
-      <SettingRow
-        label="Thinking Display"
-        description="Choose capsule or italic expandable style"
-        icon={<ThinkingIcon size={14} />}
-      >
-        <div className="flex items-center rounded-md border border-border-200/60 bg-bg-100/60 p-0.5">
-          {([
-            { key: 'capsule', label: 'Capsule' },
-            { key: 'italic', label: 'Italic' },
-          ] as const).map(opt => (
-            <button
-              key={opt.key}
-              onClick={(e) => {
-                e.stopPropagation()
-                handleReasoningDisplayModeChange(opt.key)
-              }}
-              className={`px-2.5 py-1 text-[11px] rounded transition-colors ${
-                reasoningDisplayMode === opt.key
-                  ? 'bg-bg-000 text-text-100 shadow-sm'
-                  : 'text-text-400 hover:text-text-200'
-              }`}
-            >
-              {opt.label}
-            </button>
-          ))}
-        </div>
-      </SettingRow>
-
-      <Divider />
-
-      {/* Step Finish Info Display */}
-      <SectionLabel>Step Info Display</SectionLabel>
-      {([
-        { key: 'tokens', label: 'Tokens', desc: 'Show token usage' },
-        { key: 'cache', label: 'Cache', desc: 'Show cache hit info' },
-        { key: 'cost', label: 'Cost', desc: 'Show API cost' },
-        { key: 'duration', label: 'Duration', desc: 'Show message response time' },
-        { key: 'turnDuration', label: 'Total Duration', desc: 'Show full turn elapsed time' },
-      ] as const).map(({ key, label, desc }) => (
-        <SettingRow
-          key={key}
-          label={label}
-          description={desc}
-          icon={<EyeIcon size={14} />}
-          onClick={() => {
-            const next = { [key]: !stepFinishDisplay[key] }
-            setStepFinishDisplay(prev => ({ ...prev, ...next }))
-            themeStore.setStepFinishDisplay(next)
-          }}
-        >
-          <Toggle
-            enabled={stepFinishDisplay[key]}
-            onChange={() => {
-              const next = { [key]: !stepFinishDisplay[key] }
-              setStepFinishDisplay(prev => ({ ...prev, ...next }))
-              themeStore.setStepFinishDisplay(next)
-            }}
-          />
-        </SettingRow>
-      ))}
-
-      {/* Service Management - Tauri desktop only */}
-      {isTauriDesktop && (
+    <div className="space-y-4">
+      {mode === 'chat' && (
         <>
-          <Divider />
-          <SectionLabel>Service</SectionLabel>
+          <div className="grid gap-4 xl:grid-cols-2">
+            <SettingsCard
+              title="Paths & Formatting"
+              description="How file paths are displayed in messages and tools"
+            >
+              <SegmentedControl
+                value={pathMode}
+                options={[
+                  { value: 'auto', label: 'Auto', icon: <PathAutoIcon size={14} /> },
+                  { value: 'unix', label: 'Unix /', icon: <PathUnixIcon size={14} /> },
+                  { value: 'windows', label: 'Win \\', icon: <PathWindowsIcon size={14} /> },
+                ]}
+                onChange={(v) => setPathMode(v as PathMode)}
+              />
+              {isAutoMode && (
+                <div className="text-[11px] text-text-400 mt-2 px-1">
+                  Using <span className="font-mono text-text-300">{effectiveStyle === 'windows' ? '\\' : '/'}</span>
+                  {detectedStyle && <>, detected <span className="font-mono text-text-300">{detectedStyle === 'windows' ? 'Windows' : 'Unix'}</span></>}
+                </div>
+              )}
+            </SettingsCard>
 
-          {/* Binary path */}
-          <div className="mb-3">
-            <div className="text-[11px] font-medium text-text-300 mb-1">Binary Path</div>
-            <input
-              type="text"
-              value={localBinaryPath}
-              onChange={(e) => handleBinaryPathChange(e.target.value)}
-              placeholder="opencode (default, uses PATH)"
-              className="w-full h-8 px-3 text-[13px] font-mono bg-bg-200/50 border border-border-200 rounded-md 
-                focus:outline-none focus:border-accent-main-100/50 text-text-100 placeholder:text-text-400"
-            />
-            <div className="text-[11px] text-text-400 mt-1">
-              Leave empty to use <code className="text-[10px] px-1 py-0.5 bg-bg-200 rounded font-mono">opencode</code> from PATH. Or enter full path, e.g. <code className="text-[10px] px-1 py-0.5 bg-bg-200 rounded font-mono">/usr/local/bin/opencode</code>
-            </div>
+            <SettingsCard
+              title="Agent Behavior"
+              description="Execution defaults for tool actions"
+            >
+              <SettingRow
+                label="Auto-Approve"
+                description="Use local rules for always, send once to server"
+                icon={<BoltIcon size={14} />}
+                onClick={handleAutoApprove}
+              >
+                <Toggle enabled={autoApprove} onChange={handleAutoApprove} />
+              </SettingRow>
+            </SettingsCard>
           </div>
 
-          {/* Auto start toggle */}
-          <SettingRow
-            label="Auto-start Service"
-            description="Run opencode serve automatically when app launches"
-            icon={<PlugIcon size={14} />}
-            onClick={handleAutoStartToggle}
+          <SettingsCard
+            title="Conversation Experience"
+            description="Message density, reasoning style, and step summary fields"
           >
-            <Toggle enabled={autoStartService} onChange={handleAutoStartToggle} />
-          </SettingRow>
+            <div className="space-y-3">
+              <div className="grid gap-2 lg:grid-cols-2">
+                <SettingRow
+                  label="Collapse Long Messages"
+                  description="Auto-collapse lengthy user messages"
+                  icon={<CompactIcon size={14} />}
+                  onClick={handleCollapseToggle}
+                  className="bg-bg-100/35 border-border-200/45"
+                >
+                  <Toggle enabled={collapseUserMessages} onChange={handleCollapseToggle} />
+                </SettingRow>
 
-          {/* Status + controls */}
-          <SettingRow
-            label="Service Status"
-            description={
-              serviceStarting ? 'Starting opencode serve...' :
-              serviceRunning
-                ? startedByUs ? 'Running (started by app)' : 'Running (external)'
-                : 'Not running'
-            }
-            icon={
-              serviceStarting
-                ? <SpinnerIcon size={14} className="animate-spin text-text-400" />
-                : serviceRunning
-                  ? <WifiIcon size={14} className="text-green-500" />
-                  : <WifiOffIcon size={14} className="text-text-400" />
-            }
-          >
-            <div className="flex items-center gap-2">
-              {!serviceStarting && !serviceRunning && (
-                <Button size="sm" variant="ghost" onClick={handleStartService}>
-                  Start
-                </Button>
-              )}
-              {!serviceStarting && serviceRunning && startedByUs && (
-                <Button size="sm" variant="ghost" onClick={handleStopService}>
-                  <StopIcon size={12} className="mr-1" />
-                  Stop
-                </Button>
-              )}
-              <Button size="sm" variant="ghost" onClick={handleCheckService} disabled={serviceStarting}>
-                Refresh
-              </Button>
-            </div>
-          </SettingRow>
-
-          {/* Environment Variables */}
-          <div className="mt-3">
-            <div className="flex items-center justify-between mb-1">
-              <div className="text-[11px] font-medium text-text-300">Environment Variables</div>
-              <button
-                className="text-[11px] text-accent-main-100 hover:text-accent-main-100/80 transition-colors"
-                onClick={() => serviceStore.setEnvVars([...envVars, { key: '', value: '' }])}
-              >
-                + Add
-              </button>
-            </div>
-            <div className="text-[11px] text-text-400 mb-2">
-              Passed to the opencode serve process (e.g. HTTPS_PROXY, API keys)
-            </div>
-            {envVars.length > 0 && (
-              <div className="flex flex-col gap-1.5">
-                {envVars.map((env, idx) => (
-                  <div key={idx} className="flex items-center gap-1.5">
-                    <input
-                      type="text"
-                      value={env.key}
-                      onChange={(e) => {
-                        const updated = [...envVars]
-                        updated[idx] = { ...updated[idx], key: e.target.value }
-                        serviceStore.setEnvVars(updated)
-                      }}
-                      placeholder="KEY"
-                      className="w-[120px] shrink-0 h-7 px-2 text-[11px] font-mono bg-bg-200/50 border border-border-200 rounded 
-                        focus:outline-none focus:border-accent-main-100/50 text-text-100 placeholder:text-text-500"
-                    />
-                    <span className="text-text-500 text-[11px] shrink-0">=</span>
-                    <input
-                      type="text"
-                      value={env.value}
-                      onChange={(e) => {
-                        const updated = [...envVars]
-                        updated[idx] = { ...updated[idx], value: e.target.value }
-                        serviceStore.setEnvVars(updated)
-                      }}
-                      placeholder="value"
-                      className="flex-1 min-w-0 h-7 px-2 text-[11px] font-mono bg-bg-200/50 border border-border-200 rounded 
-                        focus:outline-none focus:border-accent-main-100/50 text-text-100 placeholder:text-text-500"
-                    />
-                    <button
-                      className="shrink-0 w-7 h-7 flex items-center justify-center text-text-400 hover:text-danger-100 
-                        hover:bg-danger-100/10 rounded transition-colors"
-                      onClick={() => {
-                        const updated = envVars.filter((_, i) => i !== idx)
-                        serviceStore.setEnvVars(updated)
-                      }}
-                      title="Remove"
-                    >
-                      <TrashIcon size={12} />
-                    </button>
+                <div className="rounded-lg border border-border-200/45 bg-bg-100/35 px-2.5 py-2.5">
+                  <div className="flex items-start gap-3">
+                    <span className="text-text-400 mt-0.5 shrink-0"><ThinkingIcon size={14} /></span>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[13px] font-medium text-text-100">Thinking Display</div>
+                      <div className="text-[11px] text-text-400 mt-0.5 mb-2">Choose capsule or low-noise italic style</div>
+                      <SegmentedControl
+                        value={reasoningDisplayMode}
+                        options={[
+                          { value: 'capsule', label: 'Capsule' },
+                          { value: 'italic', label: 'Italic' },
+                        ]}
+                        onChange={(v) => handleReasoningDisplayModeChange(v as ReasoningDisplayMode)}
+                      />
+                    </div>
                   </div>
-                ))}
+                </div>
+              </div>
+
+              <div className="pt-3 border-t border-border-100/55">
+                <div className="text-[11px] font-medium text-text-400 uppercase tracking-wider mb-2">Step Finish Info</div>
+                <div className="grid gap-2 md:grid-cols-2">
+                  {([
+                    { key: 'tokens', label: 'Tokens', desc: 'Show token usage' },
+                    { key: 'cache', label: 'Cache', desc: 'Show cache hit info' },
+                    { key: 'cost', label: 'Cost', desc: 'Show API cost' },
+                    { key: 'duration', label: 'Duration', desc: 'Show message response time' },
+                    { key: 'turnDuration', label: 'Total Duration', desc: 'Show full turn elapsed time' },
+                  ] as const).map(({ key, label, desc }) => (
+                    <SettingRow
+                      key={key}
+                      label={label}
+                      description={desc}
+                      icon={<EyeIcon size={14} />}
+                      className="bg-bg-100/35 border-border-200/45"
+                      onClick={() => {
+                        const next = { [key]: !stepFinishDisplay[key] }
+                        setStepFinishDisplay(prev => ({ ...prev, ...next }))
+                        themeStore.setStepFinishDisplay(next)
+                      }}
+                    >
+                      <Toggle
+                        enabled={stepFinishDisplay[key]}
+                        onChange={() => {
+                          const next = { [key]: !stepFinishDisplay[key] }
+                          setStepFinishDisplay(prev => ({ ...prev, ...next }))
+                          themeStore.setStepFinishDisplay(next)
+                        }}
+                      />
+                    </SettingRow>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </SettingsCard>
+        </>
+      )}
+
+      {mode === 'notifications' && (
+        <div className="grid gap-4 xl:grid-cols-2">
+          <SettingsCard
+            title="System Notifications"
+            description="Browser-level notifications when responses complete"
+          >
+            {notificationsSupported ? (
+              <div className="space-y-1.5">
+                <SettingRow
+                  label="Notifications"
+                  description={notificationPermission === 'denied' ? 'Blocked by browser' : 'Notify when AI completes a response'}
+                  icon={<BellIcon size={14} />}
+                  onClick={() => notificationPermission !== 'denied' && setNotificationsEnabled(!notificationsEnabled)}
+                >
+                  <Toggle
+                    enabled={notificationsEnabled && notificationPermission !== 'denied'}
+                    onChange={() => notificationPermission !== 'denied' && setNotificationsEnabled(!notificationsEnabled)}
+                  />
+                </SettingRow>
+
+                <SettingRow
+                  label="Test Notification"
+                  description={notificationsEnabled ? 'Send a sample notification' : 'Enable notifications to test'}
+                  icon={<BellIcon size={14} />}
+                >
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={handleTestNotification}
+                    disabled={!notificationsEnabled || notificationPermission === 'denied'}
+                  >
+                    Send
+                  </Button>
+                </SettingRow>
+              </div>
+            ) : (
+              <div className="text-[12px] text-text-400 leading-relaxed">
+                System notifications are not available in this environment
               </div>
             )}
-          </div>
+          </SettingsCard>
 
-          {/* Error message */}
-          {serviceError && (
-            <div className="text-[11px] text-danger-100 bg-danger-100/10 border border-danger-100/20 rounded-md px-2.5 py-2 mt-1 leading-relaxed break-all">
-              {serviceError}
+          <SettingsCard
+            title="In-App Alerts"
+            description="Toast notifications for background session events"
+          >
+            <SettingRow
+              label="Toast Notifications"
+              description="Show in-app toast popups"
+              icon={<BellIcon size={14} />}
+              onClick={handleToastToggle}
+            >
+              <Toggle enabled={toastEnabled} onChange={handleToastToggle} />
+            </SettingRow>
+          </SettingsCard>
+        </div>
+      )}
+
+      {mode === 'service' && (
+        isTauriDesktop ? (
+          <SettingsCard
+            title="Local Service"
+            description="Manage embedded opencode serve startup, status, and environment"
+          >
+            <div className="space-y-3">
+              <div>
+                <div className="text-[11px] font-medium text-text-300 mb-1">Binary Path</div>
+                <input
+                  type="text"
+                  value={localBinaryPath}
+                  onChange={(e) => handleBinaryPathChange(e.target.value)}
+                  placeholder="opencode (default, uses PATH)"
+                  className="w-full h-8 px-3 text-[13px] font-mono bg-bg-200/50 border border-border-200 rounded-md
+                    focus:outline-none focus:border-accent-main-100/50 text-text-100 placeholder:text-text-400"
+                />
+                <div className="text-[11px] text-text-400 mt-1">
+                  Leave empty to use <code className="text-[10px] px-1 py-0.5 bg-bg-200 rounded font-mono">opencode</code> from PATH. Or enter full path, e.g. <code className="text-[10px] px-1 py-0.5 bg-bg-200 rounded font-mono">/usr/local/bin/opencode</code>
+                </div>
+              </div>
+
+              <div className="grid gap-2 md:grid-cols-2">
+                <SettingRow
+                  label="Auto-start Service"
+                  description="Run opencode serve automatically when app launches"
+                  icon={<PlugIcon size={14} />}
+                  onClick={handleAutoStartToggle}
+                  className="bg-bg-100/35 border-border-200/45"
+                >
+                  <Toggle enabled={autoStartService} onChange={handleAutoStartToggle} />
+                </SettingRow>
+
+                <SettingRow
+                  label="Service Status"
+                  description={
+                    serviceStarting ? 'Starting opencode serve...' :
+                    serviceRunning
+                      ? startedByUs ? 'Running (started by app)' : 'Running (external)'
+                      : 'Not running'
+                  }
+                  icon={
+                    serviceStarting
+                      ? <SpinnerIcon size={14} className="animate-spin text-text-400" />
+                      : serviceRunning
+                        ? <WifiIcon size={14} className="text-green-500" />
+                        : <WifiOffIcon size={14} className="text-text-400" />
+                  }
+                  className="bg-bg-100/35 border-border-200/45"
+                >
+                  <div className="flex items-center gap-2">
+                    {!serviceStarting && !serviceRunning && (
+                      <Button size="sm" variant="ghost" onClick={handleStartService}>
+                        Start
+                      </Button>
+                    )}
+                    {!serviceStarting && serviceRunning && startedByUs && (
+                      <Button size="sm" variant="ghost" onClick={handleStopService}>
+                        <StopIcon size={12} className="mr-1" />
+                        Stop
+                      </Button>
+                    )}
+                    <Button size="sm" variant="ghost" onClick={handleCheckService} disabled={serviceStarting}>
+                      Refresh
+                    </Button>
+                  </div>
+                </SettingRow>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <div className="text-[11px] font-medium text-text-300">Environment Variables</div>
+                  <button
+                    className="text-[11px] text-accent-main-100 hover:text-accent-main-100/80 transition-colors"
+                    onClick={() => serviceStore.setEnvVars([...envVars, { key: '', value: '' }])}
+                  >
+                    + Add
+                  </button>
+                </div>
+                <div className="text-[11px] text-text-400 mb-2">
+                  Passed to the opencode serve process (e.g. HTTPS_PROXY, API keys)
+                </div>
+                {envVars.length > 0 && (
+                  <div className="flex flex-col gap-1.5">
+                    {envVars.map((env, idx) => (
+                      <div key={idx} className="flex items-center gap-1.5">
+                        <input
+                          type="text"
+                          value={env.key}
+                          onChange={(e) => {
+                            const updated = [...envVars]
+                            updated[idx] = { ...updated[idx], key: e.target.value }
+                            serviceStore.setEnvVars(updated)
+                          }}
+                          placeholder="KEY"
+                          className="w-[120px] shrink-0 h-7 px-2 text-[11px] font-mono bg-bg-200/50 border border-border-200 rounded
+                            focus:outline-none focus:border-accent-main-100/50 text-text-100 placeholder:text-text-500"
+                        />
+                        <span className="text-text-500 text-[11px] shrink-0">=</span>
+                        <input
+                          type="text"
+                          value={env.value}
+                          onChange={(e) => {
+                            const updated = [...envVars]
+                            updated[idx] = { ...updated[idx], value: e.target.value }
+                            serviceStore.setEnvVars(updated)
+                          }}
+                          placeholder="value"
+                          className="flex-1 min-w-0 h-7 px-2 text-[11px] font-mono bg-bg-200/50 border border-border-200 rounded
+                            focus:outline-none focus:border-accent-main-100/50 text-text-100 placeholder:text-text-500"
+                        />
+                        <button
+                          className="shrink-0 w-7 h-7 flex items-center justify-center text-text-400 hover:text-danger-100
+                            hover:bg-danger-100/10 rounded transition-colors"
+                          onClick={() => {
+                            const updated = envVars.filter((_, i) => i !== idx)
+                            serviceStore.setEnvVars(updated)
+                          }}
+                          title="Remove"
+                        >
+                          <TrashIcon size={12} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {serviceError && (
+                <div className="text-[11px] text-danger-100 bg-danger-100/10 border border-danger-100/20 rounded-md px-2.5 py-2 leading-relaxed break-all">
+                  {serviceError}
+                </div>
+              )}
             </div>
-          )}
-        </>
+          </SettingsCard>
+        ) : (
+          <SettingsCard
+            title="Local Service"
+            description="This section is available on desktop app only"
+          >
+            <div className="text-[12px] text-text-400 leading-relaxed">
+              OpenCode web mode connects to external servers and does not manage a local background service
+            </div>
+          </SettingsCard>
+        )
       )}
     </div>
   )
@@ -810,7 +888,11 @@ function ServerItem({ server, health, isActive, onSelect, onDelete, onCheckHealt
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5">
           <span className="text-[13px] font-medium text-text-100 truncate">{server.name}</span>
-          {isActive && <CheckIcon size={12} className="text-accent-main-100 shrink-0" />}
+          {isActive && (
+            <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium text-accent-main-100 bg-accent-main-100/10 shrink-0">
+              Current
+            </span>
+          )}
         </div>
         <div className="text-[11px] text-text-400 truncate font-mono flex items-center gap-1">
           {server.url}
@@ -933,6 +1015,12 @@ function ServersSettings() {
   const [addingServer, setAddingServer] = useState(false)
   const { servers, activeServer, addServer, removeServer, setActiveServer, checkHealth, checkAllHealth, getHealth } = useServerStore()
   const { navigateHome, sessionId: routeSessionId } = useRouter()
+  const orderedServers = useMemo(() => {
+    if (!activeServer) return servers
+    const active = servers.find(s => s.id === activeServer.id)
+    if (!active) return servers
+    return [active, ...servers.filter(s => s.id !== active.id)]
+  }, [servers, activeServer?.id])
   
   useEffect(() => { checkAllHealth() }, [checkAllHealth])
 
@@ -950,40 +1038,61 @@ function ServersSettings() {
   }, [activeServer?.id, routeSessionId, setActiveServer, navigateHome])
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-3">
-        <SectionLabel>Connections</SectionLabel>
-        <div className="flex items-center gap-2">
-          {!addingServer && (
-            <button onClick={() => setAddingServer(true)}
-              className="flex items-center gap-1 text-[11px] text-accent-main-100 hover:text-accent-main-200">
-              <PlusIcon size={10} /> Add
+    <div className="space-y-4">
+      <SettingsCard
+        title="Connections"
+        description="Manage backend endpoints and choose which server this session uses"
+        actions={
+          <div className="flex items-center gap-2">
+            <button
+              onClick={checkAllHealth}
+              className="text-[11px] px-2 py-1 rounded-md border border-border-200/60 text-text-300 hover:text-text-100 hover:border-border-300/70 hover:bg-bg-100/60 transition-colors"
+            >
+              Refresh
             </button>
+            {!addingServer && (
+              <button
+                onClick={() => setAddingServer(true)}
+                className="flex items-center gap-1 text-[11px] px-2 py-1 rounded-md border border-accent-main-100/40 text-accent-main-100 hover:text-accent-main-200 hover:border-accent-main-100/60 hover:bg-accent-main-100/5 transition-colors"
+              >
+                <PlusIcon size={10} /> Add
+              </button>
+            )}
+          </div>
+        }
+      >
+        <div className="space-y-1.5">
+          {orderedServers.map(s => (
+            <ServerItem
+              key={s.id}
+              server={s}
+              health={getHealth(s.id)}
+              isActive={activeServer?.id === s.id}
+              onSelect={() => handleSelectServer(s.id)}
+              onDelete={() => removeServer(s.id)}
+              onCheckHealth={() => checkHealth(s.id)}
+            />
+          ))}
+
+          {addingServer && (
+            <AddServerForm
+              onAdd={(n, u, user, pass) => {
+                const auth = pass ? { username: user || 'opencode', password: pass } : undefined
+                const s = addServer({ name: n, url: u, auth })
+                setAddingServer(false)
+                checkHealth(s.id)
+              }}
+              onCancel={() => setAddingServer(false)}
+            />
+          )}
+
+          {servers.length === 0 && !addingServer && (
+            <div className="text-[13px] text-text-400 text-center py-8">
+              No servers configured
+            </div>
           )}
         </div>
-      </div>
-      <div className="space-y-1.5">
-        {servers.map(s => (
-          <ServerItem key={s.id} server={s} health={getHealth(s.id)} isActive={activeServer?.id === s.id}
-            onSelect={() => handleSelectServer(s.id)} onDelete={() => removeServer(s.id)} onCheckHealth={() => checkHealth(s.id)} />
-        ))}
-        {addingServer && (
-          <AddServerForm
-            onAdd={(n, u, user, pass) => { 
-              const auth = pass ? { username: user || 'opencode', password: pass } : undefined
-              const s = addServer({ name: n, url: u, auth })
-              setAddingServer(false)
-              checkHealth(s.id)
-            }}
-            onCancel={() => setAddingServer(false)}
-          />
-        )}
-      </div>
-      {servers.length === 0 && !addingServer && (
-        <div className="text-[13px] text-text-400 text-center py-8">
-          No servers configured
-        </div>
-      )}
+      </SettingsCard>
     </div>
   )
 }
@@ -992,11 +1101,48 @@ function ServersSettings() {
 // Nav Tabs
 // ============================================
 
-const TABS: { id: SettingsTab; label: string; icon: React.ReactNode }[] = [
-  { id: 'appearance', label: 'Appearance', icon: <SunIcon size={15} /> },
-  { id: 'general', label: 'General', icon: <SettingsIcon size={15} /> },
-  { id: 'servers', label: 'Servers', icon: <GlobeIcon size={15} /> },
-  { id: 'keybindings', label: 'Shortcuts', icon: <KeyboardIcon size={15} /> },
+const TABS: { id: SettingsTab; label: string; description: string; icon: React.ReactNode }[] = [
+  {
+    id: 'servers',
+    label: 'Servers',
+    description: 'Backend connections and fast active endpoint switching',
+    icon: <GlobeIcon size={15} />,
+  },
+  {
+    id: 'chat',
+    label: 'Chat',
+    description: 'Reasoning style, path display, and conversation behavior',
+    icon: <SettingsIcon size={15} />,
+  },
+  {
+    id: 'appearance',
+    label: 'Appearance',
+    description: 'Theme, color mode, typography, and layout preferences',
+    icon: <SunIcon size={15} />,
+  },
+  {
+    id: 'notifications',
+    label: 'Notifications',
+    description: 'Desktop and in-app alerts',
+    icon: <BellIcon size={15} />,
+  },
+  {
+    id: 'service',
+    label: 'Service',
+    description: 'Local opencode service management',
+    icon: <PlugIcon size={15} />,
+  },
+  {
+    id: 'keybindings',
+    label: 'Shortcuts',
+    description: 'Customize keyboard shortcuts for faster workflows',
+    icon: <KeyboardIcon size={15} />,
+  },
+]
+
+const TAB_GROUPS: { label: string; tabs: SettingsTab[] }[] = [
+  { label: 'Core', tabs: ['servers', 'chat', 'appearance', 'notifications'] },
+  { label: 'Advanced', tabs: ['service', 'keybindings'] },
 ]
 
 // ============================================
@@ -1030,8 +1176,12 @@ function TabContent({ tab, themeMode, onThemeChange, isWideMode, onToggleWideMod
           onCustomCSSChange={onCustomCSSChange}
         />
       )
-    case 'general':
-      return <GeneralSettings />
+    case 'chat':
+      return <GeneralSettings mode="chat" />
+    case 'notifications':
+      return <GeneralSettings mode="notifications" />
+    case 'service':
+      return <GeneralSettings mode="service" />
     case 'servers':
       return <ServersSettings />
     case 'keybindings':
@@ -1046,37 +1196,66 @@ function TabContent({ tab, themeMode, onThemeChange, isWideMode, onToggleWideMod
 // ============================================
 
 export function SettingsDialog({
-  isOpen, onClose, themeMode, onThemeChange, isWideMode, onToggleWideMode, initialTab = 'appearance',
+  isOpen, onClose, themeMode, onThemeChange, isWideMode, onToggleWideMode, initialTab = 'servers',
   presetId, onPresetChange, availablePresets, customCSS, onCustomCSSChange,
 }: SettingsDialogProps) {
-  const [tab, setTab] = useState<SettingsTab>(initialTab)
   const isMobile = useIsMobile()
-  
-  useEffect(() => { if (isOpen) setTab(initialTab) }, [isOpen, initialTab])
+  const isTauriDesktop = isTauri() && !isMobile
+  const normalizeTab = useCallback((next: SettingsDialogProps['initialTab']): SettingsTab => {
+    if (!next || next === 'general') return 'chat'
+    return next
+  }, [])
+  const [tab, setTab] = useState<SettingsTab>(normalizeTab(initialTab))
+
+  const visibleTabs = isTauriDesktop ? TABS : TABS.filter(t => t.id !== 'service')
+  const groupedTabs = TAB_GROUPS
+    .map(group => ({
+      ...group,
+      tabs: group.tabs
+        .map(id => visibleTabs.find(t => t.id === id))
+        .filter((t): t is (typeof TABS)[number] => !!t),
+    }))
+    .filter(group => group.tabs.length > 0)
+
+  useEffect(() => {
+    if (!isOpen) return
+    setTab(normalizeTab(initialTab))
+  }, [isOpen, initialTab, normalizeTab])
+
+  useEffect(() => {
+    if (visibleTabs.some(t => t.id === tab)) return
+    setTab(visibleTabs[0]?.id || 'appearance')
+  }, [tab, visibleTabs])
 
   const handleTabKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault()
       const dir = e.key === 'ArrowDown' ? 1 : -1
-      const ids = TABS.map(t => t.id)
+      const ids = visibleTabs.map(t => t.id)
+      if (ids.length === 0) return
       const next = (ids.indexOf(tab) + dir + ids.length) % ids.length
       setTab(ids[next])
     }
-  }, [tab])
+  }, [tab, visibleTabs])
 
   const contentProps = {
     themeMode, onThemeChange, isWideMode, onToggleWideMode,
     presetId, onPresetChange, availablePresets, customCSS, onCustomCSSChange,
   }
 
+  const activeTabMeta = visibleTabs.find(t => t.id === tab) || visibleTabs[0] || TABS[0]
+
   // 移动端：顶部 tab 切换 + 全屏内容
   if (isMobile) {
     return (
       <Dialog isOpen={isOpen} onClose={onClose} title="" width="100%" showCloseButton={false}>
-        <div className="flex flex-col -m-5" style={{ height: '80vh' }}>
+        <div className="flex flex-col -m-5" style={{ height: '88vh' }}>
           {/* Top: Title + Close */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-border-100/50 shrink-0">
-            <div className="text-sm font-semibold text-text-100">Settings</div>
+            <div>
+              <div className="text-sm font-semibold text-text-100">Settings</div>
+              <div className="text-[11px] text-text-400 mt-0.5">{activeTabMeta.label}</div>
+            </div>
             <button
               onClick={onClose}
               className="p-2 text-text-400 hover:text-text-200 hover:bg-bg-100 rounded-md transition-colors -mr-1"
@@ -1087,7 +1266,7 @@ export function SettingsDialog({
 
           {/* Tab Bar - 横向滚动 */}
           <div className="flex items-center gap-1 px-3 py-2 border-b border-border-100/50 shrink-0 overflow-x-auto scrollbar-none">
-            {TABS.map(t => (
+            {visibleTabs.map(t => (
               <button
                 key={t.id}
                 onClick={() => setTab(t.id)}
@@ -1113,25 +1292,37 @@ export function SettingsDialog({
 
   // 桌面端：左侧导航 + 右侧内容
   return (
-    <Dialog isOpen={isOpen} onClose={onClose} title="" width={680} showCloseButton={false}>
-      <div className="flex h-[520px] -m-5">
+    <Dialog isOpen={isOpen} onClose={onClose} title="" width="min(97vw, 1040px)" showCloseButton={false}>
+      <div className="flex h-[min(86vh,760px)] -m-5">
         {/* Left Nav */}
-        <nav className="w-[180px] shrink-0 border-r border-border-100/50 py-3 px-2 flex flex-col" onKeyDown={handleTabKeyDown}>
-          <div className="text-sm font-semibold text-text-100 px-3 mb-4">Settings</div>
-          <div className="space-y-0.5">
-            {TABS.map(t => (
-              <button
-                key={t.id}
-                onClick={() => setTab(t.id)}
-                tabIndex={t.id === tab ? 0 : -1}
-                className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium transition-colors
-                  ${t.id === tab
-                    ? 'bg-bg-100 text-text-100'
-                    : 'text-text-400 hover:text-text-200 hover:bg-bg-100/50'}`}
-              >
-                {t.icon}
-                {t.label}
-              </button>
+        <nav className="w-[236px] shrink-0 border-r border-border-100/60 bg-bg-050/45 py-4 px-2.5 flex flex-col" onKeyDown={handleTabKeyDown}>
+          <div className="px-3 mb-4">
+            <div className="text-sm font-semibold text-text-100">Settings</div>
+            <div className="text-[11px] text-text-400 mt-0.5 leading-relaxed">Customize UI, behavior, and server setup</div>
+          </div>
+          <div className="space-y-3">
+            {groupedTabs.map(group => (
+              <div key={group.label}>
+                <div className="px-3 mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-text-400/90">
+                  {group.label}
+                </div>
+                <div className="space-y-1">
+                  {group.tabs.map(t => (
+                    <button
+                      key={t.id}
+                      onClick={() => setTab(t.id)}
+                      tabIndex={t.id === tab ? 0 : -1}
+                      className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-[13px] font-medium transition-colors
+                        ${t.id === tab
+                          ? 'bg-bg-100 text-text-100 ring-1 ring-border-200/60'
+                          : 'text-text-400 hover:text-text-200 hover:bg-bg-100/50'}`}
+                    >
+                      {t.icon}
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
             ))}
           </div>
           
@@ -1139,8 +1330,24 @@ export function SettingsDialog({
         </nav>
 
         {/* Right Content */}
-        <div className="flex-1 min-w-0 py-4 px-5 overflow-y-auto custom-scrollbar">
-          <TabContent tab={tab} {...contentProps} />
+        <div className="flex-1 min-w-0 flex flex-col">
+          <div className="shrink-0 border-b border-border-100/60 px-6 py-4 flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <div className="text-base font-semibold text-text-100">{activeTabMeta.label}</div>
+              <div className="text-[12px] text-text-400 mt-0.5 leading-relaxed">{activeTabMeta.description}</div>
+            </div>
+            <button
+              onClick={onClose}
+              className="p-2 text-text-400 hover:text-text-200 hover:bg-bg-100 rounded-md transition-colors -mr-1"
+              aria-label="Close settings"
+            >
+              <CloseIcon size={18} />
+            </button>
+          </div>
+
+          <div className="flex-1 min-h-0 py-5 px-6 overflow-y-auto custom-scrollbar">
+            <TabContent tab={tab} {...contentProps} />
+          </div>
         </div>
       </div>
     </Dialog>
