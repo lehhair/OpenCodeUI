@@ -8,7 +8,7 @@
 // 3. 同步路由和 store 的 currentSessionId
 
 import { useCallback, useEffect, useRef } from 'react'
-import { messageStore, type RevertState } from '../store'
+import { messageStore, type RevertState, type SessionState } from '../store'
 import {
   getSessionMessages,
   getSession,
@@ -16,6 +16,7 @@ import {
   unrevertSession,
   extractUserMessageContent,
   type ApiUserMessage,
+  type ApiMessageWithParts,
 } from '../api'
 import { sessionErrorHandler } from '../utils'
 import { INITIAL_MESSAGE_LIMIT, HISTORY_LOAD_BATCH_SIZE, MAX_HISTORY_MESSAGES } from '../constants'
@@ -25,6 +26,26 @@ interface UseSessionManagerOptions {
   directory?: string  // 当前项目目录
   onLoadComplete?: () => void
   onError?: (error: Error) => void
+}
+
+function mergeWithLocalStreamingMessages(
+  apiMessages: ApiMessageWithParts[],
+  localState?: SessionState
+): ApiMessageWithParts[] {
+  if (!localState?.isStreaming || localState.messages.length === 0) return apiMessages
+
+  const apiIds = new Set(apiMessages.map(m => m.info.id))
+  const localOnly = localState.messages
+    .filter(m => !apiIds.has(m.info.id))
+    .map(m => ({ info: m.info as any, parts: m.parts as any[] })) as ApiMessageWithParts[]
+
+  if (localOnly.length === 0) return apiMessages
+
+  return [...apiMessages, ...localOnly].sort((a, b) => {
+    const aCreated = a.info.time?.created ?? 0
+    const bCreated = b.info.time?.created ?? 0
+    return aCreated - bCreated
+  })
 }
 
 export function useSessionManager({
@@ -54,10 +75,13 @@ export function useSessionManager({
     // 检查是否已有消息（SSE 可能已经推送了）
     const existingState = messageStore.getSessionState(sid)
     const hasExistingMessages = existingState && existingState.messages.length > 0
+    const hasLoadedBaseline = existingState?.loadState === 'loaded'
     
     // 如果已经有消息且正在 streaming，不能覆盖消息，但仍需加载元数据
-    // force 模式下也不覆盖正在 streaming 的消息
-    if (hasExistingMessages && existingState.isStreaming) {
+    // 仅在「已经完整加载过」时才跳过覆盖；
+    // 对于仅靠 SSE 暂存出来的 session（loadState=idle），仍要做一次完整拉取
+    // force 模式下也不覆盖正在 streaming 且已加载的消息
+    if (hasExistingMessages && existingState.isStreaming && hasLoadedBaseline) {
       // 异步加载 session 元数据（不阻塞）
       const dir = directoryRef.current
       Promise.all([
@@ -90,7 +114,13 @@ export function useSessionManager({
       // 再次检查：加载期间 SSE 可能已经推送了更多消息
       // force 模式下（重连）始终用服务器数据覆盖，因为本地数据可能不完整
       const currentState = messageStore.getSessionState(sid)
-      if (!force && currentState && currentState.messages.length > apiMessages.length) {
+      const shouldKeepStreamingOnly =
+        !force &&
+        !!currentState &&
+        currentState.loadState === 'loaded' &&
+        currentState.messages.length > apiMessages.length
+
+      if (shouldKeepStreamingOnly) {
         // SSE 推送的消息比 API 返回的多，说明有新消息，跳过覆盖
         // 但仍需更新元数据，否则 hasMoreHistory 等状态可能停留在默认值
         messageStore.updateSessionMetadata(sid, {
@@ -104,8 +134,10 @@ export function useSessionManager({
         return
       }
 
+      const mergedMessages = mergeWithLocalStreamingMessages(apiMessages, currentState)
+
       // 设置消息到 store
-      messageStore.setMessages(sid, apiMessages, {
+      messageStore.setMessages(sid, mergedMessages, {
         directory: sessionInfo?.directory ?? dir ?? '',
         hasMoreHistory: apiMessages.length >= INITIAL_MESSAGE_LIMIT,
         revertState: sessionInfo?.revert ?? null,
@@ -164,6 +196,33 @@ export function useSessionManager({
       // findIndex 返回 -1 说明 API 返回中找不到当前最旧的消息
       // 可能是 streaming 期间新消息涌入导致 limit 范围没覆盖到，不应终止加载
       if (oldestIndex === -1) {
+        const retryLimit = Math.min(targetLimit + HISTORY_LOAD_BATCH_SIZE, MAX_HISTORY_MESSAGES)
+        const retryMessages = retryLimit > targetLimit
+          ? await getSessionMessages(sessionId, retryLimit, dir)
+          : apiMessages
+
+        const retryOldestIndex = retryMessages.findIndex(m => m.info.id === oldestId)
+
+        if (retryOldestIndex === -1) {
+          // 本地和服务端窗口发生漂移，回退到「以服务端为准 + 保留本地 streaming」
+          const latestState = messageStore.getSessionState(sessionId)
+          const recovered = mergeWithLocalStreamingMessages(retryMessages, latestState)
+          messageStore.setMessages(sessionId, recovered, {
+            directory: latestState?.directory || state.directory,
+            hasMoreHistory: retryMessages.length >= retryLimit && retryLimit < MAX_HISTORY_MESSAGES,
+            shareUrl: latestState?.shareUrl,
+          })
+          return
+        }
+
+        if (retryOldestIndex === 0) {
+          messageStore.prependMessages(sessionId, [], false)
+          return
+        }
+
+        const retryNewMessages = retryMessages.slice(0, retryOldestIndex)
+        const retryHasMore = retryMessages.length >= retryLimit && retryLimit < MAX_HISTORY_MESSAGES
+        messageStore.prependMessages(sessionId, retryNewMessages, retryHasMore)
         return
       }
 
