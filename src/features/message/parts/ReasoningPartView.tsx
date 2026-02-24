@@ -68,12 +68,12 @@ export const ReasoningPartView = memo(function ReasoningPartView({ part, isStrea
 
     return (
       <div className="py-1">
-        <div className="grid grid-cols-[14px_minmax(0,1fr)] gap-x-2 items-start">
-          <span className="inline-flex h-6 w-[14px] items-center justify-center text-text-500">
+        <div className="grid grid-cols-[14px_minmax(0,1fr)] gap-x-1.5 items-start">
+          <span className="inline-flex h-5 w-[14px] items-center justify-center text-text-500">
             {isPartStreaming ? (
-              <SpinnerIcon className="animate-spin relative -top-px" size={12} />
+              <SpinnerIcon className="animate-spin" size={14} />
             ) : (
-              <LightbulbIcon className="relative -top-px" size={12} />
+              <LightbulbIcon size={14} />
             )}
           </span>
 
@@ -88,12 +88,12 @@ export const ReasoningPartView = memo(function ReasoningPartView({ part, isStrea
                 >
                   <span className={`min-w-0 flex-1 italic ${
                     expanded
-                      ? 'text-[12px] leading-6 text-text-500/80'
-                      : 'text-[12px] leading-6 text-text-300 whitespace-nowrap overflow-hidden text-ellipsis'
+                      ? 'text-[12px] leading-5 text-text-500/80'
+                      : 'text-[12px] leading-5 text-text-300 whitespace-nowrap overflow-hidden text-ellipsis'
                   }`}>
                     {expanded ? expandedMetaText : summaryText}
                   </span>
-                  <span className={`inline-flex h-6 w-3 items-center justify-center shrink-0 text-text-500/60 group-hover:text-text-300 transition-[transform,color] duration-200 relative -top-px ${expanded ? 'rotate-180' : ''}`}>
+                  <span className={`inline-flex h-5 w-3 items-center justify-center shrink-0 text-text-500/60 group-hover:text-text-300 transition-[transform,color] duration-200 relative -top-px ${expanded ? 'rotate-180' : ''}`}>
                     <ChevronDownIcon size={12} />
                   </span>
                 </button>
@@ -111,8 +111,11 @@ export const ReasoningPartView = memo(function ReasoningPartView({ part, isStrea
                 </div>
               </>
             ) : (
-              <div className="text-[12px] leading-6 italic text-text-300 whitespace-pre-wrap break-words">
-                {displayText}
+              <div className="flex items-start gap-2 text-text-400">
+                <span className="min-w-0 flex-1 text-[12px] leading-5 italic text-text-300 whitespace-pre-wrap break-words">
+                  {displayText}
+                </span>
+                <span className="inline-flex h-5 w-3 shrink-0" aria-hidden="true" />
               </div>
             )}
           </div>
@@ -132,19 +135,19 @@ export const ReasoningPartView = memo(function ReasoningPartView({ part, isStrea
       <button
         onClick={() => setExpanded(!expanded)}
         disabled={!hasContent && !isPartStreaming} // 没内容且没流式时禁用点击（其实这种情况下组件都不渲染了）
-        className={`w-full flex items-center gap-2 px-3 py-2 text-text-400 hover:bg-bg-200/50 transition-colors ${
+        className={`w-full flex items-center gap-1.5 pl-0 pr-3 py-2 text-text-400 hover:bg-bg-200/50 transition-colors ${
           !hasContent ? 'cursor-default' : ''
         }`}
       >
-        <span className="inline-flex h-4 items-center gap-1.5 shrink-0">
+        <span className="inline-flex h-5 w-[14px] items-center justify-center shrink-0">
           {isPartStreaming ? (
-            <SpinnerIcon className="animate-spin shrink-0" size={13} />
+            <SpinnerIcon className="animate-spin shrink-0" size={14} />
           ) : (
-            <LightbulbIcon className="shrink-0" size={13} />
+            <LightbulbIcon className="shrink-0" size={14} />
           )}
-          <span className="text-xs font-medium leading-none whitespace-nowrap">
-            {isPartStreaming ? 'Thinking...' : 'Thinking'}
-          </span>
+        </span>
+        <span className="text-xs font-medium leading-none whitespace-nowrap">
+          {isPartStreaming ? 'Thinking...' : 'Thinking'}
         </span>
         {isPartStreaming && (
           <span className="flex items-center gap-0.5 ml-1">
@@ -164,7 +167,7 @@ export const ReasoningPartView = memo(function ReasoningPartView({ part, isStrea
           <div className="overflow-hidden">
             {shouldRenderBody && (
               <ScrollArea ref={scrollAreaRef} maxHeight={192} className="border-t border-border-300/20 bg-bg-200/30">
-                <div className="px-3 py-2 text-text-300 text-xs font-mono whitespace-pre-wrap">
+                <div className="pl-4 pr-3 py-2 text-text-300 text-xs font-mono whitespace-pre-wrap">
                   {displayText}
                 </div>
               </ScrollArea>

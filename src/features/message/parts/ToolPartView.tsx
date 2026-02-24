@@ -41,7 +41,7 @@ export const ToolPartView = memo(function ToolPartView({ part, isFirst = false, 
   return (
     <div className="group relative flex">
       {/* Timeline Column */}
-      <div className="w-9 shrink-0 relative">
+      <div className="w-8 shrink-0 relative">
         {/* Top connector — 留 4px gap 到 icon */}
         {!isFirst && (
           <div className="absolute left-1/2 -translate-x-1/2 top-0 h-[7px] w-px bg-border-300/40" />
@@ -72,7 +72,7 @@ export const ToolPartView = memo(function ToolPartView({ part, isFirst = false, 
       <div className="flex-1 min-w-0">
         {/* Header - h-9 和 timeline 图标行等高 */}
         <button
-          className="flex items-center gap-2.5 w-full h-9 text-left px-2.5 hover:bg-bg-200/40 rounded-lg transition-colors group/header"
+          className="flex items-center gap-2.5 w-full h-9 text-left px-2 hover:bg-bg-200/40 rounded-lg transition-colors group/header"
           onClick={() => setExpanded(!expanded)}
         >
           <div className="flex items-center gap-2 overflow-hidden flex-1 min-w-0">
