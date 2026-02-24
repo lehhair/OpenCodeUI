@@ -508,10 +508,13 @@ export const DollarSignIcon = (props: IconProps) => (
 )
 
 export const LightbulbIcon = (props: IconProps) => (
-  <DefaultIcon {...props}>
-    <path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-1 1.5-2 1.5-3.5 0-3-2-5.5-6-5.5S6 5 6 8c0 1.5.5 2.5 1.5 3.5.8.8 1.3 1.5 1.5 2.5" />
-    <path d="M9 18h6" />
-    <path d="M10 22h4" />
+  <DefaultIcon {...props} strokeWidth={1.6}>
+    <path d="M12 18v-5.25" />
+    <path d="M12 12.75c.52 0 1.02-.07 1.5-.19" />
+    <path d="M12 12.75c-.52 0-1.02-.07-1.5-.19" />
+    <path d="M14.25 20.04c-.73.14-1.48.21-2.25.21s-1.52-.07-2.25-.21" />
+    <path d="M13.5 22.42c-.49.05-.99.08-1.5.08s-1.01-.03-1.5-.08" />
+    <path d="M14.25 18v-.19c0-.98.66-1.82 1.51-2.32A7.5 7.5 0 0 0 19.5 9a7.5 7.5 0 1 0-15 0c0 2.77 1.5 5.19 3.74 6.49.85.49 1.51 1.33 1.51 2.32V18" />
   </DefaultIcon>
 )
 
@@ -650,5 +653,3 @@ export const PinIcon = (props: IconProps) => (
     <path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1V2H8v4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z" />
   </DefaultIcon>
 )
-
-

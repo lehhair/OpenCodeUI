@@ -1,7 +1,8 @@
-import { memo, useState, useRef, useEffect } from 'react'
+import { memo, useState, useRef, useEffect, useMemo } from 'react'
 import { ChevronDownIcon, LightbulbIcon, SpinnerIcon } from '../../../components/Icons'
 import { ScrollArea } from '../../../components/ui'
 import { useDelayedRender } from '../../../hooks'
+import { useTheme } from '../../../hooks/useTheme'
 import { useSmoothStream } from '../../../hooks/useSmoothStream'
 import type { ReasoningPart } from '../../../types/message'
 
@@ -11,42 +12,118 @@ interface ReasoningPartViewProps {
 }
 
 export const ReasoningPartView = memo(function ReasoningPartView({ part, isStreaming }: ReasoningPartViewProps) {
-  // 跳过空的 reasoning
-  // 只有当有实质内容时才渲染，即使正在 streaming 也不渲染空壳
   if (!part.text?.trim()) return null
+  const { reasoningDisplayMode } = useTheme()
+  const rawText = part.text || ''
   
   const isPartStreaming = isStreaming && !part.time?.end
-  const hasContent = !!part.text?.trim()
+  const hasContent = !!rawText.trim()
   
   // 使用 smooth streaming 实现打字机效果
   const { displayText } = useSmoothStream(
-    part.text || '',
+    rawText,
     !!isPartStreaming,
     { charDelay: 6, disableAnimation: !isPartStreaming }  // 稍快一点，因为是思考过程
   )
   const [expanded, setExpanded] = useState(false)
   const shouldRenderBody = useDelayedRender(expanded)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
-  
-  // 自动控制展开状态
+  const collapsedPreview = useMemo(
+    () => (displayText || '').replace(/\s+/g, ' ').trim(),
+    [displayText]
+  )
+  const thoughtDurationLabel = useMemo(() => {
+    const start = part.time?.start
+    const end = part.time?.end
+    if (!start || !end || end <= start) return null
+    const durationMs = end - start
+    if (durationMs < 1000) return `${Math.max(1, Math.round(durationMs))}ms`
+    if (durationMs < 10000) return `${(durationMs / 1000).toFixed(1)}s`
+    return `${Math.round(durationMs / 1000)}s`
+  }, [part.time?.start, part.time?.end])
+
   useEffect(() => {
     if (isPartStreaming && hasContent) {
-      // 流式传输中有内容时自动展开
       setExpanded(true)
     } else if (!isPartStreaming) {
-      // 结束时自动折叠
       setExpanded(false)
     }
-    // 注意：我们不处理 "流式中但无内容" 的情况，保持默认（折叠），避免空框
   }, [isPartStreaming, hasContent])
 
-  // 滚动 ScrollArea 内部到底部
-  // 使用 displayText 而不是 part.text，这样打字机效果时也会滚动
   useEffect(() => {
+    if (reasoningDisplayMode !== 'capsule') return
     if (isPartStreaming && expanded && scrollAreaRef.current) {
       scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight
     }
-  }, [displayText, isPartStreaming, expanded])
+  }, [displayText, isPartStreaming, expanded, reasoningDisplayMode])
+
+  if (reasoningDisplayMode === 'italic') {
+    const summaryText = collapsedPreview || (isPartStreaming ? 'Thinking...' : '')
+    const shouldUseToggle = isPartStreaming || /[\r\n]/.test(rawText) || summaryText.length > 84
+    const expandedMetaText = isPartStreaming
+      ? 'Thinking...'
+      : thoughtDurationLabel
+        ? `Thought for ${thoughtDurationLabel}`
+        : 'Thought process'
+
+    return (
+      <div className="py-1">
+        <div className="grid grid-cols-[14px_minmax(0,1fr)] gap-x-2 items-start">
+          <span className="inline-flex h-6 w-[14px] items-center justify-center text-text-500">
+            {isPartStreaming ? (
+              <SpinnerIcon className="animate-spin relative -top-px" size={12} />
+            ) : (
+              <LightbulbIcon className="relative -top-px" size={12} />
+            )}
+          </span>
+
+          <div className="min-w-0">
+            {shouldUseToggle ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setExpanded(!expanded)}
+                  aria-expanded={expanded}
+                  className="group w-full m-0 p-0 border-0 bg-transparent flex items-center gap-2 text-left cursor-pointer text-text-400 hover:text-text-200"
+                >
+                  <span className={`min-w-0 flex-1 italic ${
+                    expanded
+                      ? 'text-[12px] leading-6 text-text-500/80'
+                      : 'text-[12px] leading-6 text-text-300 whitespace-nowrap overflow-hidden text-ellipsis'
+                  }`}>
+                    {expanded ? expandedMetaText : summaryText}
+                  </span>
+                  <span className={`inline-flex h-6 w-3 items-center justify-center shrink-0 text-text-500/60 group-hover:text-text-300 transition-[transform,color] duration-200 relative -top-px ${expanded ? 'rotate-180' : ''}`}>
+                    <ChevronDownIcon size={12} />
+                  </span>
+                </button>
+
+                <div className={`grid transition-[grid-template-rows,opacity] duration-200 ease-out ${
+                  expanded ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-75'
+                }`}>
+                  <div className="overflow-hidden">
+                    {shouldRenderBody && (
+                      <div className="pt-0.5 text-[12px] leading-6 italic text-text-300 whitespace-pre-wrap break-words">
+                        {displayText}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="text-[12px] leading-6 italic text-text-300 whitespace-pre-wrap break-words">
+                {displayText}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <span className="sr-only" role="status" aria-live="polite">
+          {summaryText}
+        </span>
+      </div>
+    )
+  }
 
   return (
     <div className={`border border-border-300/20 rounded-xl overflow-hidden transition-all duration-300 ease-out -ml-3 ${
@@ -59,16 +136,18 @@ export const ReasoningPartView = memo(function ReasoningPartView({ part, isStrea
           !hasContent ? 'cursor-default' : ''
         }`}
       >
-        {isPartStreaming ? (
-          <SpinnerIcon className="animate-spin" size={14} />
-        ) : (
-          <LightbulbIcon size={14} />
-        )}
-        <span className="text-xs font-medium whitespace-nowrap">
-          {isPartStreaming ? 'Thinking...' : 'Thinking'}
+        <span className="inline-flex h-4 items-center gap-1.5 shrink-0">
+          {isPartStreaming ? (
+            <SpinnerIcon className="animate-spin shrink-0" size={13} />
+          ) : (
+            <LightbulbIcon className="shrink-0" size={13} />
+          )}
+          <span className="text-xs font-medium leading-none whitespace-nowrap">
+            {isPartStreaming ? 'Thinking...' : 'Thinking'}
+          </span>
         </span>
         {isPartStreaming && (
-          <span className="flex gap-0.5 ml-1">
+          <span className="flex items-center gap-0.5 ml-1">
             <span className="w-1 h-1 bg-text-400 rounded-full animate-bounce [animation-delay:-0.3s]" />
             <span className="w-1 h-1 bg-text-400 rounded-full animate-bounce [animation-delay:-0.15s]" />
             <span className="w-1 h-1 bg-text-400 rounded-full animate-bounce" />

@@ -5,12 +5,12 @@ import {
   SunIcon, MoonIcon, SystemIcon, MaximizeIcon, MinimizeIcon, 
   PathAutoIcon, PathUnixIcon, PathWindowsIcon,
   GlobeIcon, PlusIcon, TrashIcon, CheckIcon, WifiIcon, WifiOffIcon, SpinnerIcon, KeyIcon,
-  SettingsIcon, KeyboardIcon, CloseIcon, BellIcon, BoltIcon, CompactIcon, PlugIcon, StopIcon, EyeIcon
+  SettingsIcon, KeyboardIcon, CloseIcon, BellIcon, BoltIcon, CompactIcon, PlugIcon, StopIcon, EyeIcon, ThinkingIcon
 } from '../../components/Icons'
 import { usePathMode, useServerStore, useIsMobile, useNotification, useRouter } from '../../hooks'
 import { autoApproveStore, messageStore, notificationStore } from '../../store'
 import { serviceStore, useServiceStore } from '../../store/serviceStore'
-import { themeStore } from '../../store/themeStore'
+import { themeStore, type ReasoningDisplayMode } from '../../store/themeStore'
 import { isTauri } from '../../utils/tauri'
 import { KeybindingsSection } from './KeybindingsSection'
 import type { ThemeMode } from '../../hooks'
@@ -376,6 +376,7 @@ function GeneralSettings() {
   const { enabled: notificationsEnabled, setEnabled: setNotificationsEnabled, supported: notificationsSupported, permission: notificationPermission, sendNotification } = useNotification()
   const [collapseUserMessages, setCollapseUserMessages] = useState(themeStore.collapseUserMessages)
   const [stepFinishDisplay, setStepFinishDisplay] = useState(themeStore.stepFinishDisplay)
+  const [reasoningDisplayMode, setReasoningDisplayMode] = useState(themeStore.reasoningDisplayMode)
   const [toastEnabled, setToastEnabledState] = useState(notificationStore.toastEnabled)
   const isMobile = useIsMobile()
   const { autoStart: autoStartService, binaryPath, envVars, running: serviceRunning, startedByUs, starting: serviceStarting } = useServiceStore()
@@ -413,6 +414,11 @@ function GeneralSettings() {
 
   const handleTestNotification = () => {
     sendNotification('OpenCode', 'This is a test notification')
+  }
+
+  const handleReasoningDisplayModeChange = (mode: ReasoningDisplayMode) => {
+    setReasoningDisplayMode(mode)
+    themeStore.setReasoningDisplayMode(mode)
   }
 
   const handleToastToggle = () => {
@@ -558,6 +564,33 @@ function GeneralSettings() {
         onClick={handleCollapseToggle}
       >
         <Toggle enabled={collapseUserMessages} onChange={handleCollapseToggle} />
+      </SettingRow>
+      <SettingRow
+        label="Thinking Display"
+        description="Choose capsule or italic expandable style"
+        icon={<ThinkingIcon size={14} />}
+      >
+        <div className="flex items-center rounded-md border border-border-200/60 bg-bg-100/60 p-0.5">
+          {([
+            { key: 'capsule', label: 'Capsule' },
+            { key: 'italic', label: 'Italic' },
+          ] as const).map(opt => (
+            <button
+              key={opt.key}
+              onClick={(e) => {
+                e.stopPropagation()
+                handleReasoningDisplayModeChange(opt.key)
+              }}
+              className={`px-2.5 py-1 text-[11px] rounded transition-colors ${
+                reasoningDisplayMode === opt.key
+                  ? 'bg-bg-000 text-text-100 shadow-sm'
+                  : 'text-text-400 hover:text-text-200'
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
       </SettingRow>
 
       <Divider />

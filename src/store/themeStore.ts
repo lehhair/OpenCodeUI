@@ -74,6 +74,8 @@ export interface StepFinishDisplay {
   turnDuration: boolean
 }
 
+export type ReasoningDisplayMode = 'capsule' | 'italic'
+
 const DEFAULT_STEP_FINISH_DISPLAY: StepFinishDisplay = {
   tokens: true,
   cache: true,
@@ -81,6 +83,8 @@ const DEFAULT_STEP_FINISH_DISPLAY: StepFinishDisplay = {
   duration: true,
   turnDuration: true,
 }
+
+const DEFAULT_REASONING_DISPLAY_MODE: ReasoningDisplayMode = 'capsule'
 
 export interface ThemeState {
   /** 当前选中的主题风格 ID */
@@ -95,6 +99,8 @@ export interface ThemeState {
   collapseUserMessages: boolean
   /** step-finish 信息栏显示开关 */
   stepFinishDisplay: StepFinishDisplay
+  /** 思考内容展示样式 */
+  reasoningDisplayMode: ReasoningDisplayMode
 }
 
 // ============================================
@@ -107,6 +113,7 @@ const STORAGE_KEY_CUSTOM_CSS = 'theme-custom-css'
 const STORAGE_KEY_FONT_SIZE = 'theme-font-size'
 const STORAGE_KEY_COLLAPSE_USER_MESSAGES = 'collapse-user-messages'
 const STORAGE_KEY_STEP_FINISH_DISPLAY = 'step-finish-display'
+const STORAGE_KEY_REASONING_DISPLAY_MODE = 'reasoning-display-mode'
 
 // ============================================
 // DOM Style Element IDs
@@ -130,6 +137,8 @@ class ThemeStore {
     const savedFontSize = clampFontSize(Number(localStorage.getItem(STORAGE_KEY_FONT_SIZE)) || DEFAULT_FONT_SIZE)
     const savedCollapse = localStorage.getItem(STORAGE_KEY_COLLAPSE_USER_MESSAGES)
     const collapseUserMessages = savedCollapse === null ? true : savedCollapse === 'true'
+    const savedReasoningDisplay = localStorage.getItem(STORAGE_KEY_REASONING_DISPLAY_MODE)
+    const reasoningDisplayMode: ReasoningDisplayMode = savedReasoningDisplay === 'italic' ? 'italic' : DEFAULT_REASONING_DISPLAY_MODE
     
     let stepFinishDisplay = DEFAULT_STEP_FINISH_DISPLAY
     try {
@@ -144,6 +153,7 @@ class ThemeStore {
       fontSize: savedFontSize,
       collapseUserMessages,
       stepFinishDisplay,
+      reasoningDisplayMode,
     }
   }
   
@@ -159,6 +169,7 @@ class ThemeStore {
   get fontSize() { return this.state.fontSize }
   get collapseUserMessages() { return this.state.collapseUserMessages }
   get stepFinishDisplay() { return this.state.stepFinishDisplay }
+  get reasoningDisplayMode() { return this.state.reasoningDisplayMode }
   
   /** 获取当前主题预设（内置主题返回对象，自定义返回 undefined） */
   getPreset(): ThemePreset | undefined {
@@ -237,6 +248,13 @@ class ThemeStore {
     const next = { ...this.state.stepFinishDisplay, ...display }
     this.state = { ...this.state, stepFinishDisplay: next }
     localStorage.setItem(STORAGE_KEY_STEP_FINISH_DISPLAY, JSON.stringify(next))
+    this.emit()
+  }
+
+  setReasoningDisplayMode(mode: ReasoningDisplayMode) {
+    if (this.state.reasoningDisplayMode === mode) return
+    this.state = { ...this.state, reasoningDisplayMode: mode }
+    localStorage.setItem(STORAGE_KEY_REASONING_DISPLAY_MODE, mode)
     this.emit()
   }
   
