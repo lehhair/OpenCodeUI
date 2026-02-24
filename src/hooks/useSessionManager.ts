@@ -48,13 +48,27 @@ function mergeWithLocalStreamingMessages(
   })
 }
 
+function serializeApiMessageIds(messages: ApiMessageWithParts[]): string {
+  return JSON.stringify(messages.map(m => m.info.id))
+}
+
+function getStateMessageIds(state: SessionState): string[] {
+  return state.messages.map(m => m.info.id)
+}
+
+function serializeStateMessageIds(state: SessionState): string {
+  return JSON.stringify(getStateMessageIds(state))
+}
+
 export function useSessionManager({
   sessionId,
   directory,
   onLoadComplete,
   onError,
 }: UseSessionManagerOptions) {
-  const loadingSessionsRef = useRef<Set<string>>(new Set())
+  const loadSequenceRef = useRef<Map<string, number>>(new Map())
+  const historyLimitRef = useRef<Map<string, number>>(new Map())
+  const historyJsonRef = useRef<Map<string, string>>(new Map())
   const loadSessionRef = useRef<(sid: string, options?: { force?: boolean }) => Promise<void>>(async () => {})
   
   // 使用 ref 保存 directory，避免依赖变化
@@ -67,9 +81,10 @@ export function useSessionManager({
 
   const loadSession = useCallback(async (sid: string, options?: { force?: boolean }) => {
     const force = options?.force ?? false
-    
-    if (loadingSessionsRef.current.has(sid) && !force) return
-    loadingSessionsRef.current.add(sid)
+
+    const seq = (loadSequenceRef.current.get(sid) ?? 0) + 1
+    loadSequenceRef.current.set(sid, seq)
+    const isStale = () => loadSequenceRef.current.get(sid) !== seq
 
     const dir = directoryRef.current
 
@@ -91,6 +106,13 @@ export function useSessionManager({
           .then((messages) => ({ ok: true as const, messages }))
           .catch(() => ({ ok: false as const, messages: [] as ApiMessageWithParts[] })),
       ]).then(([sessionInfo, messagesResult]) => {
+        if (isStale()) return
+
+        if (messagesResult.ok) {
+          historyLimitRef.current.set(sid, Math.max(INITIAL_MESSAGE_LIMIT, messagesResult.messages.length))
+          historyJsonRef.current.set(sid, serializeApiMessageIds(messagesResult.messages))
+        }
+
         messageStore.updateSessionMetadata(sid, {
           ...(messagesResult.ok ? { hasMoreHistory: messagesResult.messages.length >= INITIAL_MESSAGE_LIMIT } : {}),
           directory: sessionInfo?.directory ?? dir ?? '',
@@ -99,8 +121,9 @@ export function useSessionManager({
       }).catch(() => {
         // 元数据加载失败不影响 streaming，静默忽略
       })
-      loadingSessionsRef.current.delete(sid)
-      onLoadComplete?.()
+      if (!isStale()) {
+        onLoadComplete?.()
+      }
       return
     }
 
@@ -112,6 +135,8 @@ export function useSessionManager({
         getSession(sid, dir).catch(() => null),
         getSessionMessages(sid, INITIAL_MESSAGE_LIMIT, dir),
       ])
+
+      if (isStale()) return
 
       // 再次检查：加载期间 SSE 可能已经推送了更多消息
       // force 模式下（重连）始终用服务器数据覆盖，因为本地数据可能不完整
@@ -132,7 +157,7 @@ export function useSessionManager({
           shareUrl: sessionInfo?.share?.url,
         })
         onLoadComplete?.()
-        loadingSessionsRef.current.delete(sid)
+        historyLimitRef.current.set(sid, Math.max(INITIAL_MESSAGE_LIMIT, apiMessages.length))
         return
       }
 
@@ -146,16 +171,18 @@ export function useSessionManager({
         shareUrl: sessionInfo?.share?.url,
       })
 
+      historyLimitRef.current.set(sid, Math.max(INITIAL_MESSAGE_LIMIT, apiMessages.length))
+      historyJsonRef.current.set(sid, serializeApiMessageIds(apiMessages))
+
       // force 模式（如 SSE 重连）只静默刷新数据，不触发滚动
       if (!force) {
         onLoadComplete?.()
       }
     } catch (error) {
+      if (isStale()) return
       sessionErrorHandler('load session', error)
       messageStore.setLoadState(sid, 'error')
       onError?.(error instanceof Error ? error : new Error(String(error)))
-    } finally {
-      loadingSessionsRef.current.delete(sid)
     }
   }, [onLoadComplete, onError])
 
@@ -172,9 +199,10 @@ export function useSessionManager({
     if (!sessionId) return
     
     const state = messageStore.getSessionState(sessionId)
-    if (!state || !state.hasMoreHistory) return
+    if (!state) return
 
     if (state.messages.length >= MAX_HISTORY_MESSAGES) {
+      console.warn(`[SessionManager] loadMore:blocked-by-cap session=${sessionId} localCount=${state.messages.length} cap=${MAX_HISTORY_MESSAGES}`)
       messageStore.prependMessages(sessionId, [], false)
       return
     }
@@ -182,68 +210,65 @@ export function useSessionManager({
     const dir = state.directory || directoryRef.current
 
     try {
-      const targetLimit = Math.min(
-        state.messages.length + HISTORY_LOAD_BATCH_SIZE,
-        MAX_HISTORY_MESSAGES
-      )
+      let currentLimit = historyLimitRef.current.get(sessionId)
+        ?? Math.max(INITIAL_MESSAGE_LIMIT, state.messages.length)
+      let currentJson = historyJsonRef.current.get(sessionId) ?? serializeStateMessageIds(state)
 
-      const apiMessages = await getSessionMessages(sessionId, targetLimit, dir)
+      console.log(`[SessionManager] loadMore:start session=${sessionId} limit=${currentLimit} localCount=${state.messages.length} localHasMore=${state.hasMoreHistory} first=${state.messages[0]?.info.id ?? 'none'} last=${state.messages[state.messages.length - 1]?.info.id ?? 'none'}`)
 
-      const oldestId = state.messages[0]?.info.id
-      if (!oldestId) {
-        messageStore.setMessages(sessionId, apiMessages, {
-          directory: state.directory,
-          hasMoreHistory: apiMessages.length >= targetLimit,
-        })
-        return
-      }
+      while (true) {
+        const targetLimit = Math.min(currentLimit + HISTORY_LOAD_BATCH_SIZE, MAX_HISTORY_MESSAGES)
 
-      const oldestIndex = apiMessages.findIndex(m => m.info.id === oldestId)
-
-      // findIndex 返回 -1 说明 API 返回中找不到当前最旧的消息
-      // 可能是 streaming 期间新消息涌入导致 limit 范围没覆盖到，不应终止加载
-      if (oldestIndex === -1) {
-        const retryLimit = Math.min(targetLimit + HISTORY_LOAD_BATCH_SIZE, MAX_HISTORY_MESSAGES)
-        const retryMessages = retryLimit > targetLimit
-          ? await getSessionMessages(sessionId, retryLimit, dir)
-          : apiMessages
-
-        const retryOldestIndex = retryMessages.findIndex(m => m.info.id === oldestId)
-
-        if (retryOldestIndex === -1) {
-          // 本地和服务端窗口发生漂移，回退到「以服务端为准 + 保留本地 streaming」
-          const latestState = messageStore.getSessionState(sessionId)
-          const recovered = mergeWithLocalStreamingMessages(retryMessages, latestState)
-          messageStore.setMessages(sessionId, recovered, {
-            directory: latestState?.directory || state.directory,
-            hasMoreHistory: retryMessages.length >= retryLimit && retryLimit < MAX_HISTORY_MESSAGES,
-            shareUrl: latestState?.shareUrl,
-          })
-          return
-        }
-
-        if (retryOldestIndex === 0) {
+        if (targetLimit <= currentLimit) {
+          console.log(`[SessionManager] loadMore:no-more session=${sessionId} reason=limit-cap currentLimit=${currentLimit}`)
           messageStore.prependMessages(sessionId, [], false)
           return
         }
 
-        const retryNewMessages = retryMessages.slice(0, retryOldestIndex)
-        const retryHasMore = retryMessages.length >= retryLimit && retryLimit < MAX_HISTORY_MESSAGES
-        messageStore.prependMessages(sessionId, retryNewMessages, retryHasMore)
-        return
+        const apiMessages = await getSessionMessages(sessionId, targetLimit, dir)
+        const nextJson = serializeApiMessageIds(apiMessages)
+        historyLimitRef.current.set(sessionId, targetLimit)
+        historyJsonRef.current.set(sessionId, nextJson)
+
+        console.log(`[SessionManager] loadMore:fetched session=${sessionId} targetLimit=${targetLimit} apiCount=${apiMessages.length} jsonChanged=${currentJson !== nextJson} first=${apiMessages[0]?.info.id ?? 'none'} last=${apiMessages[apiMessages.length - 1]?.info.id ?? 'none'}`)
+
+        // 核心规则：新拉取 JSON 与本地缓存 JSON 相同 => 没有更多历史
+        if (currentJson === nextJson) {
+          console.log(`[SessionManager] loadMore:no-more session=${sessionId} reason=json-unchanged apiCount=${apiMessages.length}`)
+          messageStore.prependMessages(sessionId, [], false)
+          return
+        }
+
+        const latestState = messageStore.getSessionState(sessionId)
+        if (!latestState) return
+
+        const existingIds = new Set(getStateMessageIds(latestState))
+        const oldestCreated = latestState.messages[0]?.info.time.created ?? Number.POSITIVE_INFINITY
+        const prependCandidates = apiMessages
+          .filter(m => !existingIds.has(m.info.id))
+          .filter(m => (m.info.time?.created ?? Number.POSITIVE_INFINITY) <= oldestCreated)
+
+        const hasMore = apiMessages.length >= targetLimit && targetLimit < MAX_HISTORY_MESSAGES
+
+        if (prependCandidates.length > 0) {
+          console.log(`[SessionManager] loadMore:prepend session=${sessionId} prependCount=${prependCandidates.length} hasMore=${hasMore} first=${prependCandidates[0]?.info.id ?? 'none'} last=${prependCandidates[prependCandidates.length - 1]?.info.id ?? 'none'}`)
+          messageStore.prependMessages(sessionId, prependCandidates, hasMore)
+          return
+        }
+
+        // JSON 有变化但暂无可前插历史：继续扩大 limit 强拉
+        console.log(`[SessionManager] loadMore:changed-no-prepend-continue session=${sessionId} targetLimit=${targetLimit} apiCount=${apiMessages.length} hasMore=${hasMore}`)
+
+        if (!hasMore) {
+          messageStore.prependMessages(sessionId, [], false)
+          return
+        }
+
+        currentLimit = targetLimit
+        currentJson = nextJson
       }
-
-      // oldestIndex === 0 说明 API 返回的第一条就是当前最旧消息，确实没有更旧的了
-      if (oldestIndex === 0) {
-        messageStore.prependMessages(sessionId, [], false)
-        return
-      }
-
-      const newMessages = apiMessages.slice(0, oldestIndex)
-      const hasMore = apiMessages.length >= targetLimit && targetLimit < MAX_HISTORY_MESSAGES
-
-      messageStore.prependMessages(sessionId, newMessages, hasMore)
     } catch (error) {
+      console.error('[SessionManager] loadMore:error', { sessionId, error })
       sessionErrorHandler('load more history', error)
     }
   }, [sessionId])
@@ -369,12 +394,35 @@ export function useSessionManager({
   // Effects
   // ============================================
 
-  // 同步 sessionId 到 store，并在每次切换时重新拉取 session（避免仅用内存态/缓存态）
+  // 同步 sessionId 到 store。
+  // 若本地已有 loaded 缓存，则直接复用；否则再拉取后端。
   useEffect(() => {
     // 先更新 currentSessionId
     messageStore.setCurrentSession(sessionId)
 
     if (sessionId) {
+      const cached = messageStore.getSessionState(sessionId)
+      const canUseCached = !!cached && cached.loadState === 'loaded' && cached.messages.length > 0
+
+      if (canUseCached) {
+        const cachedLimit = Math.max(INITIAL_MESSAGE_LIMIT, cached.messages.length)
+        const prevLimit = historyLimitRef.current.get(sessionId) ?? 0
+        if (cachedLimit > prevLimit) {
+          historyLimitRef.current.set(sessionId, cachedLimit)
+        }
+        if (!historyJsonRef.current.has(sessionId)) {
+          historyJsonRef.current.set(sessionId, serializeStateMessageIds(cached))
+        }
+
+        console.log('[SessionManager] switch:use-cached', {
+          sessionId,
+          cachedCount: cached.messages.length,
+          cachedLimit,
+        })
+        return
+      }
+
+      console.log('[SessionManager] switch:fetch-session', { sessionId })
       void loadSessionRef.current(sessionId)
     }
 

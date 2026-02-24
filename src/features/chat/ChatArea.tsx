@@ -176,8 +176,25 @@ export const ChatArea = memo(forwardRef<ChatAreaHandle, ChatAreaProps>(({
   // 向上滚动加载更多历史消息的 loading 状态
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const isLoadingMoreRef = useRef(false)
+  const [showNoMoreHint, setShowNoMoreHint] = useState(false)
+  const noMoreHintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // 用户是否在列表顶部附近（用于决定是否显示加载 spinner）
   const [isNearTop, setIsNearTop] = useState(false)
+  const [virtualPrependedCount, setVirtualPrependedCount] = useState(0)
+  const virtualPrependedCountRef = useRef(0)
+  const prevVisibleFirstIdRef = useRef<string | null>(null)
+  const prevPrependedSessionRef = useRef<string | null>(null)
+
+  const triggerNoMoreHint = useCallback(() => {
+    setShowNoMoreHint(true)
+    if (noMoreHintTimerRef.current) {
+      clearTimeout(noMoreHintTimerRef.current)
+    }
+    noMoreHintTimerRef.current = setTimeout(() => {
+      setShowNoMoreHint(false)
+      noMoreHintTimerRef.current = null
+    }, 1200)
+  }, [])
   
   // 监听 scrollParent 滚动，追踪是否在顶部附近
   useEffect(() => {
@@ -215,17 +232,28 @@ export const ChatArea = memo(forwardRef<ChatAreaHandle, ChatAreaProps>(({
   
   // 包装 onLoadMore，追踪加载状态（带最小展示时间防止闪烁）
   const handleLoadMore = useCallback(async () => {
-    if (!onLoadMore || !hasMoreHistory || isLoadingMoreRef.current) return
+    if (!onLoadMore || isLoadingMoreRef.current) return
+
+    console.log(`[ChatArea] startReached:trigger session=${sessionId ?? 'none'} visibleCount=${visibleMessagesCountRef.current} prependedCount=${virtualPrependedCountRef.current} storePrepended=${prependedCount}`)
+
     isLoadingMoreRef.current = true
     setIsLoadingMore(true)
     const minDelay = new Promise(r => setTimeout(r, 400))
     try {
       await Promise.all([onLoadMore(), minDelay])
+
+      const latestHasMore = sessionId ? messageStore.getSessionState(sessionId)?.hasMoreHistory : undefined
+      console.log(`[ChatArea] startReached:done session=${sessionId ?? 'none'} visibleCount=${visibleMessagesCountRef.current} prependedCount=${virtualPrependedCountRef.current} storePrepended=${prependedCount} hasMore=${String(latestHasMore)}`)
+
+      if (sessionId && !latestHasMore) {
+        console.log('[ChatArea] startReached:no-more-hint', { sessionId })
+        triggerNoMoreHint()
+      }
     } finally {
       isLoadingMoreRef.current = false
       setIsLoadingMore(false)
     }
-  }, [onLoadMore, hasMoreHistory])
+  }, [onLoadMore, sessionId, triggerNoMoreHint, prependedCount])
   
   // 过滤空消息 + 合并连续工具 assistant 消息
   const visibleMessages = useMemo(
@@ -255,6 +283,56 @@ export const ChatArea = memo(forwardRef<ChatAreaHandle, ChatAreaProps>(({
   // 用 ref 追踪最新的消息数量，确保回调和 effect 中能获取到
   const visibleMessagesCountRef = useRef(visibleMessages.length)
   visibleMessagesCountRef.current = visibleMessages.length
+
+  // 以可见消息为准追踪 prepend 数，避免 tool 合并导致的索引漂移
+  useEffect(() => {
+    const firstId = visibleMessages[0]?.info.id ?? null
+
+    if (prevPrependedSessionRef.current !== (sessionId ?? null)) {
+      prevPrependedSessionRef.current = sessionId ?? null
+      prevVisibleFirstIdRef.current = firstId
+      virtualPrependedCountRef.current = 0
+      setVirtualPrependedCount(0)
+      return
+    }
+
+    const prevFirstId = prevVisibleFirstIdRef.current
+    if (!prevFirstId || !firstId) {
+      prevVisibleFirstIdRef.current = firstId
+      return
+    }
+
+    if (prevFirstId === firstId) return
+
+    const prevFirstIndex = visibleMessages.findIndex(m => m.info.id === prevFirstId)
+    if (prevFirstIndex > 0) {
+      virtualPrependedCountRef.current += prevFirstIndex
+      setVirtualPrependedCount(virtualPrependedCountRef.current)
+    } else if (prevFirstIndex === -1) {
+      // 数据被整批替换时重置，防止 firstItemIndex 漂移
+      virtualPrependedCountRef.current = 0
+      setVirtualPrependedCount(0)
+    }
+
+    prevVisibleFirstIdRef.current = firstId
+  }, [sessionId, visibleMessages])
+
+  // 用户停留在顶部且仍有历史时自动继续拉取，避免 startReached 不二次触发造成假停顿
+  useEffect(() => {
+    if (!onLoadMore || isLoadingMore || isLoadingMoreRef.current) return
+    if (!isNearTop) return
+    const latestHasMore = sessionId ? messageStore.getSessionState(sessionId)?.hasMoreHistory : hasMoreHistory
+    if (!latestHasMore) return
+
+    const timer = setTimeout(() => {
+      if (!isLoadingMoreRef.current) {
+        console.log(`[ChatArea] startReached:auto-chain session=${sessionId ?? 'none'}`)
+        void handleLoadMore()
+      }
+    }, 120)
+
+    return () => clearTimeout(timer)
+  }, [onLoadMore, isLoadingMore, isNearTop, sessionId, handleLoadMore])
 
   // Always start at the bottom (latest message)
   const effectiveInitialIndex = Math.max(0, visibleMessages.length - 1)
@@ -306,6 +384,10 @@ export const ChatArea = memo(forwardRef<ChatAreaHandle, ChatAreaProps>(({
         clearTimeout(programmaticScrollTimerRef.current)
         programmaticScrollTimerRef.current = null
       }
+      if (noMoreHintTimerRef.current) {
+        clearTimeout(noMoreHintTimerRef.current)
+        noMoreHintTimerRef.current = null
+      }
     }
   }, [])
   
@@ -341,8 +423,8 @@ export const ChatArea = memo(forwardRef<ChatAreaHandle, ChatAreaProps>(({
     })
   }, [sessionId, scrollParent])
   
-  // firstItemIndex：基于 prependedCount 计算，确保和 messages 同步
-  const firstItemIndex = START_INDEX - prependedCount
+  // firstItemIndex：基于可见消息 prepend 计数，避免合并后错位
+  const firstItemIndex = START_INDEX - virtualPrependedCount
 
   useImperativeHandle(ref, () => ({
     scrollToBottom: (instant = false) => {
@@ -502,11 +584,18 @@ export const ChatArea = memo(forwardRef<ChatAreaHandle, ChatAreaProps>(({
         </div>
       )}
       {/* 向上加载历史消息的顶部 spinner：仅在有更多历史且用户停留在顶部时显示 */}
-      {isLoadingMore && hasMoreHistory && isNearTop && (
+      {isLoadingMore && isNearTop && (
         <div className="absolute top-24 left-0 right-0 z-10 flex justify-center pointer-events-none">
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-bg-100/90 border border-border-200 shadow-sm text-text-400 animate-in fade-in slide-in-from-top-2 duration-200">
             <SpinnerIcon size={14} className="animate-spin" />
             <span className="text-xs">Loading...</span>
+          </div>
+        </div>
+      )}
+      {!isLoadingMore && showNoMoreHint && isNearTop && (
+        <div className="absolute top-24 left-0 right-0 z-10 flex justify-center pointer-events-none">
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-bg-100/90 border border-border-200 shadow-sm text-text-400 animate-in fade-in slide-in-from-top-2 duration-200">
+            <span className="text-xs">No more history</span>
           </div>
         </div>
       )}
