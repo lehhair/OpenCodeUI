@@ -1,9 +1,15 @@
 # ============================================
-# 本地构建 override
+# 本地构建 override（gateway/frontend/backend）
 # ============================================
 # 用法: docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
 
 services:
+  gateway:
+    image: opencodeui-gateway:local
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.gateway
+
   frontend:
     image: opencodeui-frontend:local
     build:

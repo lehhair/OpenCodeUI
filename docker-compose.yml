@@ -12,8 +12,8 @@
 #   cp .env.example .env    # 填写 API Key
 #   docker compose up -d    # 启动
 #
-# 本地构建前端 (可选):
-#   docker compose -f docker-compose.yml -f docker-compose.build.yml up -d
+# 本地构建全部服务 (可选):
+#   docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
 
 services:
   # ---- 统一入口：网关 ----
@@ -63,14 +63,10 @@ services:
           memory: 4G
     volumes:
       - ${WORKSPACE:-./workspace}:/workspace
-      - opencode-data:/root/.local/share/opencode
-      - opencode-config:/root/.config/opencode
-      - opencode-cache:/root/.cache
-      - opencode-npm:/root/.npm
-      - opencode-cargo:/root/.cargo
-      - opencode-local:/usr/local
-      - opencode-opt:/opt
+      - opencode-home:/root
+      - ./docker/backend-entrypoint.sh:/usr/local/bin/backend-entrypoint.sh:ro
     working_dir: /workspace
+    entrypoint: ["/bin/sh", "/usr/local/bin/backend-entrypoint.sh"]
     environment:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
@@ -81,17 +77,15 @@ services:
       - XAI_API_KEY=${XAI_API_KEY:-}
       - OPENCODE_SERVER_PASSWORD=${OPENCODE_SERVER_PASSWORD:-}
       - OPENCODE_SERVER_USERNAME=${OPENCODE_SERVER_USERNAME:-opencode}
+      - MISE_DATA_DIR=/root/.local/share/mise
+      - MISE_CONFIG_DIR=/root/.config/mise
+      - MISE_STATE_DIR=/root/.local/state/mise
+      - PATH=/root/.local/bin:/root/.cargo/bin:/root/.local/share/mise/shims:/root/.local/share/mise/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
     networks:
       - opencode-net
 
 volumes:
-  opencode-data:
-  opencode-config:
-  opencode-cache:
-  opencode-npm:
-  opencode-cargo:
-  opencode-local:
-  opencode-opt:
+  opencode-home:
   opencode-router-data:
 
 networks:

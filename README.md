@@ -116,6 +116,30 @@ docker compose up -d
 
 访问 `http://localhost:6658`。
 
+### 环境持久化（简化版）
+
+现在后端只保留一个核心持久化卷：`opencode-home`（挂载到 `/root`）。
+
+后端入口脚本会在启动时自动校验并补齐 `opencode` / `mise`，避免容器重建后工具链丢失。
+
+- OpenCode 配置与会话缓存
+- npm / cargo / pip 等用户态缓存
+- 通过 `mise` 安装的 Node / Python 多版本运行时
+
+容器重建后，上述内容都会保留，不需要再拆成多个小卷。
+
+从旧版本升级时，原来的 `opencode-data/opencode-config/opencode-cache/opencode-npm/opencode-cargo/opencode-local/opencode-opt` 会变成孤立卷，可在确认数据已迁移后手动清理。
+
+首次进入后端容器可直接安装并固化运行时版本：
+
+```bash
+docker compose exec backend mise use -g node@22 python@3.12
+docker compose exec backend node -v
+docker compose exec backend python -V
+```
+
+`gateway` 仍保留单独卷 `opencode-router-data`，用于存放动态路由状态。
+
 ### 环境变量
 
 编辑 `.env` 文件，关键配置：
