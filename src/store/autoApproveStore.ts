@@ -158,8 +158,10 @@ class AutoApproveStore {
         if (rule.permission !== permission && rule.permission !== '*') {
           return false
         }
-        // 模式匹配
+        // 双向通配匹配：rule 作为模式匹配 request，或 request 作为模式匹配 rule
+        // patterns 和 always 可能格式不同，双向确保都能命中
         return wildcardMatch(rule.pattern, reqPattern)
+          || wildcardMatch(reqPattern, rule.pattern)
       })
     })
   }

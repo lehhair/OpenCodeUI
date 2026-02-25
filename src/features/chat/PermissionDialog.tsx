@@ -140,16 +140,24 @@ export function PermissionDialog({ request, onReply, onAutoApprove, queueLength 
               
               {/* Secondary: Always allow */}
               <button
-                onClick={() => {
-                  if (autoApproveStore.enabled && request.always && request.always.length > 0) {
-                    // 实验性功能：添加本地规则，然后用 once 回复
-                    autoApproveStore.addRules(request.sessionID, request.permission, request.always)
-                    onAutoApprove?.(request.sessionID, request.permission, request.always)
-                    onReply('once')
-                  } else {
-                    // 原有行为：发送 always 给后端
-                    onReply('always')
+              onClick={() => {
+                  if (autoApproveStore.enabled) {
+                    // 同时存 always + patterns，确保下次不管哪种格式都能命中
+                    const rulePatterns = [
+                      ...(request.always || []),
+                      ...(request.patterns || []),
+                    ]
+                    // 去重
+                    const unique = [...new Set(rulePatterns)]
+                    if (unique.length > 0) {
+                      autoApproveStore.addRules(request.sessionID, request.permission, unique)
+                      onAutoApprove?.(request.sessionID, request.permission, unique)
+                      onReply('once')
+                      return
+                    }
                   }
+                  // fallback：发送 always 给后端
+                  onReply('always')
                 }}
                 disabled={isReplying}
                 className="w-full flex items-center justify-between px-3.5 py-2 rounded-lg border border-border-200/50 text-text-100 hover:bg-bg-200 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
