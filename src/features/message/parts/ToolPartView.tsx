@@ -75,7 +75,7 @@ export const ToolPartView = memo(function ToolPartView({ part, isFirst = false, 
           className="flex items-center gap-2.5 w-full h-9 text-left px-2 hover:bg-bg-200/40 rounded-lg transition-colors group/header"
           onClick={() => setExpanded(!expanded)}
         >
-          <div className="flex items-center gap-2 overflow-hidden flex-1 min-w-0">
+          <div className="flex items-baseline gap-2 overflow-hidden flex-1 min-w-0">
             <span className={`font-medium text-[13px] leading-tight transition-colors duration-300 shrink-0 ${
               isActive ? 'text-accent-main-100' :
               isError ? 'text-danger-100' :

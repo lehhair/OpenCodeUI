@@ -407,12 +407,12 @@ const ToolGroup = memo(function ToolGroup({ parts, stepFinish, duration, turnDur
         <span className="inline-flex h-5 w-[14px] items-start justify-center pt-[2px] shrink-0">
           {expanded ? <ChevronDownIcon size={14} /> : <ChevronRightIcon size={14} />}
         </span>
-        <span className="inline-flex h-5 items-center gap-1.5 whitespace-nowrap tabular-nums">
-          <span>
+        <span className="inline-flex h-5 items-baseline gap-2 whitespace-nowrap">
+          <span className="text-[13px] font-medium leading-tight">
             {isAllDone ? `${totalCount} steps` : `${doneCount}/${totalCount} steps`}
           </span>
           {!expanded && stepFinish && (
-            <span className="text-text-500">
+            <span className="text-xs text-text-500 font-mono opacity-70">
               {formatTokens(stepFinish.tokens)}
             </span>
           )}
