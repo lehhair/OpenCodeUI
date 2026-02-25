@@ -234,6 +234,14 @@ export const ChatArea = memo(forwardRef<ChatAreaHandle, ChatAreaProps>(({
   const handleLoadMore = useCallback(async () => {
     if (!onLoadMore || isLoadingMoreRef.current) return
 
+    const hadMoreBeforeLoad = sessionId
+      ? (messageStore.getSessionState(sessionId)?.hasMoreHistory ?? false)
+      : hasMoreHistory
+
+    if (!hadMoreBeforeLoad) {
+      return
+    }
+
     console.log(`[ChatArea] startReached:trigger session=${sessionId ?? 'none'} visibleCount=${visibleMessagesCountRef.current} prependedCount=${virtualPrependedCountRef.current} storePrepended=${prependedCount}`)
 
     isLoadingMoreRef.current = true
@@ -242,10 +250,10 @@ export const ChatArea = memo(forwardRef<ChatAreaHandle, ChatAreaProps>(({
     try {
       await Promise.all([onLoadMore(), minDelay])
 
-      const latestHasMore = sessionId ? messageStore.getSessionState(sessionId)?.hasMoreHistory : undefined
+      const latestHasMore = sessionId ? messageStore.getSessionState(sessionId)?.hasMoreHistory : hasMoreHistory
       console.log(`[ChatArea] startReached:done session=${sessionId ?? 'none'} visibleCount=${visibleMessagesCountRef.current} prependedCount=${virtualPrependedCountRef.current} storePrepended=${prependedCount} hasMore=${String(latestHasMore)}`)
 
-      if (sessionId && !latestHasMore) {
+      if (sessionId && hadMoreBeforeLoad && !latestHasMore) {
         console.log('[ChatArea] startReached:no-more-hint', { sessionId })
         triggerNoMoreHint()
       }
@@ -253,7 +261,7 @@ export const ChatArea = memo(forwardRef<ChatAreaHandle, ChatAreaProps>(({
       isLoadingMoreRef.current = false
       setIsLoadingMore(false)
     }
-  }, [onLoadMore, sessionId, triggerNoMoreHint, prependedCount])
+  }, [onLoadMore, sessionId, triggerNoMoreHint, prependedCount, hasMoreHistory])
   
   // 过滤空消息 + 合并连续工具 assistant 消息
   const visibleMessages = useMemo(
