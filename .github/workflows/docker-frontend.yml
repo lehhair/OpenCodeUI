@@ -57,6 +57,9 @@ jobs:
         with:
           context: .
           file: docker/Dockerfile.frontend
+          build-args: |
+            NPM_REGISTRY=https://registry.npmjs.org/
+            NPM_REGISTRY_FALLBACK=https://registry.npmmirror.com/
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}

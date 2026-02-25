@@ -6,9 +6,26 @@
 # ---- Stage 1: 构建前端 ----
 FROM node:22-alpine AS builder
 
+ARG NPM_REGISTRY=https://registry.npmjs.org/
+ARG NPM_REGISTRY_FALLBACK=https://registry.npmmirror.com/
+
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN npm ci --ignore-scripts
+RUN set -eux; \
+    npm config set registry "${NPM_REGISTRY}"; \
+    npm config set fetch-retries 5; \
+    npm config set fetch-retry-factor 2; \
+    npm config set fetch-retry-mintimeout 10000; \
+    npm config set fetch-retry-maxtimeout 120000; \
+    npm config set audit false; \
+    npm config set fund false; \
+    if npm ci --ignore-scripts; then \
+      exit 0; \
+    fi; \
+    echo "npm ci failed on ${NPM_REGISTRY}, retrying with ${NPM_REGISTRY_FALLBACK}"; \
+    npm cache clean --force; \
+    npm config set registry "${NPM_REGISTRY_FALLBACK}"; \
+    npm ci --ignore-scripts
 COPY . .
 ENV VITE_API_BASE_URL=/api
 RUN npm run build
