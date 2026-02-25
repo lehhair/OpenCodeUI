@@ -64,6 +64,7 @@ function App() {
 
   // ============================================
   // Input Box Height (动态测量，用于 ChatArea 底部留白)
+  // 只向上取高水位：收起时不缩小 Footer 占位，避免 isAtBottom 反馈循环
   // ============================================
   const [inputBoxHeight, setInputBoxHeight] = useState(0)
   const inputBoxWrapperRef = useRef<HTMLDivElement>(null)
@@ -73,7 +74,8 @@ function App() {
     if (!el) return
     const ro = new ResizeObserver((entries) => {
       for (const entry of entries) {
-        setInputBoxHeight(entry.contentRect.height)
+        const h = entry.contentRect.height
+        setInputBoxHeight(prev => Math.max(prev, h))
       }
     })
     ro.observe(el)
