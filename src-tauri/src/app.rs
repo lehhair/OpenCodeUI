@@ -216,6 +216,46 @@ async fn sse_disconnect(state: State<'_, SseState>) -> Result<(), String> {
 }
 
 // ============================================
+// Open Directory State (desktop only)
+// 存储启动时传入的目录路径（右键菜单、拖放等）
+// ============================================
+
+#[cfg(not(target_os = "android"))]
+struct OpenDirectoryState {
+    pending: Mutex<Option<String>>,
+}
+
+#[cfg(not(target_os = "android"))]
+impl Default for OpenDirectoryState {
+    fn default() -> Self {
+        Self {
+            pending: Mutex::new(None),
+        }
+    }
+}
+
+/// 从命令行参数中提取目录路径
+#[cfg(not(target_os = "android"))]
+fn extract_directory_from_args(args: &[String]) -> Option<String> {
+    for arg in args.iter().skip(1) {
+        if arg.starts_with('-') {
+            continue;
+        }
+        if std::path::Path::new(arg).is_dir() {
+            return Some(arg.clone());
+        }
+    }
+    None
+}
+
+/// 获取启动时传入的目录路径（一次性读取后清空）
+#[cfg(not(target_os = "android"))]
+#[tauri::command]
+fn get_cli_directory(state: State<'_, OpenDirectoryState>) -> Option<String> {
+    state.pending.lock().ok()?.take()
+}
+
+// ============================================
 // OpenCode Service Management (desktop only)
 // Android 不支持子进程管理和 window.destroy()
 // ============================================
@@ -400,7 +440,26 @@ mod service {
 
 pub fn run() {
     let builder = tauri::Builder::default()
-        .manage(SseState::default())
+        .manage(SseState::default());
+
+    // Desktop: 注册 OpenDirectoryState + single-instance 插件（需在 setup 之前）
+    #[cfg(not(target_os = "android"))]
+    let builder = builder
+        .manage(OpenDirectoryState::default())
+        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+            // 第二个实例的参数，提取目录并通知已运行的前端
+            if let Some(dir) = extract_directory_from_args(&args) {
+                log::info!("Single-instance open directory: {}", dir);
+                let _ = app.emit("open-directory", dir);
+            }
+            // 聚焦已有窗口
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.unminimize();
+                let _ = window.set_focus();
+            }
+        }));
+
+    let builder = builder
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_dialog::init())
@@ -418,6 +477,18 @@ pub fn run() {
             #[cfg(debug_assertions)]
             if let Some(window) = app.get_webview_window("main") {
                 window.open_devtools();
+            }
+
+            // Desktop: 解析 CLI 参数，存入 pending state
+            #[cfg(not(target_os = "android"))]
+            {
+                let args: Vec<String> = std::env::args().collect();
+                if let Some(dir) = extract_directory_from_args(&args) {
+                    log::info!("CLI directory argument: {}", dir);
+                    if let Some(state) = app.try_state::<OpenDirectoryState>() {
+                        *state.pending.lock().unwrap() = Some(dir);
+                    }
+                }
             }
 
             Ok(())
@@ -439,6 +510,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             sse_connect,
             sse_disconnect,
+            get_cli_directory,
             service::check_opencode_service,
             service::start_opencode_service,
             service::stop_opencode_service,
@@ -454,7 +526,29 @@ pub fn run() {
             sse_disconnect,
         ]);
 
-    builder
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+    // build + run 分开调用，以支持 macOS RunEvent::Opened
+    let app = builder
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application");
+
+    app.run(|_app_handle, _event| {
+        // macOS: 处理 Finder "Open with" / 拖文件夹到 Dock 图标
+        #[cfg(target_os = "macos")]
+        if let tauri::RunEvent::Opened { urls } = &_event {
+            for url in urls {
+                if let Ok(path) = url.to_file_path() {
+                    if path.is_dir() {
+                        let dir = path.to_string_lossy().to_string();
+                        log::info!("macOS Opened directory: {}", dir);
+                        // 存入 state（冷启动时前端可能还没 ready）
+                        if let Some(state) = _app_handle.try_state::<OpenDirectoryState>() {
+                            *state.pending.lock().unwrap() = Some(dir.clone());
+                        }
+                        // 同时 emit 事件（前端已 ready 则直接收到）
+                        let _ = _app_handle.emit("open-directory", dir);
+                    }
+                }
+            }
+        }
+    });
 }

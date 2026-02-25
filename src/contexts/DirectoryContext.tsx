@@ -2,13 +2,14 @@
 // DirectoryContext - 管理当前工作目录
 // ============================================
 
-import { createContext, useContext, useState, useCallback, useEffect, useMemo, type ReactNode } from 'react'
+import { createContext, useContext, useState, useCallback, useEffect, useMemo, useRef, type ReactNode } from 'react'
 import { getPath, type ApiPath, getPendingPermissions, getPendingQuestions } from '../api'
 import { useRouter } from '../hooks/useRouter'
 import { handleError, normalizeToForwardSlash, getDirectoryName, isSameDirectory, serverStorage } from '../utils'
 import { layoutStore, useLayoutStore } from '../store/layoutStore'
 import { activeSessionStore } from '../store/activeSessionStore'
 import { serverStore } from '../store/serverStore'
+import { isTauri } from '../utils/tauri'
 
 export interface SavedDirectory {
   path: string
@@ -156,6 +157,33 @@ export function DirectoryProvider({ children }: { children: ReactNode }) {
       setCurrentDirectory(undefined)
     }
   }, [urlDirectory, setCurrentDirectory])
+
+  // Tauri: 启动时获取 CLI 传入的目录 + 监听后续 open-directory 事件
+  // 用 ref 持有最新的 addDirectory 避免 stale closure
+  const addDirectoryRef = useRef(addDirectory)
+  addDirectoryRef.current = addDirectory
+
+  useEffect(() => {
+    if (!isTauri()) return
+
+    let unlisten: (() => void) | undefined
+
+    // 拉取启动时的 CLI 目录（一次性）
+    import('@tauri-apps/api/core').then(({ invoke }) => {
+      invoke<string | null>('get_cli_directory').then((dir) => {
+        if (dir) addDirectoryRef.current(dir)
+      }).catch(() => {})
+    })
+
+    // 监听后续的 open-directory 事件（single-instance / macOS RunEvent::Opened）
+    import('@tauri-apps/api/event').then(({ listen }) => {
+      listen<string>('open-directory', (event) => {
+        addDirectoryRef.current(event.payload)
+      }).then(fn => { unlisten = fn })
+    })
+
+    return () => { unlisten?.() }
+  }, [])
 
   // 设置侧边栏展开 - 委托给 layoutStore
   const setSidebarExpanded = useCallback((expanded: boolean) => {
