@@ -179,8 +179,13 @@ html, body, #root {
   
   /* ============================================
    * Fonts — 默认使用系统字体栈，用户可通过 Settings 自定义覆盖
+   * 
+   * --font-ui-sans: 用户可覆盖的 UI 字体变量
+   * --font-sans:    Tailwind font-sans class 使用的变量，指向 --font-ui-sans
+   * --font-mono:    代码/等宽字体，Tailwind font-mono class 使用
    * ============================================ */
   --font-ui-sans: system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans', 'Liberation Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
+  --font-sans: var(--font-ui-sans);
   --font-ui-serif: 'Georgia', 'Noto Serif', serif;
   --font-mono: ui-monospace, 'SFMono-Regular', 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
 }
