@@ -57,14 +57,6 @@ html, body, #root {
   }
 }
 
-@font-face {
-  font-family: 'JetBrains Mono';
-  src: url('/fonts/JetBrainsMono-Regular.woff2') format('woff2');
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-
 /* ============================================
  * Design System - Theme Tokens
  * ============================================
@@ -186,11 +178,11 @@ html, body, #root {
   --menu-width: 360px;
   
   /* ============================================
-   * Fonts
+   * Fonts — 默认使用系统字体栈，用户可通过 Settings 自定义覆盖
    * ============================================ */
-  --font-ui-sans: 'Inter', system-ui, sans-serif;
-  --font-ui-serif: 'Georgia', serif;
-  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+  --font-ui-sans: system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans', 'Liberation Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
+  --font-ui-serif: 'Georgia', 'Noto Serif', serif;
+  --font-mono: ui-monospace, 'SFMono-Regular', 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
 }
 
 /* ============================================
@@ -249,19 +241,6 @@ html, body, #root {
   --always-black: 0 0% 0%;
   --always-white: 0 0% 100%;
   --oncolor-100: 0 0% 100%;
-}
-
-/* Font Faces - using local fallbacks for now */
-@font-face {
-  font-family: 'Anthropic Sans';
-  src: local('Inter'), local('system-ui'), local('sans-serif');
-  font-weight: 100 900;
-}
-
-@font-face {
-  font-family: 'Anthropic Serif';
-  src: local('Georgia'), local('serif');
-  font-weight: 100 900;
 }
 
 /* Base styles */

@@ -161,7 +161,7 @@ export const Terminal = memo(function Terminal({
     
     const terminal = new XTerm({
       theme,
-      fontFamily: "'JetBrains Mono', 'Fira Code', 'Consolas', monospace",
+      fontFamily: getComputedStyle(document.documentElement).getPropertyValue('--font-mono').trim() || "ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace",
       fontSize: isMobile ? 14 : 13,
       lineHeight: isMobile ? 1.3 : 1.2,
       cursorBlink: true,

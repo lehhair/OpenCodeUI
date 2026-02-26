@@ -223,28 +223,53 @@ function CustomCSSEditor({ value, onChange }: { value: string; onChange: (css: s
     debounceRef.current = setTimeout(() => onChange(newVal), 400)
   }
   
-  const placeholder = `/* Override CSS variables to create your theme */
+  const template = `/* ====== Fonts ====== */
+
+/* UI Font (chat, menus, interface) */
 :root:root {
-  /* Backgrounds */
+  --font-ui-sans: 'Noto Serif SC', SimSun, '宋体', serif;
+}
+
+/* Code Font (code blocks, terminal, inline code) */
+:root:root {
+  --font-mono: 'Fira Code', 'Cascadia Code', Consolas, monospace;
+}
+
+/* Load web fonts from CDN (uncomment to use) */
+/* @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;700&display=swap'); */
+/* @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&display=swap'); */
+
+/* ====== Colors (HSL without parentheses) ====== */
+
+/* :root:root {
   --bg-000: 220 20% 98%;
   --bg-100: 220 15% 95%;
-
-  /* Text */
+  --bg-200: 220 12% 91%;
   --text-100: 220 15% 15%;
-
-  /* Accent */
+  --text-200: 220 10% 40%;
   --accent-main-100: 260 70% 55%;
-}`
+  --border-200: 220 10% 85%;
+} */`
 
   return (
     <div className="space-y-2">
-      <div className="text-[11px] text-text-400">
-        Custom CSS applied globally. Use <code className="text-[10px] px-1 py-0.5 bg-bg-200 rounded font-mono">:root:root</code> to override theme variables.
+      <div className="flex items-center justify-between">
+        <div className="text-[11px] text-text-400">
+          Override fonts, colors, and styles. Use <code className="text-[10px] px-1 py-0.5 bg-bg-200 rounded font-mono">:root:root</code> for higher specificity.
+        </div>
+        {!localValue.trim() && (
+          <button
+            onClick={() => handleChange(template)}
+            className="text-[10px] text-accent-main-100 hover:text-accent-main-200 transition-colors px-1.5 py-0.5 rounded hover:bg-bg-200/50 shrink-0"
+          >
+            Load Template
+          </button>
+        )}
       </div>
       <textarea
         value={localValue}
         onChange={(e) => handleChange(e.target.value)}
-        placeholder={placeholder}
+        placeholder={template}
         spellCheck={false}
         className="w-full h-48 px-3 py-2 text-[12px] font-mono bg-bg-200/50 border border-border-200 rounded-lg 
           focus:outline-none focus:border-accent-main-100/50 text-text-100 placeholder:text-text-500 
@@ -299,10 +324,10 @@ function AppearanceSettings({ themeMode, onThemeChange, isWideMode, onToggleWide
         </SettingsCard>
       )}
 
-      {presetId === 'custom' && onCustomCSSChange && (
+      {onCustomCSSChange && (
         <SettingsCard
           title="Custom CSS"
-          description="Advanced theme overrides via CSS variables"
+          description="Override fonts, colors, and any CSS variables. Works with all themes."
         >
           <CustomCSSEditor value={customCSS || ''} onChange={onCustomCSSChange} />
         </SettingsCard>
@@ -337,7 +362,7 @@ function AppearanceSettings({ themeMode, onThemeChange, isWideMode, onToggleWide
                 <Toggle enabled={!!isWideMode} onChange={onToggleWideMode} />
               </SettingRow>
             </div>
-          )}
+           )}
         </div>
       </SettingsCard>
     </div>

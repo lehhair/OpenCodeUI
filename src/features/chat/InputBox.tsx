@@ -930,7 +930,7 @@ function InputBoxComponent({
 // ============================================
 
 const TEXT_STYLE: React.CSSProperties = {
-  fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+  fontFamily: 'var(--font-ui-sans)',
   fontSize: '14px',
   fontWeight: 400,
   lineHeight: '20px',

@@ -4,7 +4,7 @@
  * 管理：
  * - 主题风格选择（claude / breeze / custom）
  * - 日夜模式（system / light / dark）
- * - 自定义 CSS
+ * - 自定义 CSS（可用于覆盖字体等）
  * - CSS 变量注入
  */
 
