@@ -77,7 +77,7 @@ export const InputFooter = memo(function InputFooter({ sessionId, onNewChat, inp
       : `${stats.total - stats.completed} remaining`
 
   return (
-    <div className="flex items-center justify-center gap-2 pt-2 text-[11px] text-text-500 relative" ref={popoverRef}>
+    <div className="flex items-center justify-center gap-2 pt-2 text-[11px] leading-none text-text-500 relative" ref={popoverRef}>
       {/* 左侧：todo 进度 */}
       <button
         onClick={() => setPopoverOpen(!popoverOpen)}
@@ -209,7 +209,7 @@ function MiniProgress({ size, progress, done }: { size: number; progress: number
   const offset = c * (1 - progress)
 
   return (
-    <svg width={size} height={size} className="-rotate-90 shrink-0">
+    <svg width={size} height={size} className="-rotate-90 shrink-0 block">
       <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="currentColor" strokeWidth="1.5" className="text-text-500/30" />
       <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"
         strokeDasharray={c} strokeDashoffset={offset}

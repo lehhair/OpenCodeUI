@@ -65,11 +65,11 @@ function TodoList({ todos }: { todos: TodoItem[] }) {
               {todos.map(todo => (
                 <div 
                   key={todo.id}
-                  className={`flex items-start gap-2 px-3 py-2 ${
+                  className={`flex items-center gap-2 px-3 py-2 ${
                     todo.status === 'completed' ? 'text-text-500' : 'text-text-200'
                   }`}
                 >
-                  <span className="shrink-0 mt-0.5">{getTodoIcon(todo.status)}</span>
+                  <span className="shrink-0 flex items-center">{getTodoIcon(todo.status)}</span>
                   <span className={todo.status === 'completed' ? 'line-through' : ''}>
                     {todo.content}
                   </span>
