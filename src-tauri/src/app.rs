@@ -5,7 +5,9 @@
 
 use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Mutex;
 use std::time::Duration;
 use tauri::{ipc::Channel, Manager, State};
 
@@ -15,28 +17,26 @@ use std::process::{Command, Stdio};
 #[cfg(not(target_os = "android"))]
 use std::sync::atomic::AtomicBool;
 #[cfg(not(target_os = "android"))]
-use std::sync::Mutex;
-#[cfg(not(target_os = "android"))]
 use tauri::Emitter;
 
 // ============================================
 // SSE Connection State
 // ============================================
 
-/// 用于管理 SSE 连接的全局状态
-/// 存储一个可选的 abort flag，用于取消正在进行的 SSE 连接
+/// 用于管理 SSE 连接的全局状态（支持多窗口）
+/// 每个窗口独立维护自己的 SSE 连接，互不干扰
 struct SseState {
     /// 每次连接分配一个递增 ID，用于区分不同连接
-    current_id: AtomicU64,
-    /// 当前活跃连接的 ID，0 表示无连接
-    active_id: AtomicU64,
+    next_id: AtomicU64,
+    /// 每个窗口的活跃连接 ID: window label → connection ID
+    active: Mutex<HashMap<String, u64>>,
 }
 
 impl Default for SseState {
     fn default() -> Self {
         Self {
-            current_id: AtomicU64::new(0),
-            active_id: AtomicU64::new(0),
+            next_id: AtomicU64::new(0),
+            active: Mutex::new(HashMap::new()),
         }
     }
 }
@@ -79,14 +79,15 @@ struct SseConnectArgs {
 /// 使用 Tauri Channel 将事件流式发送给前端。
 #[tauri::command]
 async fn sse_connect(
+    window: tauri::Window,
     state: State<'_, SseState>,
     args: SseConnectArgs,
     on_event: Channel<SseEvent>,
 ) -> Result<(), String> {
-    // 分配连接 ID
-    let conn_id = state.current_id.fetch_add(1, Ordering::SeqCst) + 1;
-    // 设置为活跃连接
-    state.active_id.store(conn_id, Ordering::SeqCst);
+    // 分配连接 ID（per-window，多窗口互不干扰）
+    let conn_id = state.next_id.fetch_add(1, Ordering::SeqCst) + 1;
+    let win_label = window.label().to_string();
+    state.active.lock().unwrap().insert(win_label.clone(), conn_id);
 
     // 构建请求 - 配置超时防止连接静默死亡
     let client = reqwest::Client::builder()
@@ -133,8 +134,8 @@ async fn sse_connect(
     let mut event_data = String::new();
 
     loop {
-        // 检查是否被要求断开
-        if state.active_id.load(Ordering::SeqCst) != conn_id {
+        // 检查该窗口的连接是否被要求断开
+        if state.active.lock().unwrap().get(&win_label) != Some(&conn_id) {
             let _ = on_event.send(SseEvent::Disconnected {
                 reason: "Disconnected by client".to_string(),
             });
@@ -210,8 +211,8 @@ async fn sse_connect(
 
 /// 断开 SSE 连接
 #[tauri::command]
-async fn sse_disconnect(state: State<'_, SseState>) -> Result<(), String> {
-    state.active_id.store(0, Ordering::SeqCst);
+async fn sse_disconnect(window: tauri::Window, state: State<'_, SseState>) -> Result<(), String> {
+    state.active.lock().unwrap().remove(window.label());
     Ok(())
 }
 
@@ -222,14 +223,15 @@ async fn sse_disconnect(state: State<'_, SseState>) -> Result<(), String> {
 
 #[cfg(not(target_os = "android"))]
 struct OpenDirectoryState {
-    pending: Mutex<Option<String>>,
+    /// per-window 待处理目录: window label → directory path
+    pending: Mutex<HashMap<String, String>>,
 }
 
 #[cfg(not(target_os = "android"))]
 impl Default for OpenDirectoryState {
     fn default() -> Self {
         Self {
-            pending: Mutex::new(None),
+            pending: Mutex::new(HashMap::new()),
         }
     }
 }
@@ -251,8 +253,8 @@ fn extract_directory_from_args(args: &[String]) -> Option<String> {
 /// 获取启动时传入的目录路径（一次性读取后清空）
 #[cfg(not(target_os = "android"))]
 #[tauri::command]
-fn get_cli_directory(state: State<'_, OpenDirectoryState>) -> Option<String> {
-    state.pending.lock().ok()?.take()
+fn get_cli_directory(window: tauri::Window, state: State<'_, OpenDirectoryState>) -> Option<String> {
+    state.pending.lock().ok()?.remove(window.label())
 }
 
 // ============================================
@@ -438,6 +440,32 @@ mod service {
     }
 }
 
+/// 创建新窗口，可选地关联一个目录（多窗口支持）
+#[cfg(not(target_os = "android"))]
+fn create_new_window(app: &tauri::AppHandle, directory: Option<String>) {
+    static WIN_COUNTER: AtomicU64 = AtomicU64::new(1);
+    let label = format!("win-{}", WIN_COUNTER.fetch_add(1, Ordering::SeqCst));
+
+    if let Some(ref dir) = directory {
+        if let Some(state) = app.try_state::<OpenDirectoryState>() {
+            state.pending.lock().unwrap().insert(label.clone(), dir.clone());
+        }
+    }
+
+    match tauri::WebviewWindowBuilder::new(
+        app,
+        &label,
+        tauri::WebviewUrl::App("index.html".into()),
+    )
+    .title("OpenCode")
+    .inner_size(800.0, 600.0)
+    .build()
+    {
+        Ok(_) => log::info!("Created new window '{}' for directory: {:?}", label, directory),
+        Err(e) => log::error!("Failed to create new window: {}", e),
+    }
+}
+
 pub fn run() {
     let builder = tauri::Builder::default()
         .manage(SseState::default());
@@ -447,16 +475,10 @@ pub fn run() {
     let builder = builder
         .manage(OpenDirectoryState::default())
         .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
-            // 第二个实例的参数，提取目录并通知已运行的前端
-            if let Some(dir) = extract_directory_from_args(&args) {
-                log::info!("Single-instance open directory: {}", dir);
-                let _ = app.emit("open-directory", dir);
-            }
-            // 聚焦已有窗口
-            if let Some(window) = app.get_webview_window("main") {
-                let _ = window.unminimize();
-                let _ = window.set_focus();
-            }
+            // 始终新建窗口（类似 VSCode：双击图标 = 新窗口）
+            let dir = extract_directory_from_args(&args);
+            log::info!("Single-instance: opening new window, directory: {:?}", dir);
+            create_new_window(app, dir);
         }));
 
     let builder = builder
@@ -486,7 +508,7 @@ pub fn run() {
                 if let Some(dir) = extract_directory_from_args(&args) {
                     log::info!("CLI directory argument: {}", dir);
                     if let Some(state) = app.try_state::<OpenDirectoryState>() {
-                        *state.pending.lock().unwrap() = Some(dir);
+                        state.pending.lock().unwrap().insert("main".to_string(), dir);
                     }
                 }
             }
@@ -499,12 +521,24 @@ pub fn run() {
     let builder = builder
         .manage(service::ServiceState::default())
         .on_window_event(|window, event| {
-            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                let state = window.state::<service::ServiceState>();
-                if state.we_started.load(Ordering::SeqCst) {
-                    api.prevent_close();
-                    let _ = window.emit("close-requested", ());
+            match event {
+                tauri::WindowEvent::CloseRequested { api, .. } => {
+                    // 只在最后一个窗口关闭时询问是否停止服务
+                    let is_last = window.app_handle().webview_windows().len() <= 1;
+                    if is_last {
+                        let state = window.state::<service::ServiceState>();
+                        if state.we_started.load(Ordering::SeqCst) {
+                            api.prevent_close();
+                            let _ = window.emit("close-requested", ());
+                        }
+                    }
                 }
+                tauri::WindowEvent::Destroyed => {
+                    // 窗口销毁时清理该窗口的 SSE 连接
+                    let state = window.state::<SseState>();
+                    state.active.lock().unwrap().remove(window.label());
+                }
+                _ => {}
             }
         })
         .invoke_handler(tauri::generate_handler![
@@ -540,12 +574,21 @@ pub fn run() {
                     if path.is_dir() {
                         let dir = path.to_string_lossy().to_string();
                         log::info!("macOS Opened directory: {}", dir);
-                        // 存入 state（冷启动时前端可能还没 ready）
+
+                        // 如果只有 main 窗口且它还没消费目录，说明是冷启动，设给 main
+                        // 否则新建窗口
                         if let Some(state) = _app_handle.try_state::<OpenDirectoryState>() {
-                            *state.pending.lock().unwrap() = Some(dir.clone());
+                            let mut pending = state.pending.lock().unwrap();
+                            let win_count = _app_handle.webview_windows().len();
+                            if win_count <= 1 && !pending.contains_key("main") {
+                                pending.insert("main".to_string(), dir.clone());
+                                drop(pending);
+                                let _ = _app_handle.emit("open-directory", dir);
+                            } else {
+                                drop(pending);
+                                create_new_window(_app_handle, Some(dir));
+                            }
                         }
-                        // 同时 emit 事件（前端已 ready 则直接收到）
-                        let _ = _app_handle.emit("open-directory", dir);
                     }
                 }
             }

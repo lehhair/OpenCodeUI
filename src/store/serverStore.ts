@@ -104,7 +104,9 @@ class ServerStore {
       }
       
       // 加载当前选中的服务器
-      const activeId = localStorage.getItem(ACTIVE_SERVER_KEY)
+      // 优先从 sessionStorage 读取（per-window 隔离，刷新保持）
+      // 回退到 localStorage（新窗口首次打开时继承上次默认）
+      const activeId = sessionStorage.getItem(ACTIVE_SERVER_KEY) ?? localStorage.getItem(ACTIVE_SERVER_KEY)
       if (activeId && this.servers.some(s => s.id === activeId)) {
         this.activeServerId = activeId
       } else {
@@ -127,6 +129,8 @@ class ServerStore {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(this.servers))
       if (this.activeServerId) {
+        // 写入 sessionStorage（当前窗口刷新保持）+ localStorage（新窗口默认值）
+        sessionStorage.setItem(ACTIVE_SERVER_KEY, this.activeServerId)
         localStorage.setItem(ACTIVE_SERVER_KEY, this.activeServerId)
       }
     } catch {

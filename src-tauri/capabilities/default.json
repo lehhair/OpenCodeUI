@@ -3,7 +3,8 @@
   "identifier": "default",
   "description": "Default capabilities for OpenCode UI",
   "windows": [
-    "main"
+    "main",
+    "win-*"
   ],
   "permissions": [
     "core:default",
