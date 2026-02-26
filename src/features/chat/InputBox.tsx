@@ -131,6 +131,8 @@ function InputBoxComponent({
   const mentionMenuRef = useRef<MentionMenuHandle>(null)
   const slashMenuRef = useRef<SlashCommandMenuHandle>(null)
   const prevRevertedTextRef = useRef<string | undefined>(undefined)
+  const contentWrapRef = useRef<HTMLDivElement>(null)
+  const expandedHeightRef = useRef(0)
 
   // ============================================
   // 历史消息导航（类终端体验）
@@ -229,6 +231,22 @@ function InputBoxComponent({
       blurTimerRef.current = null
     }
   }, [isFocused])
+
+  // 持续追踪展开态内容区高度（用于收起时占位，防 isAtBottom 反馈循环）
+  useEffect(() => {
+    const el = contentWrapRef.current
+    if (!el) return
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        // 只在展开态时采样，收起态的高度不更新（此时有 minHeight 撑着）
+        if (!isCollapsed) {
+          expandedHeightRef.current = entry.contentRect.height
+        }
+      }
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [isCollapsed])
 
   // 注册输入框容器用于动画
   useEffect(() => {
@@ -742,7 +760,14 @@ function InputBoxComponent({
   return (
     <div className="w-full">
       <div className="mx-auto max-w-3xl px-4 pb-4 pointer-events-auto transition-[max-width] duration-300 ease-in-out" style={{ paddingBottom: 'max(16px, var(--safe-area-inset-bottom, 16px))' }}>
-        <div className="flex flex-col gap-2">
+        <div
+          ref={contentWrapRef}
+          className="flex flex-col gap-2"
+          style={isCollapsed && expandedHeightRef.current > 0
+            ? { minHeight: expandedHeightRef.current }
+            : undefined
+          }
+        >
           {(showScrollToBottom || canRedo || collapsedPermission || collapsedQuestion) && (
             <div className={`flex items-center justify-center gap-2`}>
               {/* Collapsed Permission Capsule */}
