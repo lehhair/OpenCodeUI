@@ -54,17 +54,6 @@ function computedColorToHex(cssColor: string): string | null {
 
 export type ColorMode = 'system' | 'light' | 'dark'
 
-/** 字体大小，单位 px，范围 12-24 */
-export type FontSize = number
-
-const DEFAULT_FONT_SIZE = 16
-const MIN_FONT_SIZE = 12
-const MAX_FONT_SIZE = 24
-
-function clampFontSize(v: number): number {
-  return Math.max(MIN_FONT_SIZE, Math.min(MAX_FONT_SIZE, Math.round(v)))
-}
-
 /** step-finish 信息栏各项显示开关 */
 export interface StepFinishDisplay {
   tokens: boolean
@@ -93,8 +82,6 @@ export interface ThemeState {
   colorMode: ColorMode
   /** 用户自定义 CSS（覆盖 CSS 变量） */
   customCSS: string
-  /** 全局字体大小 (px) */
-  fontSize: FontSize
   /** 是否自动折叠长用户消息 */
   collapseUserMessages: boolean
   /** step-finish 信息栏显示开关 */
@@ -110,7 +97,6 @@ export interface ThemeState {
 const STORAGE_KEY_PRESET = 'theme-preset'
 const STORAGE_KEY_COLOR_MODE = 'theme-mode'
 const STORAGE_KEY_CUSTOM_CSS = 'theme-custom-css'
-const STORAGE_KEY_FONT_SIZE = 'theme-font-size'
 const STORAGE_KEY_COLLAPSE_USER_MESSAGES = 'collapse-user-messages'
 const STORAGE_KEY_STEP_FINISH_DISPLAY = 'step-finish-display'
 const STORAGE_KEY_REASONING_DISPLAY_MODE = 'reasoning-display-mode'
@@ -134,7 +120,6 @@ class ThemeStore {
     const savedPreset = localStorage.getItem(STORAGE_KEY_PRESET) || DEFAULT_THEME_ID
     const savedMode = localStorage.getItem(STORAGE_KEY_COLOR_MODE) as ColorMode || 'system'
     const savedCSS = localStorage.getItem(STORAGE_KEY_CUSTOM_CSS) || ''
-    const savedFontSize = clampFontSize(Number(localStorage.getItem(STORAGE_KEY_FONT_SIZE)) || DEFAULT_FONT_SIZE)
     const savedCollapse = localStorage.getItem(STORAGE_KEY_COLLAPSE_USER_MESSAGES)
     const collapseUserMessages = savedCollapse === null ? true : savedCollapse === 'true'
     const savedReasoningDisplay = localStorage.getItem(STORAGE_KEY_REASONING_DISPLAY_MODE)
@@ -150,7 +135,6 @@ class ThemeStore {
       presetId: savedPreset,
       colorMode: savedMode,
       customCSS: savedCSS,
-      fontSize: savedFontSize,
       collapseUserMessages,
       stepFinishDisplay,
       reasoningDisplayMode,
@@ -166,7 +150,6 @@ class ThemeStore {
   get presetId() { return this.state.presetId }
   get colorMode() { return this.state.colorMode }
   get customCSS() { return this.state.customCSS }
-  get fontSize() { return this.state.fontSize }
   get collapseUserMessages() { return this.state.collapseUserMessages }
   get stepFinishDisplay() { return this.state.stepFinishDisplay }
   get reasoningDisplayMode() { return this.state.reasoningDisplayMode }
@@ -225,15 +208,6 @@ class ThemeStore {
     this.state = { ...this.state, customCSS: css }
     localStorage.setItem(STORAGE_KEY_CUSTOM_CSS, css)
     this.applyCustomCSS()
-    this.emit()
-  }
-  
-  setFontSize(size: FontSize) {
-    const clamped = clampFontSize(size)
-    if (this.state.fontSize === clamped) return
-    this.state = { ...this.state, fontSize: clamped }
-    localStorage.setItem(STORAGE_KEY_FONT_SIZE, String(clamped))
-    this.applyFontSize()
     this.emit()
   }
   
@@ -303,10 +277,7 @@ class ThemeStore {
     // 3. 应用自定义 CSS
     this.applyCustomCSS()
     
-    // 4. 应用字体大小
-    this.applyFontSize()
-    
-    // 5. 更新 meta theme-color
+    // 4. 更新 meta theme-color
     requestAnimationFrame(() => {
       const bg = getComputedStyle(root).getPropertyValue('--color-bg-100').trim()
       if (!bg) return
@@ -354,10 +325,6 @@ class ThemeStore {
       document.head.appendChild(el)
     }
     el.textContent = css
-  }
-  
-  private applyFontSize() {
-    document.documentElement.style.fontSize = `${this.state.fontSize}px`
   }
   
   // ---- Subscription (useSyncExternalStore compatible) ----

@@ -153,12 +153,6 @@ export function useTheme() {
     themeStore.setCustomCSS(css)
   }, [])
 
-  // ---- Font Size ----
-  
-  const setFontSize = useCallback((size: number) => {
-    themeStore.setFontSize(size)
-  }, [])
-
   // ---- Collapse User Messages ----
   
   const setCollapseUserMessages = useCallback((enabled: boolean) => {
@@ -196,10 +190,6 @@ export function useTheme() {
     // 自定义 CSS
     customCSS: state.customCSS,
     setCustomCSS,
-    
-    // 字体大小
-    fontSize: state.fontSize,
-    setFontSize,
     
     // 折叠长用户消息
     collapseUserMessages: state.collapseUserMessages,

@@ -26,7 +26,7 @@ export type { KeybindingAction, KeybindingConfig, ParsedKeybinding } from './key
 export { messageCacheStore } from './messageCacheStore'
 
 export { themeStore } from './themeStore'
-export type { ColorMode, FontSize, ThemeState } from './themeStore'
+export type { ColorMode, ThemeState } from './themeStore'
 
 export { todoStore, useTodos, useTodoStats, useCurrentTask } from './todoStore'
 export type { SessionTodos } from './todoStore'

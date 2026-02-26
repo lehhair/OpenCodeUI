@@ -10,7 +10,6 @@ import { WebLinksAddon } from '@xterm/addon-web-links'
 import '@xterm/xterm/css/xterm.css'
 import { getPtyConnectUrl, updatePtySession } from '../api/pty'
 import { layoutStore } from '../store/layoutStore'
-import { themeStore } from '../store/themeStore'
 
 // ============================================
 // 终端主题 - 与应用主题配合
@@ -163,7 +162,7 @@ export const Terminal = memo(function Terminal({
     const terminal = new XTerm({
       theme,
       fontFamily: "'JetBrains Mono', 'Fira Code', 'Consolas', monospace",
-      fontSize: themeStore.fontSize - (isMobile ? 2 : 3),
+      fontSize: isMobile ? 14 : 13,
       lineHeight: isMobile ? 1.3 : 1.2,
       cursorBlink: true,
       cursorStyle: 'block',
@@ -462,25 +461,6 @@ export const Terminal = memo(function Terminal({
 
     return () => observer.disconnect()
   }, [])
-
-  // 字体大小跟随 themeStore 变化
-  useEffect(() => {
-    const isMobile = isMobileDevice()
-    const unsubscribe = themeStore.subscribe(() => {
-      const terminal = terminalRef.current
-      if (!terminal) return
-      const newSize = themeStore.fontSize - (isMobile ? 2 : 3)
-      if (terminal.options.fontSize !== newSize) {
-        terminal.options.fontSize = newSize
-        if (fitAddonRef.current) {
-          fitAddonRef.current.fit()
-          const { cols, rows } = terminal
-          updatePtySession(ptyId, { size: { cols, rows } }, directory).catch(() => {})
-        }
-      }
-    })
-    return () => unsubscribe()
-  }, [ptyId, directory])
 
   // 当 tab 变为活动状态时，聚焦并重新 fit
   useEffect(() => {

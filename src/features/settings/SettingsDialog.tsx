@@ -164,51 +164,6 @@ function SettingsCard({
 }
 
 // ============================================
-// Font Size Slider
-// ============================================
-
-function FontSizeSlider({ value, onChange }: { value: number; onChange: (v: number) => void }) {
-  const min = 12
-  const max = 24
-  const pct = ((value - min) / (max - min)) * 100
-  
-  return (
-    <div className="space-y-2">
-      <div className="flex items-center gap-3">
-        <span className="text-[11px] text-text-400 shrink-0">A</span>
-        <div className="relative flex-1 h-6 flex items-center">
-          <input
-            type="range"
-            min={min}
-            max={max}
-            step={1}
-            value={value}
-            onChange={(e) => onChange(Number(e.target.value))}
-            className="w-full h-1.5 rounded-full appearance-none cursor-pointer
-              [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 
-              [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-accent-main-100 
-              [&::-webkit-slider-thumb]:shadow-md [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white
-              [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:relative [&::-webkit-slider-thumb]:z-10
-              [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:rounded-full 
-              [&::-moz-range-thumb]:bg-accent-main-100 [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-white
-              [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:shadow-md"
-            style={{
-              background: `linear-gradient(to right, hsl(var(--accent-main-100)) 0%, hsl(var(--accent-main-100)) ${pct}%, hsl(var(--bg-300)) ${pct}%, hsl(var(--bg-300)) 100%)`
-            }}
-          />
-        </div>
-        <span className="text-[15px] text-text-400 shrink-0 font-semibold">A</span>
-      </div>
-      <div className="flex items-center justify-between px-1">
-        <span className="text-[11px] text-text-400">{min}px</span>
-        <span className="text-[12px] font-medium text-text-200 bg-bg-200/60 px-2 py-0.5 rounded">{value}px</span>
-        <span className="text-[11px] text-text-400">{max}px</span>
-      </div>
-    </div>
-  )
-}
-
-// ============================================
 // Theme Preset Card
 // ============================================
 
@@ -321,7 +276,6 @@ function AppearanceSettings({ themeMode, onThemeChange, isWideMode, onToggleWide
   customCSS?: string
   onCustomCSSChange?: (css: string) => void
 }) {
-  const [fontSize, setFontSize] = useState(themeStore.fontSize)
 
   return (
     <div className="space-y-4">
@@ -356,7 +310,7 @@ function AppearanceSettings({ themeMode, onThemeChange, isWideMode, onToggleWide
 
       <SettingsCard
         title="Display"
-        description="Control color mode, typography, and layout"
+        description="Control color mode and layout"
       >
         <div className="space-y-4">
           <div>
@@ -369,14 +323,6 @@ function AppearanceSettings({ themeMode, onThemeChange, isWideMode, onToggleWide
                 { value: 'dark', label: 'Dark', icon: <MoonIcon size={14} /> },
               ]}
               onChange={(v, e) => onThemeChange(v, e)}
-            />
-          </div>
-
-          <div className="pt-3 border-t border-border-100/55">
-            <div className="text-[11px] font-medium text-text-400 uppercase tracking-wider mb-1.5">Font Size</div>
-            <FontSizeSlider
-              value={fontSize}
-              onChange={(v) => { setFontSize(v); themeStore.setFontSize(v) }}
             />
           </div>
 
@@ -1117,7 +1063,7 @@ const TABS: { id: SettingsTab; label: string; description: string; icon: React.R
   {
     id: 'appearance',
     label: 'Appearance',
-    description: 'Theme, color mode, typography, and layout preferences',
+    description: 'Theme, color mode, and layout preferences',
     icon: <SunIcon size={15} />,
   },
   {
