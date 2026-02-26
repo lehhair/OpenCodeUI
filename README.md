@@ -1,5 +1,7 @@
 # OpenCodeUI
 
+中文 | [English](./README_EN.md)
+
 一个为 [OpenCode](https://github.com/anomalyco/opencode) 打造的第三方 Web 前端界面。
 
 **本项目完全由 AI 辅助编程（Vibe Coding）完成**——从第一行代码到最终发布，所有功能均通过与 AI 对话驱动开发。
@@ -290,6 +292,16 @@ docker/                  # Docker 配置（Gateway / Frontend / Backend）
 ## 许可证
 
 [GPL-3.0](./LICENSE)
+
+## Star History
+
+<a href="https://www.star-history.com/#lehhair/OpenCodeUI&Date">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=lehhair/OpenCodeUI&type=Date&theme=dark" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=lehhair/OpenCodeUI&type=Date" />
+   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=lehhair/OpenCodeUI&type=Date" />
+ </picture>
+</a>
 
 ---
 
