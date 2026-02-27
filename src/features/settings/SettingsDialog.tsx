@@ -239,6 +239,11 @@ function CustomCSSEditor({ value, onChange }: { value: string; onChange: (css: s
 /* @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;700&display=swap'); */
 /* @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&display=swap'); */
 
+/* ====== Line Height (adjust if text looks cramped with your font) ====== */
+
+/* If letters like g/j/p/q/y appear clipped, increase the descender padding: */
+/* .truncate { padding-bottom: 2px; margin-bottom: -2px; } */
+
 /* ====== Colors (HSL without parentheses) ====== */
 
 /* :root:root {
