@@ -762,7 +762,7 @@ function InputBoxComponent({
       <div className="mx-auto max-w-3xl px-4 pb-4 pointer-events-auto transition-[max-width] duration-300 ease-in-out" style={{ paddingBottom: 'max(16px, var(--safe-area-inset-bottom, 16px))' }}>
         <div
           ref={contentWrapRef}
-          className="flex flex-col gap-2"
+          className={`flex flex-col gap-2 ${isCollapsed ? 'justify-end' : ''}`}
           style={isCollapsed && expandedHeightRef.current > 0
             ? { minHeight: expandedHeightRef.current }
             : undefined
