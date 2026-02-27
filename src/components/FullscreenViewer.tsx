@@ -149,7 +149,7 @@ export const FullscreenViewer = memo(function FullscreenViewer(props: Fullscreen
     <div
       className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 transition-all duration-200 ease-out"
       style={{
-        backgroundColor: isVisible ? 'rgba(0,0,0,0.4)' : 'rgba(0,0,0,0)',
+        backgroundColor: isVisible ? 'hsl(var(--always-black) / 0.4)' : 'hsl(var(--always-black) / 0)',
         backdropFilter: isVisible ? 'blur(2px)' : 'blur(0px)',
       }}
       onClick={handleBackdropClick}

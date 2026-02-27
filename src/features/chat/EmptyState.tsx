@@ -84,7 +84,7 @@ export function EmptyState({
         {/* Logo / Icon */}
         <div className="flex justify-center mb-6">
           <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-accent-main-100 to-accent-main-200 flex items-center justify-center">
-            <MessageSquareIcon className="w-8 h-8 text-white" />
+            <MessageSquareIcon className="w-8 h-8 text-oncolor-100" />
           </div>
         </div>
 
@@ -188,7 +188,7 @@ export function EmptyState({
         <button
           onClick={handleStart}
           disabled={isCustomMode ? !customPath.trim() : !currentDirectory}
-          className="w-full mt-6 px-4 py-2.5 bg-accent-main-100 hover:bg-accent-main-200 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg text-sm font-medium transition-colors"
+          className="w-full mt-6 px-4 py-2.5 bg-accent-main-100 hover:bg-accent-main-200 disabled:opacity-50 disabled:cursor-not-allowed text-oncolor-100 rounded-lg text-sm font-medium transition-colors"
         >
           Start Conversation
         </button>
@@ -201,4 +201,3 @@ export function EmptyState({
     </div>
   )
 }
-

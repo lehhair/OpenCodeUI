@@ -654,9 +654,9 @@ function ActiveSessionItem({ entry, resolvedSession, isSelected, onSelect }: Act
 
   // 状态显示：permission > question > retry > working
   const statusConfig = pending?.type === 'permission'
-    ? { label: 'Awaiting Permission', color: 'text-amber-400', dotColor: 'bg-amber-400', pulse: false }
+    ? { label: 'Awaiting Permission', color: 'text-warning-100', dotColor: 'bg-warning-100', pulse: false }
     : pending?.type === 'question'
-    ? { label: 'Awaiting Answer', color: 'text-blue-400', dotColor: 'bg-blue-400', pulse: false }
+    ? { label: 'Awaiting Answer', color: 'text-info-100', dotColor: 'bg-info-100', pulse: false }
     : isRetry
     ? { label: 'Retrying', color: 'text-warning-100', dotColor: 'bg-warning-100', pulse: false }
     : { label: 'Working', color: 'text-success-100', dotColor: 'bg-success-100', pulse: true }
@@ -737,10 +737,10 @@ function formatNotificationTime(ts: number): string {
 }
 
 const notifTypeConfig = {
-  completed:  { icon: CheckIcon, color: 'text-green-400', bgAccent: 'bg-green-400/10', label: 'Completed' },
-  error:      { icon: AlertCircleIcon, color: 'text-red-400', bgAccent: 'bg-red-400/10', label: 'Error' },
-  permission: { icon: HandIcon, color: 'text-amber-400', bgAccent: 'bg-amber-400/10', label: 'Permission' },
-  question:   { icon: QuestionIcon, color: 'text-blue-400', bgAccent: 'bg-blue-400/10', label: 'Question' },
+  completed:  { icon: CheckIcon, color: 'text-success-100', bgAccent: 'bg-success-bg', label: 'Completed' },
+  error:      { icon: AlertCircleIcon, color: 'text-danger-100', bgAccent: 'bg-danger-bg', label: 'Error' },
+  permission: { icon: HandIcon, color: 'text-warning-100', bgAccent: 'bg-warning-bg', label: 'Permission' },
+  question:   { icon: QuestionIcon, color: 'text-info-100', bgAccent: 'bg-info-bg', label: 'Question' },
 } as const
 
 interface NotificationItemProps {

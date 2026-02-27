@@ -368,7 +368,7 @@ function CreateWorktreeForm({ onSubmit, onCancel, isLoading }: CreateWorktreeFor
         <button
           type="submit"
           disabled={!name.trim() || isLoading}
-          className="px-2.5 py-1 text-[11px] bg-accent-main-100 hover:bg-accent-main-200 text-white rounded transition-colors disabled:opacity-50 flex items-center gap-1.5"
+          className="px-2.5 py-1 text-[11px] bg-accent-main-100 hover:bg-accent-main-200 text-oncolor-100 rounded transition-colors disabled:opacity-50 flex items-center gap-1.5"
         >
           {isLoading && <SpinnerIcon size={10} className="animate-spin" />}
           Create

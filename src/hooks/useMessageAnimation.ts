@@ -67,7 +67,7 @@ export function useMessageAnimation() {
       if (inputBoxEl) {
         safeTimeout(() => {
           inputBoxEl.style.transition = 'box-shadow 150ms ease-out, transform 150ms cubic-bezier(0.34, 1.2, 0.64, 1)'
-          inputBoxEl.style.boxShadow = '0 0 0 2px hsl(var(--accent-main-100) / 0.3), 0 0.25rem 1.25rem rgba(0,0,0,0.1)'
+          inputBoxEl.style.boxShadow = '0 0 0 2px hsl(var(--accent-main-100) / 0.3), 0 0.25rem 1.25rem hsl(var(--always-black) / 0.1)'
           inputBoxEl.style.transform = 'scale(1.005)'
           
           safeTimeout(() => {

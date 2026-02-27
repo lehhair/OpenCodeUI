@@ -122,20 +122,20 @@ export function getAttachmentIcon(attachment: Attachment): { Icon: React.FC; col
   const isImage = attachment.mime?.startsWith('image/')
   
   if (isImage) {
-    return { Icon: ImageIcon, colorClass: 'text-purple-500' }
+    return { Icon: ImageIcon, colorClass: 'text-accent-secondary-100' }
   }
   
   switch (attachment.type) {
     case 'file':
-      return { Icon: FileIcon, colorClass: 'text-blue-500' }
+      return { Icon: FileIcon, colorClass: 'text-info-100' }
     case 'folder':
-      return { Icon: FolderIcon, colorClass: 'text-amber-600' }
+      return { Icon: FolderIcon, colorClass: 'text-warning-100' }
     case 'agent':
-      return { Icon: AgentIcon, colorClass: 'text-orange-500' }
+      return { Icon: AgentIcon, colorClass: 'text-accent-main-100' }
     case 'text':
       return { Icon: TerminalIcon, colorClass: 'text-text-400' }
     case 'command':
-      return { Icon: TerminalIcon, colorClass: 'text-purple-500' }
+      return { Icon: TerminalIcon, colorClass: 'text-accent-secondary-100' }
     default:
       return { Icon: FileIcon, colorClass: 'text-text-400' }
   }

@@ -287,7 +287,7 @@ export function ProjectDialog({ isOpen, onClose, onSelect, initialPath = '' }: P
     <div 
       className="fixed inset-0 z-[100] flex items-center justify-center p-4 transition-all duration-200"
       style={{
-        backgroundColor: isVisible ? 'rgba(0,0,0,0.4)' : 'rgba(0,0,0,0)',
+        backgroundColor: isVisible ? 'hsl(var(--always-black) / 0.4)' : 'hsl(var(--always-black) / 0)',
       }}
       onMouseDown={onClose}
     >
@@ -364,7 +364,7 @@ export function ProjectDialog({ isOpen, onClose, onSelect, initialPath = '' }: P
                     index === selectedIndex && (
                       <button 
                         onClick={(e) => { e.stopPropagation(); handleSelectFolder(item.path) }}
-                        className="flex items-center gap-1 text-[10px] bg-accent-main-100 hover:bg-accent-main-200 px-2 py-0.5 rounded text-white font-medium transition-colors"
+                        className="flex items-center gap-1 text-[10px] bg-accent-main-100 hover:bg-accent-main-200 px-2 py-0.5 rounded text-oncolor-100 font-medium transition-colors"
                       >
                         <PlusIcon className="w-2.5 h-2.5" />
                         Add

@@ -196,7 +196,7 @@ export const Sidebar = memo(function Sidebar({
         {/* Mobile Backdrop */}
         <div 
           className={`
-            fixed left-0 right-0 bg-black/40 z-30
+            fixed left-0 right-0 bg-[hsl(var(--always-black)/0.4)] z-30
             transition-opacity duration-300
             ${isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}
           `}

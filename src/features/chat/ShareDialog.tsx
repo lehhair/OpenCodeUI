@@ -84,7 +84,7 @@ export function ShareDialog({ isOpen, onClose }: ShareDialogProps) {
         </div>
 
         {error && (
-          <div className="text-red-400 text-sm px-1">{error}</div>
+          <div className="text-danger-100 text-sm px-1">{error}</div>
         )}
 
         {shareUrl ? (
@@ -97,7 +97,7 @@ export function ShareDialog({ isOpen, onClose }: ShareDialogProps) {
                   onClick={handleCopy}
                   title="Copy link"
                   aria-label="Copy link"
-                  className={copied ? "text-green-400" : "text-text-400 hover:text-text-100"}
+                  className={copied ? "text-success-100" : "text-text-400 hover:text-text-100"}
                 >
                   {copied ? <CheckIcon size={16} /> : <CopyIcon size={16} />}
                 </IconButton>
@@ -106,7 +106,7 @@ export function ShareDialog({ isOpen, onClose }: ShareDialogProps) {
              <div className="flex justify-between items-center mt-2">
                <Button
                   variant="ghost" 
-                  className="text-red-400 hover:text-red-300 hover:bg-red-900/10 px-0"
+                  className="text-danger-100 hover:text-danger-200 hover:bg-danger-bg px-0"
                   onClick={handleUnshare}
                   disabled={loading}
                >

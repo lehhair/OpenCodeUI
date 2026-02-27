@@ -573,7 +573,7 @@ textarea.custom-scrollbar::-webkit-scrollbar-thumb {
 .panel-shadow {
   box-shadow: 
     0 0 0 1px hsl(var(--border-200) / 0.5),
-    0 4px 12px hsl(0 0% 0% / 0.08);
+    0 4px 12px hsl(var(--always-black) / 0.08);
 }
 
 /* ============================================
@@ -648,7 +648,7 @@ textarea.custom-scrollbar::-webkit-scrollbar-thumb {
 .mobile-overlay-backdrop {
   position: fixed;
   inset: 0;
-  background-color: rgba(0, 0, 0, 0.5);
+  background-color: hsl(var(--always-black) / 0.5);
   backdrop-filter: blur(2px);
   z-index: 99;
 }

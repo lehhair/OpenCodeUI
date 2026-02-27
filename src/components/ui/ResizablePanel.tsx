@@ -227,7 +227,7 @@ export const ResizablePanel = memo(function ResizablePanel({
         {/* Mobile Backdrop */}
         <div 
           className={`
-            fixed left-0 right-0 bg-black/50 z-[99] 
+            fixed left-0 right-0 bg-[hsl(var(--always-black)/0.5)] z-[99] 
             transition-opacity ${ANIMATION_DURATION} ease-out
             ${isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}
           `}

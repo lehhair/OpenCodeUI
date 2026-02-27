@@ -102,7 +102,7 @@ export const SkillPanel = memo(function SkillPanel({ isResizing: _isResizing }: 
           </div>
         ) : error ? (
           <div className="flex flex-col items-center justify-center h-full text-text-400 text-sm gap-2">
-            <AlertCircleIcon size={20} className="text-red-400" />
+            <AlertCircleIcon size={20} className="text-danger-100" />
             <span>{error}</span>
             <button
               onClick={loadSkills}

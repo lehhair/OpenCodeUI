@@ -54,7 +54,7 @@ function Toggle({ enabled, onChange }: { enabled: boolean; onChange: () => void 
       className={`relative w-11 h-6 rounded-full transition-colors duration-200 
         ${enabled ? 'bg-accent-main-100' : 'bg-bg-300'}`}
     >
-      <div className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform duration-200 
+      <div className={`absolute top-0.5 left-0.5 w-5 h-5 bg-[hsl(var(--always-white))] rounded-full shadow-sm transition-transform duration-200 
         ${enabled ? 'translate-x-5' : 'translate-x-0'}`} />
     </button>
   )
@@ -223,38 +223,171 @@ function CustomCSSEditor({ value, onChange }: { value: string; onChange: (css: s
     debounceRef.current = setTimeout(() => onChange(newVal), 400)
   }
   
-  const template = `/* ====== Fonts ====== */
+  const template = `/* ====== One Dark Inspired Theme Template ====== */
+/* Palette inspired by Atom One Dark / One Dark Pro (MIT). */
+/* Use HSL token values: H S% L% (without hsl()). */
 
-/* UI Font (chat, menus, interface) */
+/* Optional font imports (must stay at top if enabled) */
+/* @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap'); */
+
+/* ====== Fonts ====== */
 :root:root {
-  --font-ui-sans: 'Noto Serif SC', SimSun, '宋体', serif;
+  --font-ui-sans: 'Inter', 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --font-mono: 'JetBrains Mono', 'Cascadia Code', 'SF Mono', Menlo, Consolas, monospace;
 }
 
-/* Code Font (code blocks, terminal, inline code) */
-:root:root {
-  --font-mono: 'Fira Code', 'Cascadia Code', Consolas, monospace;
+/* ====== Light (default + manual light) ====== */
+:root:root,
+:root:root[data-mode='light'] {
+  /* Background */
+  --bg-000: 220 30% 99%;
+  --bg-100: 220 25% 96%;
+  --bg-200: 220 20% 92%;
+  --bg-300: 220 16% 88%;
+  --bg-400: 220 14% 82%;
+
+  /* Text */
+  --text-000: 0 0% 100%;
+  --text-100: 220 16% 17%;
+  --text-200: 220 12% 35%;
+  --text-300: 220 10% 50%;
+  --text-400: 220 8% 62%;
+  --text-500: 220 7% 72%;
+  --text-600: 220 10% 84%;
+
+  /* Accent */
+  --accent-brand: 286 50% 52%;
+  --accent-main-000: 207 70% 46%;
+  --accent-main-100: 207 78% 54%;
+  --accent-main-200: 207 86% 62%;
+  --accent-secondary-100: 187 50% 43%;
+
+  /* Semantic */
+  --success-100: 95 36% 42%;
+  --success-200: 95 30% 34%;
+  --success-bg: 95 45% 93%;
+  --warning-100: 37 84% 46%;
+  --warning-200: 37 76% 39%;
+  --warning-bg: 37 90% 92%;
+  --danger-000: 355 58% 42%;
+  --danger-100: 355 68% 54%;
+  --danger-200: 355 74% 63%;
+  --danger-bg: 355 80% 94%;
+  --danger-900: 355 54% 91%;
+  --info-100: 221 74% 50%;
+  --info-200: 221 78% 60%;
+  --info-bg: 221 85% 94%;
+
+  /* Border */
+  --border-100: 220 16% 84%;
+  --border-200: 220 13% 79%;
+  --border-300: 220 12% 70%;
+
+  /* Special */
+  --always-black: 0 0% 0%;
+  --always-white: 0 0% 100%;
+  --oncolor-100: 0 0% 100%;
 }
 
-/* Load web fonts from CDN (uncomment to use) */
-/* @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;700&display=swap'); */
-/* @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&display=swap'); */
+/* ====== Dark (manual dark) ====== */
+:root:root[data-mode='dark'] {
+  /* Background */
+  --bg-000: 220 13% 21%;
+  --bg-100: 220 14% 18%;
+  --bg-200: 220 15% 15%;
+  --bg-300: 220 16% 12%;
+  --bg-400: 220 18% 9%;
 
-/* ====== Line Height (adjust if text looks cramped with your font) ====== */
+  /* Text */
+  --text-000: 0 0% 100%;
+  --text-100: 220 14% 90%;
+  --text-200: 220 12% 72%;
+  --text-300: 220 10% 58%;
+  --text-400: 220 9% 46%;
+  --text-500: 220 8% 36%;
+  --text-600: 220 10% 26%;
 
-/* If letters like g/j/p/q/y appear clipped, increase the descender padding: */
-/* .truncate { padding-bottom: 2px; margin-bottom: -2px; } */
+  /* Accent */
+  --accent-brand: 286 56% 67%;
+  --accent-main-000: 207 70% 58%;
+  --accent-main-100: 207 82% 66%;
+  --accent-main-200: 207 90% 74%;
+  --accent-secondary-100: 187 47% 55%;
 
-/* ====== Colors (HSL without parentheses) ====== */
+  /* Semantic */
+  --success-100: 95 38% 62%;
+  --success-200: 95 33% 52%;
+  --success-bg: 95 25% 18%;
+  --warning-100: 37 87% 63%;
+  --warning-200: 37 76% 54%;
+  --warning-bg: 37 30% 18%;
+  --danger-000: 355 63% 60%;
+  --danger-100: 355 74% 66%;
+  --danger-200: 355 80% 74%;
+  --danger-bg: 355 28% 18%;
+  --danger-900: 355 24% 26%;
+  --info-100: 221 83% 65%;
+  --info-200: 221 88% 74%;
+  --info-bg: 221 30% 18%;
 
-/* :root:root {
-  --bg-000: 220 20% 98%;
-  --bg-100: 220 15% 95%;
-  --bg-200: 220 12% 91%;
-  --text-100: 220 15% 15%;
-  --text-200: 220 10% 40%;
-  --accent-main-100: 260 70% 55%;
-  --border-200: 220 10% 85%;
-} */`
+  /* Border */
+  --border-100: 220 12% 28%;
+  --border-200: 220 12% 34%;
+  --border-300: 220 12% 42%;
+
+  /* Special */
+  --always-black: 0 0% 0%;
+  --always-white: 0 0% 100%;
+  --oncolor-100: 0 0% 100%;
+}
+
+/* ====== Auto (system dark when data-mode is not set) ====== */
+@media (prefers-color-scheme: dark) {
+  :root:root:not([data-mode]) {
+    --bg-000: 220 13% 21%;
+    --bg-100: 220 14% 18%;
+    --bg-200: 220 15% 15%;
+    --bg-300: 220 16% 12%;
+    --bg-400: 220 18% 9%;
+
+    --text-000: 0 0% 100%;
+    --text-100: 220 14% 90%;
+    --text-200: 220 12% 72%;
+    --text-300: 220 10% 58%;
+    --text-400: 220 9% 46%;
+    --text-500: 220 8% 36%;
+    --text-600: 220 10% 26%;
+
+    --accent-brand: 286 56% 67%;
+    --accent-main-000: 207 70% 58%;
+    --accent-main-100: 207 82% 66%;
+    --accent-main-200: 207 90% 74%;
+    --accent-secondary-100: 187 47% 55%;
+
+    --success-100: 95 38% 62%;
+    --success-200: 95 33% 52%;
+    --success-bg: 95 25% 18%;
+    --warning-100: 37 87% 63%;
+    --warning-200: 37 76% 54%;
+    --warning-bg: 37 30% 18%;
+    --danger-000: 355 63% 60%;
+    --danger-100: 355 74% 66%;
+    --danger-200: 355 80% 74%;
+    --danger-bg: 355 28% 18%;
+    --danger-900: 355 24% 26%;
+    --info-100: 221 83% 65%;
+    --info-200: 221 88% 74%;
+    --info-bg: 221 30% 18%;
+
+    --border-100: 220 12% 28%;
+    --border-200: 220 12% 34%;
+    --border-300: 220 12% 42%;
+
+    --always-black: 0 0% 0%;
+    --always-white: 0 0% 100%;
+    --oncolor-100: 0 0% 100%;
+  }
+}`
 
   return (
     <div className="space-y-2">
@@ -714,7 +847,7 @@ function GeneralSettings({ mode }: { mode: 'chat' | 'notifications' | 'service' 
                     serviceStarting
                       ? <SpinnerIcon size={14} className="animate-spin text-text-400" />
                       : serviceRunning
-                        ? <WifiIcon size={14} className="text-green-500" />
+                        ? <WifiIcon size={14} className="text-success-100" />
                         : <WifiOffIcon size={14} className="text-text-400" />
                   }
                   className="bg-bg-100/35 border-border-200/45"
@@ -833,9 +966,9 @@ function ServerItem({ server, health, isActive, onSelect, onDelete, onCheckHealt
 }) {
   const statusIcon = () => {
     if (!health || health.status === 'checking') return <SpinnerIcon size={12} className="animate-spin text-text-400" />
-    if (health.status === 'online') return <WifiIcon size={12} className="text-green-500" />
-    if (health.status === 'unauthorized') return <KeyIcon size={12} className="text-yellow-500" />
-    return <WifiOffIcon size={12} className="text-red-400" />
+    if (health.status === 'online') return <WifiIcon size={12} className="text-success-100" />
+    if (health.status === 'unauthorized') return <KeyIcon size={12} className="text-warning-100" />
+    return <WifiOffIcon size={12} className="text-danger-100" />
   }
   
   const statusTitle = () => {
@@ -964,7 +1097,7 @@ function AddServerForm({ onAdd, onCancel }: {
           </div>
           
           {isCrossOrigin && password.trim() && (
-            <div className="text-[11px] text-yellow-600 dark:text-yellow-400 bg-yellow-500/10 border border-yellow-500/20 rounded-md px-2.5 py-2 leading-relaxed">
+            <div className="text-[11px] text-warning-100 bg-warning-bg border border-warning-100/20 rounded-md px-2.5 py-2 leading-relaxed">
               Cross-origin + password may not work due to a backend CORS limitation 
               (<a href="https://github.com/anomalyco/opencode/issues/10047" target="_blank" rel="noopener" 
                 className="underline hover:no-underline">#10047</a>). 

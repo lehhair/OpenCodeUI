@@ -21,10 +21,10 @@ const typeConfig: Record<NotificationType, {
   color: string
   bgAccent: string
 }> = {
-  permission: { icon: HandIcon, color: 'text-amber-400', bgAccent: 'bg-amber-400/10' },
-  question:   { icon: QuestionIcon, color: 'text-blue-400', bgAccent: 'bg-blue-400/10' },
-  completed:  { icon: CheckIcon, color: 'text-green-400', bgAccent: 'bg-green-400/10' },
-  error:      { icon: AlertCircleIcon, color: 'text-red-400', bgAccent: 'bg-red-400/10' },
+  permission: { icon: HandIcon, color: 'text-warning-100', bgAccent: 'bg-warning-bg' },
+  question:   { icon: QuestionIcon, color: 'text-info-100', bgAccent: 'bg-info-bg' },
+  completed:  { icon: CheckIcon, color: 'text-success-100', bgAccent: 'bg-success-bg' },
+  error:      { icon: AlertCircleIcon, color: 'text-danger-100', bgAccent: 'bg-danger-bg' },
 }
 
 // ============================================

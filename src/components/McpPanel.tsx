@@ -211,7 +211,7 @@ export const McpPanel = memo(function McpPanel({ isResizing: _isResizing }: McpP
           </div>
         ) : error ? (
           <div className="flex flex-col items-center justify-center h-full text-text-400 text-sm gap-2">
-            <AlertCircleIcon size={20} className="text-red-400" />
+            <AlertCircleIcon size={20} className="text-danger-100" />
             <span>{error}</span>
             <button
               onClick={handleRefresh}
@@ -385,14 +385,14 @@ const AddServerForm = memo(function AddServerForm({
 
       {/* Error */}
       {error && (
-        <div className="mb-2 text-xs text-red-400">{error}</div>
+        <div className="mb-2 text-xs text-danger-100">{error}</div>
       )}
 
       {/* Submit */}
       <button
         type="submit"
         disabled={isLoading}
-        className="w-full px-3 py-1.5 text-xs bg-accent-main-100 hover:bg-accent-main-200 text-white rounded transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+        className="w-full px-3 py-1.5 text-xs bg-accent-main-100 hover:bg-accent-main-200 text-oncolor-100 rounded transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
       >
         {isLoading ? (
           <>
@@ -449,15 +449,15 @@ const ServerItem = memo(function ServerItem({
   const getStatusInfo = () => {
     switch (status.status) {
       case 'connected':
-        return { color: 'text-green-400', label: 'Connected', icon: CheckIcon }
+        return { color: 'text-success-100', label: 'Connected', icon: CheckIcon }
       case 'disabled':
         return { color: 'text-text-400', label: 'Disabled', icon: null }
       case 'failed':
-        return { color: 'text-red-400', label: 'Failed', icon: AlertCircleIcon }
+        return { color: 'text-danger-100', label: 'Failed', icon: AlertCircleIcon }
       case 'needs_auth':
-        return { color: 'text-yellow-400', label: 'Needs Auth', icon: KeyIcon }
+        return { color: 'text-warning-100', label: 'Needs Auth', icon: KeyIcon }
       case 'needs_client_registration':
-        return { color: 'text-yellow-400', label: 'Needs Registration', icon: KeyIcon }
+        return { color: 'text-warning-100', label: 'Needs Registration', icon: KeyIcon }
       default:
         return { color: 'text-text-400', label: 'Unknown', icon: null }
     }
@@ -482,7 +482,7 @@ const ServerItem = memo(function ServerItem({
               e.stopPropagation()
               onDisconnect(name)
             }}
-            className="px-2 py-0.5 text-xs bg-bg-300/50 hover:bg-red-500/20 hover:text-red-400 text-text-300 rounded transition-colors"
+            className="px-2 py-0.5 text-xs bg-bg-300/50 hover:bg-danger-bg hover:text-danger-100 text-text-300 rounded transition-colors"
           >
             Disconnect
           </button>
@@ -495,7 +495,7 @@ const ServerItem = memo(function ServerItem({
               e.stopPropagation()
               onConnect(name)
             }}
-            className="px-2 py-0.5 text-xs bg-bg-300/50 hover:bg-green-500/20 hover:text-green-400 text-text-300 rounded transition-colors"
+            className="px-2 py-0.5 text-xs bg-bg-300/50 hover:bg-success-bg hover:text-success-100 text-text-300 rounded transition-colors"
           >
             Connect
           </button>
@@ -508,7 +508,7 @@ const ServerItem = memo(function ServerItem({
               e.stopPropagation()
               onAuth(name)
             }}
-            className="px-2 py-0.5 text-xs bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-400 rounded transition-colors flex items-center gap-1"
+            className="px-2 py-0.5 text-xs bg-warning-bg hover:bg-warning-bg/80 text-warning-100 rounded transition-colors flex items-center gap-1"
           >
             <ExternalLinkIcon size={10} />
             Authenticate
@@ -522,12 +522,12 @@ const ServerItem = memo(function ServerItem({
   // 状态指示器颜色
   const getStatusDotColor = () => {
     switch (status.status) {
-      case 'connected': return 'bg-green-400'
+      case 'connected': return 'bg-success-100'
       case 'disabled': return 'bg-text-500'
-      case 'failed': return 'bg-red-400'
+      case 'failed': return 'bg-danger-100'
       case 'needs_auth':
       case 'needs_client_registration':
-        return 'bg-yellow-400'
+        return 'bg-warning-100'
       default: return 'bg-text-500'
     }
   }
@@ -573,7 +573,7 @@ const ServerItem = memo(function ServerItem({
 
       {/* Expanded Error Details */}
       {expanded && errorMessage && (
-        <div className="px-3 py-2 bg-red-500/10 border-t border-red-500/20 ml-5 text-xs text-text-200 break-words font-mono">
+        <div className="px-3 py-2 bg-danger-bg border-t border-danger-100/20 ml-5 text-xs text-text-200 break-words font-mono">
           {errorMessage}
         </div>
       )}
