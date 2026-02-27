@@ -15,6 +15,27 @@ import { reconnectSSE } from './api/events'
 import { resetPathModeCache } from './utils/directoryUtils'
 import { isTauri } from './utils/tauri'
 
+// Polyfill: randomUUID 在非 HTTPS 环境可能缺失（如局域网 HTTP）
+// 统一补齐，避免业务层 scattered fallback。
+function ensureRandomUUID() {
+  const cryptoObj = globalThis.crypto as Crypto & { randomUUID?: () => string }
+  if (!cryptoObj || typeof cryptoObj.getRandomValues !== 'function') return
+  if (typeof cryptoObj.randomUUID === 'function') return
+
+  cryptoObj.randomUUID = () => {
+    const bytes = new Uint8Array(16)
+    cryptoObj.getRandomValues(bytes)
+    // RFC 4122 v4
+    bytes[6] = (bytes[6] & 0x0f) | 0x40
+    bytes[8] = (bytes[8] & 0x3f) | 0x80
+
+    const hex = Array.from(bytes, b => b.toString(16).padStart(2, '0'))
+    return `${hex.slice(0, 4).join('')}-${hex.slice(4, 6).join('')}-${hex.slice(6, 8).join('')}-${hex.slice(8, 10).join('')}-${hex.slice(10).join('')}`
+  }
+}
+
+ensureRandomUUID()
+
 // 初始化主题系统（在 React 渲染前注入 CSS 变量，避免闪烁）
 themeStore.init()
 
