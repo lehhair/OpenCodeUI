@@ -265,22 +265,6 @@ body {
   -webkit-backface-visibility: hidden;
 }
 
-/* ============================================
- * Typography Safety - Descender 保护
- * ============================================
- * 
- * 自定义字体的 descender（g/j/p/q/y 下伸部分）可能比系统字体更深，
- * 导致 truncate（overflow: hidden）裁掉底部。
- * 
- * 修复：给 truncate 元素加 1px 底部内边距，扩大 padding-box
- * 使 overflow: hidden 的裁切边界往下多 1px，足够容纳大多数字体的 descender。
- * 同时负 margin 抵消掉这 1px，不影响外部布局。
- */
-.truncate {
-  padding-bottom: 1px;
-  margin-bottom: -1px;
-}
-
 /* Utility classes */
 .no-scrollbar::-webkit-scrollbar {
   display: none !important;
@@ -289,6 +273,12 @@ body {
 .no-scrollbar {
   -ms-overflow-style: none !important;
   scrollbar-width: none !important;
+}
+
+/* 仅在确实出现 descender 裁切时按需添加，避免影响全局对齐 */
+.truncate-fix-desc {
+  padding-bottom: 1px;
+  margin-bottom: -1px;
 }
 
 /* 常用工具类别名 */

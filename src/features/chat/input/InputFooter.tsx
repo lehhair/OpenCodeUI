@@ -88,7 +88,7 @@ export const InputFooter = memo(function InputFooter({ sessionId, onNewChat, inp
         <MiniProgress size={12} progress={progress} done={isAllDone} />
         <span className="tabular-nums">{stats.completed}/{stats.total}</span>
         <span className="text-text-500/50">·</span>
-        <span className="truncate max-w-[200px]">{taskLabel}</span>
+        <span className="truncate truncate-fix-desc max-w-[200px]">{taskLabel}</span>
       </button>
 
       {/* 分隔 */}
