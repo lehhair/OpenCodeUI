@@ -1,4 +1,4 @@
-import { memo, useMemo } from 'react'
+import { isValidElement, memo, useMemo } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { CodeBlock } from './CodeBlock'
@@ -14,11 +14,31 @@ interface MarkdownRendererProps {
  */
 const InlineCode = memo(function InlineCode({ children }: { children: React.ReactNode }) {
   return (
-    <code className="px-1.5 py-0.5 mx-0.5 bg-bg-200/50 border border-border-200/50 rounded text-accent-main-100 text-[0.85em] font-mono tracking-tight align-middle break-all">
+    <code className="px-1 py-0.5 bg-bg-200/50 border border-border-200/50 rounded text-accent-main-100 text-[0.9em] font-mono align-baseline break-words">
       {children}
     </code>
   )
 })
+
+function extractBlockCode(children: React.ReactNode): { code: string; language?: string } | null {
+  const codeNode = Array.isArray(children) ? children[0] : children
+  if (!isValidElement(codeNode)) return null
+
+  const props = codeNode.props as { className?: string; children?: React.ReactNode }
+  const match = /language-([\w-]+)/.exec(props.className || '')
+  const contentStr = extractText(props.children).replace(/\n$/, '')
+
+  return {
+    code: contentStr,
+    language: match?.[1],
+  }
+}
+
+function extractText(node: React.ReactNode): string {
+  if (typeof node === 'string' || typeof node === 'number') return String(node)
+  if (Array.isArray(node)) return node.map(extractText).join('')
+  return ''
+}
 
 /**
  * Main Markdown renderer component
@@ -28,30 +48,19 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
   className = '' 
 }: MarkdownRendererProps) {
   const components = useMemo(() => ({
-    // Code blocks and inline code
-    code({ className, children }: any) {
-      const match = /language-(\w+)/.exec(className || '')
-      const contentStr = String(children).replace(/\n$/, '')
-      const isMultiLine = contentStr.includes('\n')
-      
-      // 只有既没有语言标记，内容又是单行时，才认为是 inline code
-      const isInline = !match && !className && !isMultiLine
-      
-      if (isInline) {
-        return <InlineCode>{children}</InlineCode>
-      }
-      
-      // Block code
+    code({ children }: any) {
+      return <InlineCode>{children}</InlineCode>
+    },
+
+    pre({ children }: any) {
+      const blockCode = extractBlockCode(children)
+      if (!blockCode) return <pre>{children}</pre>
+
       return (
         <div className="my-4 w-full">
-          <CodeBlock code={contentStr} language={match?.[1]} />
+          <CodeBlock code={blockCode.code} language={blockCode.language} />
         </div>
       )
-    },
-    
-    // Prevent pre from wrapping code blocks (we handle it in CodeBlock)
-    pre({ children }: any) {
-      return <>{children}</>
     },
     
     // Headings - Improved typography
