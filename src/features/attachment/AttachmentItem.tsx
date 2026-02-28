@@ -53,7 +53,7 @@ function AttachmentItemComponent({
         onClick={canExpand ? () => setIsExpanded(!isExpanded) : undefined}
       >
         <span className={`${colorClass} flex items-center justify-center w-4 h-4 shrink-0 [&>svg]:w-3.5 [&>svg]:h-3.5`}><Icon /></span>
-        <span className="text-text-200 flex-1 truncate text-left" title={attachment.displayName}>
+        <span className="text-text-200 flex-1 min-w-0 truncate text-left" title={attachment.displayName}>
           {attachment.displayName}
         </span>
         {canExpand && (
