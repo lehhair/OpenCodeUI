@@ -57,62 +57,68 @@ export const ToolPartView = memo(function ToolPartView({ part, isFirst = false, 
   )
 
   // ── Compact layout (single-tool, no timeline) ──
+  // Grid: [14px icon] [gap 6px] [content] — mirrors ReasoningPartView alignment
   if (compact) {
     return (
-      <div className="group relative">
-        <button
-          className="flex items-center gap-1.5 w-full text-left py-1.5 hover:bg-bg-200/40 rounded-md transition-colors group/header"
-          onClick={() => setExpanded(!expanded)}
-        >
-          <span className="inline-flex h-5 w-[14px] items-center justify-center shrink-0">
-            {toolIcon}
-          </span>
-          <div className="flex items-baseline gap-2 overflow-hidden flex-1 min-w-0">
-            <span className={`font-medium text-[13px] leading-tight transition-colors duration-300 shrink-0 ${
-              isActive ? 'text-accent-main-100' :
-              isError ? 'text-danger-100' :
-              'text-text-200 group-hover/header:text-text-100'
-            }`}>
-              {formatToolName(toolName)}
-            </span>
-            {title && (
-              <span className="text-xs text-text-400 truncate font-mono opacity-70">
-                {title}
-              </span>
-            )}
-          </div>
-          <div className="flex items-center gap-2 ml-auto shrink-0">
-            {duration !== undefined && state.status === 'completed' && (
-              <span className="text-[10px] font-mono text-text-500 tabular-nums">
-                {formatDuration(duration)}
-              </span>
-            )}
-            <span className={`text-[10px] font-medium transition-all duration-300 ${
-              isActive ? 'opacity-100 text-accent-main-100' : 'opacity-0 w-0 overflow-hidden'
-            }`}>
-              Running
-            </span>
-            <span className={`text-[10px] font-medium transition-all duration-300 ${
-              isError ? 'opacity-100 text-danger-100' : 'opacity-0 w-0 overflow-hidden'
-            }`}>
-              Failed
-            </span>
-            <span className="text-text-500">
-              {expanded ? <ChevronDownIcon size={12} /> : <ChevronRightIcon size={12} />}
-            </span>
-          </div>
-        </button>
+      <div className="group relative grid grid-cols-[14px_minmax(0,1fr)] gap-x-1.5 items-start py-1">
+        {/* Icon column — fixed, outside of interactive area */}
+        <span className="inline-flex h-[34px] w-[14px] items-center justify-center shrink-0">
+          {toolIcon}
+        </span>
 
-        {/* Body - indented to align with text after icon+gap */}
-        <div className={`grid transition-[grid-template-rows] duration-300 ease-in-out ${
-          expanded ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
-        }`}>
-          <div className="overflow-hidden">
-            {shouldRenderBody && (
-              <div className="pl-5 pr-2.5 pb-2 pt-1">
-                <ToolBody part={part} />
-              </div>
-            )}
+        {/* Content column */}
+        <div className="min-w-0">
+          <button
+            className="flex items-center gap-2 w-full h-[34px] text-left px-2 -ml-2 hover:bg-bg-200/40 rounded-lg transition-colors group/header"
+            onClick={() => setExpanded(!expanded)}
+          >
+            <div className="flex items-baseline gap-2 overflow-hidden flex-1 min-w-0">
+              <span className={`font-medium text-[13px] leading-tight transition-colors duration-300 shrink-0 ${
+                isActive ? 'text-accent-main-100' :
+                isError ? 'text-danger-100' :
+                'text-text-200 group-hover/header:text-text-100'
+              }`}>
+                {formatToolName(toolName)}
+              </span>
+              {title && (
+                <span className="text-xs text-text-400 truncate font-mono opacity-70">
+                  {title}
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-2 ml-auto shrink-0">
+              {duration !== undefined && state.status === 'completed' && (
+                <span className="text-[10px] font-mono text-text-500 tabular-nums">
+                  {formatDuration(duration)}
+                </span>
+              )}
+              <span className={`text-[10px] font-medium transition-all duration-300 ${
+                isActive ? 'opacity-100 text-accent-main-100' : 'opacity-0 w-0 overflow-hidden'
+              }`}>
+                Running
+              </span>
+              <span className={`text-[10px] font-medium transition-all duration-300 ${
+                isError ? 'opacity-100 text-danger-100' : 'opacity-0 w-0 overflow-hidden'
+              }`}>
+                Failed
+              </span>
+              <span className="text-text-500">
+                {expanded ? <ChevronDownIcon size={12} /> : <ChevronRightIcon size={12} />}
+              </span>
+            </div>
+          </button>
+
+          {/* Body */}
+          <div className={`grid transition-[grid-template-rows] duration-300 ease-in-out ${
+            expanded ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
+          }`}>
+            <div className="overflow-hidden">
+              {shouldRenderBody && (
+                <div className="pr-2.5 pb-2 pt-1">
+                  <ToolBody part={part} />
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
