@@ -388,7 +388,7 @@ function SessionItem({ session, isSelected, onSelect, onDelete, onRename, densit
       <div className={`flex-1 min-w-0 transition-[padding] duration-200 ${showActions ? 'pr-[60px]' : 'pr-1 group-hover:pr-[60px]'}`}>
         {/* Row 1: Title */}
         <p 
-          className={`${isCompact ? 'text-[13px]' : 'text-sm'} truncate truncate-fix-desc font-medium ${isSelected ? 'text-text-100' : 'text-text-200 group-hover:text-text-100'}`}
+          className={`${isCompact ? 'text-[13px]' : 'text-sm'} truncate font-medium ${isSelected ? 'text-text-100' : 'text-text-200 group-hover:text-text-100'}`}
           title={session.title || 'Untitled Chat'}
         >
           {session.title || 'Untitled Chat'}
@@ -421,7 +421,7 @@ function SessionItem({ session, isSelected, onSelect, onDelete, onRename, densit
           {showDirectory && session.directory && (
             <>
               <span className="opacity-30 shrink-0">·</span>
-              <span className="truncate truncate-fix-desc opacity-50" title={session.directory}>
+              <span className="truncate opacity-50" title={session.directory}>
                 {session.directory.replace(/\\/g, '/').split('/').filter(Boolean).pop()}
               </span>
             </>

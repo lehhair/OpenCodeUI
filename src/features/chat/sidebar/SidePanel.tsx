@@ -688,7 +688,7 @@ function ActiveSessionItem({ entry, resolvedSession, isSelected, onSelect }: Act
 
       {/* Content */}
       <div className="flex-1 min-w-0">
-        <p className={`text-[13px] truncate truncate-fix-desc font-medium ${
+        <p className={`text-[13px] truncate font-medium ${
           isSelected ? 'text-text-100' : 'text-text-200 group-hover:text-text-100'
         }`} title={displayTitle}>
           {displayTitle}
@@ -700,7 +700,7 @@ function ActiveSessionItem({ entry, resolvedSession, isSelected, onSelect }: Act
           {pending?.description && (
             <>
               <span className="opacity-30">·</span>
-              <span className="truncate truncate-fix-desc opacity-60">{pending.description}</span>
+              <span className="truncate opacity-60">{pending.description}</span>
             </>
           )}
           {isRetry && entry.status.type === 'retry' && (
@@ -712,7 +712,7 @@ function ActiveSessionItem({ entry, resolvedSession, isSelected, onSelect }: Act
           {directory && (
             <>
               <span className="opacity-30 shrink-0">·</span>
-              <span className="truncate truncate-fix-desc opacity-50" title={directory}>
+              <span className="truncate opacity-50" title={directory}>
                 {directory.replace(/\\/g, '/').split('/').filter(Boolean).pop()}
               </span>
             </>
@@ -783,7 +783,7 @@ function NotificationItem({ entry, resolvedSession, onSelect }: NotificationItem
 
       {/* Content */}
       <div className="flex-1 min-w-0">
-        <p className="text-[13px] truncate truncate-fix-desc font-medium text-text-200 group-hover:text-text-100" title={displayTitle}>
+        <p className="text-[13px] truncate font-medium text-text-200 group-hover:text-text-100" title={displayTitle}>
           {displayTitle}
         </p>
         <div className="flex items-center mt-0.5 text-[10px] text-text-400 gap-1">
@@ -793,7 +793,7 @@ function NotificationItem({ entry, resolvedSession, onSelect }: NotificationItem
           {entry.body && (
             <>
               <span className="opacity-30">·</span>
-              <span className="truncate truncate-fix-desc">{entry.body}</span>
+              <span className="truncate">{entry.body}</span>
             </>
           )}
           <span className="opacity-30">·</span>
@@ -801,7 +801,7 @@ function NotificationItem({ entry, resolvedSession, onSelect }: NotificationItem
           {directory && (
             <>
               <span className="opacity-30 shrink-0">·</span>
-              <span className="truncate truncate-fix-desc opacity-50" title={directory}>
+              <span className="truncate opacity-50" title={directory}>
                 {directory.replace(/\\/g, '/').split('/').filter(Boolean).pop()}
               </span>
             </>

@@ -275,10 +275,18 @@ body {
   scrollbar-width: none !important;
 }
 
-/* 仅在确实出现 descender 裁切时按需添加，避免影响全局对齐 */
-.truncate-fix-desc {
-  padding-bottom: 1px;
-  margin-bottom: -1px;
+/*
+ * Fix: Tailwind .truncate 使用 overflow:hidden 会裁切 descender 字母 (g/j/p/q/y)
+ * overflow:clip 支持独立轴控制（不像 hidden 会强制另一轴为 auto），
+ * 且完全兼容 text-overflow:ellipsis，所以：
+ *   - overflow-x: clip  → 保持水平截断 + 省略号
+ *   - overflow-y: visible → 不裁切垂直方向的 descender
+ */
+.truncate {
+  overflow-x: clip;
+  overflow-y: visible;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* 常用工具类别名 */

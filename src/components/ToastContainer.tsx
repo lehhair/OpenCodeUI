@@ -80,11 +80,11 @@ function Toast({ item, onDismiss, onClick }: {
 
       {/* Content */}
       <div className="min-w-0 flex-1">
-        <div className="text-xs font-medium text-text-100 truncate truncate-fix-desc leading-tight">
+        <div className="text-xs font-medium text-text-100 truncate leading-tight">
           {notification.title}
         </div>
         {notification.body && (
-          <div className="text-[11px] text-text-300 truncate truncate-fix-desc mt-0.5 leading-tight">
+          <div className="text-[11px] text-text-300 truncate mt-0.5 leading-tight">
             {notification.body}
           </div>
         )}

@@ -85,7 +85,7 @@ export const ToolPartView = memo(function ToolPartView({ part, isFirst = false, 
             </span>
             
             {title && (
-              <span className="text-xs text-text-400 truncate truncate-fix-desc font-mono opacity-70">
+              <span className="text-xs text-text-400 truncate font-mono opacity-70">
                 {title}
               </span>
             )}
