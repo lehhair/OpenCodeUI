@@ -10,6 +10,8 @@ interface DialogProps {
   width?: string | number
   className?: string
   showCloseButton?: boolean
+  /** 跳过默认的 header 和 content 包裹，children 直接作为面板内容 */
+  rawContent?: boolean
 }
 
 export function Dialog({
@@ -20,13 +22,17 @@ export function Dialog({
   width = 400,
   className = '',
   showCloseButton = true,
+  rawContent = false,
 }: DialogProps) {
   // Animation state
   const [shouldRender, setShouldRender] = useState(false)
   const [isVisible, setIsVisible] = useState(false)
   const dialogRef = useRef<HTMLDivElement>(null)
 
-  // 触摸下滑关闭手势
+  // 拖拽条区域 ref —— 下滑关闭只从这个区域开始
+  const dragHandleRef = useRef<HTMLDivElement>(null)
+
+  // 触摸下滑关闭手势（只从拖拽条开始）
   const touchStartY = useRef<number | null>(null)
   const touchStartX = useRef<number | null>(null)
   const dragOffsetY = useRef(0)
@@ -34,11 +40,10 @@ export function Dialog({
   const isDragging = useRef(false)
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    const target = e.target as HTMLElement
-    // 如果触摸点在可滚动区域内且不是顶部，不触发下滑手势
-    const scrollableParent = target.closest('.overflow-y-auto, .custom-scrollbar')
-    if (scrollableParent && scrollableParent.scrollTop > 0) return
-    
+    // 只有从拖拽条区域开始的触摸才能触发下滑关闭
+    const handle = dragHandleRef.current
+    if (!handle || !handle.contains(e.target as Node)) return
+
     touchStartY.current = e.touches[0].clientY
     touchStartX.current = e.touches[0].clientX
     dragOffsetY.current = 0
@@ -69,6 +74,21 @@ export function Dialog({
     dragOffsetY.current = 0
     isDragging.current = false
     setDragY(0)
+  }, [onClose])
+
+  // 防止背景误触：
+  // 1. 只有 pointerdown 和 click 都发生在背景上才关闭
+  // 2. 触摸设备上不通过背景关闭（避免滚动/滑动时误触）
+  const mouseDownOnBackdrop = useRef(false)
+  const handleBackdropPointerDown = useCallback((e: React.PointerEvent) => {
+    if (e.pointerType === 'touch') return // 触摸设备不走背景关闭
+    mouseDownOnBackdrop.current = e.target === e.currentTarget
+  }, [])
+  const handleBackdropClick = useCallback((e: React.MouseEvent) => {
+    if (e.target === e.currentTarget && mouseDownOnBackdrop.current) {
+      onClose()
+    }
+    mouseDownOnBackdrop.current = false
   }, [onClose])
 
   // Focus trap
@@ -139,9 +159,8 @@ export function Dialog({
         backgroundColor: isVisible ? 'hsl(var(--always-black) / 0.4)' : 'hsl(var(--always-black) / 0)',
         backdropFilter: isVisible ? 'blur(2px)' : 'blur(0px)',
       }}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose()
-      }}
+      onPointerDown={handleBackdropPointerDown}
+      onClick={handleBackdropClick}
     >
       {/* Dialog Panel */}
       <div 
@@ -167,30 +186,40 @@ export function Dialog({
         aria-modal="true"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Drag Indicator (mobile) */}
-        <div className="md:hidden flex justify-center pt-2 pb-0 shrink-0">
-          <div className="w-8 h-1 rounded-full bg-bg-300" />
+        {/* Drag Handle (mobile) - 触摸下滑关闭的唯一触发区域 */}
+        <div
+          ref={dragHandleRef}
+          className="md:hidden flex justify-center pt-3 pb-2 shrink-0 cursor-grab active:cursor-grabbing"
+        >
+          <div className="w-10 h-1 rounded-full bg-bg-300" />
         </div>
 
-        {/* Header */}
-        {(title || showCloseButton) && (
-          <div className="flex items-center justify-between px-5 py-4 border-b border-border-100/50">
-            <div className="text-lg font-semibold text-text-100">{title}</div>
-            {showCloseButton && (
-              <button 
-                onClick={onClose}
-                className="p-2 text-text-400 hover:text-text-200 hover:bg-bg-100 rounded-md transition-colors"
-              >
-                <CloseIcon size={18} />
-              </button>
+        {rawContent ? (
+          /* rawContent 模式：children 完全控制内容布局 */
+          children
+        ) : (
+          <>
+            {/* Header */}
+            {(title || showCloseButton) && (
+              <div className="flex items-center justify-between px-5 py-4 border-b border-border-100/50">
+                <div className="text-lg font-semibold text-text-100">{title}</div>
+                {showCloseButton && (
+                  <button 
+                    onClick={onClose}
+                    className="p-2 text-text-400 hover:text-text-200 hover:bg-bg-100 rounded-md transition-colors"
+                  >
+                    <CloseIcon size={18} />
+                  </button>
+                )}
+              </div>
             )}
-          </div>
+            
+            {/* Content */}
+            <div className="p-5 overflow-y-auto custom-scrollbar max-h-[80vh]">
+              {children}
+            </div>
+          </>
         )}
-        
-        {/* Content */}
-        <div className="p-5 overflow-y-auto custom-scrollbar max-h-[80vh]">
-          {children}
-        </div>
       </div>
     </div>,
     document.body

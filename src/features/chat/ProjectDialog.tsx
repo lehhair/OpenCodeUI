@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
-import { createPortal } from 'react-dom'
 import { FolderIcon, ArrowUpIcon, SpinnerIcon, PlusIcon } from '../../components/Icons'
 import { listDirectory, getPath } from '../../api'
 import { fileErrorHandler } from '../../utils'
+import { Dialog } from '../../components/ui/Dialog'
 
 // ============================================
 // Types
@@ -65,8 +65,6 @@ export function ProjectDialog({ isOpen, onClose, onSelect, initialPath = '' }: P
   const [selectedIndex, setSelectedIndex] = useState(0)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [isVisible, setIsVisible] = useState(false)
-  const [shouldRender, setShouldRender] = useState(false)
 
   // Refs
   const loadedPathRef = useRef<string>('')
@@ -163,22 +161,6 @@ export function ProjectDialog({ isOpen, onClose, onSelect, initialPath = '' }: P
     const el = document.getElementById(`project-item-${selectedIndex}`)
     el?.scrollIntoView({ block: 'nearest' })
   }, [selectedIndex, filteredItems])
-
-  // ==========================================
-  // Animation
-  // ==========================================
-
-  useEffect(() => {
-    if (isOpen) {
-      setShouldRender(true)
-      const timer = setTimeout(() => setIsVisible(true), 10)
-      return () => clearTimeout(timer)
-    } else {
-      setIsVisible(false)
-      const timer = setTimeout(() => setShouldRender(false), 200)
-      return () => clearTimeout(timer)
-    }
-  }, [isOpen])
 
   // ==========================================
   // Handlers
@@ -281,118 +263,106 @@ export function ProjectDialog({ isOpen, onClose, onSelect, initialPath = '' }: P
   // Render
   // ==========================================
 
-  if (!shouldRender) return null
-
-  return createPortal(
-    <div 
-      className="fixed inset-0 z-[100] flex items-center justify-center p-4 transition-all duration-200"
-      style={{
-        backgroundColor: isVisible ? 'hsl(var(--always-black) / 0.4)' : 'hsl(var(--always-black) / 0)',
-      }}
-      onMouseDown={onClose}
+  return (
+    <Dialog
+      isOpen={isOpen}
+      onClose={onClose}
+      rawContent
+      width={560}
+      showCloseButton={false}
+      className="!bg-bg-100 h-[460px]"
     >
-      <div 
-        className="w-[560px] max-w-full bg-bg-100 rounded-2xl shadow-2xl border border-border-200/50 flex flex-col overflow-hidden transition-all duration-200"
-        style={{ 
-          height: '460px',
-          opacity: isVisible ? 1 : 0,
-          transform: isVisible ? 'scale(1)' : 'scale(0.96)',
-        }}
-        onMouseDown={e => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="p-4 pb-2 shrink-0">
-          <div className="relative bg-bg-000 rounded-xl border border-border-200 focus-within:border-accent-main-100/50 transition-colors flex items-center px-3 py-2.5">
-            <FolderIcon className="text-text-400 w-4 h-4 shrink-0 mr-2.5" />
-            <input
-              ref={inputRef}
-              type="text"
-              value={inputValue}
-              onChange={e => {
-                setInputValue(e.target.value)
-                setSelectedIndex(0)
-              }}
-              onKeyDown={handleKeyDown}
-              placeholder="Type path..."
-              className="flex-1 bg-transparent border-none outline-none text-sm text-text-100 placeholder:text-text-400 font-mono"
-              autoComplete="off"
-              spellCheck={false}
-            />
-            {isLoading && <SpinnerIcon className="animate-spin text-text-400 w-4 h-4" size={16} />}
-          </div>
-        </div>
-
-        {/* List */}
-        <div className="flex-1 overflow-y-auto px-2 py-1 custom-scrollbar">
-          {error ? (
-            <div className="flex items-center justify-center h-full text-danger-100 text-xs px-4 text-center">
-              {error}
-            </div>
-          ) : (
-            <div className="space-y-0.5">
-              {/* Go Up */}
-              {inputValue.split(PATH_SEP).filter(Boolean).length > 0 && (
-                <ListItem
-                  id="project-item-up"
-                  icon={<ArrowUpIcon className="w-3.5 h-3.5" />}
-                  label=".. (Parent)"
-                  isSelected={selectedIndex === -1}
-                  onClick={() => { handleGoBack(); inputRef.current?.focus() }}
-                  onMouseEnter={() => setSelectedIndex(-1)}
-                />
-              )}
-
-              {/* Empty State */}
-              {filteredItems.length === 0 && !isLoading && (
-                <div className="flex flex-col items-center justify-center h-28 text-text-400/60 text-xs gap-2">
-                  <FolderIcon className="w-6 h-6 opacity-30" />
-                  <span>{filterText ? 'No matching folders' : 'Empty folder'}</span>
-                </div>
-              )}
-
-              {/* Items */}
-              {filteredItems.map((item, index) => (
-                <ListItem
-                  key={item.name}
-                  id={`project-item-${index}`}
-                  icon={<FolderIcon className="w-3.5 h-3.5" />}
-                  label={item.name}
-                  isSelected={index === selectedIndex}
-                  onClick={() => handleItemClick(item)}
-                  onMouseEnter={() => setSelectedIndex(index)}
-                  action={
-                    index === selectedIndex && (
-                      <button 
-                        onClick={(e) => { e.stopPropagation(); handleSelectFolder(item.path) }}
-                        className="flex items-center gap-1 text-[10px] bg-accent-main-100 hover:bg-accent-main-200 px-2 py-0.5 rounded text-oncolor-100 font-medium transition-colors"
-                      >
-                        <PlusIcon className="w-2.5 h-2.5" />
-                        Add
-                      </button>
-                    )
-                  }
-                />
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Footer */}
-        <div className="p-3 border-t border-border-200/50 flex items-center justify-between shrink-0">
-          <div className="text-[10px] text-text-400 truncate flex-1 mr-4 font-mono">
-            {inputValue}
-          </div>
-          <button
-            onClick={handleConfirmCurrent}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-bg-000 hover:bg-accent-main-100/10 border border-border-200 hover:border-accent-main-100/30 text-text-200 hover:text-accent-main-100 rounded-lg transition-colors text-xs font-medium"
-          >
-            <PlusIcon className="w-3 h-3" />
-            Add current
-          </button>
+      {/* Header */}
+      <div className="p-4 pb-2 shrink-0">
+        <div className="relative bg-bg-000 rounded-xl border border-border-200 focus-within:border-accent-main-100/50 transition-colors flex items-center px-3 py-2.5">
+          <FolderIcon className="text-text-400 w-4 h-4 shrink-0 mr-2.5" />
+          <input
+            ref={inputRef}
+            type="text"
+            value={inputValue}
+            onChange={e => {
+              setInputValue(e.target.value)
+              setSelectedIndex(0)
+            }}
+            onKeyDown={handleKeyDown}
+            placeholder="Type path..."
+            className="flex-1 bg-transparent border-none outline-none text-sm text-text-100 placeholder:text-text-400 font-mono"
+            autoComplete="off"
+            spellCheck={false}
+          />
+          {isLoading && <SpinnerIcon className="animate-spin text-text-400 w-4 h-4" size={16} />}
         </div>
       </div>
-    </div>,
-    document.body
+
+      {/* List */}
+      <div className="flex-1 overflow-y-auto px-2 py-1 custom-scrollbar">
+        {error ? (
+          <div className="flex items-center justify-center h-full text-danger-100 text-xs px-4 text-center">
+            {error}
+          </div>
+        ) : (
+          <div className="space-y-0.5">
+            {/* Go Up */}
+            {inputValue.split(PATH_SEP).filter(Boolean).length > 0 && (
+              <ListItem
+                id="project-item-up"
+                icon={<ArrowUpIcon className="w-3.5 h-3.5" />}
+                label=".. (Parent)"
+                isSelected={selectedIndex === -1}
+                onClick={() => { handleGoBack(); inputRef.current?.focus() }}
+                onMouseEnter={() => setSelectedIndex(-1)}
+              />
+            )}
+
+            {/* Empty State */}
+            {filteredItems.length === 0 && !isLoading && (
+              <div className="flex flex-col items-center justify-center h-28 text-text-400/60 text-xs gap-2">
+                <FolderIcon className="w-6 h-6 opacity-30" />
+                <span>{filterText ? 'No matching folders' : 'Empty folder'}</span>
+              </div>
+            )}
+
+            {/* Items */}
+            {filteredItems.map((item, index) => (
+              <ListItem
+                key={item.name}
+                id={`project-item-${index}`}
+                icon={<FolderIcon className="w-3.5 h-3.5" />}
+                label={item.name}
+                isSelected={index === selectedIndex}
+                onClick={() => handleItemClick(item)}
+                onMouseEnter={() => setSelectedIndex(index)}
+                action={
+                  index === selectedIndex && (
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); handleSelectFolder(item.path) }}
+                      className="flex items-center gap-1 text-[10px] bg-accent-main-100 hover:bg-accent-main-200 px-2 py-0.5 rounded text-oncolor-100 font-medium transition-colors"
+                    >
+                      <PlusIcon className="w-2.5 h-2.5" />
+                      Add
+                    </button>
+                  )
+                }
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Footer */}
+      <div className="p-3 border-t border-border-200/50 flex items-center justify-between shrink-0">
+        <div className="text-[10px] text-text-400 truncate flex-1 mr-4 font-mono">
+          {inputValue}
+        </div>
+        <button
+          onClick={handleConfirmCurrent}
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-bg-000 hover:bg-accent-main-100/10 border border-border-200 hover:border-accent-main-100/30 text-text-200 hover:text-accent-main-100 rounded-lg transition-colors text-xs font-medium"
+        >
+          <PlusIcon className="w-3 h-3" />
+          Add current
+        </button>
+      </div>
+    </Dialog>
   )
 }
 

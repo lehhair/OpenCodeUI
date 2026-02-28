@@ -177,8 +177,18 @@ export function CommandPalette({ isOpen, onClose, commands }: CommandPaletteProp
           backgroundColor: isVisible ? 'hsl(var(--always-black) / 0.5)' : 'hsl(var(--always-black) / 0)',
           transition: 'background-color 150ms ease-out',
         }}
+      onPointerDown={(e: React.PointerEvent) => {
+        // 触摸设备不走背景关闭
+        if (e.pointerType === 'touch') return
+        if (e.target === e.currentTarget) {
+          (e.currentTarget as HTMLElement).dataset.backdropDown = '1'
+        }
+      }}
       onClick={(e) => {
-        if (e.target === e.currentTarget) onClose()
+        if (e.target === e.currentTarget && (e.currentTarget as HTMLElement).dataset.backdropDown === '1') {
+          onClose()
+        }
+        delete (e.currentTarget as HTMLElement).dataset.backdropDown
       }}
     >
       <div 

@@ -1,7 +1,9 @@
-import { useState, memo } from 'react'
-import { CloseIcon, ChevronDownIcon } from '../../components/Icons'
+import { useState, useCallback, useRef, useEffect, memo } from 'react'
+import { CloseIcon, ChevronDownIcon, CopyIcon, CheckIcon, DownloadIcon, ExpandIcon } from '../../components/Icons'
 import { getAttachmentIcon, hasExpandableContent } from './utils'
 import { useDelayedRender } from '../../hooks/useDelayedRender'
+import { AttachmentDetailModal } from './AttachmentDetailModal'
+import { clipboardErrorHandler } from '../../utils'
 import type { Attachment } from './types'
 
 interface AttachmentItemProps {
@@ -21,6 +23,7 @@ function AttachmentItemComponent({
 }: AttachmentItemProps) {
   const [isExpanded, setIsExpanded] = useState(false)
   const [imageError, setImageError] = useState(false)
+  const [isModalOpen, setIsModalOpen] = useState(false)
   const shouldRenderBody = useDelayedRender(isExpanded)
   
   const { Icon, colorClass } = getAttachmentIcon(attachment)
@@ -82,11 +85,19 @@ function AttachmentItemComponent({
                 attachment={attachment} 
                 imageError={imageError}
                 onImageError={() => setImageError(true)}
+                onOpenDetail={() => setIsModalOpen(true)}
               />
             )}
           </div>
         </div>
       )}
+
+      {/* 附件详情弹窗 */}
+      <AttachmentDetailModal
+        attachment={attachment}
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+      />
     </div>
   )
 }
@@ -95,6 +106,7 @@ interface ExpandedContentProps {
   attachment: Attachment
   imageError: boolean
   onImageError: () => void
+  onOpenDetail: () => void
 }
 
 function MetaRow({ 
@@ -119,9 +131,11 @@ function MetaRow({
   )
 }
 
-function ExpandedContent({ attachment, imageError, onImageError }: ExpandedContentProps) {
+function ExpandedContent({ attachment, imageError, onImageError, onOpenDetail }: ExpandedContentProps) {
   const { type, url, content, relativePath, mime, agentName, agentDescription } = attachment
   const isImage = mime?.startsWith('image/')
+  const hasContent = !!content
+  const hasDownloadable = hasContent || (!!isImage && !!url)
   
   // Content Area
   let contentNode = null
@@ -152,8 +166,17 @@ function ExpandedContent({ attachment, imageError, onImageError }: ExpandedConte
     <div className="mt-1 rounded-md bg-bg-200 border border-border-300 overflow-hidden w-full">
       {contentNode}
       
+      {/* 操作按钮栏 */}
+      <ActionBar
+        attachment={attachment}
+        hasContent={hasContent}
+        hasDownloadable={hasDownloadable}
+        onOpenDetail={onOpenDetail}
+        showBorderTop={!!contentNode}
+      />
+
       {/* 元信息 */}
-      <div className={`p-2 text-xs space-y-1 text-text-300 bg-bg-100/50 ${contentNode ? 'border-t border-border-300' : ''}`}>
+      <div className="p-2 text-xs space-y-1 text-text-300 bg-bg-100/50 border-t border-border-300">
 
         {type === 'text' && <MetaRow label="Category" value="Context" />}
         
@@ -161,27 +184,19 @@ function ExpandedContent({ attachment, imageError, onImageError }: ExpandedConte
         <MetaRow 
           label="Source" 
           value={
-            // Only hide data: URLs if they are successfully rendered images
-            // Otherwise (HTTP, broken image, non-image) show the source
             url && !(url.startsWith('data:') && isImage && !imageError) 
               ? (url.startsWith('file:///') ? decodeURIComponent(url.replace(/^file:\/\/\/?/, '')) : url) 
               : undefined
           } 
           copyable 
-          // Truncate long data URIs if shown
           className={url?.startsWith('data:') ? 'line-clamp-4' : ''}
         />
 
-        {/* Relative Path */}
         <MetaRow label="Ref Path" value={relativePath} />
-
-        {/* MIME - Folder special case */}
         <MetaRow label="Type" value={type === 'folder' ? 'Directory' : mime} />
 
-        {/* Dynamic Source Metadata (Symbol, Resource, etc.) */}
         {attachment.originalSource && typeof attachment.originalSource === 'object' && (
           <>
-            {/* Symbol specific */}
             {attachment.originalSource.type === 'symbol' && (
               <>
                 <MetaRow label="Symbol" value={attachment.originalSource.name} />
@@ -191,15 +206,12 @@ function ExpandedContent({ attachment, imageError, onImageError }: ExpandedConte
                 />
               </>
             )}
-            {/* Resource specific */}
             {attachment.originalSource.type === 'resource' && (
               <>
                 <MetaRow label="Resource" value={attachment.originalSource.uri} copyable />
                 <MetaRow label="Client" value={attachment.originalSource.clientName} />
               </>
             )}
-
-            {/* Mention Text (for both Agent and File) */}
             {(attachment.originalSource.value || (attachment.originalSource.text && attachment.originalSource.text.value)) && (
               <MetaRow 
                 label="Mention" 
@@ -209,13 +221,113 @@ function ExpandedContent({ attachment, imageError, onImageError }: ExpandedConte
           </>
         )}
 
-        {/* Agent Info */}
         <MetaRow label="Agent" value={agentName} />
         <MetaRow label="Desc" value={agentDescription} className="line-clamp-2" />
-        
-        {/* Fallback for anything else in attachment object that might be useful? */}
-        {/* Currently Attachment interface is somewhat strict, but let's ensure we cover the basics */}
       </div>
+    </div>
+  )
+}
+
+// ============================================
+// ActionBar - 操作按钮栏（查看详情、复制、下载）
+// ============================================
+
+interface ActionBarProps {
+  attachment: Attachment
+  hasContent: boolean
+  hasDownloadable: boolean
+  onOpenDetail: () => void
+  showBorderTop: boolean
+}
+
+function ActionBar({ attachment, hasContent, hasDownloadable, onOpenDetail, showBorderTop }: ActionBarProps) {
+  const [copied, setCopied] = useState(false)
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current)
+    }
+  }, [])
+
+  const handleCopy = useCallback(async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!attachment.content) return
+    try {
+      await navigator.clipboard.writeText(attachment.content)
+      setCopied(true)
+      if (timeoutRef.current) clearTimeout(timeoutRef.current)
+      timeoutRef.current = setTimeout(() => setCopied(false), 2000)
+    } catch (err) {
+      clipboardErrorHandler('copy', err)
+    }
+  }, [attachment.content])
+
+  const handleDownload = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+    const isImage = attachment.mime?.startsWith('image/')
+
+    if (isImage && attachment.url) {
+      const link = document.createElement('a')
+      link.href = attachment.url
+      link.download = attachment.displayName || 'image'
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+    } else if (attachment.content) {
+      const blob = new Blob([attachment.content], { type: 'text/plain;charset=utf-8' })
+      const blobUrl = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = blobUrl
+      link.download = attachment.displayName || 'attachment.txt'
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(blobUrl)
+    }
+  }, [attachment])
+
+  const handleOpenDetail = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+    onOpenDetail()
+  }, [onOpenDetail])
+
+  if (!hasContent && !hasDownloadable) return null
+
+  const btnBase = "inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] transition-colors duration-150"
+
+  return (
+    <div className={`flex items-center gap-1 px-2 py-1 bg-bg-100/30 ${showBorderTop ? 'border-t border-border-300/50' : ''}`}>
+      <button
+        onClick={handleOpenDetail}
+        className={`${btnBase} text-text-400 hover:text-text-200 hover:bg-bg-300/50`}
+        title="View detail"
+      >
+        <ExpandIcon size={11} />
+        <span>Detail</span>
+      </button>
+
+      {hasContent && (
+        <button
+          onClick={handleCopy}
+          className={`${btnBase} ${copied ? 'text-success-100' : 'text-text-400 hover:text-text-200 hover:bg-bg-300/50'}`}
+          title={copied ? 'Copied!' : 'Copy content'}
+        >
+          {copied ? <CheckIcon size={11} /> : <CopyIcon size={11} />}
+          <span>{copied ? 'Copied' : 'Copy'}</span>
+        </button>
+      )}
+
+      {hasDownloadable && (
+        <button
+          onClick={handleDownload}
+          className={`${btnBase} text-text-400 hover:text-text-200 hover:bg-bg-300/50`}
+          title="Save to file"
+        >
+          <DownloadIcon size={11} />
+          <span>Save</span>
+        </button>
+      )}
     </div>
   )
 }
