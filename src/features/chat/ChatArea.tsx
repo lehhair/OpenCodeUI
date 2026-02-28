@@ -83,13 +83,17 @@ function messageHasContent(msg: Message): boolean {
   })
 }
 
-/** assistant 消息最后一个有意义的 part 是否为 tool（跳过 step-finish 等基础设施） */
+const INFRA_TYPES = new Set(['step-start', 'step-finish', 'snapshot', 'patch'])
+
+/** assistant 消息最后一个有意义的 part 是否为 tool（跳过基础设施和空内容） */
 function endsWithTool(msg: Message): boolean {
   if (msg.info.role !== 'assistant') return false
   for (let i = msg.parts.length - 1; i >= 0; i--) {
-    const t = msg.parts[i].type
-    if (t === 'step-finish' || t === 'snapshot' || t === 'patch') continue
-    return t === 'tool'
+    const p = msg.parts[i]
+    if (INFRA_TYPES.has(p.type)) continue
+    if (p.type === 'text' && !(p as any).text?.trim()) continue
+    if (p.type === 'reasoning' && !(p as any).text?.trim()) continue
+    return p.type === 'tool'
   }
   return false
 }
@@ -100,27 +104,67 @@ function isToolOnlyFollowUp(msg: Message): boolean {
   let hasTool = false
   for (const p of msg.parts) {
     if (p.type === 'tool') { hasTool = true; continue }
-    if (p.type === 'step-start' || p.type === 'step-finish' || p.type === 'snapshot' || p.type === 'patch') continue
+    if (INFRA_TYPES.has(p.type)) continue
     if (p.type === 'text' && !(p as any).text?.trim()) continue
     if (p.type === 'reasoning' && !(p as any).text?.trim()) continue
-    // 有可见内容（非空 text/reasoning、subtask、file、agent 等）→ 不可合并
     return false
   }
   return hasTool
 }
 
 /**
- * 合并连续的工具消息：以 tool 结尾的 assistant 消息吸收后续的纯工具 assistant 消息，
- * 使它们在渲染层作为同一条消息处理，tool parts 合并到一个 group 中
+ * 后续 assistant 消息是否可以作为合并链的尾部：
+ * - 没有可见 thinking
+ * - 有 tool 调用
+ * - 所有可见正文都出现在最后一个 tool 之后（即 tool...tool...text 的顺序）
+ * 例: [tool, tool, text] ✓ — [text, tool] ✗ — [tool, text, tool] ✗
+ */
+function isMergeableTrailing(msg: Message): boolean {
+  if (msg.info.role !== 'assistant') return false
+  // 有可见 thinking → 新思考周期，不合并
+  for (const p of msg.parts) {
+    if (p.type === 'reasoning' && (p as any).text?.trim()) return false
+  }
+  // 找最后一个 tool 的位置（按 parts 数组索引）
+  let lastToolIdx = -1
+  for (let i = msg.parts.length - 1; i >= 0; i--) {
+    if (msg.parts[i].type === 'tool') { lastToolIdx = i; break }
+  }
+  if (lastToolIdx < 0) return false // 没有 tool，不算
+  // 所有可见 text 都必须在 lastToolIdx 之后
+  for (let i = 0; i < lastToolIdx; i++) {
+    const p = msg.parts[i]
+    if (p.type === 'text' && (p as any).text?.trim()) return false
+  }
+  return true
+}
+
+/**
+ * 合并连续的 assistant 消息：
+ * - anchor: 一条以 tool 结尾的 assistant 消息
+ * - 中间: 纯工具后续消息（isToolOnlyFollowUp）全部吸收
+ * - 尾部: 没有可见 thinking、正文只在 tool 之后的消息（isMergeableTrailing）也可吸收
+ * 合并后在渲染层作为同一条消息处理
  */
 function mergeConsecutiveToolMessages(messages: Message[]): Message[] {
   const result: Message[] = []
   for (let i = 0; i < messages.length; i++) {
     const msg = messages[i]
     if (!endsWithTool(msg)) { result.push(msg); continue }
-    // 收集后续可合并的纯工具消息
+    // 贪心吸收后续可合并消息
     let j = i + 1
-    while (j < messages.length && isToolOnlyFollowUp(messages[j])) j++
+    while (j < messages.length) {
+      if (isToolOnlyFollowUp(messages[j])) {
+        // 纯工具中间消息，继续吸收
+        j++
+      } else if (isMergeableTrailing(messages[j])) {
+        // 尾部消息（tool + trailing text），吸收后停止
+        j++
+        break
+      } else {
+        break
+      }
+    }
     if (j === i + 1) {
       result.push(msg)
     } else {
