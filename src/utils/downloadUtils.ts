@@ -77,16 +77,24 @@ export function downloadFileContent(content: FileContent, fileName: string): voi
     ? base64ToBytes(content.content)
     : new TextEncoder().encode(content.content)
 
+  const mimeType = isBinaryContent(content.encoding)
+    ? (content.mimeType || 'application/octet-stream')
+    : `${content.mimeType || 'text/plain'};charset=utf-8`
+
+  saveData(data, fileName, mimeType)
+}
+
+/**
+ * 通用保存：接受原始数据 + 文件名 + MIME 类型
+ * - Tauri 环境：弹出原生保存对话框 + fs 写入
+ * - 浏览器环境：Blob + <a download>
+ */
+export function saveData(data: Uint8Array, fileName: string, mimeType = 'application/octet-stream'): void {
   if (isTauri()) {
-    // Tauri：原生保存对话框 + fs 写入
     tauriSaveFile(data, fileName).catch(err => {
       console.warn('[downloadUtils] Tauri save failed:', err)
     })
   } else {
-    // 浏览器：Blob + <a download>
-    const mimeType = isBinaryContent(content.encoding)
-      ? (content.mimeType || 'application/octet-stream')
-      : `${content.mimeType || 'text/plain'};charset=utf-8`
     const blob = new Blob([data.buffer as ArrayBuffer], { type: mimeType })
     triggerBrowserDownload(blob, fileName)
   }

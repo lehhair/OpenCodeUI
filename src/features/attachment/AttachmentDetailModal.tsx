@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { CloseIcon, CopyIcon, CheckIcon, DownloadIcon, PlusIcon } from '../../components/Icons'
 import { getAttachmentIcon } from './utils'
 import { clipboardErrorHandler } from '../../utils'
+import { saveData } from '../../utils/downloadUtils'
 import type { Attachment } from './types'
 
 // ============================================
@@ -635,24 +636,15 @@ function InlineCopyButton({ text }: { text: string }) {
 function InlineDownloadButton({ attachment }: { attachment: Attachment }) {
   const handleDownload = useCallback(() => {
     const isImage = attachment.mime?.startsWith('image/')
+    const fileName = attachment.displayName || (isImage ? 'image' : 'attachment.txt')
 
     if (isImage && attachment.url) {
-      const link = document.createElement('a')
-      link.href = attachment.url
-      link.download = attachment.displayName || 'image'
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
+      fetch(attachment.url)
+        .then(res => res.arrayBuffer())
+        .then(buf => saveData(new Uint8Array(buf), fileName, attachment.mime || 'image/png'))
+        .catch(err => console.warn('[AttachmentDetailModal] save image failed:', err))
     } else if (attachment.content) {
-      const blob = new Blob([attachment.content], { type: 'text/plain;charset=utf-8' })
-      const blobUrl = URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = blobUrl
-      link.download = attachment.displayName || 'attachment.txt'
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-      URL.revokeObjectURL(blobUrl)
+      saveData(new TextEncoder().encode(attachment.content), fileName, 'text/plain;charset=utf-8')
     }
   }, [attachment])
 
