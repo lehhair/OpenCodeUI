@@ -693,7 +693,7 @@ function ActiveSessionItem({ entry, resolvedSession, isSelected, onSelect }: Act
         }`} title={displayTitle}>
           {displayTitle}
         </p>
-        <div className="flex items-center mt-0.5 h-4 text-[10px] text-text-400 gap-1">
+        <div className="flex items-center mt-0.5 h-4 min-w-0 overflow-hidden text-[10px] text-text-400 gap-1">
           <span className={`shrink-0 ${statusConfig.color}`}>
             {statusConfig.label}
           </span>
@@ -786,17 +786,17 @@ function NotificationItem({ entry, resolvedSession, onSelect }: NotificationItem
         <p className="text-[13px] truncate font-medium text-text-200 group-hover:text-text-100" title={displayTitle}>
           {displayTitle}
         </p>
-        <div className="flex items-center mt-0.5 text-[10px] text-text-400 gap-1">
+        <div className="flex items-center mt-0.5 min-w-0 overflow-hidden text-[10px] text-text-400 gap-1">
           <span className={`shrink-0 ${config.color}`}>
             {config.label}
           </span>
           {entry.body && (
             <>
-              <span className="opacity-30">·</span>
+              <span className="opacity-30 shrink-0">·</span>
               <span className="truncate">{entry.body}</span>
             </>
           )}
-          <span className="opacity-30">·</span>
+          <span className="opacity-30 shrink-0">·</span>
           <span className="tabular-nums shrink-0">{formatNotificationTime(entry.timestamp)}</span>
           {directory && (
             <>
