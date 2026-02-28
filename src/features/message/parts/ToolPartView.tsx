@@ -20,9 +20,12 @@ interface ToolPartViewProps {
   part: ToolPart
   isFirst?: boolean
   isLast?: boolean
+  /** Compact layout: icon inline with text (14px column), no timeline connectors.
+   *  Used for single-tool groups to align with ReasoningPartView. */
+  compact?: boolean
 }
 
-export const ToolPartView = memo(function ToolPartView({ part, isFirst = false, isLast = false }: ToolPartViewProps) {
+export const ToolPartView = memo(function ToolPartView({ part, isFirst = false, isLast = false, compact = false }: ToolPartViewProps) {
   const [expanded, setExpanded] = useState(() => {
     return part.state.status === 'running' || part.state.status === 'pending'
   })
@@ -38,6 +41,85 @@ export const ToolPartView = memo(function ToolPartView({ part, isFirst = false, 
   const isActive = state.status === 'running' || state.status === 'pending'
   const isError = state.status === 'error'
 
+  // Shared icon element
+  const toolIcon = (
+    <div className={`
+      relative flex items-center justify-center transition-colors duration-200
+      ${isActive ? 'text-accent-main-100' : ''}
+      ${isError ? 'text-danger-100' : ''}
+      ${state.status === 'completed' ? 'text-text-400 group-hover:text-text-300' : ''}
+    `}>
+      {isActive && (
+        <span className="absolute inset-0 rounded-full bg-accent-main-100/20 animate-ping" style={{ animationDuration: '1.5s' }} />
+      )}
+      {getToolIcon(toolName)}
+    </div>
+  )
+
+  // ── Compact layout (single-tool, no timeline) ──
+  if (compact) {
+    return (
+      <div className="group relative">
+        <button
+          className="flex items-center gap-1.5 w-full text-left py-1.5 hover:bg-bg-200/40 rounded-md transition-colors group/header"
+          onClick={() => setExpanded(!expanded)}
+        >
+          <span className="inline-flex h-5 w-[14px] items-center justify-center shrink-0">
+            {toolIcon}
+          </span>
+          <div className="flex items-baseline gap-2 overflow-hidden flex-1 min-w-0">
+            <span className={`font-medium text-[13px] leading-tight transition-colors duration-300 shrink-0 ${
+              isActive ? 'text-accent-main-100' :
+              isError ? 'text-danger-100' :
+              'text-text-200 group-hover/header:text-text-100'
+            }`}>
+              {formatToolName(toolName)}
+            </span>
+            {title && (
+              <span className="text-xs text-text-400 truncate font-mono opacity-70">
+                {title}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2 ml-auto shrink-0">
+            {duration !== undefined && state.status === 'completed' && (
+              <span className="text-[10px] font-mono text-text-500 tabular-nums">
+                {formatDuration(duration)}
+              </span>
+            )}
+            <span className={`text-[10px] font-medium transition-all duration-300 ${
+              isActive ? 'opacity-100 text-accent-main-100' : 'opacity-0 w-0 overflow-hidden'
+            }`}>
+              Running
+            </span>
+            <span className={`text-[10px] font-medium transition-all duration-300 ${
+              isError ? 'opacity-100 text-danger-100' : 'opacity-0 w-0 overflow-hidden'
+            }`}>
+              Failed
+            </span>
+            <span className="text-text-500">
+              {expanded ? <ChevronDownIcon size={12} /> : <ChevronRightIcon size={12} />}
+            </span>
+          </div>
+        </button>
+
+        {/* Body - indented to align with text after icon+gap */}
+        <div className={`grid transition-[grid-template-rows] duration-300 ease-in-out ${
+          expanded ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
+        }`}>
+          <div className="overflow-hidden">
+            {shouldRenderBody && (
+              <div className="pl-5 pr-2.5 pb-2 pt-1">
+                <ToolBody part={part} />
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // ── Timeline layout (multi-tool groups) ──
   return (
     <div className="group relative flex">
       {/* Timeline Column */}
@@ -49,17 +131,7 @@ export const ToolPartView = memo(function ToolPartView({ part, isFirst = false, 
 
         {/* Tool icon — h-9 和右侧 header 等高，flex 自然居中 */}
         <div className="h-9 flex items-center justify-center relative z-10">
-          <div className={`
-            relative flex items-center justify-center transition-colors duration-200
-            ${isActive ? 'text-accent-main-100' : ''}
-            ${isError ? 'text-danger-100' : ''}
-            ${state.status === 'completed' ? 'text-text-400 group-hover:text-text-300' : ''}
-          `}>
-            {isActive && (
-              <span className="absolute inset-0 rounded-full bg-accent-main-100/20 animate-ping" style={{ animationDuration: '1.5s' }} />
-            )}
-            {getToolIcon(toolName)}
-          </div>
+          {toolIcon}
         </div>
 
         {/* Bottom connector — 留 4px gap 到 icon */}

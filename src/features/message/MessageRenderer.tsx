@@ -398,6 +398,25 @@ const ToolGroup = memo(function ToolGroup({ parts, stepFinish, duration, turnDur
   const totalCount = parts.length
   const isAllDone = doneCount === totalCount
   
+  // ── Single tool: render directly without steps header ──
+  // Uses compact layout to align icon with ReasoningPartView
+  if (totalCount === 1) {
+    return (
+      <div className="flex flex-col">
+        <ToolPartView 
+          part={parts[0]} 
+          isFirst={true}
+          isLast={true}
+          compact={true}
+        />
+        {stepFinish && (
+          <StepFinishPartView part={stepFinish} duration={duration} turnDuration={turnDuration} />
+        )}
+      </div>
+    )
+  }
+  
+  // ── Multi-tool: collapsible steps group with timeline ──
   return (
     <div className="flex flex-col">
       <button
