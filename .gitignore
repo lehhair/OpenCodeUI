@@ -11,6 +11,8 @@ node_modules
 dist
 dist-ssr
 *.local
+yarn.lock
+.yarn
 
 # Environment variables
 .env
@@ -22,6 +24,9 @@ workspace/
 
 # Rust
 src-tauri/target/
+
+# Generated material icons (copied from node_modules at postinstall)
+public/material-icons/
 
 # Editor directories and files
 .vscode/*

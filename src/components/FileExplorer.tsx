@@ -8,9 +8,6 @@ import { memo, useCallback, useMemo, useEffect, useRef, useState, useLayoutEffec
 import { useFileExplorer, type FileTreeNode } from '../hooks'
 import { layoutStore, type PreviewFile } from '../store/layoutStore'
 import { 
-  FileIcon, 
-  FolderIcon, 
-  FolderOpenIcon, 
   ChevronRightIcon, 
   ChevronDownIcon,
   RetryIcon,
@@ -18,6 +15,7 @@ import {
   AlertCircleIcon,
   DownloadIcon,
 } from './Icons'
+import { getMaterialIconUrl } from '../utils/materialIcons'
 import { detectLanguage } from '../utils/languageUtils'
 import { useSyntaxHighlight } from '../hooks/useSyntaxHighlight'
 import { getPreviewCategory, isBinaryContent, isTextualMedia, buildDataUrl, buildTextDataUrl, decodeBase64Text, formatMimeType, type PreviewCategory } from '../utils/mimeUtils'
@@ -214,7 +212,13 @@ export const FileExplorer = memo(function FileExplorer({
   if (!directory) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-text-400 text-sm gap-2 p-4">
-        <FolderIcon size={32} className="opacity-30" />
+        <img 
+          src={getMaterialIconUrl('folder', 'directory', false)} 
+          alt="" 
+          width={32} 
+          height={32} 
+          className="opacity-30"
+        />
         <span className="text-center">Select a project to browse files</span>
       </div>
     )
@@ -370,14 +374,16 @@ const FileTreeItem = memo(function FileTreeItem({
           <span className="w-4 shrink-0" />
         )}
 
-        {/* File/Folder Icon */}
-        <span className={`shrink-0 ${statusColor || 'text-text-400'}`}>
-          {isDirectory ? (
-            isExpanded ? <FolderOpenIcon size={14} /> : <FolderIcon size={14} />
-          ) : (
-            <FileIcon size={14} />
-          )}
-        </span>
+        {/* File/Folder Icon - Material Icon Theme */}
+        <img
+          src={getMaterialIconUrl(node.path, isDirectory ? 'directory' : 'file', isExpanded)}
+          alt=""
+          width={16}
+          height={16}
+          className="shrink-0"
+          loading="lazy"
+          decoding="async"
+        />
 
         {/* Name */}
         <span className={`truncate flex-1 ${statusColor || ''}`}>
@@ -498,7 +504,13 @@ function FilePreview({ path, content, isLoading, error, onClose, isResizing = fa
       {/* Preview Header */}
       <div className="flex items-center justify-between px-3 py-1.5 border-b border-border-100/50 bg-bg-100/30 shrink-0">
         <div className="flex items-center gap-2 min-w-0">
-          <FileIcon size={12} className="text-text-400 shrink-0" />
+          <img
+            src={getMaterialIconUrl(path || 'file', 'file')}
+            alt=""
+            width={14}
+            height={14}
+            className="shrink-0"
+          />
           <span className="text-[11px] font-mono text-text-200 truncate">{fileName}</span>
           {/* Modified 标签暂不在 Files 预览显示 */}
           {/* {content?.diff && (
@@ -848,7 +860,13 @@ interface BinaryPlaceholderProps {
 function BinaryPlaceholder({ mimeType, fileName, onDownload }: BinaryPlaceholderProps) {
   return (
     <div className="flex flex-col items-center justify-center h-full text-text-400 text-xs gap-2 p-4">
-      <FileIcon size={32} className="opacity-30" />
+      <img
+        src={getMaterialIconUrl(fileName, 'file')}
+        alt=""
+        width={32}
+        height={32}
+        className="opacity-50"
+      />
       <span className="font-medium text-text-300">{fileName}</span>
       <span>{formatMimeType(mimeType)}</span>
       <span className="text-text-500 text-[10px]">Binary file — preview not available</span>
