@@ -4,7 +4,7 @@
 // ============================================
 
 import { useState, useEffect, useLayoutEffect, useRef, useImperativeHandle, forwardRef } from 'react'
-import { getCommands, type Command } from '../../api/command'
+import { getRemoteCommands, type Command } from '../../api/command'
 
 // ============================================
 // Sub-components
@@ -29,6 +29,8 @@ interface SlashCommandMenuProps {
   isOpen: boolean
   query: string           // "/" 之后的文本
   rootPath?: string       // 用于 API 调用
+  /** 内置命令列表，由外部（InputBox → App）传入，与远端命令合并展示 */
+  builtinCommands?: Command[]
   onSelect: (command: Command) => void
   onClose: () => void
 }
@@ -46,8 +48,8 @@ export interface SlashCommandMenuHandle {
 // ============================================
 
 export const SlashCommandMenu = forwardRef<SlashCommandMenuHandle, SlashCommandMenuProps>(
-  function SlashCommandMenu({ isOpen, query, rootPath, onSelect, onClose }, ref) {
-    const [commands, setCommands] = useState<Command[]>([])
+  function SlashCommandMenu({ isOpen, query, rootPath, builtinCommands = [], onSelect, onClose }, ref) {
+    const [remoteCommands, setRemoteCommands] = useState<Command[]>([])
     const [filteredCommands, setFilteredCommands] = useState<Command[]>([])
     const [selectedIndex, setSelectedIndex] = useState(0)
     const [loading, setLoading] = useState(false)
@@ -84,38 +86,38 @@ export const SlashCommandMenu = forwardRef<SlashCommandMenuHandle, SlashCommandM
       }
     }, [isOpen])
 
-    // 加载命令列表
+    // 拉取远端命令，失败时静默降级（内置命令仍然可用）
     useEffect(() => {
       if (!isOpen) return
 
       setLoading(true)
-      getCommands(rootPath)
-        .then(cmds => {
-          setCommands(cmds)
-          setLoading(false)
-        })
-        .catch(err => {
-          console.error('Failed to load commands:', err)
-          setCommands([])
-          setLoading(false)
-        })
+      getRemoteCommands(rootPath)
+        .then(cmds => setRemoteCommands(cmds))
+        .catch(() => setRemoteCommands([]))
+        .finally(() => setLoading(false))
     }, [isOpen, rootPath])
 
-    // 根据 query 过滤命令
+    // 合并远端 + 内置（去重，远端优先），再按 query 过滤
     useEffect(() => {
       if (!isOpen) {
         setFilteredCommands([])
         return
       }
 
+      const remoteNames = new Set(remoteCommands.map(c => c.name))
+      const merged = [
+        ...remoteCommands,
+        ...builtinCommands.filter(c => !remoteNames.has(c.name)),
+      ]
+
       const lowerQuery = query.toLowerCase()
-      const filtered = commands.filter(cmd => 
+      const filtered = merged.filter(cmd =>
         cmd.name.toLowerCase().includes(lowerQuery) ||
-        cmd.description?.toLowerCase().includes(lowerQuery)
+        cmd.description?.toLowerCase().includes(lowerQuery),
       )
       setFilteredCommands(filtered)
       setSelectedIndex(0)
-    }, [isOpen, query, commands])
+    }, [isOpen, query, remoteCommands, builtinCommands])
 
     // 滚动选中项到可见区域
     useEffect(() => {

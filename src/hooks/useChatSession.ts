@@ -7,13 +7,13 @@ import { useMessageStore, messageStore, useSessionFamily, autoApproveStore, chil
 import { useSessionManager, useGlobalEvents } from '../hooks'
 import { usePermissions, useRouter, usePermissionHandler, useMessageAnimation, useDirectory, useSessionContext } from '../hooks'
 import { useNotification } from './useNotification'
+import { useBuiltinCommands } from './useBuiltinCommands'
 import { 
   sendMessageAsync, abortSession, 
   getSelectableAgents, 
   getPendingPermissions, getPendingQuestions,
   getSessionChildren,
   executeCommand,
-  getBuiltinCommand,
   updateSession,
   type ApiSession,
   type ApiAgent, type Attachment, type ModelInfo,
@@ -79,6 +79,7 @@ export function useChatSession({ chatAreaRef, currentModel, refetchModels }: Use
   const { currentDirectory, sidebarExpanded, setSidebarExpanded } = useDirectory()
   const { createSession, sessions } = useSessionContext()
   const { sendNotification } = useNotification()
+  const { builtinCommands, executeBuiltin, isBuiltin, requiresSession } = useBuiltinCommands()
 
   const routeStatus = routeSessionId ? statusMap[routeSessionId] : undefined
 
@@ -414,41 +415,37 @@ export function useChatSession({ chatAreaRef, currentModel, refetchModels }: Use
     const spaceIndex = withoutSlash.indexOf(' ')
     const command = spaceIndex > 0 ? withoutSlash.slice(0, spaceIndex) : withoutSlash
     const args = spaceIndex > 0 ? withoutSlash.slice(spaceIndex + 1) : ''
-    
+
     if (!command) return
 
-    const builtin = getBuiltinCommand(command)
     let sessionId = routeSessionId
-    
+
     try {
-      // Auto-create session if the command requires it, or if it's a non-builtin command
-      if (builtin?.requiresSession || !builtin) {
-        if (!sessionId) {
-          const newSession = await createSession()
-          sessionId = newSession.id
-          messageStore.setCurrentSession(sessionId)
-          navigateToSession(sessionId)
-        }
+      // 内置命令 / 非内置命令都可能需要先创建 session
+      const needsSession = isBuiltin(command) ? requiresSession(command) : true
+      if (needsSession && !sessionId) {
+        const newSession = await createSession()
+        sessionId = newSession.id
+        messageStore.setCurrentSession(sessionId)
+        navigateToSession(sessionId)
       }
-      
-      // Dispatch to built-in handler if matched
-      if (builtin) {
-        await builtin.execute({
-          sessionId,
-          currentModel,
-          effectiveDirectory,
-          navigateHome,
-          handleNewChat,
-        }, args)
-        return
-      }
-      
-      // Non-builtin: forward to backend via generic command endpoint
+
+      // 先尝试内置命令
+      const handled = await executeBuiltin(command, args, {
+        sessionId,
+        currentModel,
+        effectiveDirectory,
+        navigateHome,
+        handleNewChat,
+      })
+      if (handled) return
+
+      // 非内置：转发给后端
       await executeCommand(sessionId!, command, args, effectiveDirectory)
     } catch (err) {
       handleError('execute command', err)
     }
-  }, [routeSessionId, effectiveDirectory, createSession, navigateToSession, currentModel, navigateHome, handleNewChat])
+  }, [routeSessionId, effectiveDirectory, createSession, navigateToSession, currentModel, navigateHome, handleNewChat, isBuiltin, requiresSession, executeBuiltin])
 
   // Undo with animation
   const handleUndoWithAnimation = useCallback(async (userMessageId: string) => {
@@ -579,6 +576,7 @@ export function useChatSession({ chatAreaRef, currentModel, refetchModels }: Use
     sidebarExpanded,
     setSidebarExpanded,
     effectiveDirectory,
+    builtinCommands,
     
     // Permissions
     pendingPermissionRequests,

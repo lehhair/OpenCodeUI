@@ -192,6 +192,7 @@ function App() {
     sidebarExpanded,
     setSidebarExpanded,
     effectiveDirectory,
+    builtinCommands,
     
     // Permissions
     pendingPermissionRequests,
@@ -612,6 +613,7 @@ function App() {
                 modelsLoading={modelsLoading}
                 rootPath={effectiveDirectory}
                 sessionId={routeSessionId}
+                builtinCommands={builtinCommands}
                 revertedText={revertedMessage?.text}
                 revertedAttachments={revertedMessage?.attachments}
                 canRedo={canRedo}

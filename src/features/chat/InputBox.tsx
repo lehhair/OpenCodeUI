@@ -52,6 +52,8 @@ export interface InputBoxProps {
   modelsLoading?: boolean
   rootPath?: string
   sessionId?: string | null
+  /** 内置命令列表，由外部传入透传给 SlashCommandMenu */
+  builtinCommands?: Command[]
   // Undo/Redo
   revertedText?: string
   revertedAttachments?: Attachment[]
@@ -95,6 +97,7 @@ function InputBoxComponent({
   modelsLoading = false,
   rootPath = '',
   sessionId,
+  builtinCommands = [],
   revertedText,
   revertedAttachments,
   canRedo = false,
@@ -996,6 +999,7 @@ function InputBoxComponent({
                   isOpen={slashOpen}
                   query={slashQuery}
                   rootPath={rootPath}
+                  builtinCommands={builtinCommands}
                   onSelect={handleSlashSelect}
                   onClose={handleSlashClose}
                 />
