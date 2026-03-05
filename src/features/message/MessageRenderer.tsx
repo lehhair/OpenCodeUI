@@ -57,61 +57,75 @@ export const MessageRenderer = memo(function MessageRenderer({ message, turnDura
 
 /** 折叠阈值：超过此高度(px)时才折叠，大约 8 行 */
 const COLLAPSE_HEIGHT_THRESHOLD = 184
+/**
+ * 文本长度快速预判阈值：超过此字符数的文本"可能"超高，
+ * 初始渲染时先用 CSS 裁剪（避免 virtuoso remount 时全文闪现）。
+ * 值取保守偏小——宁可多裁一次再放开，也不要闪。
+ * 大约 8 行 × 80 字符 ≈ 640，取 500 留余量。
+ */
+const TEXT_LENGTH_LIKELY_TALL = 500
 
 const CollapsibleUserText = memo(function CollapsibleUserText({ text, collapseEnabled }: { text: string; collapseEnabled: boolean }) {
   const contentRef = useRef<HTMLParagraphElement>(null)
-  const [isOverflow, setIsOverflow] = useState(false)
   const [expanded, setExpanded] = useState(false)
-  const [fullHeight, setFullHeight] = useState(0)
-  
+  // null = 还没测量过；true/false = 测量结论
+  // 用 lazy initializer：文本够长就假定需要折叠，首帧即裁剪
+  const [needsCollapse, setNeedsCollapse] = useState<boolean | null>(
+    () => collapseEnabled && text.length > TEXT_LENGTH_LIKELY_TALL ? true : null
+  )
+
   useEffect(() => {
     const el = contentRef.current
     if (!el || !collapseEnabled) {
-      setIsOverflow(false)
+      setNeedsCollapse(false)
       return
     }
-    // 检测内容是否超出阈值
-    const check = () => {
-      const h = el.scrollHeight
-      setFullHeight(h)
-      setIsOverflow(h > COLLAPSE_HEIGHT_THRESHOLD)
+    const measure = () => {
+      setNeedsCollapse(el.scrollHeight > COLLAPSE_HEIGHT_THRESHOLD)
     }
-    check()
+    measure()
     // 字体加载后可能改变高度
-    if (document.fonts?.ready) {
-      document.fonts.ready.then(check)
-    }
+    document.fonts?.ready?.then(measure)
   }, [text, collapseEnabled])
-  
-  const showCollapse = collapseEnabled && isOverflow
-  const isCollapsed = showCollapse && !expanded
-  
+
+  // 不需要折叠（短文本，或功能关闭）
+  if (needsCollapse === false || !collapseEnabled) {
+    return (
+      <div className="px-4 py-2.5 bg-bg-300 rounded-2xl max-w-full">
+        <p ref={contentRef} className="whitespace-pre-wrap break-words text-sm text-text-100 leading-relaxed">
+          {text}
+        </p>
+      </div>
+    )
+  }
+
+  // needsCollapse === true 或 null（还没测量，但文本短所以不预裁剪）
+  // null 只在文本 <= TEXT_LENGTH_LIKELY_TALL 时出现，这种短文本即使全文显示也不会闪
+  const isCollapsed = !expanded
+
   return (
     <div className="px-4 py-2.5 bg-bg-300 rounded-2xl max-w-full">
       <div className="relative">
         <p
           ref={contentRef}
-          className="whitespace-pre-wrap break-words text-sm text-text-100 leading-relaxed overflow-hidden transition-[max-height] duration-300 ease-in-out"
-          style={showCollapse ? { maxHeight: isCollapsed ? `${COLLAPSE_HEIGHT_THRESHOLD}px` : `${fullHeight}px` } : undefined}
+          className="whitespace-pre-wrap break-words text-sm text-text-100 leading-relaxed overflow-hidden"
+          style={{ maxHeight: isCollapsed ? `${COLLAPSE_HEIGHT_THRESHOLD}px` : undefined }}
         >
           {text}
         </p>
         {/* 底部渐变遮罩 */}
-        <div 
-          className={`absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-bg-300 to-transparent pointer-events-none transition-opacity duration-300 ${
-            isCollapsed ? 'opacity-100' : 'opacity-0'
+        <div
+          className={`absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-bg-300 to-transparent pointer-events-none transition-opacity duration-200 ${
+            isCollapsed ? 'opacity-100' : 'opacity-0 pointer-events-none'
           }`}
-          style={!showCollapse ? { display: 'none' } : undefined}
         />
       </div>
-      {showCollapse && (
-        <button
-          onClick={() => setExpanded(!expanded)}
-          className="mt-1 text-xs text-text-400 hover:text-text-200 transition-colors"
-        >
-          {expanded ? 'Show less' : 'Show more'}
-        </button>
-      )}
+      <button
+        onClick={() => setExpanded(prev => !prev)}
+        className="mt-1 text-xs text-text-400 hover:text-text-200 transition-colors"
+      >
+        {expanded ? 'Show less' : 'Show more'}
+      </button>
     </div>
   )
 })
