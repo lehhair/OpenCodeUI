@@ -20,7 +20,7 @@ export interface BuiltinCommandContext {
   /** 当前选中的模型 */
   currentModel: { providerId: string; id: string } | undefined
   /** 有效工作目录 */
-  effectiveDirectory: string
+  effectiveDirectory?: string
   /** 跳转到主页（清除路由中的 session） */
   navigateHome: () => void
   /** 清除 UI 层当前 session 状态 */
