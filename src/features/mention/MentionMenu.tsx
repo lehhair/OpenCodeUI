@@ -6,6 +6,7 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useImperativeHandle, forwardRef } from 'react'
 import { searchFiles, listDirectory, type ApiAgent } from '../../api/client'
 import { fileErrorHandler } from '../../utils'
+import { Kbd } from '../../components/ui'
 import type { MentionType, MentionItem } from './types'
 import { getFileName, toAbsolutePath, normalizePath } from './utils'
 
@@ -404,10 +405,19 @@ export const MentionMenu = forwardRef<MentionMenuHandle, MentionMenuProps>(funct
       </div>
 
       {/* Footer Hints - 只在桌面端显示 */}
-      <div className="hidden md:flex px-3 py-1.5 border-t border-border-200 text-xs text-text-500 gap-3">
-        <span>↑↓ select</span>
-        <span>↵ confirm</span>
-        <span>esc cancel</span>
+      <div className="hidden md:flex px-3 py-1.5 border-t border-border-200 text-[11px] text-text-400 items-center gap-4">
+        <span className="flex items-center gap-1">
+          <Kbd>↑</Kbd><Kbd>↓</Kbd> select
+        </span>
+        <span className="flex items-center gap-1">
+          <Kbd>←</Kbd><Kbd>→</Kbd> browse
+        </span>
+        <span className="flex items-center gap-1">
+          <Kbd>↵</Kbd> confirm
+        </span>
+        <span className="flex items-center gap-1">
+          <Kbd>Esc</Kbd> close
+        </span>
       </div>
     </div>
   )

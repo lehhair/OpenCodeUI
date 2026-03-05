@@ -1,5 +1,6 @@
 export { Button } from './Button'
 export { IconButton } from './IconButton'
+export { Kbd } from './Kbd'
 export { MenuItem } from './MenuItem'
 export { DropdownMenu } from './DropdownMenu'
 export { ScrollArea, CodeScrollArea } from './ScrollArea'

@@ -428,7 +428,19 @@ function InputBoxComponent({
           }
           return
         }
-        case 'Enter':
+        case 'Enter': {
+          // 文件夹 → 进入二级目录；文件/agent → 确认选中
+          e.preventDefault()
+          const selected = mentionMenuRef.current.getSelectedItem()
+          if (selected?.type === 'folder') {
+            const basePath = (selected.relativePath || selected.displayName).replace(/\/+$/, '')
+            const folderPath = basePath + '/'
+            updateMentionQuery(folderPath)
+          } else {
+            mentionMenuRef.current.selectCurrent()
+          }
+          return
+        }
         case 'Tab':
           e.preventDefault()
           mentionMenuRef.current.selectCurrent()
