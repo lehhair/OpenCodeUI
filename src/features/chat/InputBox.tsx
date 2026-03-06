@@ -847,7 +847,7 @@ function InputBoxComponent({
 
   return (
     <div className="w-full">
-      <div className="mx-auto max-w-3xl px-4 pb-3 pointer-events-auto transition-[max-width] duration-300 ease-in-out" style={{ paddingBottom: 'max(12px, var(--safe-area-inset-bottom, 12px))' }}>
+      <div className="mx-auto max-w-3xl px-4 pointer-events-auto transition-[max-width] duration-300 ease-in-out" style={{ paddingBottom: 'var(--safe-area-inset-bottom, 0px)' }}>
         <div
           ref={contentWrapRef}
           className={`flex flex-col gap-2 ${isCollapsed ? 'justify-end' : ''}`}
@@ -1039,12 +1039,16 @@ function InputBoxComponent({
                   </div>
                 </div>
               </div>
-
-              {/* Footer: disclaimer + todo progress — 键盘弹起时被键盘遮挡，无需隐藏 */}
-              <InputFooter sessionId={sessionId} onNewChat={onNewChat} inputContainerRef={inputContainerRef} />
             </>
           )}
         </div>
+
+        {/* Footer: 输入框下方固定高度区域，内容垂直水平居中 */}
+        {!isCollapsed && (
+          <div className="h-8 flex items-center justify-center">
+            <InputFooter sessionId={sessionId} onNewChat={onNewChat} inputContainerRef={inputContainerRef} />
+          </div>
+        )}
       </div>
     </div>
   )

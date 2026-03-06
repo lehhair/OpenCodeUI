@@ -18,6 +18,7 @@ import { findModelByKey } from './utils/modelUtils'
 import { isTauri } from './utils/tauri'
 import type { Attachment } from './api'
 import { createPtySession } from './api/pty'
+import { autoApproveStore } from './store/autoApproveStore'
 import type { TerminalTab } from './store/layoutStore'
 
 function App() {
@@ -33,6 +34,12 @@ function App() {
   // Cancel Hint (double-Esc to abort)
   // ============================================
   const [showCancelHint, setShowCancelHint] = useState(false)
+
+  // ============================================
+  // Full Auto Hint
+  // ============================================
+  const [fullAutoHint, setFullAutoHint] = useState<string | null>(null)
+  const fullAutoHintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // ============================================
   // Theme
@@ -96,6 +103,15 @@ function App() {
     })
     ro.observe(el)
     return () => ro.disconnect()
+  }, [])
+
+  // Full Auto hint: 订阅 toggle 变更，在输入框上方弹提示
+  useEffect(() => {
+    return autoApproveStore.onFullAutoChange((enabled) => {
+      if (fullAutoHintTimerRef.current) clearTimeout(fullAutoHintTimerRef.current)
+      setFullAutoHint(enabled ? 'Act without asking · on' : 'Act without asking · off')
+      fullAutoHintTimerRef.current = setTimeout(() => setFullAutoHint(null), 2000)
+    })
   }, [])
 
   // Viewport height tracking
@@ -379,6 +395,9 @@ function App() {
       }
     },
     copyLastResponse: handleCopyLastResponse,
+    toggleFullAuto: () => {
+      autoApproveStore.setFullAuto(!autoApproveStore.fullAuto)
+    },
   }), [
     openSettings,
     openProject,
@@ -579,15 +598,19 @@ function App() {
               ref={inputBoxWrapperRef}
               className="absolute bottom-0 left-0 right-0 z-10 pointer-events-none"
             >
-              {/* Double-Esc cancel hint */}
-              {showCancelHint && (
-                <div className="flex justify-center mb-2 pointer-events-none">
+              {/* Hints — absolute 浮层，不占文档流，不推消息 */}
+              {(showCancelHint || (fullAutoHint && !showCancelHint)) && (
+                <div className="absolute bottom-full inset-x-0 flex justify-center pb-2 pointer-events-none z-20">
                   <div className="px-3 py-1.5 bg-bg-000/95 border border-border-200 rounded-lg shadow-lg text-xs text-text-300 backdrop-blur-sm animate-in fade-in slide-in-from-bottom-2 duration-150">
-                    Press <kbd className="mx-0.5 px-1.5 py-0.5 bg-bg-200 border border-border-200 rounded text-[11px] font-mono font-medium text-text-200">Esc</kbd> again to stop
+                    {showCancelHint ? (
+                      <>Press <kbd className="mx-0.5 px-1.5 py-0.5 bg-bg-200 border border-border-200 rounded text-[11px] font-mono font-medium text-text-200">Esc</kbd> again to stop</>
+                    ) : (
+                      fullAutoHint
+                    )}
                   </div>
                 </div>
               )}
-              <InputBox 
+              <InputBox
                 onSend={handleSend} 
                 onAbort={handleAbort}
                 onCommand={handleCommand}

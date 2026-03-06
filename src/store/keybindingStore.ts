@@ -28,6 +28,8 @@ export type KeybindingAction =
   | 'sendMessage'
   | 'cancelMessage'
   | 'copyLastResponse'
+  // Permission
+  | 'toggleFullAuto'
 
 /**
  * 快捷键配置
@@ -38,7 +40,7 @@ export interface KeybindingConfig {
   description: string
   defaultKey: string      // 默认快捷键
   currentKey: string      // 当前快捷键（用户可修改）
-  category: 'general' | 'session' | 'terminal' | 'model' | 'message'
+  category: 'general' | 'session' | 'terminal' | 'model' | 'message' | 'permission'
 }
 
 /**
@@ -92,6 +94,9 @@ const DEFAULT_KEYBINDINGS: KeybindingConfig[] = [
   { action: 'sendMessage', label: 'Send Message', description: 'Send current message', defaultKey: 'Ctrl+Enter', currentKey: 'Ctrl+Enter', category: 'message' },
   { action: 'cancelMessage', label: 'Cancel Message', description: 'Cancel current response', defaultKey: 'Escape', currentKey: 'Escape', category: 'message' },
   { action: 'copyLastResponse', label: 'Copy Response', description: 'Copy last AI response', defaultKey: 'Alt+C', currentKey: 'Alt+C', category: 'message' },
+  
+  // Permission
+  { action: 'toggleFullAuto', label: 'Act Without Asking', description: 'Toggle auto-approve all actions', defaultKey: 'Alt+Y', currentKey: 'Alt+Y', category: 'permission' },
 ]
 
 /**

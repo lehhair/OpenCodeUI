@@ -5,6 +5,9 @@
 
 import { serverStorage } from '../utils/perServerStorage'
 
+// Full Auto 状态变更回调
+type FullAutoListener = (enabled: boolean) => void
+
 /**
  * 自动批准规则
  */
@@ -40,6 +43,11 @@ class AutoApproveStore {
   private _enabled: boolean = false
   private readonly STORAGE_KEY = 'opencode-auto-approve-enabled'
   
+  // Full Auto 模式（纯内存，不持久化，刷新即关）
+  // 开启后所有权限请求无差别自动 once 放行
+  private _fullAuto: boolean = false
+  private _fullAutoListeners = new Set<FullAutoListener>()
+  
   constructor() {
     // 从 localStorage 读取开关状态
     try {
@@ -60,8 +68,12 @@ class AutoApproveStore {
     } catch {
       this._enabled = false
     }
-    // 切换服务器时也清空所有规则
+    // 切换服务器时清空规则并关闭 Full Auto
     this.rulesMap.clear()
+    if (this._fullAuto) {
+      this._fullAuto = false
+      this._fullAutoListeners.forEach(fn => fn(false))
+    }
   }
   
   /**
@@ -81,6 +93,40 @@ class AutoApproveStore {
     } catch {
       // ignore
     }
+  }
+  
+  // ---- Full Auto 模式 ----
+  
+  /**
+   * Full Auto 开关状态
+   */
+  get fullAuto(): boolean {
+    return this._fullAuto
+  }
+  
+  /**
+   * 设置 Full Auto 模式
+   * 纯内存，不持久化
+   */
+  setFullAuto(value: boolean): void {
+    this._fullAuto = value
+    this._fullAutoListeners.forEach(fn => fn(value))
+  }
+  
+  /**
+   * 订阅 Full Auto 状态变更
+   */
+  onFullAutoChange(listener: FullAutoListener): () => void {
+    this._fullAutoListeners.add(listener)
+    return () => { this._fullAutoListeners.delete(listener) }
+  }
+  
+  /**
+   * Full Auto 模式下判断是否自动批准
+   * 无条件放行，不看规则
+   */
+  shouldFullAutoApprove(): boolean {
+    return this._fullAuto
   }
   
   /**

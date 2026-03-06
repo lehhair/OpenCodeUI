@@ -143,6 +143,12 @@ export function useChatSession({ chatAreaRef, currentModel, refetchModels }: Use
   // Global Events (SSE)
   useGlobalEvents({
     onPermissionAsked: (request) => {
+      // Full Auto 模式：无差别自动 once 放行
+      if (autoApproveStore.shouldFullAutoApprove()) {
+        handlePermissionReply(request.id, 'once', effectiveDirectory)
+        return
+      }
+      
       // 自动批准检查（实验性功能）
       if (autoApproveStore.enabled && autoApproveStore.shouldAutoApprove(
         request.sessionID,

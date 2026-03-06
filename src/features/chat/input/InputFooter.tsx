@@ -1,18 +1,26 @@
-import { memo, useState, useRef, useEffect, useLayoutEffect } from 'react'
+import { memo, useState, useRef, useEffect, useLayoutEffect, useSyncExternalStore } from 'react'
 import type { RefObject } from 'react'
-import { CheckIcon, ClockIcon, CircleIcon, CloseIcon } from '../../../components/Icons'
+import { CheckIcon, ClockIcon, CircleIcon, CloseIcon, FastForwardIcon } from '../../../components/Icons'
 import { CircularProgress } from '../../../components/CircularProgress'
 import { useTodos, useTodoStats, useCurrentTask, todoStore } from '../../../store'
 import { getSessionTodos } from '../../../api/session'
+import { autoApproveStore } from '../../../store/autoApproveStore'
 import type { TodoItem } from '../../../types/api/event'
 
 // ============================================
-// InputFooter - disclaimer + todo progress
+// Full Auto 状态 hook
 // ============================================
-//
-// 无 todos → 纯 disclaimer (点击 new chat)
-// 有 todos → 左侧 todo 进度(点击弹 popover)，中间分隔点，右侧 new chat
-//
+
+function useFullAuto(): boolean {
+  return useSyncExternalStore(
+    (cb) => autoApproveStore.onFullAutoChange(cb),
+    () => autoApproveStore.fullAuto,
+  )
+}
+
+// ============================================
+// InputFooter - disclaimer + todo progress + full auto toggle
+// ============================================
 
 interface InputFooterProps {
   sessionId?: string | null
@@ -20,13 +28,18 @@ interface InputFooterProps {
   inputContainerRef?: RefObject<HTMLDivElement | null>
 }
 
-export const InputFooter = memo(function InputFooter({ sessionId, onNewChat, inputContainerRef }: InputFooterProps) {
+export const InputFooter = memo(function InputFooter({
+  sessionId,
+  onNewChat,
+  inputContainerRef,
+}: InputFooterProps) {
   const todos = useTodos(sessionId ?? null)
   const stats = useTodoStats(sessionId ?? null)
   const currentTask = useCurrentTask(sessionId ?? null)
   const [popoverOpen, setPopoverOpen] = useState(false)
   const popoverRef = useRef<HTMLDivElement>(null)
   const loadedRef = useRef<string | null>(null)
+  const fullAuto = useFullAuto()
 
   // 加载 session 时拉取初始 todos
   useEffect(() => {
@@ -62,22 +75,38 @@ export const InputFooter = memo(function InputFooter({ sessionId, onNewChat, inp
       ? 'All tasks done'
       : `${stats.total - stats.completed} remaining`
 
-  // 始终渲染同一个容器 div，避免 mount/unmount 导致高度跳变
   return (
     <div
-      className="flex items-center justify-center gap-2 pt-1 text-[11px] leading-none text-text-500 relative"
+      className="relative flex items-center justify-center gap-2 text-[11px] leading-none text-text-500"
       ref={popoverRef}
     >
+      {/* Fast-forward toggle */}
+      <button
+        onClick={() => autoApproveStore.setFullAuto(!fullAuto)}
+        className="shrink-0 flex items-center justify-center hover:text-text-300 transition-colors"
+        title={fullAuto ? 'Act without asking · click to disable' : 'Act without asking'}
+      >
+        <FastForwardIcon
+          size={11}
+          className={`transition-colors ${
+            fullAuto
+              ? 'text-warning-100 drop-shadow-[0_0_4px_var(--color-warning-100)]'
+              : ''
+          }`}
+        />
+      </button>
+
+      <span className="text-text-500/30 shrink-0">·</span>
+
+      {/* disclaimer / todos */}
       {!hasTodos ? (
-        /* 无 todos：纯 disclaimer */
         <button
           onClick={onNewChat}
-          className="hover:text-text-300 transition-colors text-center"
+          className="hover:text-text-300 transition-colors"
         >
           AI can make mistakes. Please double-check responses.
         </button>
       ) : (
-        /* 有 todos：左侧进度 + 分隔 + 右侧 new chat */
         <>
           <button
             onClick={() => setPopoverOpen(!popoverOpen)}
@@ -102,13 +131,12 @@ export const InputFooter = memo(function InputFooter({ sessionId, onNewChat, inp
         </>
       )}
 
-      {/* Popover */}
+      {/* Todo Popover */}
       {popoverOpen && hasTodos && (
         <PopoverPanel inputContainerRef={inputContainerRef}>
           {/* 顶部区域：大进度环 + 统计 */}
           <div className="px-4 pt-4 pb-3 bg-gradient-to-b from-bg-200/50 to-transparent">
             <div className="flex items-center gap-4">
-              {/* 大进度环 */}
               <div className="relative">
                 <CircularProgress
                   progress={progress}
@@ -123,17 +151,15 @@ export const InputFooter = memo(function InputFooter({ sessionId, onNewChat, inp
                   {isAllDone ? <CheckIcon size={20} strokeWidth={2.5} /> : `${Math.round(progress * 100)}%`}
                 </span>
               </div>
-              
-              {/* 统计文字 */}
               <div className="flex-1">
                 <div className="text-sm font-medium text-text-100">
                   {isAllDone ? 'All Done' : `${stats.completed} of ${stats.total} tasks`}
                 </div>
                 <div className="text-xs text-text-500 mt-0.5">
-                  {isAllDone 
-                    ? 'Great work!' 
-                    : stats.inProgress > 0 
-                      ? `${stats.inProgress} in progress` 
+                  {isAllDone
+                    ? 'Great work!'
+                    : stats.inProgress > 0
+                      ? `${stats.inProgress} in progress`
                       : `${stats.total - stats.completed} remaining`
                   }
                 </div>
@@ -141,10 +167,8 @@ export const InputFooter = memo(function InputFooter({ sessionId, onNewChat, inp
             </div>
           </div>
 
-          {/* 分隔线 */}
           <div className="h-px bg-border-200/40 mx-3" />
 
-          {/* Todo 列表 */}
           <div className="max-h-56 overflow-y-auto custom-scrollbar p-2">
             {todos.map((todo) => (
               <TodoRow key={todo.id} todo={todo} />
@@ -160,9 +184,9 @@ export const InputFooter = memo(function InputFooter({ sessionId, onNewChat, inp
 // PopoverPanel - 宽度对齐输入框的弹出面板
 // ============================================
 
-function PopoverPanel({ inputContainerRef, children }: { 
+function PopoverPanel({ inputContainerRef, children }: {
   inputContainerRef?: RefObject<HTMLDivElement | null>
-  children: React.ReactNode 
+  children: React.ReactNode
 }) {
   const [style, setStyle] = useState<React.CSSProperties>({})
   const ref = useRef<HTMLDivElement>(null)
@@ -175,7 +199,6 @@ function PopoverPanel({ inputContainerRef, children }: {
     const update = () => {
       const cRect = container.getBoundingClientRect()
       const fRect = footer.getBoundingClientRect()
-      // popover 相对于 footer（relative 父元素）定位
       setStyle({
         width: cRect.width,
         left: cRect.left - fRect.left,
@@ -189,7 +212,7 @@ function PopoverPanel({ inputContainerRef, children }: {
   }, [inputContainerRef])
 
   return (
-    <div 
+    <div
       ref={ref}
       style={style}
       className="absolute bottom-full mb-2 bg-bg-100 border border-border-200/50 rounded-2xl shadow-2xl shadow-black/20 overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-150 z-50"
@@ -200,7 +223,7 @@ function PopoverPanel({ inputContainerRef, children }: {
 }
 
 // ============================================
-// MiniProgress - 极小进度圆环 (12px)
+// MiniProgress - 极小进度圆环
 // ============================================
 
 function MiniProgress({ size, progress, done }: { size: number; progress: number; done: boolean }) {

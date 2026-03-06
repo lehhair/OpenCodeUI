@@ -155,7 +155,7 @@ function KeybindingRow({ config, onEdit, onReset, isKeyUsed }: KeybindingRowProp
 // Main
 // ============================================
 
-const CATEGORY_ORDER: KeybindingConfig['category'][] = ['general', 'session', 'terminal', 'model', 'message']
+const CATEGORY_ORDER: KeybindingConfig['category'][] = ['general', 'session', 'terminal', 'model', 'message', 'permission']
 
 const CATEGORY_LABELS: Record<KeybindingConfig['category'], string> = {
   general: 'General',
@@ -163,6 +163,7 @@ const CATEGORY_LABELS: Record<KeybindingConfig['category'], string> = {
   terminal: 'Terminal',
   model: 'Model',
   message: 'Message',
+  permission: 'Permission',
 }
 
 export function KeybindingsSection() {
