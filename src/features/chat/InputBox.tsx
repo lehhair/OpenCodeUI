@@ -845,9 +845,13 @@ function InputBoxComponent({
     if (a.agentName) excludeValues.add(a.agentName)
   })
 
+  const bottomDockPadding = isCollapsed
+    ? 'calc(var(--safe-area-inset-bottom, 0px) + 12px)'
+    : 'var(--safe-area-inset-bottom, 0px)'
+
   return (
     <div className="w-full">
-      <div className="mx-auto max-w-3xl px-4 pointer-events-auto transition-[max-width] duration-300 ease-in-out" style={{ paddingBottom: 'var(--safe-area-inset-bottom, 0px)' }}>
+      <div className="mx-auto max-w-3xl px-4 pointer-events-auto transition-[max-width] duration-300 ease-in-out" style={{ paddingBottom: bottomDockPadding }}>
         <div
           ref={contentWrapRef}
           className={`flex flex-col gap-2 ${isCollapsed ? 'justify-end' : ''}`}
