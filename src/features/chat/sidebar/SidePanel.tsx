@@ -1,6 +1,5 @@
 import { useCallback, useMemo, useState, useEffect, useRef } from 'react'
 import { SessionList } from '../../sessions'
-import { ProjectRecentList } from './ProjectRecentList'
 import { ConfirmDialog } from '../../../components/ui/ConfirmDialog'
 import { ShareDialog } from '../ShareDialog'
 import { ContextDetailsDialog } from './ContextDetailsDialog'
@@ -35,7 +34,7 @@ import {
   type ApiSession,
   type ConnectionInfo,
 } from '../../../api'
-import { isSameDirectory, serverStorage } from '../../../utils'
+import { isSameDirectory } from '../../../utils'
 import { uiErrorHandler } from '../../../utils'
 import type { SessionStats } from '../../../hooks'
 
@@ -57,10 +56,6 @@ function getParentPath(fullPath: string): string {
 // - 按钮内容使用 -translate-x-2 让图标在收起时居中
 // - 文字用 opacity 过渡，不改变布局
 // - 收起宽度 49px，展开宽度 288px
-
-type RecentView = 'list' | 'directories'
-
-const STORAGE_KEY_RECENT_VIEW = 'sidebar-recents-view'
 
 interface SidePanelProps {
   onNewSession: () => void
@@ -110,10 +105,6 @@ export function SidePanel({
   })
   const [projectsExpanded, setProjectsExpanded] = useState(false)
   const [sidebarTab, setSidebarTab] = useState<'recents' | 'active'>('recents')
-  const [recentView, setRecentView] = useState<RecentView>(() => {
-    const stored = serverStorage.get(STORAGE_KEY_RECENT_VIEW)
-    return stored === 'directories' ? 'directories' : 'list'
-  })
 
   const showLabels = isExpanded || isMobile
   const newChatShortcut = useKeybindingLabel('newSession')
@@ -134,10 +125,6 @@ export function SidePanel({
   useEffect(() => {
     return subscribeToConnectionState(setConnectionState)
   }, [])
-
-  useEffect(() => {
-    serverStorage.set(STORAGE_KEY_RECENT_VIEW, recentView)
-  }, [recentView])
 
   const { sessions, isLoading, isLoadingMore, hasMore, search, setSearch, loadMore, deleteSession, refresh } =
     useSessionContext()
@@ -238,19 +225,6 @@ export function SidePanel({
     }
   }, [currentDirectory, projects])
 
-  const directoryProjects = useMemo<ProjectItem[]>(() => {
-    const list = projects.filter(project => project.id !== 'global')
-
-    if (
-      currentProject.id !== 'global' &&
-      !list.some(project => isSameDirectory(project.worktree, currentProject.worktree))
-    ) {
-      list.unshift(currentProject)
-    }
-
-    return list
-  }, [projects, currentProject])
-
   const handleSelectProject = useCallback(
     (projectId: string) => {
       if (projectId === 'global') {
@@ -310,14 +284,6 @@ export function SidePanel({
     [currentDirectory, refresh],
   )
 
-  const handleRenameSession = useCallback(async (session: ApiSession, newTitle: string) => {
-    try {
-      await updateSession(session.id, { title: newTitle }, session.directory)
-    } catch (e) {
-      uiErrorHandler('rename session', e)
-    }
-  }, [])
-
   const handleDeleteSession = useCallback(
     async (sessionId: string) => {
       await deleteSession(sessionId)
@@ -327,15 +293,6 @@ export function SidePanel({
       }
     },
     [deleteSession, onNewSession, selectedSessionId],
-  )
-
-  const handleProjectSessionDeleted = useCallback(
-    (sessionId: string) => {
-      if (selectedSessionId === sessionId) {
-        onNewSession()
-      }
-    },
-    [onNewSession, selectedSessionId],
   )
 
   useEffect(() => {
@@ -573,73 +530,30 @@ export function SidePanel({
                 </span>
               )}
             </button>
-
-            {sidebarTab === 'recents' && (
-              <div className="ml-auto inline-flex items-center rounded-lg bg-bg-200/50 p-0.5">
-                <button
-                  onClick={() => setRecentView('list')}
-                  className={`rounded-md px-2 py-1 text-[10px] font-semibold uppercase tracking-wider transition-colors ${
-                    recentView === 'list' ? 'bg-bg-000 text-text-100 shadow-sm' : 'text-text-500 hover:text-text-300'
-                  }`}
-                  title="Current scoped list"
-                >
-                  List
-                </button>
-                <button
-                  onClick={() => setRecentView('directories')}
-                  className={`rounded-md px-2 py-1 text-[10px] font-semibold uppercase tracking-wider transition-colors ${
-                    recentView === 'directories'
-                      ? 'bg-bg-000 text-text-100 shadow-sm'
-                      : 'text-text-500 hover:text-text-300'
-                  }`}
-                  title="Per-project lists"
-                >
-                  Folders
-                </button>
-              </div>
-            )}
           </div>
 
           {/* Recents Tab */}
           {sidebarTab === 'recents' && (
             <div className="flex-1 overflow-hidden">
-              {recentView === 'directories' && !search ? (
-                directoryProjects.length > 0 ? (
-                  <ProjectRecentList
-                    projects={directoryProjects}
-                    currentDirectory={currentDirectory}
-                    selectedSessionId={selectedSessionId}
-                    onSelectSession={handleSelectActive}
-                    onRenameSession={handleRenameSession}
-                    onSessionDeleted={handleProjectSessionDeleted}
-                  />
-                ) : (
-                  <div className="flex h-full flex-col items-center justify-center px-6 text-center text-text-400 opacity-70">
-                    <p className="text-xs font-medium text-text-300">No project folders yet</p>
-                    <p className="mt-1 text-[11px] text-text-400/70">Add a project to browse recent chats by folder.</p>
-                  </div>
-                )
-              ) : (
-                <SessionList
-                  sessions={sessions}
-                  selectedId={selectedSessionId}
-                  isLoading={isLoading}
-                  isLoadingMore={isLoadingMore}
-                  hasMore={hasMore}
-                  search={search}
-                  onSearchChange={setSearch}
-                  onSelect={handleSelect}
-                  onDelete={handleDeleteSession}
-                  onRename={handleRename}
-                  onLoadMore={loadMore}
-                  onNewChat={onNewSession}
-                  showHeader={false}
-                  grouped={false}
-                  density="compact"
-                  showStats
-                  showDirectory={recentView === 'directories' || !currentDirectory}
-                />
-              )}
+              <SessionList
+                sessions={sessions}
+                selectedId={selectedSessionId}
+                isLoading={isLoading}
+                isLoadingMore={isLoadingMore}
+                hasMore={hasMore}
+                search={search}
+                onSearchChange={setSearch}
+                onSelect={handleSelect}
+                onDelete={handleDeleteSession}
+                onRename={handleRename}
+                onLoadMore={loadMore}
+                onNewChat={onNewSession}
+                showHeader={false}
+                grouped={false}
+                density="compact"
+                showStats
+                showDirectory={!currentDirectory}
+              />
             </div>
           )}
 

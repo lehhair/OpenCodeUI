@@ -10,8 +10,6 @@ interface UseSessionsOptions {
   rootsOnly?: boolean
   /** 按目录过滤 */
   directory?: string
-  /** 延迟启用，用于懒加载 */
-  enabled?: boolean
 }
 
 interface UseSessionsResult {
@@ -34,13 +32,13 @@ interface UseSessionsResult {
 }
 
 export function useSessions(options: UseSessionsOptions = {}): UseSessionsResult {
-  const { pageSize = 20, initialSearch = '', rootsOnly = true, directory, enabled = true } = options
+  const { pageSize = 20, initialSearch = '', rootsOnly = true, directory } = options
 
   // 标准化 directory 路径 (移除末尾斜杠，统一正斜杠)
   const normalizedDirectory = directory ? directory.replace(/\\/g, '/').replace(/\/$/, '') : undefined
 
   const [sessions, setSessions] = useState<ApiSession[]>([])
-  const [isLoading, setIsLoading] = useState(enabled)
+  const [isLoading, setIsLoading] = useState(true)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [error, setError] = useState<Error | null>(null)
   const [hasMore, setHasMore] = useState(true)
@@ -54,8 +52,6 @@ export function useSessions(options: UseSessionsOptions = {}): UseSessionsResult
   // 获取会话列表
   const fetchSessions = useCallback(
     async (params: SessionListParams & { append?: boolean } = {}) => {
-      if (!enabled) return
-
       const { append = false, ...queryParams } = params
       const requestId = ++requestIdRef.current
 
@@ -95,17 +91,11 @@ export function useSessions(options: UseSessionsOptions = {}): UseSessionsResult
         }
       }
     },
-    [pageSize, rootsOnly, normalizedDirectory, enabled],
+    [pageSize, rootsOnly, normalizedDirectory],
   )
 
   // 初始加载和搜索变化时重新加载
   useEffect(() => {
-    if (!enabled) {
-      setIsLoading(false)
-      setIsLoadingMore(false)
-      return
-    }
-
     // 防抖处理搜索
     if (searchTimerRef.current) {
       clearTimeout(searchTimerRef.current)
@@ -123,11 +113,11 @@ export function useSessions(options: UseSessionsOptions = {}): UseSessionsResult
         clearTimeout(searchTimerRef.current)
       }
     }
-  }, [search, fetchSessions, enabled])
+  }, [search, fetchSessions])
 
   // 加载更多
   const loadMore = useCallback(async () => {
-    if (!enabled || isLoadingMore || !hasMore || sessions.length === 0) return
+    if (isLoadingMore || !hasMore || sessions.length === 0) return
 
     // 使用最后一个 session 的更新时间作为游标
     const lastSession = sessions[sessions.length - 1]
@@ -138,13 +128,12 @@ export function useSessions(options: UseSessionsOptions = {}): UseSessionsResult
       start: startTime,
       append: true,
     })
-  }, [sessions, search, hasMore, isLoadingMore, fetchSessions, enabled])
+  }, [sessions, search, hasMore, isLoadingMore, fetchSessions])
 
   // 刷新
   const refresh = useCallback(async () => {
-    if (!enabled) return
     await fetchSessions({ search: search || undefined })
-  }, [search, fetchSessions, enabled])
+  }, [search, fetchSessions])
 
   // 创建新会话
   const create = useCallback(
@@ -162,14 +151,11 @@ export function useSessions(options: UseSessionsOptions = {}): UseSessionsResult
   )
 
   // 删除会话
-  const remove = useCallback(
-    async (sessionId: string) => {
-      await deleteSession(sessionId, normalizedDirectory)
-      // 从列表中移除
-      setSessions(prev => prev.filter(s => s.id !== sessionId))
-    },
-    [normalizedDirectory],
-  )
+  const remove = useCallback(async (sessionId: string) => {
+    await deleteSession(sessionId)
+    // 从列表中移除
+    setSessions(prev => prev.filter(s => s.id !== sessionId))
+  }, [])
 
   return {
     sessions,

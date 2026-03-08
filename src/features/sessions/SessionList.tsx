@@ -24,10 +24,6 @@ interface SessionListProps {
   showStats?: boolean
   /** Global 模式下显示每个 session 的目录名 */
   showDirectory?: boolean
-  /** 限制滚动区域最大高度，用于嵌套列表 */
-  scrollMaxHeight?: number
-  /** 空状态文案 */
-  emptyStateLabel?: string
 }
 
 // 时间分组类型
@@ -51,8 +47,6 @@ export function SessionList({
   density = 'default',
   showStats = true,
   showDirectory = false,
-  scrollMaxHeight,
-  emptyStateLabel = 'No chats yet',
 }: SessionListProps) {
   const listRef = useRef<HTMLDivElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
@@ -120,7 +114,7 @@ export function SessionList({
   const showGroups = !search && grouped
 
   return (
-    <div className={`flex flex-col ${scrollMaxHeight ? 'min-h-0' : 'h-full'}`}>
+    <div className="flex flex-col h-full">
       {/* Search Bar + New Chat */}
       {showHeader && (
         <div className="px-3 pb-2 flex-shrink-0">
@@ -150,8 +144,7 @@ export function SessionList({
       {/* Session List */}
       <div
         ref={listRef}
-        className={`${scrollMaxHeight ? '' : 'flex-1'} min-h-0 overflow-y-auto custom-scrollbar px-2 ${isCompact ? 'pb-3 space-y-2' : 'pb-4 space-y-4'}`}
-        style={scrollMaxHeight ? { maxHeight: `${scrollMaxHeight}px` } : undefined}
+        className={`flex-1 overflow-y-auto custom-scrollbar px-2 ${isCompact ? 'pb-3 space-y-2' : 'pb-4 space-y-4'}`}
       >
         {isLoading && sessions.length === 0 ? (
           <div className="flex items-center justify-center py-8">
@@ -159,7 +152,7 @@ export function SessionList({
           </div>
         ) : sessions.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-text-400 opacity-60">
-            <p className="text-xs">{search ? 'No matches found' : emptyStateLabel}</p>
+            <p className="text-xs">{search ? 'No matches found' : 'No chats yet'}</p>
           </div>
         ) : showGroups ? (
           // Grouped View
