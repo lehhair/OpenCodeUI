@@ -1,5 +1,17 @@
 # Changelog
 
+## [v0.1.12] - 2026-03-09
+
+- fix: preserve changelog ordering during release prep (039b906)
+- chore: ignore generated tauri assets in lint (071e2db)
+- fix: keep slash command composer responsive (42cdcf6)
+- fix: restore cross-platform Tauri app handling (6b84717)
+- perf: replace std default hasher with rapidhash (c6d5bdb)
+- refactor: reorganize the file structure of Tauri backend (fa5edf6)
+- perf: refactor OpenDirectoryState with papaya HashMap to reduce lock contention (6efd2a0)
+- perf: optimize ServiceState.child_pid with AtomicU32 to reduce Mutex contention (a42df0b)
+- perf: optimize SseState implementation - replace Mutex+Hashmap with papaya library to reduce contention and improve performance (f586a84)
+
 ## [v0.1.11] - 2026-03-08
 
 - feat: add an optional folder-style Recent view while preserving the original session row details and per-folder ordering controls
