@@ -154,7 +154,10 @@ pub fn run() {
 
     // Android: 只注册 SSE commands
     #[cfg(target_os = "android")]
-    let builder = builder.invoke_handler(tauri::generate_handler![sse_connect, sse_disconnect,]);
+    let builder = builder.invoke_handler(tauri::generate_handler![
+        commands::sse::sse_connect,
+        commands::sse::sse_disconnect,
+    ]);
 
     // build + run 分开调用，以支持 macOS RunEvent::Opened
     let app = builder
@@ -174,14 +177,12 @@ pub fn run() {
                         // 如果只有 main 窗口且它还没消费目录，说明是冷启动，设给 main
                         // 否则新建窗口
                         if let Some(state) = _app_handle.try_state::<OpenDirectoryState>() {
-                            let mut pending = state.pending.lock().unwrap();
+                            let pending = state.pending().pin();
                             let win_count = _app_handle.webview_windows().len();
                             if win_count <= 1 && !pending.contains_key("main") {
-                                pending.insert("main".to_string(), dir.clone());
-                                drop(pending);
+                                pending.insert("main".to_string(), Arc::from(dir.clone()));
                                 let _ = _app_handle.emit("open-directory", dir);
                             } else {
-                                drop(pending);
                                 create_new_window(_app_handle, Some(dir));
                             }
                         }

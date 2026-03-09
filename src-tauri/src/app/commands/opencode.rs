@@ -127,7 +127,7 @@ pub async fn start_opencode_service(
 /// 停止 opencode serve
 #[tauri::command]
 pub async fn stop_opencode_service(state: State<'_, ServiceState>) -> Result<(), String> {
-    let pid = state.child_pid.load(Ordering::SeqCst);
+    let pid = state.child_pid.swap(0, Ordering::SeqCst);
     state.we_started.store(false, Ordering::SeqCst);
 
     if pid > 0 {
@@ -152,7 +152,7 @@ pub async fn confirm_close_app(
     stop_service: bool,
 ) -> Result<(), String> {
     if stop_service {
-        let pid = state.child_pid.load(Ordering::SeqCst);
+        let pid = state.child_pid.swap(0, Ordering::SeqCst);
         if pid > 0 {
             log::info!("Closing app and stopping opencode serve, PID: {}", pid);
             kill_process_by_pid(pid);
