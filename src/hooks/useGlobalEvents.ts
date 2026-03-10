@@ -32,25 +32,42 @@ interface GlobalEventsCallbacks {
 
 // ============================================
 // 待处理请求缓存 - 处理 permission/question 事件先于 session.created 到达的时序问题
+// 同一 session 可能有多个 pending 请求，所以用数组
 // ============================================
 interface PendingRequest<T> {
   request: T
   timestamp: number
 }
 
-const pendingPermissions = new Map<string, PendingRequest<ApiPermissionRequest>>()
-const pendingQuestions = new Map<string, PendingRequest<ApiQuestionRequest>>()
+const pendingPermissions = new Map<string, PendingRequest<ApiPermissionRequest>[]>()
+const pendingQuestions = new Map<string, PendingRequest<ApiQuestionRequest>[]>()
 
 // 5秒后过期，防止内存泄漏
 const PENDING_TIMEOUT = 5000
 
-function cleanupExpired<T>(map: Map<string, PendingRequest<T>>) {
+function cleanupExpired<T>(map: Map<string, PendingRequest<T>[]>) {
   const now = Date.now()
-  for (const [key, value] of map) {
-    if (now - value.timestamp > PENDING_TIMEOUT) {
+  for (const [key, arr] of map) {
+    const filtered = arr.filter(item => now - item.timestamp <= PENDING_TIMEOUT)
+    if (filtered.length === 0) {
       map.delete(key)
+    } else if (filtered.length !== arr.length) {
+      map.set(key, filtered)
     }
   }
+}
+
+function addPending<T>(map: Map<string, PendingRequest<T>[]>, sessionID: string, request: T) {
+  const arr = map.get(sessionID) || []
+  arr.push({ request, timestamp: Date.now() })
+  map.set(sessionID, arr)
+}
+
+function drainPending<T>(map: Map<string, PendingRequest<T>[]>, sessionID: string): T[] {
+  const arr = map.get(sessionID)
+  if (!arr || arr.length === 0) return []
+  map.delete(sessionID)
+  return arr.map(item => item.request)
 }
 
 async function fetchActiveScopeData(directories?: string[]) {
@@ -189,18 +206,14 @@ export function useGlobalEvents(callbacks?: GlobalEventsCallbacks, directories?:
         if (session.parentID) {
           childSessionStore.registerChildSession(session)
 
-          // 处理因时序问题缓存的权限请求
-          const pendingPermission = pendingPermissions.get(session.id)
-          if (pendingPermission && belongsToCurrentSession(session.id)) {
-            callbacksRef.current?.onPermissionAsked?.(pendingPermission.request)
-            pendingPermissions.delete(session.id)
-          }
-
-          // 处理因时序问题缓存的问题请求
-          const pendingQuestion = pendingQuestions.get(session.id)
-          if (pendingQuestion && belongsToCurrentSession(session.id)) {
-            callbacksRef.current?.onQuestionAsked?.(pendingQuestion.request)
-            pendingQuestions.delete(session.id)
+          // 处理因时序问题缓存的权限请求（可能有多个）
+          if (belongsToCurrentSession(session.id)) {
+            for (const req of drainPending(pendingPermissions, session.id)) {
+              callbacksRef.current?.onPermissionAsked?.(req)
+            }
+            for (const req of drainPending(pendingQuestions, session.id)) {
+              callbacksRef.current?.onQuestionAsked?.(req)
+            }
           }
         }
 
@@ -269,10 +282,7 @@ export function useGlobalEvents(callbacks?: GlobalEventsCallbacks, directories?:
         if (belongsToCurrentSession(request.sessionID)) {
           callbacksRef.current?.onPermissionAsked?.(request)
         } else {
-          pendingPermissions.set(request.sessionID, {
-            request,
-            timestamp: Date.now(),
-          })
+          addPending(pendingPermissions, request.sessionID, request)
         }
       },
 
@@ -305,10 +315,7 @@ export function useGlobalEvents(callbacks?: GlobalEventsCallbacks, directories?:
         if (belongsToCurrentSession(request.sessionID)) {
           callbacksRef.current?.onQuestionAsked?.(request)
         } else {
-          pendingQuestions.set(request.sessionID, {
-            request,
-            timestamp: Date.now(),
-          })
+          addPending(pendingQuestions, request.sessionID, request)
         }
       },
 
