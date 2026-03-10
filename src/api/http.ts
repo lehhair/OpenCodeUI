@@ -69,14 +69,15 @@ export const API_BASE = API_BASE_URL
 type QueryValue = string | number | boolean | undefined
 
 /**
- * 构建查询字符串（不进行 URL 编码，直接拼接）
- * 后端不解码，所以我们不编码
+ * 构建查询字符串
+ * 值会进行 URL 编码以安全处理空格、特殊字符等
+ * （Go 后端的 r.URL.Query().Get() 会自动解码）
  */
 export function buildQueryString(params: Record<string, QueryValue>): string {
   const parts: string[] = []
   for (const [key, value] of Object.entries(params)) {
     if (value !== undefined) {
-      parts.push(`${key}=${value}`)
+      parts.push(`${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
     }
   }
   return parts.length > 0 ? '?' + parts.join('&') : ''
