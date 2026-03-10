@@ -40,6 +40,9 @@ function endsWithTool(msg: Message): boolean {
   for (let i = msg.parts.length - 1; i >= 0; i--) {
     const p = msg.parts[i]
     if (p.type === 'snapshot' || p.type === 'patch' || p.type === 'step-start' || p.type === 'step-finish') continue
+    // skip empty reasoning / empty text — they carry no visible content
+    if (p.type === 'reasoning' && !(p as ReasoningPart).text?.trim()) continue
+    if (p.type === 'text' && (!(p as TextPart).text?.trim() || (p as TextPart).synthetic)) continue
     return p.type === 'tool'
   }
   return false

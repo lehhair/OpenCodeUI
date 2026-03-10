@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { buildVisibleMessageEntries } from './chatAreaVisibility'
-import type { Message, ToolPart } from '../../types/message'
+import type { Message, Part, ToolPart, ReasoningPart } from '../../types/message'
 
-function createAssistantMessage(id: string, parts: ToolPart[]): Message {
+function createAssistantMessage(id: string, parts: Part[]): Message {
   return {
     info: {
       id,
@@ -57,5 +57,23 @@ describe('buildVisibleMessageEntries', () => {
     expect(entries).toHaveLength(1)
     expect(entries[0].sourceIds).toEqual(['assistant-1', 'assistant-2'])
     expect(entries[0].message.parts).toHaveLength(2)
+  })
+
+  it('merges when first message ends with tool followed by empty reasoning', () => {
+    const emptyReasoning: ReasoningPart = {
+      id: 'reasoning-empty',
+      sessionID: 'session-1',
+      messageID: 'assistant-1',
+      type: 'reasoning',
+      text: '',
+      time: { start: 1, end: 2 },
+    }
+    const first = createAssistantMessage('assistant-1', [createToolPart('tool-1', 'assistant-1'), emptyReasoning])
+    const second = createAssistantMessage('assistant-2', [createToolPart('tool-2', 'assistant-2')])
+
+    const entries = buildVisibleMessageEntries([first, second])
+
+    expect(entries).toHaveLength(1)
+    expect(entries[0].sourceIds).toEqual(['assistant-1', 'assistant-2'])
   })
 })
