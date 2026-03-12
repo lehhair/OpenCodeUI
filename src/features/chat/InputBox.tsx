@@ -167,6 +167,7 @@ function InputBoxComponent({
   const prevRevertedTextRef = useRef<string | undefined>(undefined)
   const latestDraftRef = useRef<HistoryEntry>({ text: '', attachments: [] })
   const contentWrapRef = useRef<HTMLDivElement>(null)
+  const footerRef = useRef<HTMLDivElement>(null)
 
   // 附件横向轨道
   const {
@@ -193,6 +194,7 @@ function InputBoxComponent({
       textareaRef,
       inputContainerRef,
       contentWrapRef,
+      footerRef,
       registerInputBox,
       collapsedPermission,
       collapsedQuestion,
@@ -1044,7 +1046,11 @@ function InputBoxComponent({
 
         {/* Footer: 输入框下方固定高度区域，内容垂直水平居中 */}
         {!isCollapsed && (
-          <div className="h-8 flex items-center justify-center">
+          <div
+            ref={footerRef}
+            onPointerDown={handleContainerPointerDown}
+            className="h-8 flex items-center justify-center"
+          >
             <InputFooter sessionId={sessionId} onNewChat={onNewChat} inputContainerRef={inputContainerRef} />
           </div>
         )}

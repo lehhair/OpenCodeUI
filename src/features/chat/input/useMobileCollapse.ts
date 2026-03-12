@@ -18,6 +18,8 @@ interface UseMobileCollapseOptions {
   inputContainerRef: React.RefObject<HTMLDivElement | null>
   /** 内容包裹层 ref（用于 ResizeObserver 采样展开态高度） */
   contentWrapRef: React.RefObject<HTMLDivElement | null>
+  /** Footer 区域 ref（移动端点击不应触发收起） */
+  footerRef: React.RefObject<HTMLDivElement | null>
   /** 注册输入框容器用于动画 */
   registerInputBox?: (element: HTMLElement | null) => void
   /** 收起态的 permission/question 对话框 */
@@ -46,11 +48,25 @@ export function useMobileCollapse({
   textareaRef,
   inputContainerRef,
   contentWrapRef,
+  footerRef,
   registerInputBox,
   collapsedPermission,
   collapsedQuestion,
 }: UseMobileCollapseOptions): UseMobileCollapseReturn {
   const isMobile = useIsMobile()
+
+  // 判断节点是否在输入区域内部（inputContainer / contentWrap / footer）
+  const isInsideInputArea = useCallback(
+    (node: Node | null): boolean => {
+      if (!node) return false
+      return !!(
+        inputContainerRef.current?.contains(node) ||
+        contentWrapRef.current?.contains(node) ||
+        footerRef.current?.contains(node)
+      )
+    },
+    [inputContainerRef, contentWrapRef, footerRef],
+  )
 
   // isFocused: textarea 是否聚焦中（或用户正在与输入框容器交互中）
   const [isFocused, setIsFocused] = useState(false)
@@ -104,28 +120,16 @@ export function useMobileCollapse({
 
   const handleBlur = useCallback(
     (e: React.FocusEvent) => {
-      const nextTarget = e.relatedTarget as Node | null
-      // 焦点移到输入框容器或外层 contentWrap（包含 FloatingActions）内，不收起
-      if (nextTarget && inputContainerRef.current?.contains(nextTarget)) {
-        return
-      }
-      if (nextTarget && contentWrapRef.current?.contains(nextTarget)) {
-        return
-      }
+      // 焦点移到输入区域内部，不收起
+      if (isInsideInputArea(e.relatedTarget as Node | null)) return
+
       blurTimerRef.current = setTimeout(() => {
-        if (inputContainerRef.current?.contains(document.activeElement)) {
-          return
-        }
-        if (contentWrapRef.current?.contains(document.activeElement)) {
-          return
-        }
-        if (containerInteractingRef.current) {
-          return
-        }
+        if (isInsideInputArea(document.activeElement)) return
+        if (containerInteractingRef.current) return
         setIsFocused(false)
       }, 150)
     },
-    [inputContainerRef, contentWrapRef],
+    [isInsideInputArea],
   )
 
   // focus 时清掉 pending 的 blur timer
@@ -145,9 +149,12 @@ export function useMobileCollapse({
     if (!isFocused || !isMobile) return
 
     const handleOutsidePointerDown = (e: PointerEvent) => {
-      // 点击在输入框容器或外层 contentWrap 内部，不清除
-      if (inputContainerRef.current?.contains(e.target as Node)) return
-      if (contentWrapRef.current?.contains(e.target as Node)) return
+      if (isInsideInputArea(e.target as Node)) return
+
+      // 光标仍在输入框内时，不清除（移动端滚动/触摸可能不会触发 blur）
+      if (document.activeElement === textareaRef.current) return
+      if (isInsideInputArea(document.activeElement)) return
+
       setIsFocused(false)
     }
 
@@ -156,7 +163,7 @@ export function useMobileCollapse({
     return () => {
       document.removeEventListener('pointerdown', handleOutsidePointerDown, { capture: true })
     }
-  }, [isFocused, isMobile, inputContainerRef, contentWrapRef])
+  }, [isFocused, isMobile, isInsideInputArea, textareaRef])
 
   // ---- 持续追踪展开态内容区高度 ----
   useEffect(() => {
