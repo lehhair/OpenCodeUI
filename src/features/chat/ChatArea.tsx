@@ -77,6 +77,8 @@ export const ChatArea = memo(
       const topSentinelRef = useRef<HTMLDivElement>(null)
       const isAtBottomRef = useRef(true)
       const suppressScrollRef = useRef(false)
+      const userInteractingRef = useRef(false)
+      const userInteractingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
       const loadMoreRef = useRef(onLoadMore)
       loadMoreRef.current = onLoadMore
       const isLoadingRef = useRef(false)
@@ -132,10 +134,57 @@ export const ChatArea = memo(
       // Scroll: auto-scroll during streaming
       // ============================================
 
+      // User interaction tracking: pause auto-scroll while user is touching/scrolling
+      useEffect(() => {
+        const el = scrollRef.current
+        if (!el) return
+
+        const clearTimer = () => {
+          if (userInteractingTimerRef.current) {
+            clearTimeout(userInteractingTimerRef.current)
+            userInteractingTimerRef.current = null
+          }
+        }
+
+        const markInteracting = () => {
+          userInteractingRef.current = true
+          clearTimer()
+        }
+
+        const settleInteracting = (delay: number) => {
+          userInteractingRef.current = true
+          clearTimer()
+          userInteractingTimerRef.current = setTimeout(() => {
+            userInteractingRef.current = false
+          }, delay)
+        }
+
+        const handleWheel = () => settleInteracting(150)
+        const handleTouchStart = () => markInteracting()
+        const handleTouchMove = () => markInteracting()
+        const handleTouchEnd = () => settleInteracting(300)
+
+        el.addEventListener('wheel', handleWheel, { passive: true })
+        el.addEventListener('touchstart', handleTouchStart, { passive: true })
+        el.addEventListener('touchmove', handleTouchMove, { passive: true })
+        el.addEventListener('touchend', handleTouchEnd, { passive: true })
+        el.addEventListener('touchcancel', handleTouchEnd, { passive: true })
+
+        return () => {
+          el.removeEventListener('wheel', handleWheel)
+          el.removeEventListener('touchstart', handleTouchStart)
+          el.removeEventListener('touchmove', handleTouchMove)
+          el.removeEventListener('touchend', handleTouchEnd)
+          el.removeEventListener('touchcancel', handleTouchEnd)
+          clearTimer()
+          userInteractingRef.current = false
+        }
+      }, [])
+
       useEffect(() => {
         if (!isStreaming) return
         const interval = setInterval(() => {
-          if (suppressScrollRef.current || !isAtBottomRef.current) return
+          if (suppressScrollRef.current || !isAtBottomRef.current || userInteractingRef.current) return
           const el = scrollRef.current
           if (el) el.scrollTop = el.scrollHeight
         }, SCROLL_CHECK_INTERVAL_MS)
