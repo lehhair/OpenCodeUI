@@ -63,7 +63,7 @@ export const ChatArea = memo(
         onLoadMore,
         onUndo,
         canUndo,
-        hasMoreHistory = false,
+        hasMoreHistory: _hasMoreHistory = false,
         registerMessage,
         retryStatus = null,
         bottomPadding = 0,
