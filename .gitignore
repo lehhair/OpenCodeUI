@@ -24,6 +24,7 @@ workspace/
 
 # Rust
 src-tauri/target/
+src-router/target/
 
 # Generated material icons (copied from node_modules at postinstall)
 public/material-icons/
