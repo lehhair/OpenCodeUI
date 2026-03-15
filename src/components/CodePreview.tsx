@@ -40,6 +40,19 @@ export function CodePreview({ code, language, truncateLines = true, maxHeight, i
   // gutter 总宽度 = pl-4(16px) + 数字(gutterCh ch) + pr-3(12px)
   const gutterWidth = `calc(${gutterCh}ch + 1.75rem)`
 
+  // 最长行文本 — 用于 probe 元素精确撑开 scrollWidth（虚拟滚动下 DOM 测量不准）
+  const longestLine = useMemo(() => {
+    let max = '',
+      maxLen = 0
+    for (const line of lines) {
+      if (line.length > maxLen) {
+        maxLen = line.length
+        max = line
+      }
+    }
+    return truncateLines && maxLen > MAX_LINE_LENGTH ? max.slice(0, MAX_LINE_LENGTH) : max
+  }, [lines, truncateLines])
+
   // tokens 存在 ref 里，不经过 React state/props
   const enableHighlight = language !== 'text'
   const { tokensRef, version } = useSyntaxHighlightRef(code, {
@@ -218,14 +231,20 @@ export function CodePreview({ code, language, truncateLines = true, maxHeight, i
             className="flex-1 min-w-0 overflow-x-auto scrollbar-none"
             onScroll={handleContentScroll}
           >
-            <div className="inline-block min-w-full">{contentRows}</div>
+            <div className="inline-block min-w-full">
+              {contentRows}
+              {/* Probe: 最长行文本撑开 scrollWidth，visibility:hidden 不可见但参与布局 */}
+              <div className="pl-3 pr-4 whitespace-pre" style={{ visibility: 'hidden', height: 0, overflow: 'hidden' }}>
+                {longestLine}
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
       {/* Sticky proxy 横向滚动条 — 只在内容实际溢出时显示 */}
       {contentWidth > contentClientWidth && (
-        <div className="sticky bottom-0 z-10 flex backdrop-blur-sm">
+        <div className="sticky bottom-0 z-10 flex">
           {/* gutter 占位 */}
           <div className="shrink-0" style={{ width: gutterWidth }} />
           <div ref={scrollbarRef} className="flex-1 min-w-0 overflow-x-auto code-scrollbar" onScroll={handleScrollbar}>

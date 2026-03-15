@@ -188,6 +188,27 @@ const SplitDiffView = memo(function SplitDiffView({
 
   const totalHeight = pairedLines.length * LINE_HEIGHT
 
+  // 最长行文本 — probe 元素精确撑开 scrollWidth（虚拟滚动下 DOM 测量不准）
+  const { leftLongest, rightLongest } = useMemo(() => {
+    let lMax = '',
+      lLen = 0,
+      rMax = '',
+      rLen = 0
+    for (const l of before.split('\n')) {
+      if (l.length > lLen) {
+        lLen = l.length
+        lMax = l
+      }
+    }
+    for (const l of after.split('\n')) {
+      if (l.length > rLen) {
+        rLen = l.length
+        rMax = l
+      }
+    }
+    return { leftLongest: lMax, rightLongest: rMax }
+  }, [before, after])
+
   const { startIndex, endIndex, offsetY } = useMemo(() => {
     const start = Math.max(0, Math.floor(scrollTop / LINE_HEIGHT) - OVERSCAN)
     const visibleCount = Math.ceil(containerHeight / LINE_HEIGHT)
@@ -353,7 +374,12 @@ const SplitDiffView = memo(function SplitDiffView({
               className="flex-1 min-w-0 overflow-x-auto scrollbar-none"
               onScroll={handleLeftContentScroll}
             >
-              <div className="inline-block min-w-full">{leftContentRows}</div>
+              <div className="inline-block min-w-full">
+                {leftContentRows}
+                <div className="pr-2 whitespace-pre" style={{ visibility: 'hidden', height: 0, overflow: 'hidden' }}>
+                  {leftLongest}
+                </div>
+              </div>
             </div>
           </div>
 
@@ -369,7 +395,12 @@ const SplitDiffView = memo(function SplitDiffView({
               className="flex-1 min-w-0 overflow-x-auto scrollbar-none"
               onScroll={handleRightContentScroll}
             >
-              <div className="inline-block min-w-full">{rightContentRows}</div>
+              <div className="inline-block min-w-full">
+                {rightContentRows}
+                <div className="pr-2 whitespace-pre" style={{ visibility: 'hidden', height: 0, overflow: 'hidden' }}>
+                  {rightLongest}
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -377,7 +408,7 @@ const SplitDiffView = memo(function SplitDiffView({
 
       {/* Sticky proxy 横向滚动条 — 只在内容实际溢出时显示 */}
       {(leftContentWidth > leftClientWidth || rightContentWidth > rightClientWidth) && (
-        <div className="sticky bottom-0 z-10 flex backdrop-blur-sm">
+        <div className="sticky bottom-0 z-10 flex">
           <div
             ref={leftScrollbarRef}
             className="flex-1 overflow-x-auto code-scrollbar border-r border-border-100/30"
@@ -447,6 +478,25 @@ const UnifiedDiffView = memo(function UnifiedDiffView({
   })
 
   const lines = useMemo(() => computeUnifiedLines(before, after), [before, after])
+
+  // 最长行文本 — probe 元素精确撑开 scrollWidth
+  const longestLine = useMemo(() => {
+    let max = '',
+      maxLen = 0
+    for (const l of before.split('\n')) {
+      if (l.length > maxLen) {
+        maxLen = l.length
+        max = l
+      }
+    }
+    for (const l of after.split('\n')) {
+      if (l.length > maxLen) {
+        maxLen = l.length
+        max = l
+      }
+    }
+    return max
+  }, [before, after])
 
   const totalHeight = lines.length * LINE_HEIGHT
 
@@ -582,14 +632,19 @@ const UnifiedDiffView = memo(function UnifiedDiffView({
             className="flex-1 min-w-0 overflow-x-auto scrollbar-none"
             onScroll={handleContentScroll}
           >
-            <div className="inline-block min-w-full">{contentRows}</div>
+            <div className="inline-block min-w-full">
+              {contentRows}
+              <div className="pl-2 pr-2 whitespace-pre" style={{ visibility: 'hidden', height: 0, overflow: 'hidden' }}>
+                {longestLine}
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
       {/* Sticky proxy 横向滚动条 — 只在内容实际溢出时显示 */}
       {contentWidth > contentClientWidth && (
-        <div className="sticky bottom-0 z-10 flex backdrop-blur-sm">
+        <div className="sticky bottom-0 z-10 flex">
           <div className="shrink-0" style={{ width: GUTTER_WIDTH }} />
           <div ref={scrollbarRef} className="flex-1 min-w-0 overflow-x-auto code-scrollbar" onScroll={handleScrollbar}>
             <div style={{ width: contentWidth, height: 1 }} />
