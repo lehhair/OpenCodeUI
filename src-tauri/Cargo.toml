@@ -40,4 +40,4 @@ tauri-build = { version = "2", features = [] }
 strip = true
 lto = "thin"
 panic = "abort"
-codegen-units = 16
+codegen-units = 1

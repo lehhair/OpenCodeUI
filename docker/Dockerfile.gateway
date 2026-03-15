@@ -1,20 +1,25 @@
+FROM rust:1.94-alpine AS router-builder
+
+RUN apk add --no-cache musl-dev
+
+WORKDIR /build
+
+COPY src-router/Cargo.toml src-router/Cargo.lock ./
+COPY src-router/src ./src
+
+RUN cargo build --release
+
 FROM caddy:2-alpine
 
-RUN apk add --no-cache python3 py3-pip docker-cli
+RUN apk add --no-cache docker-cli
 
 WORKDIR /app
 
-RUN python3 -m venv /opt/venv
-ENV PATH="/opt/venv/bin:$PATH"
-
-COPY docker/router/requirements.txt /app/requirements.txt
-RUN pip install --no-cache-dir -r /app/requirements.txt
-
-COPY docker/router /app/router
+COPY --from=router-builder /build/target/release/opencodeui-router /usr/local/bin/opencodeui-router
 COPY docker/Caddyfile.gateway /etc/caddy/Caddyfile
 
 RUN touch /etc/caddy/routes.conf && touch /etc/caddy/preview.conf
 
 EXPOSE 6658 6659
 
-CMD ["/bin/sh", "-c", "/opt/venv/bin/python /app/router/router.py & caddy run --config /etc/caddy/Caddyfile"]
+CMD ["/bin/sh", "-c", "opencodeui-router & caddy run --config /etc/caddy/Caddyfile"]

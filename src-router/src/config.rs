@@ -1,120 +1,56 @@
-use std::{env, ops::Range};
+use std::{collections::HashSet, env};
 
+pub(crate) const ROUTES_FILE: &str = "/etc/caddy/routes.conf";
+pub(crate) const PREVIEW_FILE: &str = "/etc/caddy/preview.conf";
+
+#[derive(Clone, Debug)]
 pub struct Config {
     target_container: String,
-    routes_file: String,
-    preview_file: String,
     router_state_file: String,
     public_base_url: String,
     preview_domain: String,
     router_username: String,
     router_password: String,
-    scan_interval: u32,
-    token_length: u32,
-    port_range: Range<u16>,
-    exclude_ports: u16,
+    scan_interval: u64,
+    token_length: usize,
+    port_range: (u16, u16),
+    exclude_ports: HashSet<u16>,
 }
 
 impl Config {
     pub fn from_env() -> Self {
-        let target_container =
-            env::var("TARGET_CONTAINER").unwrap_or("opencode-backend".to_string());
-
-        let routes_file = env::var("ROUTES_FILE").unwrap_or("/etc/caddy/routes.conf".to_string());
-
-        let preview_file =
-            env::var("PREVIEW_FILE").unwrap_or("/etc/caddy/preview.conf".to_string());
-
-        let router_state_file =
-            env::var("ROUTER_STATE_FILE").unwrap_or("/data/routes.json".to_string());
-
-        let public_base_url = match env::var("PUBLIC_BASE_URL") {
-            Ok(public_base_url) => public_base_url.trim_end_matches("/").to_string(),
-            Err(_) => "".to_string(),
-        };
-
-        let preview_domain = match env::var("PREVIEW_DOMAIN") {
-            Ok(preview_domain) => preview_domain.trim().to_string(),
-            Err(_) => "".to_string(),
-        };
-
-        let router_username = env::var("ROUTER_USERNAME").unwrap_or_default();
-        let router_password = env::var("ROUTER_PASSWORD").unwrap_or_default();
-
-        let scan_interval = match env::var("ROUTER_SCAN_INTERVAL") {
-            Ok(scan_interval_str) => scan_interval_str.parse().unwrap_or_else(|err| {
-                log::warn!("can not parse scan_interval: {err}");
-                5
-            }),
-            Err(_) => 5,
-        };
-
-        let token_length = match env::var("ROUTER_TOKEN_LENGTH") {
-            Ok(token_length_str) => token_length_str.parse().unwrap_or_else(|err| {
-                log::warn!("can not parse token_length: {err}");
-                12
-            }),
-            Err(_) => 12,
-        };
-
-        let port_range = match env::var("ROUTER_PORT_RANGE") {
-            Ok(port_range_str) => {
-                let parts: Vec<&str> = port_range_str.trim().split('-').collect();
-
-                if parts.len() != 2 {
-                    log::warn!("can not parse port_range: parts.len > 2");
-                    3000..10000u16
-                } else {
-                    let start = parts[0].parse().unwrap_or_else(|err| {
-                        log::warn!("can not parse start index: {err}");
-                        3000u16
-                    });
-
-                    let end = parts[1].parse().unwrap_or_else(|err| {
-                        log::warn!("can not parse end index: {err}");
-                        10000u16
-                    });
-
-                    start..end
-                }
-            }
-            Err(_) => 3000..10000u16,
-        };
-
-        let exclude_ports = match env::var("ROUTER_EXCLUDE_PORTS") {
-            Ok(exclude_ports_str) => exclude_ports_str.parse().unwrap_or_else(|err| {
-                log::warn!("can not parse exclude_ports: {err}");
-                4096u16
-            }),
-            Err(_) => 4096u16,
-        };
-
         Self {
-            target_container,
-            routes_file,
-            preview_file,
-            router_state_file,
-            public_base_url,
-            preview_domain,
-            router_username,
-            router_password,
-            scan_interval,
-            token_length,
-            port_range,
-            exclude_ports,
+            target_container: env::var("TARGET_CONTAINER")
+                .unwrap_or_else(|_| "opencode-backend".to_string()),
+            router_state_file: env::var("ROUTER_STATE_FILE")
+                .unwrap_or_else(|_| "/data/routes.json".to_string()),
+            public_base_url: env::var("PUBLIC_BASE_URL")
+                .map(|value| value.trim_end_matches('/').to_string())
+                .unwrap_or_default(),
+            preview_domain: env::var("PREVIEW_DOMAIN")
+                .map(|value| value.trim().to_string())
+                .unwrap_or_default(),
+            router_username: env::var("ROUTER_USERNAME").unwrap_or_default(),
+            router_password: env::var("ROUTER_PASSWORD").unwrap_or_default(),
+            scan_interval: parse_u64_env("ROUTER_SCAN_INTERVAL", 5),
+            token_length: parse_usize_env("ROUTER_TOKEN_LENGTH", 12),
+            port_range: parse_port_range(
+                env::var("ROUTER_PORT_RANGE")
+                    .ok()
+                    .as_deref()
+                    .unwrap_or("3000-9999"),
+            ),
+            exclude_ports: parse_exclude_ports(
+                env::var("ROUTER_EXCLUDE_PORTS")
+                    .ok()
+                    .as_deref()
+                    .unwrap_or("4096"),
+            ),
         }
     }
 
     pub fn target_container(&self) -> &str {
         &self.target_container
-    }
-
-    pub fn routes_file(&self) -> &str {
-        &self.routes_file
-    }
-
-    pub fn preview_file(&self) -> &str {
-        &self.preview_file
     }
 
     pub fn router_state_file(&self) -> &str {
@@ -137,19 +73,55 @@ impl Config {
         &self.router_password
     }
 
-    pub fn scan_interval(&self) -> u32 {
+    pub fn scan_interval(&self) -> u64 {
         self.scan_interval
     }
 
-    pub fn token_length(&self) -> u32 {
+    pub fn token_length(&self) -> usize {
         self.token_length
     }
 
-    pub fn port_range(&self) -> Range<u16> {
-        self.port_range.clone()
+    pub fn port_range(&self) -> (u16, u16) {
+        self.port_range
     }
 
-    pub fn exclude_ports(&self) -> u16 {
-        self.exclude_ports
+    pub fn exclude_ports(&self) -> &HashSet<u16> {
+        &self.exclude_ports
     }
+}
+
+fn parse_u64_env(name: &str, default: u64) -> u64 {
+    env::var(name)
+        .ok()
+        .and_then(|value| value.parse::<u64>().ok())
+        .unwrap_or(default)
+}
+
+fn parse_usize_env(name: &str, default: usize) -> usize {
+    env::var(name)
+        .ok()
+        .and_then(|value| value.parse::<usize>().ok())
+        .unwrap_or(default)
+}
+
+fn parse_port_range(value: &str) -> (u16, u16) {
+    let Some((start, end)) = value.split_once('-') else {
+        return (3000, 9999);
+    };
+
+    let mut start = start.trim().parse::<u16>().unwrap_or(3000);
+    let mut end = end.trim().parse::<u16>().unwrap_or(9999);
+
+    if start > end {
+        std::mem::swap(&mut start, &mut end);
+    }
+
+    (start, end)
+}
+
+fn parse_exclude_ports(value: &str) -> HashSet<u16> {
+    value
+        .split(',')
+        .filter_map(|item| item.trim().parse::<u16>().ok())
+        .collect()
 }
