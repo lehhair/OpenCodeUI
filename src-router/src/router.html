@@ -1,0 +1,730 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Routes - OpenCode</title>
+    <style>
+      :root {
+        --bg-0: #fafbfc;
+        --bg-1: #f3f5f7;
+        --bg-2: #e8ecef;
+        --bg-card: #ffffff;
+        --bg-hover: #f7f9fa;
+        --text-1: #1a2332;
+        --text-2: #4a5568;
+        --text-3: #8694a7;
+        --accent: #3b82f6;
+        --accent-hover: #2563eb;
+        --accent-soft: #eff6ff;
+        --green: #10b981;
+        --green-soft: #ecfdf5;
+        --border: #e2e8f0;
+        --border-focus: #93c5fd;
+        --shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+        --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.08);
+        --radius: 10px;
+        --radius-lg: 14px;
+        --mono: 'SF Mono', 'Cascadia Code', 'Fira Code', 'JetBrains Mono', monospace;
+        --sans: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg-0: #0f1419;
+          --bg-1: #161b22;
+          --bg-2: #1c2333;
+          --bg-card: #1c2333;
+          --bg-hover: #232b3a;
+          --text-1: #e6edf3;
+          --text-2: #8b949e;
+          --text-3: #545d68;
+          --accent: #58a6ff;
+          --accent-hover: #79c0ff;
+          --accent-soft: #161b22;
+          --green: #3fb950;
+          --green-soft: #0d1117;
+          --border: #30363d;
+          --border-focus: #388bfd;
+          --shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+          --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.4);
+        }
+      }
+      html[data-theme='light'] {
+        --bg-0: #fafbfc;
+        --bg-1: #f3f5f7;
+        --bg-2: #e8ecef;
+        --bg-card: #ffffff;
+        --bg-hover: #f7f9fa;
+        --text-1: #1a2332;
+        --text-2: #4a5568;
+        --text-3: #8694a7;
+        --accent: #3b82f6;
+        --accent-hover: #2563eb;
+        --accent-soft: #eff6ff;
+        --green: #10b981;
+        --green-soft: #ecfdf5;
+        --border: #e2e8f0;
+        --border-focus: #93c5fd;
+        --shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+        --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.08);
+      }
+      html[data-theme='dark'] {
+        --bg-0: #0f1419;
+        --bg-1: #161b22;
+        --bg-2: #1c2333;
+        --bg-card: #1c2333;
+        --bg-hover: #232b3a;
+        --text-1: #e6edf3;
+        --text-2: #8b949e;
+        --text-3: #545d68;
+        --accent: #58a6ff;
+        --accent-hover: #79c0ff;
+        --accent-soft: #161b22;
+        --green: #3fb950;
+        --green-soft: #0d1117;
+        --border: #30363d;
+        --border-focus: #388bfd;
+        --shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+        --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.4);
+      }
+
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        font-family: var(--sans);
+        background: var(--bg-0);
+        color: var(--text-1);
+        min-height: 100vh;
+        min-height: 100dvh;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      .page {
+        max-width: 640px;
+        margin: 0 auto;
+        padding: 40px 16px 60px;
+      }
+
+      /* ---- Header ---- */
+      .header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 24px;
+      }
+      .header-left {
+        flex: 1;
+        min-width: 0;
+      }
+      .title {
+        font-size: 22px;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        line-height: 1.2;
+      }
+      .status {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        margin-top: 6px;
+        font-size: 12px;
+        color: var(--text-3);
+        line-height: 1;
+      }
+      .status-dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--green);
+        flex-shrink: 0;
+      }
+      .header-actions {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        flex-shrink: 0;
+      }
+
+      /* ---- Icon buttons ---- */
+      .icon-btn {
+        width: 34px;
+        height: 34px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: var(--bg-card);
+        color: var(--text-2);
+        cursor: pointer;
+        transition: all 120ms ease;
+        flex-shrink: 0;
+      }
+      .icon-btn:hover {
+        background: var(--bg-hover);
+        color: var(--text-1);
+        border-color: var(--border-focus);
+      }
+      .icon-btn:active {
+        transform: scale(0.93);
+      }
+      .icon-btn svg {
+        width: 16px;
+        height: 16px;
+      }
+
+      /* ---- Search ---- */
+      .search-wrap {
+        position: relative;
+        margin-bottom: 16px;
+      }
+      .search-icon {
+        position: absolute;
+        left: 11px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 15px;
+        height: 15px;
+        color: var(--text-3);
+        pointer-events: none;
+      }
+      .search {
+        width: 100%;
+        height: 38px;
+        padding: 0 12px 0 34px;
+        border-radius: var(--radius);
+        border: 1px solid var(--border);
+        background: var(--bg-card);
+        color: var(--text-1);
+        font-size: 13px;
+        font-family: var(--sans);
+        outline: none;
+        transition:
+          border-color 150ms,
+          box-shadow 150ms;
+      }
+      .search::placeholder {
+        color: var(--text-3);
+      }
+      .search:focus {
+        border-color: var(--border-focus);
+        box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent);
+      }
+
+      /* ---- Card list ---- */
+      .list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .card {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        padding: 14px 16px;
+        box-shadow: var(--shadow);
+        transition:
+          box-shadow 150ms,
+          border-color 150ms;
+      }
+      .card:hover {
+        box-shadow: var(--shadow-lg);
+        border-color: var(--border-focus);
+      }
+      .card-top {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .port-badge {
+        display: inline-flex;
+        align-items: center;
+        height: 24px;
+        padding: 0 8px;
+        border-radius: 6px;
+        background: var(--accent-soft);
+        color: var(--accent);
+        font-family: var(--mono);
+        font-size: 12px;
+        font-weight: 600;
+        flex-shrink: 0;
+        letter-spacing: 0.01em;
+      }
+      .card-time {
+        font-size: 11px;
+        color: var(--text-3);
+        white-space: nowrap;
+        flex-shrink: 0;
+      }
+      .card-url {
+        display: block;
+        margin-top: 8px;
+        font-family: var(--mono);
+        font-size: 12px;
+        line-height: 1.5;
+        color: var(--text-2);
+        word-break: break-all;
+        user-select: all;
+      }
+      /* ---- Empty state ---- */
+      .empty {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 56px 24px;
+        text-align: center;
+        border: 1px dashed var(--border);
+        border-radius: var(--radius-lg);
+        background: var(--bg-card);
+      }
+      .empty-icon {
+        width: 40px;
+        height: 40px;
+        color: var(--text-3);
+        opacity: 0.5;
+        margin-bottom: 16px;
+      }
+      .empty-title {
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--text-2);
+        margin-bottom: 4px;
+      }
+      .empty-hint {
+        font-size: 12px;
+        color: var(--text-3);
+        line-height: 1.5;
+      }
+
+      /* ---- Toast ---- */
+      .toast {
+        position: fixed;
+        bottom: 24px;
+        left: 50%;
+        transform: translateX(-50%) translateY(80px);
+        padding: 8px 16px;
+        border-radius: 8px;
+        background: var(--text-1);
+        color: var(--bg-0);
+        font-size: 12px;
+        font-weight: 500;
+        box-shadow: var(--shadow-lg);
+        opacity: 0;
+        pointer-events: none;
+        transition: all 250ms cubic-bezier(0.4, 0, 0.2, 1);
+        z-index: 100;
+      }
+      .toast.show {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+      }
+
+      /* ---- Mobile ---- */
+      @media (max-width: 480px) {
+        .page {
+          padding: 24px 12px 48px;
+        }
+        .title {
+          font-size: 18px;
+        }
+        .card {
+          padding: 12px 14px;
+        }
+        .card-time {
+          font-size: 10px;
+        }
+        .card-url {
+          font-size: 11px;
+        }
+      }
+
+      /* ---- Preview badge ---- */
+      .preview-bar {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 14px;
+        margin-bottom: 16px;
+        border-radius: var(--radius);
+        background: var(--accent-soft);
+        border: 1px solid color-mix(in srgb, var(--accent) 20%, transparent);
+        font-size: 12px;
+        color: var(--text-2);
+      }
+      .preview-bar-icon {
+        width: 14px;
+        height: 14px;
+        color: var(--accent);
+        flex-shrink: 0;
+      }
+      .preview-bar a {
+        color: var(--accent);
+        text-decoration: none;
+        font-family: var(--mono);
+        font-weight: 500;
+        word-break: break-all;
+      }
+      .preview-bar a:hover {
+        text-decoration: underline;
+      }
+      .preview-bar-stop {
+        margin-left: auto;
+        padding: 3px 8px;
+        border-radius: 5px;
+        border: 1px solid var(--border);
+        background: var(--bg-card);
+        color: var(--text-2);
+        font-size: 11px;
+        cursor: pointer;
+        flex-shrink: 0;
+      }
+      .preview-bar-stop:hover {
+        background: var(--bg-hover);
+        color: var(--text-1);
+      }
+
+      .card.previewing {
+        border-color: var(--accent);
+        box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 15%, transparent);
+      }
+      .card-actions {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        margin-left: auto;
+        flex-shrink: 0;
+      }
+      .card-btn {
+        width: 28px;
+        height: 28px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        background: var(--bg-card);
+        color: var(--text-3);
+        cursor: pointer;
+        transition: all 120ms ease;
+      }
+      .card-btn:hover {
+        background: var(--bg-hover);
+        color: var(--accent);
+        border-color: var(--accent);
+      }
+      .card-btn:active {
+        transform: scale(0.9);
+      }
+      .card-btn.active {
+        background: var(--accent-soft);
+        color: var(--accent);
+        border-color: var(--accent);
+      }
+      .card-btn svg {
+        width: 14px;
+        height: 14px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <div class="header">
+        <div class="header-left">
+          <div class="title">Routes</div>
+          <div class="status">
+            <span class="status-dot"></span>
+            <span id="count">0 active</span>
+          </div>
+        </div>
+        <div class="header-actions">
+          <button class="icon-btn" id="themeToggle" title="Toggle theme">
+            <svg
+              id="themeIcon"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <circle cx="12" cy="12" r="5" />
+              <line x1="12" y1="1" x2="12" y2="3" />
+              <line x1="12" y1="21" x2="12" y2="23" />
+              <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+              <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+              <line x1="1" y1="12" x2="3" y2="12" />
+              <line x1="21" y1="12" x2="23" y2="12" />
+              <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+              <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+            </svg>
+          </button>
+          <button class="icon-btn" id="copyAll" title="Copy all URLs">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+            </svg>
+          </button>
+          <button class="icon-btn" id="refresh" title="Refresh">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <polyline points="23 4 23 10 17 10" />
+              <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <div id="previewBar"></div>
+
+      <div class="search-wrap">
+        <svg
+          class="search-icon"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <circle cx="11" cy="11" r="8" />
+          <line x1="21" y1="21" x2="16.65" y2="16.65" />
+        </svg>
+        <input class="search" id="filter" placeholder="Filter by port or URL..." />
+      </div>
+
+      <section id="content"></section>
+      <div class="toast" id="toast"></div>
+    </div>
+
+    <script>
+      const $ = id => document.getElementById(id)
+      const content = $('content'),
+        countEl = $('count')
+      const filterInput = $('filter'),
+        toastEl = $('toast')
+
+      // ---- Toast ----
+      let toastTimer
+      function toast(msg) {
+        clearTimeout(toastTimer)
+        toastEl.textContent = msg
+        toastEl.classList.add('show')
+        toastTimer = setTimeout(() => toastEl.classList.remove('show'), 1800)
+      }
+
+      // ---- Theme ----
+      const sunIcon =
+        '<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>'
+      const moonIcon = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>'
+      const autoIcon = '<circle cx="12" cy="12" r="10"/><path d="M12 2a10 10 0 0 1 0 20z" fill="currentColor"/>'
+
+      function applyTheme(t) {
+        if (!t || t === 'auto') document.documentElement.removeAttribute('data-theme')
+        else document.documentElement.setAttribute('data-theme', t)
+        const icon = t === 'dark' ? moonIcon : t === 'light' ? sunIcon : autoIcon
+        $('themeIcon').innerHTML = icon
+        $('themeToggle').title = 'Theme: ' + (t || 'auto')
+      }
+      function cycleTheme() {
+        const m = { light: 'dark', dark: 'auto', auto: 'light' }
+        const cur = localStorage.getItem('routes-theme') || 'auto'
+        const next = m[cur] || 'light'
+        localStorage.setItem('routes-theme', next)
+        applyTheme(next)
+      }
+      applyTheme(localStorage.getItem('routes-theme') || 'auto')
+      $('themeToggle').addEventListener('click', cycleTheme)
+
+      // ---- Helpers ----
+      function ago(ts) {
+        if (!ts) return ''
+        const s = Math.floor(Date.now() / 1000 - ts)
+        if (s < 60) return 'just now'
+        if (s < 3600) return Math.floor(s / 60) + 'm ago'
+        if (s < 86400) return Math.floor(s / 3600) + 'h ago'
+        return Math.floor(s / 86400) + 'd ago'
+      }
+      function getUrl(r) {
+        if (r.publicUrl) return r.publicUrl
+        const domain = currentData.previewDomain
+        if (domain) return 'https://' + domain + '/p/' + r.token + '/'
+        return location.origin + '/p/' + r.token + '/'
+      }
+
+      // ---- Render ----
+      function render(routes) {
+        countEl.textContent = routes.length + ' active'
+
+        if (!routes.length) {
+          content.innerHTML = `
+          <div class="empty">
+            <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
+            </svg>
+            <div class="empty-title">No active routes</div>
+            <div class="empty-hint">Start a dev server in the backend container<br/>and it will appear here automatically</div>
+          </div>`
+          return
+        }
+
+        const cards = routes.map(r => {
+          const url = getUrl(r)
+          const isPreviewing = currentData.previewPort === r.port
+          const previewCls = isPreviewing ? ' previewing' : ''
+          const btnCls = isPreviewing ? ' active' : ''
+          return `<div class="card${previewCls}" data-url="${url}" data-port="${r.port}">
+          <div class="card-top">
+            <span class="port-badge">${r.port}</span>
+            <span class="card-time">${ago(r.createdAt)}</span>
+            <div class="card-actions">
+              <button class="card-btn preview-btn${btnCls}" data-port="${r.port}" title="${isPreviewing ? 'Stop preview' : 'Preview this port'}">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+                </svg>
+              </button>
+              <button class="card-btn copy-btn" data-url="${url}" title="Copy URL">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+          <code class="card-url">${url}</code>
+        </div>`
+        })
+
+        content.innerHTML = '<div class="list">' + cards.join('') + '</div>'
+
+        content.querySelectorAll('.copy-btn').forEach(btn => {
+          btn.addEventListener('click', async e => {
+            e.stopPropagation()
+            try {
+              await navigator.clipboard.writeText(btn.dataset.url)
+              toast('Copied')
+            } catch (e) {}
+          })
+        })
+
+        content.querySelectorAll('.preview-btn').forEach(btn => {
+          btn.addEventListener('click', async e => {
+            e.stopPropagation()
+            const port = parseInt(btn.dataset.port)
+            const isActive = currentData.previewPort === port
+            await setPreview(isActive ? null : port)
+          })
+        })
+      }
+
+      // ---- Data ----
+      let currentData = __INITIAL_DATA__
+
+      // ---- Preview ----
+      const previewBarEl = $('previewBar')
+      const eyeOpenIcon = '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>'
+
+      function renderPreviewBar() {
+        const port = currentData.previewPort
+        const domain = currentData.previewDomain
+        if (!port) {
+          previewBarEl.innerHTML = ''
+          return
+        }
+        const link = domain ? `<a href="https://${domain}" target="_blank">${domain}</a>` : `port ${port}`
+        previewBarEl.innerHTML = `
+        <div class="preview-bar">
+          <svg class="preview-bar-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${eyeOpenIcon}</svg>
+          <span>Preview active: ${link} &rarr; :${port}</span>
+          <button class="preview-bar-stop" id="stopPreview">Stop</button>
+        </div>`
+        $('stopPreview').addEventListener('click', () => setPreview(null))
+      }
+
+      async function setPreview(port) {
+        try {
+          const res = await fetch('/preview/set', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({ port }),
+          })
+          if (!res.ok) {
+            toast('Failed: ' + res.status)
+            return
+          }
+          currentData.previewPort = port
+          toast(port ? 'Preview: port ' + port : 'Preview stopped')
+          renderPreviewBar()
+          applyFilter()
+        } catch (e) {
+          toast('Error setting preview')
+        }
+      }
+
+      function applyFilter() {
+        const q = filterInput.value.trim().toLowerCase()
+        const routes = (currentData.routes || []).filter(
+          r =>
+            !q ||
+            r.token.toLowerCase().includes(q) ||
+            String(r.port).includes(q) ||
+            getUrl(r).toLowerCase().includes(q),
+        )
+        render(routes)
+      }
+
+      async function load() {
+        try {
+          const res = await fetch('/routes?format=json', { cache: 'no-store', credentials: 'same-origin' })
+          if (!res.ok) {
+            countEl.textContent = 'error ' + res.status
+            return
+          }
+          currentData = await res.json()
+          applyFilter()
+          renderPreviewBar()
+        } catch (e) {
+          countEl.textContent = 'offline'
+        }
+      }
+
+      $('refresh').addEventListener('click', () => {
+        load()
+        toast('Refreshing...')
+      })
+      filterInput.addEventListener('input', applyFilter)
+      $('copyAll').addEventListener('click', async () => {
+        const urls = (currentData.routes || []).map(getUrl).join('\\n')
+        if (urls) {
+          await navigator.clipboard.writeText(urls)
+          toast('All URLs copied')
+        }
+      })
+
+      applyFilter()
+      renderPreviewBar()
+      setInterval(load, 8000)
+    </script>
+  </body>
+</html>
