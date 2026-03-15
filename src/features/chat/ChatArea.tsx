@@ -2,22 +2,13 @@
 // ChatArea - 聊天消息显示区域
 // ============================================
 //
-// 简单的滚动容器 + overflow-y:auto
-// - IntersectionObserver 触发 loadMore
-// - useLayoutEffect 补偿 prepend 滚动偏移
-// - setInterval 在 streaming 时自动滚动到底部
+// flex-direction: column-reverse 实现原生 stick-to-bottom：
+// - scrollTop=0 是底部，负值是向上滚动
+// - 新内容向上生长，浏览器自动维持底部锚定，零 JS auto-scroll
+// - 消息反序渲染：DOM 前面=视觉底部，loadMore append 到 DOM 末尾=视觉顶部
+// - IntersectionObserver 触发 loadMore，prepend 时临时禁用 content-visibility
 
-import {
-  useRef,
-  useImperativeHandle,
-  forwardRef,
-  memo,
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useState,
-} from 'react'
+import { useRef, useImperativeHandle, forwardRef, memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { animate } from 'motion/mini'
 import { MessageRenderer } from '../message'
 import { messageStore } from '../../store'
@@ -48,7 +39,6 @@ export type ChatAreaHandle = {
   scrollToBottom: (instant?: boolean) => void
   scrollToBottomIfAtBottom: () => void
   scrollToLastMessage: () => void
-  suppressAutoScroll: (duration?: number) => void
   scrollToMessageIndex: (index: number) => void
   scrollToMessageId: (messageId: string) => void
 }
@@ -77,15 +67,14 @@ export const ChatArea = memo(
       const scrollRef = useRef<HTMLDivElement>(null)
       const topSentinelRef = useRef<HTMLDivElement>(null)
       const isAtBottomRef = useRef(true)
-      const suppressScrollRef = useRef(false)
       const loadMoreRef = useRef(onLoadMore)
       loadMoreRef.current = onLoadMore
       const isLoadingRef = useRef(false)
-      const messagesRef = useRef<HTMLDivElement>(null)
       const [isLoadingMore, setIsLoadingMore] = useState(false)
-      // prepend 补偿用
-      const prevScrollHeightRef = useRef(0)
-      const prevFirstIdRef = useRef<string | null>(null)
+
+      // Guard: 防止 session 初始加载时 sentinel 在视口内立即触发 loadMore。
+      // 只有用户主动滚离底部后解除。
+      const loadMoreBlockedRef = useRef(true)
 
       const { isWideMode } = useTheme()
       const isMobile = useIsMobile()
@@ -116,60 +105,28 @@ export const ChatArea = memo(
       // ============================================
       // Scroll: isAtBottom tracking
       // ============================================
+      // column-reverse: scrollTop=0 是底部，向上滚 scrollTop 为负。
+      // abs(scrollTop) 就是离底部的像素距离。
 
       useEffect(() => {
         const el = scrollRef.current
         if (!el) return
         const onScroll = () => {
-          // 内容没有溢出时（scrollHeight <= clientHeight），始终认为在底部
-          // 类似滚动条逻辑：没有溢出就没有滚动条，也不需要 scrollToBottom 按钮
           const hasOverflow = el.scrollHeight > el.clientHeight + 1
-          const atBottom = !hasOverflow || el.scrollHeight - el.scrollTop - el.clientHeight <= atBottomThreshold
+          const distFromBottom = Math.abs(el.scrollTop)
+          const atBottom = !hasOverflow || distFromBottom <= atBottomThreshold
           const prev = isAtBottomRef.current
           isAtBottomRef.current = atBottom
           if (prev !== atBottom) onAtBottomChange?.(atBottom)
+
+          // 用户滚离底部 → 解除 loadMore guard
+          if (!atBottom) loadMoreBlockedRef.current = false
         }
         el.addEventListener('scroll', onScroll, { passive: true })
         return () => el.removeEventListener('scroll', onScroll)
       }, [atBottomThreshold, onAtBottomChange])
 
-      // ============================================
-      // Scroll: auto-scroll on content resize
-      // ============================================
-      // ResizeObserver 监听内容高度变化，实时判断是否在底部。
-      // 不依赖 isAtBottomRef（scroll 事件异步更新有竞态），
-      // 而是每次 resize 时用 resize 前的 scrollHeight 同步计算 gap。
-
-      useEffect(() => {
-        const el = scrollRef.current
-        if (!el) return
-
-        // 记录上一次已知的 scrollHeight，只在内容变高时才自动滚动
-        let prevScrollHeight = el.scrollHeight
-
-        const ro = new ResizeObserver(() => {
-          if (suppressScrollRef.current) return
-          const currScrollHeight = el.scrollHeight
-          // 只在内容变高时触发（排除折叠、删除等缩小场景）
-          if (currScrollHeight <= prevScrollHeight) {
-            prevScrollHeight = currScrollHeight
-            return
-          }
-          // 用 resize 前的 scrollHeight 判断：resize 前是否在底部
-          const gap = prevScrollHeight - el.scrollTop - el.clientHeight
-          prevScrollHeight = currScrollHeight
-          if (gap <= atBottomThreshold) {
-            el.scrollTop = currScrollHeight
-          }
-        })
-
-        // 监听滚动容器内所有直接子元素的尺寸变化
-        for (const child of el.children) {
-          ro.observe(child)
-        }
-
-        return () => ro.disconnect()
-      }, [visibleMessages, atBottomThreshold])
+      // column-reverse 天然 stick-to-bottom，无需 auto-scroll 代码
 
       // ============================================
       // Session switch: snap to bottom
@@ -180,25 +137,16 @@ export const ChatArea = memo(
         if (sessionId === prevSessionIdRef.current) return
         prevSessionIdRef.current = sessionId
         isAtBottomRef.current = true
-        suppressScrollRef.current = false
+        loadMoreBlockedRef.current = true // 重置 guard
         onAtBottomChange?.(true)
 
-        // 延迟一帧确保 DOM 已更新
         requestAnimationFrame(() => {
           const el = scrollRef.current
-          if (el) el.scrollTop = el.scrollHeight
+          if (!el) return
+          el.scrollTop = 0 // column-reverse: 0 = 底部
 
           // 消息列表整体淡入 — 一次命令式 animate，零 React 开销
-          if (messagesRef.current) {
-            animate(
-              messagesRef.current,
-              { opacity: [0, 1] },
-              {
-                duration: 0.2,
-                ease: 'easeOut',
-              },
-            )
-          }
+          animate(el, { opacity: [0, 1] }, { duration: 0.2, ease: 'easeOut' })
         })
       }, [sessionId, onAtBottomChange])
 
@@ -207,13 +155,15 @@ export const ChatArea = memo(
         if (loadState !== 'loaded') return
         requestAnimationFrame(() => {
           const el = scrollRef.current
-          if (el && isAtBottomRef.current) el.scrollTop = el.scrollHeight
+          if (el && isAtBottomRef.current) el.scrollTop = 0 // column-reverse: 0 = 底部
         })
       }, [loadState])
 
       // ============================================
       // Load more: IntersectionObserver on top sentinel
       // ============================================
+      // prepend 时临时 .prepending 禁用 content-visibility，
+      // 确保 column-reverse 下新节点用真实高度，避免估算高度导致跳变。
 
       useEffect(() => {
         const sentinel = topSentinelRef.current
@@ -223,6 +173,8 @@ export const ChatArea = memo(
         const observer = new IntersectionObserver(
           ([entry]) => {
             if (!entry.isIntersecting || isLoadingRef.current) return
+            if (loadMoreBlockedRef.current) return
+
             const fn = loadMoreRef.current
             if (!fn) return
 
@@ -233,13 +185,20 @@ export const ChatArea = memo(
 
             isLoadingRef.current = true
             setIsLoadingMore(true)
-            // 快照 scrollHeight 用于补偿
-            prevScrollHeightRef.current = root.scrollHeight
-            prevFirstIdRef.current = visibleMessages[0]?.info.id ?? null
+
+            // 临时禁用 content-visibility，让所有消息用真实高度
+            root.classList.add('prepending')
 
             Promise.resolve(fn()).finally(() => {
               isLoadingRef.current = false
               setIsLoadingMore(false)
+
+              // double rAF: 等 React 渲染 + 浏览器 paint 后恢复 content-visibility
+              requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                  root.classList.remove('prepending')
+                })
+              })
             })
           },
           { root, rootMargin: '200px 0px 0px 0px' },
@@ -249,27 +208,8 @@ export const ChatArea = memo(
         return () => observer.disconnect()
       }, [sessionId, visibleMessages])
 
-      // ============================================
-      // Prepend compensation (useLayoutEffect)
-      // ============================================
-
-      useLayoutEffect(() => {
-        const el = scrollRef.current
-        if (!el) return
-        if (!prevFirstIdRef.current) return
-
-        const currentFirstId = visibleMessages[0]?.info.id ?? null
-        if (currentFirstId === prevFirstIdRef.current) return
-
-        // 首条 ID 变了 = 有 prepend 发生
-        const heightDiff = el.scrollHeight - prevScrollHeightRef.current
-        if (heightDiff > 0) {
-          el.scrollTop += heightDiff
-        }
-
-        prevFirstIdRef.current = currentFirstId
-        prevScrollHeightRef.current = el.scrollHeight
-      }, [visibleMessages])
+      // column-reverse 下 prepend 在负方向远端，scrollTop 不变，视口自然不跳。
+      // 不需要手动补偿。
 
       // ============================================
       // Visible message tracking (for outline)
@@ -323,12 +263,12 @@ export const ChatArea = memo(
           scrollToBottom: (instant = false) => {
             const el = scrollRef.current
             if (!el) return
-            el.scrollTo({ top: el.scrollHeight, behavior: instant ? 'auto' : 'smooth' })
+            el.scrollTo({ top: 0, behavior: instant ? 'auto' : 'smooth' })
           },
           scrollToBottomIfAtBottom: () => {
-            if (suppressScrollRef.current || !isAtBottomRef.current) return
+            if (!isAtBottomRef.current) return
             const el = scrollRef.current
-            if (el) el.scrollTop = el.scrollHeight
+            if (el) el.scrollTop = 0
           },
           scrollToLastMessage: () => {
             if (visibleMessages.length === 0) return
@@ -336,12 +276,6 @@ export const ChatArea = memo(
             scrollRef.current
               ?.querySelector(`[data-message-id="${lastId}"]`)
               ?.scrollIntoView({ block: 'start', behavior: 'auto' })
-          },
-          suppressAutoScroll: (duration = 500) => {
-            suppressScrollRef.current = true
-            setTimeout(() => {
-              suppressScrollRef.current = false
-            }, duration)
           },
           scrollToMessageIndex: (index: number) => {
             const msg = visibleMessages[index]
@@ -376,6 +310,9 @@ export const ChatArea = memo(
         }
         return groups
       }, [visibleMessages])
+
+      // column-reverse 下 DOM 顺序反转：最新在前（视觉底部），最旧在后（视觉顶部）
+      const reversedGroups = useMemo(() => messageGroups.slice().reverse(), [messageGroups])
 
       const renderMessageGroup = useCallback(
         (messages: Message[]) => {
@@ -424,38 +361,29 @@ export const ChatArea = memo(
             </div>
           )}
 
-          <div ref={scrollRef} className="h-full overflow-y-auto overflow-x-hidden custom-scrollbar contain-content">
-            {/* Top sentinel for loadMore */}
-            <div ref={topSentinelRef} className="h-px" aria-hidden="true" />
+          <div
+            ref={scrollRef}
+            className="h-full overflow-y-auto overflow-x-hidden custom-scrollbar contain-content flex flex-col-reverse"
+          >
+            {/* column-reverse: DOM 第一个 = 视觉最底。所有子元素直接平铺，无 wrapper。
+                DOM 顺序（上→下）：shim, bottomSpacing, retryStatus, messages(新→旧), loadingIndicator, topSpacing, sentinel
+                视觉顺序（上→下）：sentinel, topSpacing, loadingIndicator, messages(旧→新), retryStatus, bottomSpacing, shim
+            */}
 
-            {/* Top spacing */}
-            <div className="h-20" />
+            {/* Shim: flex-1 占满剩余空间，消息不满一屏时推到视觉顶部 */}
+            <div className="flex-1" />
 
-            {/* Loading more indicator */}
-            {visibleMessages.length > 0 && isLoadingMore && (
-              <div className="flex justify-center py-3">
-                <div className="flex items-center gap-2 text-text-400 text-xs">
-                  <span className="w-3.5 h-3.5 border-2 border-text-400/30 border-t-text-400 rounded-full animate-spin" />
-                  Loading history...
-                </div>
-              </div>
-            )}
-
-            {/* Messages */}
-            <div ref={messagesRef}>
-              {messageGroups.map(group => {
-                const first = group[0]
-                return (
-                  <div key={first.info.id} className="chat-message-item">
-                    {renderMessageGroup(group)}
-                  </div>
-                )
-              })}
-            </div>
+            {/* Bottom spacing (视觉底部) */}
+            <div
+              className="shrink-0"
+              style={{
+                height: bottomPadding > 0 ? `${bottomPadding + 48}px` : '256px',
+              }}
+            />
 
             {/* Retry status */}
             {retryStatus && (
-              <div className={`w-full ${messageMaxWidthClass} mx-auto px-4`}>
+              <div className={`w-full ${messageMaxWidthClass} mx-auto px-4 shrink-0`}>
                 <div className="flex justify-start">
                   <div className="w-full min-w-0">
                     <RetryStatusInline status={retryStatus} />
@@ -464,12 +392,31 @@ export const ChatArea = memo(
               </div>
             )}
 
-            {/* Bottom spacing */}
-            <div
-              style={{
-                height: bottomPadding > 0 ? `${bottomPadding + 16}px` : '256px',
-              }}
-            />
+            {/* Messages: loadMore 的旧消息 append 到 DOM 末尾 = 视觉顶部，column-reverse 天然不跳 */}
+            {reversedGroups.map(group => {
+              const first = group[0]
+              return (
+                <div key={first.info.id} className="chat-message-item shrink-0">
+                  {renderMessageGroup(group)}
+                </div>
+              )
+            })}
+
+            {/* Loading more indicator (视觉顶部附近) */}
+            {visibleMessages.length > 0 && isLoadingMore && (
+              <div className="flex justify-center py-3 shrink-0">
+                <div className="flex items-center gap-2 text-text-400 text-xs">
+                  <span className="w-3.5 h-3.5 border-2 border-text-400/30 border-t-text-400 rounded-full animate-spin" />
+                  Loading history...
+                </div>
+              </div>
+            )}
+
+            {/* Top spacing (视觉顶部) */}
+            <div className="h-20 shrink-0" />
+
+            {/* Top sentinel for loadMore (视觉最顶部) */}
+            <div ref={topSentinelRef} className="h-px shrink-0" aria-hidden="true" />
           </div>
         </div>
       )

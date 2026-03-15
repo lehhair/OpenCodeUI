@@ -41,7 +41,7 @@ import {
 import { getMessageText } from '../types/message'
 import { clipboardErrorHandler, copyTextToClipboard, createErrorHandler, isSameDirectory } from '../utils'
 import { serverStorage } from '../utils/perServerStorage'
-import { UNDO_SCROLL_DELAY_MS, AUTO_SCROLL_SUPPRESS_DURATION_MS, STORAGE_KEY_SELECTED_AGENT } from '../constants'
+import { UNDO_SCROLL_DELAY_MS, STORAGE_KEY_SELECTED_AGENT } from '../constants'
 import type { ChatAreaHandle } from '../features/chat'
 
 const handleError = createErrorHandler('session')
@@ -502,8 +502,6 @@ export function useChatSession({ chatAreaRef, currentModel, refetchModels }: Use
   // Undo with animation
   const handleUndoWithAnimation = useCallback(
     async (userMessageId: string) => {
-      chatAreaRef.current?.suppressAutoScroll(AUTO_SCROLL_SUPPRESS_DURATION_MS)
-
       const messageIndex = messages.findIndex(m => m.info.id === userMessageId)
       if (messageIndex === -1) return
 
@@ -521,7 +519,6 @@ export function useChatSession({ chatAreaRef, currentModel, refetchModels }: Use
 
   // Redo with animation
   const handleRedoWithAnimation = useCallback(async () => {
-    chatAreaRef.current?.suppressAutoScroll(AUTO_SCROLL_SUPPRESS_DURATION_MS)
     await animateRedo()
     await handleRedo()
   }, [animateRedo, handleRedo, chatAreaRef])

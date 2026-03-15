@@ -976,13 +976,16 @@ textarea.custom-scrollbar::-webkit-scrollbar-thumb {
 /* ============================================
  * Chat Message Item - content-visibility 优化
  * ============================================
- * 替代 react-virtuoso 虚拟列表：
- * - content-visibility: auto 让浏览器跳过视口外元素的 layout/paint
- * - contain-intrinsic-size: auto 500px 记住已渲染元素的实际高度，
- *   未渲染过的元素使用 500px 估算（AI 助手消息含代码块通常 400-800px，
- *   120px 估算差距过大会导致滚动时 scrollHeight 突变和视觉跳动）
+ * content-visibility: auto 让浏览器跳过视口外元素的 layout/paint。
+ * loadMore prepend 时通过 .prepending class 临时禁用，
+ * 确保 column-reverse 下新节点用真实高度，避免跳变。
  */
 .chat-message-item {
   content-visibility: auto;
   contain-intrinsic-size: auto 500px;
+}
+
+.prepending .chat-message-item {
+  content-visibility: visible !important;
+  contain-intrinsic-size: auto !important;
 }

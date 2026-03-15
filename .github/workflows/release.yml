@@ -14,8 +14,6 @@ jobs:
   # Desktop builds (Windows, macOS, Linux)
   # ============================================
   build-desktop:
-    permissions:
-      contents: write
     strategy:
       fail-fast: false
       matrix:
@@ -41,8 +39,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: lts/*
           cache: 'npm'
@@ -56,6 +53,7 @@ jobs:
         uses: swatinem/rust-cache@v2
         with:
           workspaces: './src-tauri -> target'
+          key: ${{ matrix.os }}-${{ matrix.arch }}
 
       - name: Install Linux dependencies
         if: matrix.platform == 'ubuntu-22.04'
@@ -63,25 +61,14 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
-      - name: Install frontend dependencies
-        run: npm ci
+      - run: npm ci
 
-      # Build ONLY, do not release yet
+      # tauri-action 自动执行 beforeBuildCommand (npm run build) + cargo build
       - name: Build desktop app
         uses: tauri-apps/tauri-action@v0
         with:
-          # Build only; release is created in publish-release job
-          # We purposefully OMIT releaseName, releaseBody, releaseDraft, prerelease
-          # to prevent it from creating/updating a release.
-          # However, tauri-action default behavior is to upload if tagName is present?
-          # Let's try to bypass upload by NOT providing tagName?
-          # If tagName is omitted, it defaults to checking package.json version?
-          # Let's provide tagName but use a specialized args to NOT upload?
-          # Actually, tauri-action documentation says it will upload if GITHUB_TOKEN is present.
-          # So we REMOVE GITHUB_TOKEN and tagName to prevent release/upload.
           args: ${{ matrix.args }}
 
-      # Manually find and upload artifacts
       - name: Prepare artifacts
         shell: bash
         run: |
@@ -91,29 +78,19 @@ jobs:
             BUNDLE_DIR="src-tauri/target/${{ matrix.arch }}-apple-darwin/release/bundle"
           fi
 
-          # Find and copy build assets to a flat directory
           if [[ "${{ matrix.os }}" == "windows" ]]; then
-            if [[ -d "$BUNDLE_DIR/nsis" ]]; then
-              find "$BUNDLE_DIR/nsis" -name "*.exe" -exec cp {} release-artifacts/ \;
-            fi
+            find "$BUNDLE_DIR/nsis" -name "*.exe" -exec cp {} release-artifacts/ \; 2>/dev/null || true
           elif [[ "${{ matrix.os }}" == "macos" ]]; then
-            if [[ -d "$BUNDLE_DIR/dmg" ]]; then
-              find "$BUNDLE_DIR/dmg" -name "*.dmg" -exec cp {} release-artifacts/ \;
-            fi
+            find "$BUNDLE_DIR/dmg" -name "*.dmg" -exec cp {} release-artifacts/ \; 2>/dev/null || true
           elif [[ "${{ matrix.os }}" == "linux" ]]; then
-            if [[ -d "$BUNDLE_DIR/deb" ]]; then
-              find "$BUNDLE_DIR/deb" -name "*.deb" -exec cp {} release-artifacts/ \;
-            fi
-            if [[ -d "$BUNDLE_DIR/appimage" ]]; then
-              find "$BUNDLE_DIR/appimage" -name "*.AppImage" -exec cp {} release-artifacts/ \;
-            fi
+            find "$BUNDLE_DIR/deb" -name "*.deb" -exec cp {} release-artifacts/ \; 2>/dev/null || true
+            find "$BUNDLE_DIR/appimage" -name "*.AppImage" -exec cp {} release-artifacts/ \; 2>/dev/null || true
           fi
 
-          echo "Artifacts to upload:"
+          echo "Artifacts:"
           ls -R release-artifacts
 
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: artifacts-desktop-${{ matrix.os }}-${{ matrix.arch }}
           path: release-artifacts
@@ -124,8 +101,6 @@ jobs:
   # Android builds (arm64 + armv7 并行)
   # ============================================
   build-android:
-    permissions:
-      contents: write
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -140,23 +115,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: lts/*
           cache: 'npm'
 
-      - name: Setup Java JDK
-        uses: actions/setup-java@v4
+      - uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+      - uses: android-actions/setup-android@v3
 
-      - name: Install Android NDK
-        run: sdkmanager "ndk;29.0.14206865"
+      - run: sdkmanager "ndk;29.0.14206865"
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
@@ -179,8 +150,7 @@ jobs:
           key: gradle-${{ matrix.target }}-${{ hashFiles('src-tauri/gen/android/**/*.gradle*', 'src-tauri/gen/android/**/gradle-wrapper.properties') }}
           restore-keys: gradle-
 
-      - name: Install frontend dependencies
-        run: npm ci
+      - run: npm ci
 
       - name: Setup Android signing
         run: |
@@ -219,15 +189,14 @@ jobs:
         env:
           NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/29.0.14206865
 
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: artifacts-android-${{ matrix.label }}
           path: release-artifacts/*
           retention-days: 1
 
   # ============================================
-  # Publish Release (Runs after builds)
+  # Publish Release
   # ============================================
   publish-release:
     permissions:
@@ -240,25 +209,22 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
+          pattern: artifacts-*
           merge-multiple: true
 
-      - name: Display structure of downloaded files
+      - name: Display artifacts
         run: ls -R artifacts
 
-      - name: Extract changelog for this version
+      - name: Extract changelog
         id: changelog
         run: |
           TAG="${{ github.ref_name }}"
-          # Extract the section between "## [$TAG]" and the next "## [" (or EOF)
           BODY=$(sed -n "/^## \[${TAG}\]/,/^## \[/{ /^## \[${TAG}\]/d; /^## \[/d; p; }" CHANGELOG.md)
-          # Trim leading/trailing blank lines
           BODY=$(echo "$BODY" | sed -e '/./,$!d' -e :a -e '/^\n*$/{$d;N;ba;}')
           if [ -z "$BODY" ]; then
             BODY="No changelog entry found for ${TAG}."
           fi
-          # Write to file for multiline support
           echo "$BODY" > /tmp/release-body.md
-          # Append download section
           printf '\n---\n\n**Desktop:** Windows (.exe), macOS (.dmg), Linux (.deb, .AppImage)\n**Mobile:** Android (.apk) — arm64, armeabi-v7a\n' >> /tmp/release-body.md
 
       - name: Create Release

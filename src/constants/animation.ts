@@ -32,9 +32,6 @@ export const INITIAL_SCROLL_DELAY_MS = 20
 /** Undo 后滚动延迟 */
 export const UNDO_SCROLL_DELAY_MS = 50
 
-/** 自动滚动抑制时长 */
-export const AUTO_SCROLL_SUPPRESS_DURATION_MS = 1000
-
 // ============================================
 // Streaming Animation Constants
 // ============================================

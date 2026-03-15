@@ -179,7 +179,7 @@ export function CodePreview({ code, language, truncateLines = true, maxHeight, i
       gutters.push(
         <div
           key={i}
-          className="text-text-500 text-right pr-3 pl-4 leading-5 select-none bg-bg-100"
+          className="text-text-500 text-right pr-3 pl-4 leading-5 select-none"
           style={{ height: LINE_HEIGHT }}
         >
           {i + 1}
@@ -208,7 +208,7 @@ export function CodePreview({ code, language, truncateLines = true, maxHeight, i
       <div style={{ height: totalHeight, position: 'relative' }}>
         <div className="absolute top-0 left-0 right-0 flex" style={{ transform: `translateY(${offsetY}px)` }}>
           {/* Gutter: 固定宽度，不水平滚动，跟外层一起垂直滚动 */}
-          <div className="shrink-0 overflow-hidden bg-bg-100" style={{ width: gutterWidth }}>
+          <div className="shrink-0 overflow-hidden" style={{ width: gutterWidth }}>
             {gutterRows}
           </div>
 
@@ -225,7 +225,7 @@ export function CodePreview({ code, language, truncateLines = true, maxHeight, i
 
       {/* Sticky proxy 横向滚动条 — 只在内容实际溢出时显示 */}
       {contentWidth > contentClientWidth && (
-        <div className="sticky bottom-0 z-10 flex bg-bg-100/90 backdrop-blur-sm">
+        <div className="sticky bottom-0 z-10 flex backdrop-blur-sm">
           {/* gutter 占位 */}
           <div className="shrink-0" style={{ width: gutterWidth }} />
           <div ref={scrollbarRef} className="flex-1 min-w-0 overflow-x-auto code-scrollbar" onScroll={handleScrollbar}>

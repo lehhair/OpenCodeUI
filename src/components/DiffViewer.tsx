@@ -79,11 +79,11 @@ function getLineBgClass(type: LineType): string {
 function getGutterBgClass(type: LineType): string {
   switch (type) {
     case 'add':
-      return 'bg-success-bg/50'
+      return 'bg-success-bg/40'
     case 'delete':
-      return 'bg-danger-bg/50'
+      return 'bg-danger-bg/40'
     case 'empty':
-      return 'bg-bg-100/50'
+      return 'bg-bg-100/30'
     default:
       return 'bg-bg-100'
   }
@@ -377,7 +377,7 @@ const SplitDiffView = memo(function SplitDiffView({
 
       {/* Sticky proxy 横向滚动条 — 只在内容实际溢出时显示 */}
       {(leftContentWidth > leftClientWidth || rightContentWidth > rightClientWidth) && (
-        <div className="sticky bottom-0 z-10 flex bg-bg-100/90 backdrop-blur-sm">
+        <div className="sticky bottom-0 z-10 flex backdrop-blur-sm">
           <div
             ref={leftScrollbarRef}
             className="flex-1 overflow-x-auto code-scrollbar border-r border-border-100/30"
@@ -589,7 +589,7 @@ const UnifiedDiffView = memo(function UnifiedDiffView({
 
       {/* Sticky proxy 横向滚动条 — 只在内容实际溢出时显示 */}
       {contentWidth > contentClientWidth && (
-        <div className="sticky bottom-0 z-10 flex bg-bg-100/90 backdrop-blur-sm">
+        <div className="sticky bottom-0 z-10 flex backdrop-blur-sm">
           <div className="shrink-0" style={{ width: GUTTER_WIDTH }} />
           <div ref={scrollbarRef} className="flex-1 min-w-0 overflow-x-auto code-scrollbar" onScroll={handleScrollbar}>
             <div style={{ width: contentWidth, height: 1 }} />

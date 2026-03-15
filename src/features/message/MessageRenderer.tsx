@@ -435,61 +435,77 @@ const ToolGroup = memo(function ToolGroup({ parts, stepFinish, duration, turnDur
   const totalCount = parts.length
   const isAllDone = doneCount === totalCount
 
-  // compact: 单工具且非 streaming 时用紧凑布局（图标内联，无 timeline 连接线）
-  const isSingleCompact = totalCount === 1 && !isStreaming
+  // compact: 单工具时用紧凑布局（图标内联，无 timeline 连接线）
+  // 不区分 streaming 状态 — 单工具始终 compact，第二个工具到来时再自然过渡到 timeline
+  const isSingleCompact = totalCount === 1
   // steps header: 仅多工具时显示
   const showStepsHeader = totalCount > 1
+
+  // steps header 入场动画 — 从无到有时 opacity + translateY 平滑出现
+  const headerRef = useRef<HTMLButtonElement>(null)
+  const headerAnimated = useRef(false)
+  useLayoutEffect(() => {
+    const el = headerRef.current
+    if (!el || headerAnimated.current) return
+    headerAnimated.current = true
+    el.style.opacity = '0'
+    el.style.transform = 'translateY(-4px)'
+    animate(el, { opacity: 1, transform: 'translateY(0px)' }, { duration: 0.15, ease: 'easeOut' })
+  }, [showStepsHeader])
 
   // 统一容器结构 — ToolPartView 始终在同一 React 树位置，
   // streaming→idle / 1→N 工具切换时不 remount，expanded 状态不丢失
   return (
-    <div className="flex flex-col">
-      {showStepsHeader && (
-        <button
-          onClick={() => setExpanded(!expanded)}
-          className="flex items-center gap-1.5 py-1.5 text-text-400 text-sm hover:text-text-200 hover:bg-bg-200/30 rounded-md transition-colors"
-        >
-          <span className="inline-flex w-[14px] items-center justify-center shrink-0">
-            {expanded ? <ChevronDownIcon size={14} /> : <ChevronRightIcon size={14} />}
-          </span>
-          <span className="inline-flex items-baseline gap-2 whitespace-nowrap">
-            <span className="text-[13px] font-medium leading-tight">
-              {isAllDone ? `${totalCount} steps` : `${doneCount}/${totalCount} steps`}
+    <SmoothHeight isActive={!!isStreaming}>
+      <div className="flex flex-col">
+        {showStepsHeader && (
+          <button
+            ref={headerRef}
+            onClick={() => setExpanded(!expanded)}
+            className="flex items-center gap-1.5 py-1.5 text-text-400 text-sm hover:text-text-200 hover:bg-bg-200/30 rounded-md transition-colors"
+          >
+            <span className="inline-flex w-[14px] items-center justify-center shrink-0">
+              {expanded ? <ChevronDownIcon size={14} /> : <ChevronRightIcon size={14} />}
             </span>
-            {!expanded && stepFinish && (
-              <span className="text-xs text-text-500 font-mono opacity-70">{formatTokens(stepFinish.tokens)}</span>
-            )}
-          </span>
-        </button>
-      )}
+            <span className="inline-flex items-baseline gap-2 whitespace-nowrap">
+              <span className="text-[13px] font-medium leading-tight">
+                {isAllDone ? `${totalCount} steps` : `${doneCount}/${totalCount} steps`}
+              </span>
+              {!expanded && stepFinish && (
+                <span className="text-xs text-text-500 font-mono opacity-70">{formatTokens(stepFinish.tokens)}</span>
+              )}
+            </span>
+          </button>
+        )}
 
-      <div
-        className={
-          showStepsHeader
-            ? `grid transition-[grid-template-rows] duration-300 ease-in-out ${expanded ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`
-            : ''
-        }
-      >
-        <div className={showStepsHeader ? 'flex flex-col overflow-hidden' : 'flex flex-col'}>
-          {(!showStepsHeader || shouldRenderBody) &&
-            parts.map((part, idx) => (
-              <ToolPartView
-                key={part.id}
-                part={part}
-                isFirst={idx === 0}
-                isLast={idx === parts.length - 1}
-                compact={isSingleCompact}
-              />
-            ))}
+        <div
+          className={
+            showStepsHeader
+              ? `grid transition-[grid-template-rows] duration-300 ease-in-out ${expanded ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`
+              : ''
+          }
+        >
+          <div className={showStepsHeader ? 'flex flex-col overflow-hidden' : 'flex flex-col'}>
+            {(!showStepsHeader || shouldRenderBody) &&
+              parts.map((part, idx) => (
+                <ToolPartView
+                  key={part.id}
+                  part={part}
+                  isFirst={idx === 0}
+                  isLast={idx === parts.length - 1}
+                  compact={isSingleCompact}
+                />
+              ))}
+          </div>
         </div>
+
+        {stepFinish && (
+          <div className="mt-2">
+            <StepFinishPartView part={stepFinish} duration={duration} turnDuration={turnDuration} />
+          </div>
+        )}
       </div>
-
-      {stepFinish && (
-        <div className="mt-2">
-          <StepFinishPartView part={stepFinish} duration={duration} turnDuration={turnDuration} />
-        </div>
-      )}
-    </div>
+    </SmoothHeight>
   )
 })
 

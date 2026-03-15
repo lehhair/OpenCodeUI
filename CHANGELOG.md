@@ -1,5 +1,13 @@
 # Changelog
 
+## [v0.2.2] - 2026-03-15
+
+- ci: 恢复 codegen-units=1 减小产物体积，Rust cache 按平台隔离，精简工作流 (5018e3b)
+- chore: 清理 suppressAutoScroll 死代码 (d47085e)
+- fix: loadMore 不跳变 — 去掉 inner wrapper，消息反序直接作为 flex 子元素，prepend 时临时禁用 content-visibility (657e7a4)
+- refactor: 用 column-reverse 替代 ResizeObserver 实现原生 stick-to-bottom (591a8eb)
+- refactor: DiffView 复用 DiffViewer 组件，删除 150 行重复 diff 渲染代码 (e78d987)
+
 ## [v0.2.1] - 2026-03-14
 
 - refactor: 用 ResizeObserver 替代 RAF 轮询实现流式自动滚动 (10d9e6a)

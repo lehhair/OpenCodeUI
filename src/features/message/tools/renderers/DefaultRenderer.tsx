@@ -66,7 +66,7 @@ function OutputBlock({ tool, data, isActive, hasError, hasOutput }: OutputBlockP
   // 2. 工具活跃时（running/pending）统一显示 loading
   //    所有工具行为一致，权限弹窗已有预览，这里不重复展示
   if (isActive) {
-    return <ContentBlock label="Output" isLoading={true} loadingText="Running..." />
+    return <ContentBlock label="Output" isLoading={true} loadingText="" />
   }
 
   // 3. 完成后显示结果
