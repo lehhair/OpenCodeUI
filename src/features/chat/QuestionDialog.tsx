@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { QuestionIcon, CheckIcon, ReturnIcon, ChevronDownIcon } from '../../components/Icons'
 import type { ApiQuestionRequest, ApiQuestionInfo, QuestionAnswer } from '../../api'
+import { usePresence } from '../../hooks'
 
 interface QuestionDialogProps {
   request: ApiQuestionRequest
@@ -143,11 +144,17 @@ export function QuestionDialog({
     }
   })
 
-  // 折叠态：由 InputBox 渲染胶囊，这里不渲染任何内容
-  if (collapsed) return null
+  // 弹出/收起动画
+  const { shouldRender, ref: animRef } = usePresence<HTMLDivElement>(!collapsed, {
+    from: { opacity: 0, transform: 'translateY(16px)' },
+    to: { opacity: 1, transform: 'translateY(0px)' },
+    duration: 0.2,
+  })
+
+  if (!shouldRender) return null
 
   return (
-    <div className="absolute bottom-0 left-0 right-0 z-[10]">
+    <div ref={animRef} className="absolute bottom-0 left-0 right-0 z-[10]">
       <div
         className="mx-auto max-w-3xl px-4 pb-2"
         style={{ paddingBottom: 'max(8px, var(--safe-area-inset-bottom, 8px))' }}

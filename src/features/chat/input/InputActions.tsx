@@ -1,7 +1,22 @@
-import { memo } from 'react'
+import { memo, type ReactNode } from 'react'
 import { ArrowDownIcon, ArrowUpIcon, PermissionListIcon, QuestionIcon } from '../../../components/Icons'
 import { UndoStatus } from './UndoStatus'
+import { usePresence } from '../../../hooks'
 import type { CollapsedDialogInfo } from '../InputBox'
+
+// ============================================
+// PresenceItem — 通用的入场/退场动画包装器
+// ============================================
+
+function PresenceItem({ show, children }: { show: boolean; children: ReactNode }) {
+  const { shouldRender, ref } = usePresence<HTMLDivElement>(show, {
+    from: { opacity: 0, transform: 'translateY(8px) scale(0.95)' },
+    to: { opacity: 1, transform: 'translateY(0px) scale(1)' },
+    duration: 0.15,
+  })
+  if (!shouldRender) return null
+  return <div ref={ref}>{children}</div>
+}
 
 // ============================================
 // ScrollToBottomButton — 可复用的滚动到底部按钮
@@ -52,43 +67,51 @@ export const FloatingActions = memo(function FloatingActions({
   collapsedPermission,
   collapsedQuestion,
 }: FloatingActionsProps) {
-  if (!showScrollToBottom && !canRedo && !collapsedPermission && !collapsedQuestion) return null
-
   return (
     <div className="flex items-center justify-center gap-2">
       {/* Collapsed Permission Capsule */}
-      {collapsedPermission && (
-        <button
-          type="button"
-          onClick={collapsedPermission.onExpand}
-          className="flex items-center gap-1.5 px-3 h-[32px] rounded-full bg-accent-main-100/10 backdrop-blur-md border border-accent-main-100/20 text-[11px] text-accent-main-000 hover:bg-accent-main-100/20 transition-colors animate-in fade-in slide-in-from-bottom-2 duration-150"
-        >
-          <PermissionListIcon size={14} />
-          <span className="whitespace-nowrap">{collapsedPermission.label}</span>
-          {collapsedPermission.queueLength > 1 && (
-            <span className="text-[10px] opacity-70">+{collapsedPermission.queueLength - 1}</span>
-          )}
-        </button>
-      )}
+      <PresenceItem show={!!collapsedPermission}>
+        {collapsedPermission && (
+          <button
+            type="button"
+            onClick={collapsedPermission.onExpand}
+            className="flex items-center gap-1.5 px-3 h-[32px] rounded-full bg-accent-main-100/10 backdrop-blur-md border border-accent-main-100/20 text-[11px] text-accent-main-000 hover:bg-accent-main-100/20 transition-colors"
+          >
+            <PermissionListIcon size={14} />
+            <span className="whitespace-nowrap">{collapsedPermission.label}</span>
+            {collapsedPermission.queueLength > 1 && (
+              <span className="text-[10px] opacity-70">+{collapsedPermission.queueLength - 1}</span>
+            )}
+          </button>
+        )}
+      </PresenceItem>
 
       {/* Collapsed Question Capsule */}
-      {collapsedQuestion && (
-        <button
-          type="button"
-          onClick={collapsedQuestion.onExpand}
-          className="flex items-center gap-1.5 px-3 h-[32px] rounded-full bg-accent-main-100/10 backdrop-blur-md border border-accent-main-100/20 text-[11px] text-accent-main-000 hover:bg-accent-main-100/20 transition-colors animate-in fade-in slide-in-from-bottom-2 duration-150"
-        >
-          <QuestionIcon size={14} />
-          <span className="whitespace-nowrap">{collapsedQuestion.label}</span>
-          {collapsedQuestion.queueLength > 1 && (
-            <span className="text-[10px] opacity-70">+{collapsedQuestion.queueLength - 1}</span>
-          )}
-        </button>
-      )}
+      <PresenceItem show={!!collapsedQuestion}>
+        {collapsedQuestion && (
+          <button
+            type="button"
+            onClick={collapsedQuestion.onExpand}
+            className="flex items-center gap-1.5 px-3 h-[32px] rounded-full bg-accent-main-100/10 backdrop-blur-md border border-accent-main-100/20 text-[11px] text-accent-main-000 hover:bg-accent-main-100/20 transition-colors"
+          >
+            <QuestionIcon size={14} />
+            <span className="whitespace-nowrap">{collapsedQuestion.label}</span>
+            {collapsedQuestion.queueLength > 1 && (
+              <span className="text-[10px] opacity-70">+{collapsedQuestion.queueLength - 1}</span>
+            )}
+          </button>
+        )}
+      </PresenceItem>
 
-      {canRedo && <UndoStatus canRedo={canRedo} revertSteps={revertSteps ?? 0} onRedo={onRedo} onRedoAll={onRedoAll} />}
+      <PresenceItem show={!!canRedo}>
+        {canRedo && (
+          <UndoStatus canRedo={canRedo} revertSteps={revertSteps ?? 0} onRedo={onRedo} onRedoAll={onRedoAll} />
+        )}
+      </PresenceItem>
 
-      {showScrollToBottom && !isCollapsed && <ScrollToBottomButton onClick={onScrollToBottom} />}
+      <PresenceItem show={!!showScrollToBottom && !isCollapsed}>
+        <ScrollToBottomButton onClick={onScrollToBottom} />
+      </PresenceItem>
     </div>
   )
 })
