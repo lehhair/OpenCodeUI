@@ -352,7 +352,7 @@ function App() {
       toggleFullAuto: () => {
         const mode = autoApproveStore.fullAutoMode
         if (mode === 'off') {
-          autoApproveStore.setFullAutoMode('session', routeSessionId ?? undefined)
+          autoApproveStore.setFullAutoMode('session')
         } else if (mode === 'session') {
           autoApproveStore.setFullAutoMode('global')
         } else {

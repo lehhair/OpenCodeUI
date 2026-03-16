@@ -268,8 +268,8 @@ export function useGlobalEvents(callbacks?: GlobalEventsCallbacks, directories?:
       // ============================================
 
       onPermissionAsked: request => {
-        // Full Auto 全局拦截 — 在分发前判断，确保非当前会话的请求也能自动放行
-        if (autoApproveStore.shouldFullAutoApprove(request.sessionID)) {
+        // Full Auto 全局模式拦截 — 所有会话的权限请求直接放行
+        if (autoApproveStore.fullAutoMode === 'global') {
           const dir = activeSessionStore.getSessionMeta(request.sessionID)?.directory
           replyPermission(request.id, 'once', undefined, dir).then(() => {
             activeSessionStore.resolvePendingRequest(request.id)

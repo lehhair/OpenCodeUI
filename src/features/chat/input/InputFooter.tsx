@@ -82,7 +82,7 @@ export const InputFooter = memo(function InputFooter({ sessionId, onNewChat, inp
       <button
         onClick={() => {
           if (fullAutoMode === 'off') {
-            autoApproveStore.setFullAutoMode('session', sessionId ?? undefined)
+            autoApproveStore.setFullAutoMode('session')
           } else if (fullAutoMode === 'session') {
             autoApproveStore.setFullAutoMode('global')
           } else {

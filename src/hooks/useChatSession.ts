@@ -180,8 +180,9 @@ export function useChatSession({ chatAreaRef, currentModel, refetchModels }: Use
   useGlobalEvents(
     {
       onPermissionAsked: request => {
-        // Full Auto 模式：会话级只放行绑定会话，全局放行所有
-        if (autoApproveStore.shouldFullAutoApprove(request.sessionID)) {
+        // Full Auto 会话级：当前 session 的 handler 天然只处理当前 session 的请求
+        // 全局模式已在 useGlobalEvents 层拦截，这里只需判断 session 模式
+        if (autoApproveStore.fullAutoMode === 'session') {
           handlePermissionReply(request.id, 'once', effectiveDirectory)
           return
         }

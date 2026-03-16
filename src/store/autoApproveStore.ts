@@ -48,10 +48,9 @@ class AutoApproveStore {
 
   // Full Auto 模式（纯内存，不持久化，刷新即关）
   // off: 不自动放行
-  // session: 只自动放行当前绑定的会话
+  // session: 自动放行当前所在页面的会话（由 handler 层级天然保证）
   // global: 所有会话的权限请求无差别自动放行
   private _fullAutoMode: FullAutoMode = 'off'
-  private _fullAutoSessionId: string | null = null
   private _fullAutoListeners = new Set<FullAutoListener>()
 
   constructor() {
@@ -78,7 +77,6 @@ class AutoApproveStore {
     this.rulesMap.clear()
     if (this._fullAutoMode !== 'off') {
       this._fullAutoMode = 'off'
-      this._fullAutoSessionId = null
       this._fullAutoListeners.forEach(fn => fn('off'))
     }
   }
@@ -120,12 +118,9 @@ class AutoApproveStore {
 
   /**
    * 设置 Full Auto 模式
-   * @param mode 模式
-   * @param sessionId session 模式下绑定的会话 ID
    */
-  setFullAutoMode(mode: FullAutoMode, sessionId?: string): void {
+  setFullAutoMode(mode: FullAutoMode): void {
     this._fullAutoMode = mode
-    this._fullAutoSessionId = mode === 'session' ? (sessionId ?? null) : null
     this._fullAutoListeners.forEach(fn => fn(mode))
   }
 
@@ -144,17 +139,6 @@ class AutoApproveStore {
     return () => {
       this._fullAutoListeners.delete(listener)
     }
-  }
-
-  /**
-   * 判断某个会话的权限请求是否应该被 Full Auto 自动放行
-   * - global 模式：所有会话都放行
-   * - session 模式：只放行绑定的会话
-   */
-  shouldFullAutoApprove(sessionId?: string): boolean {
-    if (this._fullAutoMode === 'global') return true
-    if (this._fullAutoMode === 'session' && sessionId && this._fullAutoSessionId === sessionId) return true
-    return false
   }
 
   /**
