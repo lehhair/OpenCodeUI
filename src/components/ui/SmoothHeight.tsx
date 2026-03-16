@@ -30,7 +30,7 @@ export function SmoothHeight({
       animRef.current = null
       if (outer) {
         outer.style.height = ''
-        outer.style.overflow = ''
+        outer.style.clipPath = ''
       }
       return
     }
@@ -38,7 +38,9 @@ export function SmoothHeight({
     // 锁定 outer 为当前内容高度 — 之后内容增长不会自动撑开 outer，
     // 必须由 animate() 驱动 outer 增长，从而产生平滑的高度过渡效果
     outer.style.height = `${inner.scrollHeight}px`
-    outer.style.overflow = 'hidden'
+    // 只裁切垂直方向，水平方向留出空间让 icon 光晕等视觉效果溢出
+    // 不能用 overflow: hidden（会同时裁切水平），用 clip-path 实现单方向裁切
+    outer.style.clipPath = 'inset(0 -100% 0 -100%)'
 
     const update = () => {
       const target = inner.scrollHeight

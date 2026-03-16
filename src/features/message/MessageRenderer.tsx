@@ -70,10 +70,10 @@ function useEntryGrowAnimation(created: number) {
     if (!el || Date.now() - created > 3000) return
     const targetHeight = el.scrollHeight
     el.style.height = '0px'
-    el.style.overflow = 'hidden'
+    el.style.clipPath = 'inset(0 -100% 0 -100%)'
     animate(el, { height: `${targetHeight}px` }, { duration: 0.2, ease: 'easeOut' }).then(() => {
       el.style.height = ''
-      el.style.overflow = ''
+      el.style.clipPath = ''
     })
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
   return ref
@@ -478,7 +478,10 @@ const ToolGroup = memo(function ToolGroup({ parts, stepFinish, duration, turnDur
               : ''
           }
         >
-          <div className={showStepsHeader ? 'flex flex-col overflow-hidden' : 'flex flex-col'}>
+          <div
+            className={showStepsHeader ? 'flex flex-col min-h-0' : 'flex flex-col'}
+            style={showStepsHeader ? { clipPath: 'inset(0 -100% 0 -100%)' } : undefined}
+          >
             {(!showStepsHeader || shouldRenderBody) &&
               parts.map((part, idx) => (
                 <ToolPartView
