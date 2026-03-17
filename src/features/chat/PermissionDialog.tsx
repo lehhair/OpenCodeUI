@@ -115,26 +115,26 @@ export function PermissionDialog({
                     after={after}
                     filePath={filepath}
                     defaultCollapsed={false}
-                    maxHeight={200}
+                    maxHeight={150}
                   />
                 </div>
               )}
 
-              {/* Patterns */}
+              {/* Request */}
               {request.patterns && request.patterns.length > 0 && (
                 <ContentBlock
-                  label={t('permissionDialog.requesting')}
+                  label={t('permissionDialog.request')}
                   content={request.patterns.map(p => p.replace(/\\n/g, '\n')).join('\n\n')}
                   language="bash"
-                  maxHeight={200}
+                  maxHeight={150}
                   collapsible={false}
                 />
               )}
 
-              {/* Already allowed */}
+              {/* Rule */}
               {request.always && request.always.length > 0 && (
                 <ContentBlock
-                  label={t('permissionDialog.allowed')}
+                  label={t('permissionDialog.rule')}
                   content={request.always.join('\n')}
                   language="bash"
                   maxHeight={80}
