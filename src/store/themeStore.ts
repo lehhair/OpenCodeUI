@@ -6,6 +6,7 @@
  * - 日夜模式（system / light / dark）
  * - 自定义 CSS（可用于覆盖字体等）
  * - CSS 变量注入
+ * - 自定义CSS模板管理
  */
 
 import { getThemePreset, themeColorsToCSSVars, builtinThemes, DEFAULT_THEME_ID } from '../themes'
@@ -54,6 +55,15 @@ function computedColorToHex(cssColor: string): string | null {
 
 export type ColorMode = 'system' | 'light' | 'dark'
 
+/** 自定义CSS模板 */
+export interface CustomCSSTemplate {
+  id: string
+  name: string
+  css: string
+  createdAt: number
+  updatedAt: number
+}
+
 /** step-finish 信息栏各项显示开关 */
 export interface StepFinishDisplay {
   tokens: boolean
@@ -82,6 +92,10 @@ export interface ThemeState {
   colorMode: ColorMode
   /** 用户自定义 CSS（覆盖 CSS 变量） */
   customCSS: string
+  /** 自定义CSS模板列表 */
+  customCSSTemplates: CustomCSSTemplate[]
+  /** 当前激活的模板ID（null表示使用customCSS字段） */
+  activeTemplateId: string | null
   /** 是否自动折叠长用户消息 */
   collapseUserMessages: boolean
   /** step-finish 信息栏显示开关 */
@@ -99,6 +113,8 @@ export interface ThemeState {
 const STORAGE_KEY_PRESET = 'theme-preset'
 const STORAGE_KEY_COLOR_MODE = 'theme-mode'
 const STORAGE_KEY_CUSTOM_CSS = 'theme-custom-css'
+const STORAGE_KEY_CUSTOM_CSS_TEMPLATES = 'theme-custom-css-templates'
+const STORAGE_KEY_ACTIVE_TEMPLATE_ID = 'theme-active-template-id'
 const STORAGE_KEY_COLLAPSE_USER_MESSAGES = 'collapse-user-messages'
 const STORAGE_KEY_STEP_FINISH_DISPLAY = 'step-finish-display'
 const STORAGE_KEY_REASONING_DISPLAY_MODE = 'reasoning-display-mode'
@@ -139,10 +155,22 @@ class ThemeStore {
 
     const savedWideMode = localStorage.getItem(STORAGE_KEY_WIDE_MODE) === 'true'
 
+    let customCSSTemplates: CustomCSSTemplate[] = []
+    try {
+      const savedTemplates = localStorage.getItem(STORAGE_KEY_CUSTOM_CSS_TEMPLATES)
+      if (savedTemplates) customCSSTemplates = JSON.parse(savedTemplates)
+    } catch {
+      /* ignore */
+    }
+
+    const savedActiveTemplateId = localStorage.getItem(STORAGE_KEY_ACTIVE_TEMPLATE_ID) || null
+
     this.state = {
       presetId: savedPreset,
       colorMode: savedMode,
       customCSS: savedCSS,
+      customCSSTemplates,
+      activeTemplateId: savedActiveTemplateId,
       collapseUserMessages,
       stepFinishDisplay,
       reasoningDisplayMode,
@@ -265,6 +293,81 @@ class ThemeStore {
 
   toggleWideMode() {
     this.setWideMode(!this.state.wideMode)
+  }
+
+  // ---- Custom CSS Templates ----
+
+  get customCSSTemplates() {
+    return this.state.customCSSTemplates
+  }
+
+  get activeTemplateId() {
+    return this.state.activeTemplateId
+  }
+
+  saveCustomCSSTemplate(name: string, css: string): CustomCSSTemplate {
+    const now = Date.now()
+    const template: CustomCSSTemplate = {
+      id: `template-${now}`,
+      name,
+      css,
+      createdAt: now,
+      updatedAt: now,
+    }
+    const templates = [...this.state.customCSSTemplates, template]
+    this.state = { ...this.state, customCSSTemplates: templates }
+    localStorage.setItem(STORAGE_KEY_CUSTOM_CSS_TEMPLATES, JSON.stringify(templates))
+    this.emit()
+    return template
+  }
+
+  updateCustomCSSTemplate(id: string, updates: Partial<Pick<CustomCSSTemplate, 'name' | 'css'>>): void {
+    const templates = this.state.customCSSTemplates.map(t =>
+      t.id === id ? { ...t, ...updates, updatedAt: Date.now() } : t,
+    )
+    this.state = { ...this.state, customCSSTemplates: templates }
+    localStorage.setItem(STORAGE_KEY_CUSTOM_CSS_TEMPLATES, JSON.stringify(templates))
+
+    if (this.state.activeTemplateId === id && updates.css !== undefined) {
+      this.state = { ...this.state, customCSS: updates.css }
+      localStorage.setItem(STORAGE_KEY_CUSTOM_CSS, updates.css)
+      this.applyCustomCSS()
+    }
+    this.emit()
+  }
+
+  deleteCustomCSSTemplate(id: string): void {
+    const templates = this.state.customCSSTemplates.filter(t => t.id !== id)
+    this.state = { ...this.state, customCSSTemplates: templates }
+    localStorage.setItem(STORAGE_KEY_CUSTOM_CSS_TEMPLATES, JSON.stringify(templates))
+
+    if (this.state.activeTemplateId === id) {
+      this.state = { ...this.state, activeTemplateId: null }
+      localStorage.removeItem(STORAGE_KEY_ACTIVE_TEMPLATE_ID)
+    }
+    this.emit()
+  }
+
+  activateTemplate(id: string | null): void {
+    if (id === null) {
+      this.state = { ...this.state, activeTemplateId: null }
+      localStorage.removeItem(STORAGE_KEY_ACTIVE_TEMPLATE_ID)
+      this.emit()
+      return
+    }
+
+    const template = this.state.customCSSTemplates.find(t => t.id === id)
+    if (!template) return
+
+    this.state = {
+      ...this.state,
+      activeTemplateId: id,
+      customCSS: template.css,
+    }
+    localStorage.setItem(STORAGE_KEY_ACTIVE_TEMPLATE_ID, id)
+    localStorage.setItem(STORAGE_KEY_CUSTOM_CSS, template.css)
+    this.applyCustomCSS()
+    this.emit()
   }
 
   // ---- Theme Application ----

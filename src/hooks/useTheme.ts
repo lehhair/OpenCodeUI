@@ -2,6 +2,7 @@ import { useCallback, useRef, useSyncExternalStore } from 'react'
 import { flushSync } from 'react-dom'
 import { THEME_SWITCH_DISABLE_MS } from '../constants'
 import { themeStore, type ColorMode } from '../store/themeStore'
+import type { CustomCSSTemplate } from '../store/themeStore'
 import type { StepFinishDisplay } from '../store/themeStore'
 import type { ReasoningDisplayMode } from '../store/themeStore'
 
@@ -122,6 +123,27 @@ export function useTheme() {
     themeStore.setCustomCSS(css)
   }, [])
 
+  // ---- Custom CSS Templates ----
+
+  const saveCustomCSSTemplate = useCallback((name: string, css: string) => {
+    return themeStore.saveCustomCSSTemplate(name, css)
+  }, [])
+
+  const updateCustomCSSTemplate = useCallback(
+    (id: string, updates: Partial<Pick<CustomCSSTemplate, 'name' | 'css'>>) => {
+      themeStore.updateCustomCSSTemplate(id, updates)
+    },
+    [],
+  )
+
+  const deleteCustomCSSTemplate = useCallback((id: string) => {
+    themeStore.deleteCustomCSSTemplate(id)
+  }, [])
+
+  const activateTemplate = useCallback((id: string | null) => {
+    themeStore.activateTemplate(id)
+  }, [])
+
   // ---- Collapse User Messages ----
 
   const setCollapseUserMessages = useCallback((enabled: boolean) => {
@@ -159,6 +181,14 @@ export function useTheme() {
     // 自定义 CSS
     customCSS: state.customCSS,
     setCustomCSS,
+
+    // 自定义CSS模板
+    customCSSTemplates: state.customCSSTemplates,
+    activeTemplateId: state.activeTemplateId,
+    saveCustomCSSTemplate,
+    updateCustomCSSTemplate,
+    deleteCustomCSSTemplate,
+    activateTemplate,
 
     // 折叠长用户消息
     collapseUserMessages: state.collapseUserMessages,

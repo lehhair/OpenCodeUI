@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { PanelRightIcon, PanelBottomIcon, ChevronDownIcon, SidebarIcon } from '../../components/Icons'
+import { PanelRightIcon, PanelBottomIcon, ChevronDownIcon, SidebarIcon, PlusIcon } from '../../components/Icons'
 import { IconButton } from '../../components/ui'
 import { ModelSelector, type ModelSelectorHandle } from './ModelSelector'
 import { ShareDialog } from './ShareDialog'
@@ -17,6 +17,7 @@ interface HeaderProps {
   selectedModelKey: string | null
   onModelChange: (modelKey: string, model: ModelInfo) => void
   onOpenSidebar?: () => void
+  onNewSession?: () => void
   modelSelectorRef?: React.RefObject<ModelSelectorHandle | null>
 }
 
@@ -26,6 +27,7 @@ export function Header({
   selectedModelKey,
   onModelChange,
   onOpenSidebar,
+  onNewSession,
   modelSelectorRef,
 }: HeaderProps) {
   const { t } = useTranslation('chat')
@@ -200,6 +202,17 @@ export function Header({
 
       {/* Right: Panel Toggles (z-20) */}
       <div className="flex items-center gap-1 pointer-events-auto shrink-0 z-20">
+        {/* New Session Button */}
+        {onNewSession && (
+          <IconButton
+            aria-label={t('header.newChat')}
+            onClick={onNewSession}
+            className="text-text-400 hover:text-text-100 hover:bg-bg-200/50"
+            title={t('header.newChat')}
+          >
+            <PlusIcon size={18} />
+          </IconButton>
+        )}
         {/* Panel Toggles Group */}
         <div className="flex items-center gap-0.5">
           <IconButton

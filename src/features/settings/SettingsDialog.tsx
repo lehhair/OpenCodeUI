@@ -195,7 +195,7 @@ export function SettingsDialog({ isOpen, onClose, initialTab = 'servers' }: Sett
                   <button
                     key={vt.id}
                     onClick={() => switchTab(vt.id)}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[13px] font-medium transition-colors whitespace-nowrap shrink-0 border
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[13px] font-medium transition-colors whitespace-nowrap shrink-0 border
                       ${
                         vt.id === tab
                           ? 'bg-accent-main-100/10 text-accent-main-100 border-accent-main-100/30'

@@ -620,6 +620,7 @@ function App() {
                   selectedModelKey={selectedModelKey}
                   onModelChange={handleModelChange}
                   onOpenSidebar={() => setSidebarExpanded(true)}
+                  onNewSession={handleNewSession}
                   modelSelectorRef={modelSelectorRef}
                 />
               </div>
