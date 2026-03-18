@@ -5,6 +5,7 @@ import { formatRelativeTime } from '../../utils/dateUtils'
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
 import { useIsMobile } from '../../hooks'
 import { useSessionActiveEntry } from '../../store/activeSessionStore'
+import { notificationStore, useHasUnreadCompletedNotification } from '../../store/notificationStore'
 import type { ApiSession } from '../../api'
 
 interface SessionListProps {
@@ -272,6 +273,7 @@ export function SessionListItem({
           ? { dot: 'bg-warning-100', label: t('chat:activeSession.retrying'), pulse: false }
           : { dot: 'bg-success-100', label: t('chat:activeSession.working'), pulse: true }
     : null
+  const hasUnreadCompletedNotification = useHasUnreadCompletedNotification(session.id)
   const itemRef = useRef<HTMLDivElement>(null)
   const isMobile = useIsMobile()
   const isCompact = density === 'compact'
@@ -372,6 +374,7 @@ export function SessionListItem({
       setShowActions(false)
       return
     }
+    notificationStore.markSessionNotificationsRead(session.id, 'completed')
     onSelect()
   }
 
@@ -414,15 +417,22 @@ export function SessionListItem({
           isSelected ? 'bg-bg-200/80 text-text-100' : 'text-text-300 hover:bg-bg-200/40 hover:text-text-200'
         } ${showActions ? 'bg-bg-200/40' : ''}`}
       >
-        {/* 活跃状态圆点 */}
-        {activeStatus && (
+        {/* 活跃状态圆点 / 已完成未读圆点 */}
+        {activeStatus ? (
           <span className="relative shrink-0 flex items-center justify-center w-3 h-3" title={activeStatus.label}>
             <span className={`absolute w-1.5 h-1.5 rounded-full ${activeStatus.dot}`} />
             {activeStatus.pulse && (
               <span className={`absolute w-1.5 h-1.5 rounded-full ${activeStatus.dot} animate-ping opacity-50`} />
             )}
           </span>
-        )}
+        ) : hasUnreadCompletedNotification ? (
+          <span
+            className="relative shrink-0 flex items-center justify-center w-3 h-3"
+            title={t('chat:notification.completed')}
+          >
+            <span className="absolute w-1.5 h-1.5 rounded-full bg-accent-main-100" />
+          </span>
+        ) : null}
 
         <div
           className={`flex min-w-0 flex-1 items-center gap-1.5 transition-[padding] duration-200 ${
@@ -502,8 +512,8 @@ export function SessionListItem({
         <div
           className={`flex items-center ${isCompact ? 'mt-1' : 'mt-1.5'} h-4 text-[10px] text-text-400 gap-1 overflow-hidden`}
         >
-          {/* 活跃状态标记 */}
-          {activeStatus && (
+          {/* 活跃状态标记 / 已完成未读圆点 */}
+          {activeStatus ? (
             <>
               <span className="relative shrink-0 flex items-center justify-center w-3 h-3">
                 <span className={`absolute w-1.5 h-1.5 rounded-full ${activeStatus.dot}`} />
@@ -513,7 +523,17 @@ export function SessionListItem({
               </span>
               <span className="opacity-30 shrink-0">·</span>
             </>
-          )}
+          ) : hasUnreadCompletedNotification ? (
+            <>
+              <span
+                className="relative shrink-0 flex items-center justify-center w-3 h-3"
+                title={t('chat:notification.completed')}
+              >
+                <span className="absolute w-1.5 h-1.5 rounded-full bg-accent-main-100" />
+              </span>
+              <span className="opacity-30 shrink-0">·</span>
+            </>
+          ) : null}
           {/* 时间 */}
           {session.time?.updated && (
             <span className="shrink-0 opacity-60">{formatRelativeTime(session.time.updated)}</span>

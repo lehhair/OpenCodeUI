@@ -175,6 +175,21 @@ class NotificationStore {
     this.notify()
   }
 
+  markSessionNotificationsRead(sessionId: string, type?: NotificationType) {
+    let changed = false
+    const notifications = this.state.notifications.map(n => {
+      if (n.sessionId !== sessionId) return n
+      if (type && n.type !== type) return n
+      if (n.read) return n
+      changed = true
+      return { ...n, read: true }
+    })
+    if (!changed) return
+    this.state = { ...this.state, notifications }
+    this.persist()
+    this.notify()
+  }
+
   dismiss(id: string) {
     const notifications = this.state.notifications.filter(n => n.id !== id)
     this.state = { ...this.state, notifications }
@@ -260,4 +275,16 @@ export function useNotifications(): NotificationEntry[] {
 export function useUnreadNotificationCount(): number {
   const state = useNotificationStore()
   return state.notifications.filter(n => !n.read).length
+}
+
+/** 未读 completed 通知对应的 sessionId 集合 */
+export function useUnreadCompletedSessionIds(): Set<string> {
+  const state = useNotificationStore()
+  return new Set(state.notifications.filter(n => n.type === 'completed' && !n.read).map(n => n.sessionId))
+}
+
+/** 某个 session 是否有未读 completed 通知 */
+export function useHasUnreadCompletedNotification(sessionId: string): boolean {
+  const unreadCompletedSessionIds = useUnreadCompletedSessionIds()
+  return unreadCompletedSessionIds.has(sessionId)
 }
