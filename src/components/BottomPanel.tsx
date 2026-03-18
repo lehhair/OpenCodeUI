@@ -173,7 +173,7 @@ export const BottomPanel = memo(function BottomPanel({ directory }: BottomPanelP
           }
           return (
             <Suspense fallback={<PanelFallback />}>
-              <SessionChangesPanel sessionId={sessionId} isResizing={isPanelResizing} />
+              <ChangesContent activeTab={activeTab} sessionId={sessionId} isPanelResizing={isPanelResizing} />
             </Suspense>
           )
         case 'mcp':
@@ -270,6 +270,31 @@ const FilesContent = memo(function FilesContent({
             isPanelResizing={isPanelResizing}
             sessionId={sessionId}
           />
+        </div>
+      ))}
+    </>
+  )
+})
+
+interface ChangesContentProps {
+  activeTab: PanelTab
+  sessionId: string
+  isPanelResizing?: boolean
+}
+
+const ChangesContent = memo(function ChangesContent({
+  activeTab,
+  sessionId,
+  isPanelResizing = false,
+}: ChangesContentProps) {
+  const { panelTabs } = useLayoutStore()
+  const changeTabs = panelTabs.filter(t => t.position === 'bottom' && t.type === 'changes')
+
+  return (
+    <>
+      {changeTabs.map(tab => (
+        <div key={tab.id} className={tab.id === activeTab.id ? 'h-full' : 'hidden'}>
+          <SessionChangesPanel panelTabId={tab.id} sessionId={sessionId} isResizing={isPanelResizing} />
         </div>
       ))}
     </>

@@ -18,12 +18,27 @@ import { sessionErrorHandler } from '../utils'
 const MIN_LIST_HEIGHT = 80
 const MIN_PREVIEW_HEIGHT = 120
 
+function reconcileDiffPreviewState(diffs: FileDiff[], openFiles: string[], activeFile: string | null) {
+  const availableFiles = new Set(diffs.map(diff => diff.file))
+  const nextOpenFiles = openFiles.filter(file => availableFiles.has(file))
+
+  if (nextOpenFiles.length === 0 && diffs.length > 0) {
+    nextOpenFiles.push(diffs[0].file)
+  }
+
+  const nextActiveFile = activeFile && nextOpenFiles.includes(activeFile) ? activeFile : (nextOpenFiles[0] ?? null)
+
+  return { nextOpenFiles, nextActiveFile }
+}
+
 interface SessionChangesPanelProps {
+  panelTabId: string
   sessionId: string
   isResizing?: boolean
 }
 
 export const SessionChangesPanel = memo(function SessionChangesPanel({
+  panelTabId,
   sessionId,
   isResizing: isPanelResizing = false,
 }: SessionChangesPanelProps) {
@@ -39,6 +54,7 @@ export const SessionChangesPanel = memo(function SessionChangesPanel({
 
   // 选中的文件（显示在预览区）
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
+  const [openDiffFiles, setOpenDiffFiles] = useState<string[]>([])
 
   // 展开的目录
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set())
@@ -49,8 +65,18 @@ export const SessionChangesPanel = memo(function SessionChangesPanel({
   const rafRef = useRef<number>(0)
   const currentHeightRef = useRef<number | null>(null)
   const requestIdRef = useRef(0)
+  const openDiffFilesRef = useRef<string[]>([])
+  const selectedFileRef = useRef<string | null>(null)
 
   const isAnyResizing = isPanelResizing || isResizing
+
+  useEffect(() => {
+    openDiffFilesRef.current = openDiffFiles
+  }, [openDiffFiles])
+
+  useEffect(() => {
+    selectedFileRef.current = selectedFile
+  }, [selectedFile])
 
   // 同步高度到 CSS 变量
   useLayoutEffect(() => {
@@ -76,7 +102,13 @@ export const SessionChangesPanel = memo(function SessionChangesPanel({
 
           setDiffs(data)
           setExpandedDirs(prev => (prev.size === 0 ? collectExpandedDirPaths(buildChangesTree(data)) : prev))
-          setSelectedFile(data.length > 0 ? data[0].file : null)
+          const { nextOpenFiles, nextActiveFile } = reconcileDiffPreviewState(
+            data,
+            openDiffFilesRef.current,
+            selectedFileRef.current,
+          )
+          setOpenDiffFiles(nextOpenFiles)
+          setSelectedFile(nextActiveFile)
         })
         .catch(err => {
           if (cancelled || requestId !== requestIdRef.current) return
@@ -104,11 +136,13 @@ export const SessionChangesPanel = memo(function SessionChangesPanel({
       getSessionDiff(sessionId)
         .then(data => {
           setDiffs(data)
-          // 保持选中状态，如果选中的文件不在新数据中则选第一个
-          setSelectedFile(prev => {
-            if (prev && data.some(d => d.file === prev)) return prev
-            return data.length > 0 ? data[0].file : null
-          })
+          const { nextOpenFiles, nextActiveFile } = reconcileDiffPreviewState(
+            data,
+            openDiffFilesRef.current,
+            selectedFileRef.current,
+          )
+          setOpenDiffFiles(nextOpenFiles)
+          setSelectedFile(nextActiveFile)
         })
         .catch(err => {
           sessionErrorHandler('load session diff', err)
@@ -120,6 +154,7 @@ export const SessionChangesPanel = memo(function SessionChangesPanel({
 
   // 选中文件
   const handleSelectFile = useCallback((file: string) => {
+    setOpenDiffFiles(prev => (prev.includes(file) ? prev : [...prev, file]))
     setSelectedFile(prev => (prev === file ? prev : file))
   }, [])
 
@@ -141,9 +176,41 @@ export const SessionChangesPanel = memo(function SessionChangesPanel({
 
   // 关闭预览
   const handleClosePreview = useCallback(() => {
+    setOpenDiffFiles([])
     setSelectedFile(null)
     setListHeight(null)
     currentHeightRef.current = null
+  }, [])
+
+  const handleActivatePreview = useCallback((file: string) => {
+    setSelectedFile(prev => (prev === file ? prev : file))
+  }, [])
+
+  const handleClosePreviewTab = useCallback((file: string) => {
+    setOpenDiffFiles(prev => {
+      const index = prev.indexOf(file)
+      if (index === -1) return prev
+
+      const next = prev.filter(item => item !== file)
+      setSelectedFile(current => {
+        if (current !== file) return current
+        return next[Math.min(index, next.length - 1)] ?? null
+      })
+      return next
+    })
+  }, [])
+
+  const handleReorderPreviewTabs = useCallback((draggedFile: string, targetFile: string) => {
+    setOpenDiffFiles(prev => {
+      const draggedIndex = prev.indexOf(draggedFile)
+      const targetIndex = prev.indexOf(targetFile)
+      if (draggedIndex === -1 || targetIndex === -1 || draggedIndex === targetIndex) return prev
+
+      const next = [...prev]
+      const [dragged] = next.splice(draggedIndex, 1)
+      next.splice(targetIndex, 0, dragged)
+      return next
+    })
   }, [])
 
   // 鼠标拖拽调整高度
@@ -228,6 +295,13 @@ export const SessionChangesPanel = memo(function SessionChangesPanel({
 
   // 获取选中的 diff 数据
   const selectedDiff = selectedFile ? diffs.find(d => d.file === selectedFile) : null
+  const previewDiffs = useMemo(
+    () =>
+      openDiffFiles
+        .map(file => diffs.find(diff => diff.file === file))
+        .filter((diff): diff is FileDiff => Boolean(diff)),
+    [diffs, openDiffFiles],
+  )
   const showPreview = selectedDiff !== null
 
   if (loading) {
@@ -407,9 +481,14 @@ export const SessionChangesPanel = memo(function SessionChangesPanel({
       {showPreview && selectedDiff && (
         <div className="flex-1 flex flex-col min-h-0" style={{ minHeight: MIN_PREVIEW_HEIGHT }}>
           <DiffPreviewPanel
+            panelTabId={panelTabId}
             diff={selectedDiff}
+            previewDiffs={previewDiffs}
             viewMode={viewMode}
             isResizing={isAnyResizing}
+            onActivatePreview={handleActivatePreview}
+            onClosePreview={handleClosePreviewTab}
+            onReorderPreview={handleReorderPreviewTabs}
             onClose={handleClosePreview}
           />
         </div>
@@ -423,48 +502,147 @@ export const SessionChangesPanel = memo(function SessionChangesPanel({
 // ============================================
 
 interface DiffPreviewPanelProps {
+  panelTabId: string
   diff: FileDiff
+  previewDiffs: FileDiff[]
   viewMode: ViewMode
   isResizing: boolean
+  onActivatePreview: (file: string) => void
+  onClosePreview: (file: string) => void
+  onReorderPreview: (draggedFile: string, targetFile: string) => void
   onClose: () => void
 }
 
 const DiffPreviewPanel = memo(function DiffPreviewPanel({
+  panelTabId,
   diff,
+  previewDiffs,
   viewMode,
   isResizing,
+  onActivatePreview,
+  onClosePreview,
+  onReorderPreview,
   onClose,
 }: DiffPreviewPanelProps) {
   const language = detectLanguage(diff.file) || 'text'
-  const fileName = diff.file.split(/[/\\]/).pop() || diff.file
+  const { t } = useTranslation(['components', 'common'])
+  const tabsScrollRef = useRef<HTMLDivElement>(null)
+  const [draggedFile, setDraggedFile] = useState<string | null>(null)
+  const [dragOverFile, setDragOverFile] = useState<string | null>(null)
+
+  const handlePreviewDragEnd = useCallback(() => {
+    if (draggedFile && dragOverFile && draggedFile !== dragOverFile) {
+      onReorderPreview(draggedFile, dragOverFile)
+    }
+    setDraggedFile(null)
+    setDragOverFile(null)
+  }, [draggedFile, dragOverFile, onReorderPreview])
+
+  const handleTabsWheel = useCallback((e: React.WheelEvent<HTMLDivElement>) => {
+    const container = tabsScrollRef.current
+    if (!container || container.scrollWidth <= container.clientWidth) return
+
+    const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY
+    if (delta === 0) return
+
+    e.preventDefault()
+    container.scrollLeft += delta
+  }, [])
 
   return (
     <div className="flex flex-col h-full">
       {/* Preview Header */}
-      <div className="flex items-center gap-2 px-3 py-1.5 border-b border-border-100/50 bg-bg-100/30 shrink-0">
-        <div className="flex items-center gap-2 min-w-0 flex-1">
-          <img
-            src={getMaterialIconUrl(diff.file, 'file')}
-            alt=""
-            width={14}
-            height={14}
-            className="shrink-0"
-            onError={e => {
-              e.currentTarget.style.visibility = 'hidden'
-            }}
-          />
-          <span className="text-[11px] font-mono text-text-200 truncate flex-1 min-w-0">{fileName}</span>
-          <div className="flex items-center gap-2 text-[10px] font-mono shrink-0">
-            {diff.additions > 0 && <span className="text-success-100">+{diff.additions}</span>}
-            {diff.deletions > 0 && <span className="text-danger-100">-{diff.deletions}</span>}
+      <div className="flex items-stretch justify-between border-b border-border-100/50 bg-bg-100/30 shrink-0">
+        <div
+          ref={tabsScrollRef}
+          onWheel={handleTabsWheel}
+          className="min-w-0 flex-1 overflow-x-auto no-scrollbar px-1 py-1"
+        >
+          <div className="flex min-w-max items-center gap-1">
+            {previewDiffs.map(previewDiff => {
+              const currentFileName = previewDiff.file.split(/[/\\]/).pop() || previewDiff.file
+              const isActive = previewDiff.file === diff.file
+              const isDragOver = dragOverFile === previewDiff.file && draggedFile !== previewDiff.file
+
+              return (
+                <div
+                  key={`${panelTabId}:${previewDiff.file}`}
+                  draggable
+                  onDragStart={e => {
+                    e.dataTransfer.effectAllowed = 'move'
+                    e.dataTransfer.setData('text/plain', previewDiff.file)
+                    setDraggedFile(previewDiff.file)
+                    setDragOverFile(null)
+                  }}
+                  onDragOver={e => {
+                    e.preventDefault()
+                    if (draggedFile && draggedFile !== previewDiff.file) {
+                      setDragOverFile(previewDiff.file)
+                    }
+                  }}
+                  onDrop={e => {
+                    e.preventDefault()
+                    if (draggedFile && draggedFile !== previewDiff.file) {
+                      setDragOverFile(previewDiff.file)
+                    }
+                  }}
+                  onDragEnd={handlePreviewDragEnd}
+                  className={
+                    isActive
+                      ? `flex h-7 w-44 max-w-44 shrink-0 items-center gap-1 overflow-hidden rounded-md border bg-bg-200 text-text-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] ${isDragOver ? 'border-accent-main-100/70' : 'border-border-200/60'}`
+                      : `flex h-7 w-44 max-w-44 shrink-0 items-center gap-1 overflow-hidden rounded-md border bg-transparent text-text-400 hover:border-border-100/40 hover:bg-bg-100/80 hover:text-text-200 ${isDragOver ? 'border-accent-main-100/70 bg-accent-main-100/8' : 'border-transparent'}`
+                  }
+                  title={previewDiff.file}
+                >
+                  <button
+                    type="button"
+                    onClick={() => onActivatePreview(previewDiff.file)}
+                    className="flex min-w-0 flex-1 cursor-pointer items-center gap-1.5 overflow-hidden pl-2 pr-1 text-left"
+                  >
+                    <img
+                      src={getMaterialIconUrl(previewDiff.file, 'file')}
+                      alt=""
+                      width={13}
+                      height={13}
+                      className="shrink-0"
+                      onError={e => {
+                        e.currentTarget.style.visibility = 'hidden'
+                      }}
+                    />
+                    <span className="block min-w-0 flex-1 truncate text-[11px] font-mono">{currentFileName}</span>
+                    <span className="shrink-0 text-[10px] font-mono text-success-100/90">
+                      {previewDiff.additions > 0 ? `+${previewDiff.additions}` : ''}
+                    </span>
+                    <span className="shrink-0 text-[10px] font-mono text-danger-100/90">
+                      {previewDiff.deletions > 0 ? `-${previewDiff.deletions}` : ''}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={e => {
+                      e.stopPropagation()
+                      onClosePreview(previewDiff.file)
+                    }}
+                    onDragStart={e => e.stopPropagation()}
+                    className="mr-1 shrink-0 rounded p-1 text-text-500 hover:bg-bg-300 hover:text-text-100 transition-colors"
+                    title={`${t('common:close')} ${currentFileName}`}
+                  >
+                    <CloseIcon size={10} />
+                  </button>
+                </div>
+              )
+            })}
           </div>
         </div>
-        <button
-          onClick={onClose}
-          className="p-1 text-text-400 hover:text-text-100 hover:bg-bg-200 rounded transition-colors shrink-0"
-        >
-          <CloseIcon size={12} />
-        </button>
+        <div className="flex items-center gap-0.5 shrink-0 border-l border-border-100/40 px-1.5">
+          <button
+            onClick={onClose}
+            className="p-1 text-text-400 hover:text-text-100 hover:bg-bg-200 rounded transition-colors shrink-0"
+            title={t('common:closeAllTabs')}
+          >
+            <CloseIcon size={12} />
+          </button>
+        </div>
       </div>
 
       {/* Diff Content - DiffViewer 自带滚动 */}

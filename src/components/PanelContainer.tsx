@@ -52,7 +52,10 @@ function getTabLabel(tab: PanelTab, tabs: PanelTab[], t: (key: string) => string
       if (fileTabs.length <= 1) return t('panelContainer.files')
       return `${t('panelContainer.files')} ${fileTabs.findIndex(item => item.id === tab.id) + 1}`
     case 'changes':
-      return t('panelContainer.changes')
+      if (tab.title) return tab.title
+      const changesTabs = tabs.filter(item => item.type === 'changes')
+      if (changesTabs.length <= 1) return t('panelContainer.changes')
+      return `${t('panelContainer.changes')} ${changesTabs.findIndex(item => item.id === tab.id) + 1}`
     case 'mcp':
       return t('panelContainer.mcp')
     case 'skill':
