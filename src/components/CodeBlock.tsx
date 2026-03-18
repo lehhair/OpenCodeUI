@@ -12,6 +12,8 @@ interface CodeBlockProps {
   showHeader?: boolean
   /** 最大高度 */
   maxHeight?: number
+  /** 长行自动换行 */
+  wordwrap?: boolean
 }
 
 export const CodeBlock = memo(function CodeBlock({
@@ -21,6 +23,7 @@ export const CodeBlock = memo(function CodeBlock({
   style,
   showHeader = true,
   maxHeight,
+  wordwrap = false,
 }: CodeBlockProps) {
   // Lazy load highlighting when close to viewport
   const { ref, inView } = useInView({ triggerOnce: true, rootMargin: '200px' })
@@ -49,14 +52,25 @@ export const CodeBlock = memo(function CodeBlock({
         className={`rounded-lg overflow-hidden bg-bg-300/50 contain-content ${className}`}
         style={containerStyle}
       >
-        <div className="overflow-auto custom-scrollbar" style={maxHeight ? { maxHeight } : undefined}>
+        <div
+          className={wordwrap ? 'overflow-y-auto overflow-x-hidden custom-scrollbar' : 'overflow-auto custom-scrollbar'}
+          style={maxHeight ? { maxHeight } : undefined}
+        >
           {!html ? (
-            <pre className="p-2 m-0 font-mono text-text-200 text-xs leading-relaxed">
+            <pre
+              className={`p-2 m-0 font-mono text-text-200 text-xs leading-relaxed ${
+                wordwrap ? 'whitespace-pre-wrap break-words' : ''
+              }`}
+            >
               <code>{code}</code>
             </pre>
           ) : (
             <div
-              className="shiki-wrapper text-xs leading-relaxed [&_pre]:p-2 [&_pre]:m-0 [&_pre]:bg-transparent! [&_code]:font-mono"
+              className={`shiki-wrapper text-xs leading-relaxed [&_pre]:p-2 [&_pre]:m-0 [&_pre]:bg-transparent! [&_code]:font-mono ${
+                wordwrap
+                  ? '[&_pre]:!whitespace-pre-wrap [&_pre]:break-words [&_code]:!whitespace-pre-wrap [&_code]:break-words'
+                  : ''
+              }`}
               suppressHydrationWarning
               dangerouslySetInnerHTML={{ __html: html as string }}
             />
@@ -79,14 +93,21 @@ export const CodeBlock = memo(function CodeBlock({
       </div>
 
       {/* Scrollable Content */}
-      <div className="overflow-auto custom-scrollbar" style={maxHeight ? { maxHeight } : undefined}>
+      <div
+        className={wordwrap ? 'overflow-y-auto overflow-x-hidden custom-scrollbar' : 'overflow-auto custom-scrollbar'}
+        style={maxHeight ? { maxHeight } : undefined}
+      >
         {!html ? (
-          <pre className="p-3 m-0 font-mono text-text-200 text-xs">
+          <pre className={`p-3 m-0 font-mono text-text-200 text-xs ${wordwrap ? 'whitespace-pre-wrap break-words' : ''}`}>
             <code>{code}</code>
           </pre>
         ) : (
           <div
-            className="shiki-wrapper text-xs [&_pre]:p-3 [&_pre]:m-0 [&_pre]:bg-transparent! [&_code]:font-mono"
+            className={`shiki-wrapper text-xs [&_pre]:p-3 [&_pre]:m-0 [&_pre]:bg-transparent! [&_code]:font-mono ${
+              wordwrap
+                ? '[&_pre]:!whitespace-pre-wrap [&_pre]:break-words [&_code]:!whitespace-pre-wrap [&_code]:break-words'
+                : ''
+            }`}
             suppressHydrationWarning
             dangerouslySetInnerHTML={{ __html: html as string }}
           />

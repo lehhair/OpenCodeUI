@@ -9,6 +9,8 @@ interface MarkdownRendererProps {
   className?: string
   /** Whether the content is actively being streamed */
   isStreaming?: boolean
+  /** Display variant: 'default' for normal content, 'reasoning' for subdued thinking blocks */
+  variant?: 'default' | 'reasoning'
 }
 
 /**
@@ -16,7 +18,7 @@ interface MarkdownRendererProps {
  */
 const InlineCode = memo(function InlineCode({ children }: { children: React.ReactNode }) {
   return (
-    <code className="px-1 py-0.5 bg-bg-200/50 border border-border-200/50 rounded text-accent-main-100 text-[0.9em] font-mono align-baseline break-words">
+    <code className="font-mono text-accent-main-100 text-[0.9em] align-baseline break-words">
       {children}
     </code>
   )
@@ -60,7 +62,10 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
   content,
   className = '',
   isStreaming = false,
+  variant = 'default',
 }: MarkdownRendererProps) {
+  const isReasoning = variant === 'reasoning'
+
   const components = useMemo<Components>(
     () => ({
       // Inline code — Streamdown supports `inlineCode` as a dedicated key
@@ -74,43 +79,99 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
         if (!blockCode) return <pre>{children}</pre>
 
         return (
-          <div className="my-4 first:mt-0 last:mb-0 w-full">
-            <CodeBlock code={blockCode.code} language={blockCode.language} />
+          <div className={isReasoning ? 'my-2 first:mt-0 last:mb-0 w-full' : 'my-4 first:mt-0 last:mb-0 w-full'}>
+            <CodeBlock
+              code={blockCode.code}
+              language={blockCode.language}
+              showHeader={!isReasoning}
+              wordwrap={isReasoning}
+              className={isReasoning ? '!bg-transparent !rounded-none !overflow-visible' : ''}
+            />
           </div>
         )
       },
 
       // Headings
       h1: ({ children }) => (
-        <h1 className="text-xl font-bold text-text-100 mt-8 mb-4 first:mt-0 last:mb-0 tracking-tight">{children}</h1>
+        <h1
+          className={
+            isReasoning
+              ? 'text-xs font-semibold text-text-300 mt-2 mb-1 first:mt-0 last:mb-0 italic'
+              : 'text-xl font-bold text-text-100 mt-8 mb-4 first:mt-0 last:mb-0 tracking-tight'
+          }
+        >
+          {children}
+        </h1>
       ),
       h2: ({ children }) => (
-        <h2 className="text-lg font-bold text-text-100 mt-6 mb-3 first:mt-0 last:mb-0 tracking-tight pb-1 border-b border-border-100/50">
+        <h2
+          className={
+            isReasoning
+              ? 'text-xs font-semibold text-text-300 mt-2 mb-1 first:mt-0 last:mb-0 italic'
+              : 'text-lg font-bold text-text-100 mt-6 mb-3 first:mt-0 last:mb-0 tracking-tight pb-1 border-b border-border-100/50'
+          }
+        >
           {children}
         </h2>
       ),
       h3: ({ children }) => (
-        <h3 className="text-base font-semibold text-text-100 mt-5 mb-2 first:mt-0 last:mb-0 tracking-tight">
+        <h3
+          className={
+            isReasoning
+              ? 'text-xs font-semibold text-text-300 mt-2 mb-1 first:mt-0 last:mb-0 italic'
+              : 'text-base font-semibold text-text-100 mt-5 mb-2 first:mt-0 last:mb-0 tracking-tight'
+          }
+        >
           {children}
         </h3>
       ),
       h4: ({ children }) => (
-        <h4 className="text-sm font-semibold text-text-100 mt-4 mb-2 first:mt-0 last:mb-0 tracking-tight">
+        <h4
+          className={
+            isReasoning
+              ? 'text-xs font-semibold text-text-300 mt-2 mb-1 first:mt-0 last:mb-0 italic'
+              : 'text-sm font-semibold text-text-100 mt-4 mb-2 first:mt-0 last:mb-0 tracking-tight'
+          }
+        >
           {children}
         </h4>
       ),
 
       // Paragraphs
-      p: ({ children }) => <p className="mb-4 last:mb-0 leading-7 text-text-200">{children}</p>,
+      p: ({ children }) => (
+        <p className={isReasoning ? 'text-xs mb-2 last:mb-0 leading-5 text-text-400 italic' : 'mb-4 last:mb-0 leading-7 text-text-200'}>
+          {children}
+        </p>
+      ),
 
       // Lists
       ul: ({ children }) => (
-        <ul className="list-disc list-outside ml-5 mb-4 last:mb-0 space-y-1 marker:text-text-400/80">{children}</ul>
+        <ul
+          className={
+            isReasoning
+              ? 'text-xs list-disc list-outside ml-4 mb-2 last:mb-0 space-y-0.5 marker:text-text-500/60'
+              : 'list-disc list-outside ml-5 mb-4 last:mb-0 space-y-1 marker:text-text-400/80'
+          }
+        >
+          {children}
+        </ul>
       ),
       ol: ({ children }) => (
-        <ol className="list-decimal list-outside ml-5 mb-4 last:mb-0 space-y-1 marker:text-text-400/80">{children}</ol>
+        <ol
+          className={
+            isReasoning
+              ? 'text-xs list-decimal list-outside ml-4 mb-2 last:mb-0 space-y-0.5 marker:text-text-500/60'
+              : 'list-decimal list-outside ml-5 mb-4 last:mb-0 space-y-1 marker:text-text-400/80'
+          }
+        >
+          {children}
+        </ol>
       ),
-      li: ({ children }) => <li className="text-text-200 pl-1 leading-7">{children}</li>,
+      li: ({ children }) => (
+        <li className={isReasoning ? 'text-xs text-text-400 pl-1 leading-5 italic' : 'text-text-200 pl-1 leading-7'}>
+          {children}
+        </li>
+      ),
 
       // Links
       a: ({ href, children }) => (
@@ -118,7 +179,11 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
           href={href}
           target="_blank"
           rel="noopener noreferrer"
-          className="font-medium text-accent-main-100 hover:text-accent-main-200 hover:underline underline-offset-2 transition-colors"
+          className={
+            isReasoning
+              ? 'text-xs font-medium text-accent-main-200/80 hover:text-accent-main-200 hover:underline underline-offset-2 transition-colors'
+              : 'font-medium text-accent-main-100 hover:text-accent-main-200 hover:underline underline-offset-2 transition-colors'
+          }
         >
           {children}
         </a>
@@ -126,41 +191,85 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
 
       // Blockquotes
       blockquote: ({ children }) => (
-        <blockquote className="border-l-2 border-accent-main-100 pl-4 py-1 my-4 first:mt-0 last:mb-0 bg-bg-200/30 rounded-r-md text-text-300 italic">
+        <blockquote
+          className={
+            isReasoning
+              ? 'text-xs border-l-2 border-accent-main-100/50 pl-3 py-0.5 my-2 first:mt-0 last:mb-0 bg-bg-200/20 rounded-r-md text-text-400 italic'
+              : 'border-l-2 border-accent-main-100 pl-4 py-1 my-4 first:mt-0 last:mb-0 bg-bg-200/30 rounded-r-md text-text-300 italic'
+          }
+        >
           {children}
         </blockquote>
       ),
 
       // Tables
       table: ({ children }) => (
-        <div className="overflow-x-auto my-6 first:mt-0 last:mb-0 border border-border-200 rounded-lg shadow-sm w-full">
-          <table className="min-w-full border-collapse text-sm divide-y divide-border-200">{children}</table>
+        <div
+          className={
+            isReasoning
+              ? 'text-xs overflow-x-auto my-3 first:mt-0 last:mb-0 border border-border-200/50 rounded-lg w-full'
+              : 'overflow-x-auto my-6 first:mt-0 last:mb-0 border border-border-200 rounded-lg shadow-sm w-full'
+          }
+        >
+          <table className={isReasoning ? 'min-w-full border-collapse text-xs divide-y divide-border-200/50' : 'min-w-full border-collapse text-sm divide-y divide-border-200'}>
+            {children}
+          </table>
         </div>
       ),
-      thead: ({ children }) => <thead className="bg-bg-100 text-text-200 font-medium">{children}</thead>,
-      th: ({ children }) => (
-        <th className="px-4 py-3 text-left font-semibold whitespace-nowrap border-b border-border-200">{children}</th>
+      thead: ({ children }) => (
+        <thead className={isReasoning ? 'text-xs bg-bg-100/50 text-text-300 font-medium' : 'bg-bg-100 text-text-200 font-medium'}>
+          {children}
+        </thead>
       ),
-      tbody: ({ children }) => <tbody className="divide-y divide-border-200/50 bg-bg-000">{children}</tbody>,
-      tr: ({ children }) => <tr className="hover:bg-bg-200/30 transition-colors even:bg-bg-200/15">{children}</tr>,
-      td: ({ children }) => <td className="px-4 py-2.5 text-text-300 leading-relaxed">{children}</td>,
+      th: ({ children }) => (
+        <th
+          className={
+            isReasoning
+              ? 'text-xs px-3 py-2 text-left font-semibold whitespace-nowrap border-b border-border-200/50'
+              : 'px-4 py-3 text-left font-semibold whitespace-nowrap border-b border-border-200'
+          }
+        >
+          {children}
+        </th>
+      ),
+      tbody: ({ children }) => (
+        <tbody className={isReasoning ? 'text-xs divide-y divide-border-200/30 bg-bg-000' : 'divide-y divide-border-200/50 bg-bg-000'}>
+          {children}
+        </tbody>
+      ),
+      tr: ({ children }) => (
+        <tr className={isReasoning ? 'text-xs hover:bg-bg-200/20 transition-colors even:bg-bg-200/10' : 'hover:bg-bg-200/30 transition-colors even:bg-bg-200/15'}>
+          {children}
+        </tr>
+      ),
+      td: ({ children }) => (
+        <td className={isReasoning ? 'text-xs px-3 py-2 text-text-400 leading-relaxed' : 'px-4 py-2.5 text-text-300 leading-relaxed'}>
+          {children}
+        </td>
+      ),
 
       // Horizontal rule
-      hr: () => <hr className="border-border-200 my-8 first:mt-0 last:mb-0" />,
+      hr: () => <hr className={isReasoning ? 'border-border-200/50 my-4 first:mt-0 last:mb-0' : 'border-border-200 my-8 first:mt-0 last:mb-0'} />,
 
       // Strong and emphasis
-      strong: ({ children }) => <strong className="font-semibold text-text-100">{children}</strong>,
-      em: ({ children }) => <em className="italic text-text-200">{children}</em>,
+      strong: ({ children }) => (
+        <strong className={isReasoning ? 'text-xs font-semibold text-text-300' : 'font-semibold text-text-100'}>{children}</strong>
+      ),
+      em: ({ children }) => <em className={isReasoning ? 'text-xs italic text-text-400' : 'italic text-text-200'}>{children}</em>,
 
       // Strikethrough (GFM)
-      del: ({ children }) => <del className="text-text-400 line-through decoration-text-400/50">{children}</del>,
+      del: ({ children }) => (
+        <del className={isReasoning ? 'text-xs text-text-500 line-through decoration-text-500/50' : 'text-text-400 line-through decoration-text-400/50'}>
+          {children}
+        </del>
+      ),
     }),
-    [],
+    [isReasoning],
   )
 
   return (
     <div
-      className={`markdown-content text-sm text-text-100 leading-relaxed break-words min-w-0 overflow-hidden ${className}`}
+      className={`markdown-content ${isReasoning ? 'text-xs leading-5 text-text-400 italic' : 'text-sm leading-relaxed text-text-100'} break-words min-w-0 overflow-hidden ${className}`}
     >
       <Streamdown components={components} isAnimating={isStreaming} controls={false} plugins={{ math }}>
         {content}
