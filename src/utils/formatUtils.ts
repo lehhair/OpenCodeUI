@@ -13,9 +13,16 @@ export function formatDuration(ms: number): string {
   if (ms < 1000) return `${ms}ms`
   const s = ms / 1000
   if (s < 60) return `${s.toFixed(1)}s`
-  const m = Math.floor(s / 60)
-  const rem = Math.round(s % 60)
-  return rem > 0 ? `${m}m${rem}s` : `${m}m`
+
+  const totalSeconds = Math.round(s)
+  const d = Math.floor(totalSeconds / (60 * 60 * 24))
+  const h = Math.floor((totalSeconds % (60 * 60 * 24)) / (60 * 60))
+  const m = Math.floor((totalSeconds % (60 * 60)) / 60)
+  const remS = totalSeconds % 60
+
+  if (d > 0) return [`${d}d`, h > 0 ? `${h}h` : '', m > 0 ? `${m}m` : ''].filter(Boolean).join(' ')
+  if (h > 0) return [`${h}h`, m > 0 ? `${m}m` : '', remS > 0 ? `${remS}s` : ''].filter(Boolean).join(' ')
+  return [`${m}m`, remS > 0 ? `${remS}s` : ''].filter(Boolean).join(' ')
 }
 
 /** Format a cost in dollars */
