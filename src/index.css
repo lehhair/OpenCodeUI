@@ -848,6 +848,27 @@ textarea.custom-scrollbar::-webkit-scrollbar-thumb {
 }
 
 /* ============================================
+ * Browser-style active tab with shoulder curves
+ * ============================================
+ * Temani Afif 方案：mask + radial-gradient，
+ * 单元素实现反向圆弧，无伪元素、无 SVG。
+ * --tab-r 控制肩部弧度大小。
+ */
+.tab-active {
+  --tab-r: 5px;
+  border-inline: var(--tab-r) solid transparent;
+  border-radius: calc(2 * var(--tab-r)) calc(2 * var(--tab-r)) 0 0 / var(--tab-r);
+  mask:
+    radial-gradient(var(--tab-r) at var(--tab-r) 0, #0000 98%, #000 101%) calc(-1 * var(--tab-r)) 100% / 100%
+      var(--tab-r) repeat-x,
+    conic-gradient(#000 0 0) padding-box;
+  -webkit-mask:
+    radial-gradient(var(--tab-r) at var(--tab-r) 0, #0000 98%, #000 101%) calc(-1 * var(--tab-r)) 100% / 100%
+      var(--tab-r) repeat-x,
+    conic-gradient(#000 0 0) padding-box;
+}
+
+/* ============================================
  * Border Pulse Animation (InputBox waiting)
  * ============================================ */
 @keyframes border-pulse {

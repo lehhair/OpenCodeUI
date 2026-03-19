@@ -315,14 +315,13 @@ export const FileExplorer = memo(function FileExplorer({
         </div>
       </div>
 
-      {/* Resize Handle - 扩大拖拽区域，支持触摸 */}
+      {/* Resize Handle - 与标签栏同色 */}
       {showPreview && (
         <div
           className={`
-            h-2.5 cursor-row-resize shrink-0 relative
+            h-1.5 cursor-row-resize shrink-0 relative
             hover:bg-accent-main-100/50 active:bg-accent-main-100 transition-colors
-            border-t border-border-200
-            ${isResizing ? 'bg-accent-main-100' : 'bg-transparent'}
+            ${isResizing ? 'bg-accent-main-100' : 'bg-bg-200/60'}
           `}
           onMouseDown={handleResizeStart}
           onTouchStart={handleTouchResizeStart}
@@ -596,14 +595,15 @@ function FilePreview({
 
   return (
     <div className="flex flex-col h-full relative">
-      {/* Preview Header */}
-      <div className="flex items-stretch justify-between border-b border-border-100/50 bg-bg-100/30 shrink-0">
+      {/* Tab bar — resize handle 融入顶部，标签与内容一体 */}
+      <div className="relative flex items-center justify-between shrink-0 bg-bg-200/60 h-[30px]">
+        {/* 左侧：可滚动标签区 */}
         <div
           ref={tabsScrollRef}
           onWheel={handleTabsWheel}
-          className="min-w-0 flex-1 overflow-x-auto no-scrollbar px-1 py-1"
+          className="min-w-0 flex-1 h-full overflow-x-auto overflow-y-hidden no-scrollbar"
         >
-          <div className="flex min-w-max items-center gap-1">
+          <div className="flex min-w-max items-center h-full gap-0">
             {previewFiles.map(file => {
               const isActive = file.path === path
               const isDragOver = dragOverPath === file.path && draggedPath !== file.path
@@ -632,15 +632,15 @@ function FilePreview({
                   onDragEnd={handlePreviewDragEnd}
                   className={
                     isActive
-                      ? `flex h-7 w-40 max-w-40 shrink-0 items-center gap-1 overflow-hidden rounded-md border bg-bg-200 text-text-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] ${isDragOver ? 'border-accent-main-100/70' : 'border-border-200/60'}`
-                      : `flex h-7 w-40 max-w-40 shrink-0 items-center gap-1 overflow-hidden rounded-md border bg-transparent text-text-400 hover:border-border-100/40 hover:bg-bg-100/80 hover:text-text-200 ${isDragOver ? 'border-accent-main-100/70 bg-accent-main-100/8' : 'border-transparent'}`
+                      ? `tab-active relative z-10 flex h-full w-40 max-w-40 shrink-0 items-center gap-1 bg-bg-100 text-text-100 ${isDragOver ? '' : ''}`
+                      : `relative flex h-full w-40 max-w-40 shrink-0 items-center gap-1 overflow-hidden bg-transparent text-text-400 mx-px hover:bg-bg-100/60 hover:text-text-200 ${isDragOver ? 'bg-accent-main-100/8' : ''}`
                   }
                   title={file.path}
                 >
                   <button
                     type="button"
                     onClick={() => onActivatePreview(file.path)}
-                    className="flex min-w-0 flex-1 cursor-pointer items-center gap-1.5 overflow-hidden pl-2 pr-1 text-left"
+                    className="flex min-w-0 flex-1 cursor-pointer items-center gap-1.5 overflow-hidden pl-2.5 pr-1 text-left"
                   >
                     <img
                       src={getMaterialIconUrl(file.path, 'file')}
@@ -661,7 +661,7 @@ function FilePreview({
                       onClosePreview(file.path)
                     }}
                     onDragStart={e => e.stopPropagation()}
-                    className="mr-1 shrink-0 rounded p-1 text-text-500 hover:bg-bg-300 hover:text-text-100 transition-colors"
+                    className="mr-1.5 shrink-0 rounded p-1 text-text-500 hover:bg-bg-300 hover:text-text-100 transition-colors"
                     title={`${t('common:close')} ${file.name}`}
                   >
                     <CloseIcon size={10} />
@@ -671,12 +671,12 @@ function FilePreview({
             })}
           </div>
         </div>
-        <div className="flex items-center gap-0.5 shrink-0 border-l border-border-100/40 px-1.5">
-          {/* 下载按钮 */}
+        {/* 右侧：操作按钮，直接嵌在标签栏末端 */}
+        <div className="flex items-center gap-0.5 shrink-0 px-1.5 h-full">
           {content && (
             <button
               onClick={handleDownload}
-              className="p-1 text-text-400 hover:text-text-100 hover:bg-bg-200 rounded transition-colors"
+              className="p-1 text-text-400 hover:text-text-100 hover:bg-bg-300/50 rounded transition-colors"
               title={`Save ${fileName}`}
             >
               <DownloadIcon size={12} />
@@ -684,7 +684,7 @@ function FilePreview({
           )}
           <button
             onClick={onClose}
-            className="p-1 text-text-400 hover:text-text-100 hover:bg-bg-200 rounded transition-colors"
+            className="p-1 text-text-400 hover:text-text-100 hover:bg-bg-300/50 rounded transition-colors"
             title={t('common:closeAllTabs')}
           >
             <CloseIcon size={12} />
