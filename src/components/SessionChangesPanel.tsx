@@ -4,15 +4,17 @@
 // 支持拖拽调整高度，CSS 变量 + requestAnimationFrame 优化
 // ============================================
 
-import { memo, useState, useEffect, useCallback, useRef, useLayoutEffect, useMemo } from 'react'
+import { memo, useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { CloseIcon, RetryIcon, ChevronRightIcon } from './Icons'
+import { RetryIcon, ChevronRightIcon } from './Icons'
 import { getMaterialIconUrl } from '../utils/materialIcons'
 import { DiffViewer, type ViewMode } from './DiffViewer'
 import { getSessionDiff } from '../api/session'
 import type { FileDiff } from '../api/types'
 import { detectLanguage } from '../utils/languageUtils'
 import { sessionErrorHandler } from '../utils'
+import { PreviewTabsBar, type PreviewTabsBarItem } from './PreviewTabsBar'
+import { useVerticalSplitResize } from '../hooks/useVerticalSplitResize'
 
 // 常量
 const MIN_LIST_HEIGHT = 80
@@ -32,19 +34,30 @@ function reconcileDiffPreviewState(diffs: FileDiff[], openFiles: string[], activ
 }
 
 interface SessionChangesPanelProps {
-  panelTabId: string
   sessionId: string
   isResizing?: boolean
 }
 
 export const SessionChangesPanel = memo(function SessionChangesPanel({
-  panelTabId,
   sessionId,
   isResizing: isPanelResizing = false,
 }: SessionChangesPanelProps) {
   const { t } = useTranslation(['components', 'common'])
   const containerRef = useRef<HTMLDivElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
+  const {
+    splitHeight: listHeight,
+    isResizing,
+    resetSplitHeight,
+    handleResizeStart,
+    handleTouchResizeStart,
+  } = useVerticalSplitResize({
+    containerRef,
+    primaryRef: listRef,
+    cssVariableName: '--list-height',
+    minPrimaryHeight: MIN_LIST_HEIGHT,
+    minSecondaryHeight: MIN_PREVIEW_HEIGHT,
+  })
 
   const [loading, setLoading] = useState(false)
   const [diffs, setDiffs] = useState<FileDiff[]>([])
@@ -59,11 +72,6 @@ export const SessionChangesPanel = memo(function SessionChangesPanel({
   // 展开的目录
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set())
 
-  // 内部拖拽 resize
-  const [listHeight, setListHeight] = useState<number | null>(null)
-  const [isResizing, setIsResizing] = useState(false)
-  const rafRef = useRef<number>(0)
-  const currentHeightRef = useRef<number | null>(null)
   const requestIdRef = useRef(0)
   const openDiffFilesRef = useRef<string[]>([])
   const selectedFileRef = useRef<string | null>(null)
@@ -77,14 +85,6 @@ export const SessionChangesPanel = memo(function SessionChangesPanel({
   useEffect(() => {
     selectedFileRef.current = selectedFile
   }, [selectedFile])
-
-  // 同步高度到 CSS 变量
-  useLayoutEffect(() => {
-    if (!isResizing && listRef.current && listHeight !== null) {
-      listRef.current.style.setProperty('--list-height', `${listHeight}px`)
-      currentHeightRef.current = listHeight
-    }
-  }, [listHeight, isResizing])
 
   // 加载数据
   useEffect(() => {
@@ -178,9 +178,8 @@ export const SessionChangesPanel = memo(function SessionChangesPanel({
   const handleClosePreview = useCallback(() => {
     setOpenDiffFiles([])
     setSelectedFile(null)
-    setListHeight(null)
-    currentHeightRef.current = null
-  }, [])
+    resetSplitHeight()
+  }, [resetSplitHeight])
 
   const handleActivatePreview = useCallback((file: string) => {
     setSelectedFile(prev => (prev === file ? prev : file))
@@ -211,86 +210,6 @@ export const SessionChangesPanel = memo(function SessionChangesPanel({
       next.splice(targetIndex, 0, dragged)
       return next
     })
-  }, [])
-
-  // 鼠标拖拽调整高度
-  const handleResizeStart = useCallback((e: React.MouseEvent) => {
-    e.preventDefault()
-    const container = containerRef.current
-    const listEl = listRef.current
-    if (!container || !listEl) return
-
-    setIsResizing(true)
-    const containerRect = container.getBoundingClientRect()
-    const startY = e.clientY
-    const startHeight = currentHeightRef.current ?? containerRect.height * 0.4
-
-    const handleMouseMove = (moveEvent: MouseEvent) => {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current)
-      rafRef.current = requestAnimationFrame(() => {
-        const deltaY = moveEvent.clientY - startY
-        const newHeight = startHeight + deltaY
-        const maxHeight = containerRect.height - MIN_PREVIEW_HEIGHT
-        const clampedHeight = Math.min(Math.max(newHeight, MIN_LIST_HEIGHT), maxHeight)
-        listEl.style.setProperty('--list-height', `${clampedHeight}px`)
-        currentHeightRef.current = clampedHeight
-      })
-    }
-
-    const handleMouseUp = () => {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current)
-      setIsResizing(false)
-      document.body.style.cursor = ''
-      document.body.style.userSelect = ''
-      document.removeEventListener('mousemove', handleMouseMove)
-      document.removeEventListener('mouseup', handleMouseUp)
-      if (currentHeightRef.current !== null) {
-        setListHeight(currentHeightRef.current)
-      }
-    }
-
-    document.body.style.cursor = 'row-resize'
-    document.body.style.userSelect = 'none'
-    document.addEventListener('mousemove', handleMouseMove)
-    document.addEventListener('mouseup', handleMouseUp)
-  }, [])
-
-  // 触摸拖拽调整高度
-  const handleTouchResizeStart = useCallback((e: React.TouchEvent) => {
-    const container = containerRef.current
-    const listEl = listRef.current
-    if (!container || !listEl) return
-
-    setIsResizing(true)
-    const containerRect = container.getBoundingClientRect()
-    const startY = e.touches[0].clientY
-    const startHeight = currentHeightRef.current ?? containerRect.height * 0.4
-
-    const handleTouchMove = (moveEvent: TouchEvent) => {
-      moveEvent.preventDefault()
-      if (rafRef.current) cancelAnimationFrame(rafRef.current)
-      rafRef.current = requestAnimationFrame(() => {
-        const deltaY = moveEvent.touches[0].clientY - startY
-        const newHeight = startHeight + deltaY
-        const maxHeight = containerRect.height - MIN_PREVIEW_HEIGHT
-        const clampedHeight = Math.min(Math.max(newHeight, MIN_LIST_HEIGHT), maxHeight)
-        listEl.style.setProperty('--list-height', `${clampedHeight}px`)
-        currentHeightRef.current = clampedHeight
-      })
-    }
-
-    const handleTouchEnd = () => {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current)
-      setIsResizing(false)
-      document.removeEventListener('touchmove', handleTouchMove)
-      document.removeEventListener('touchend', handleTouchEnd)
-      if (currentHeightRef.current !== null) {
-        setListHeight(currentHeightRef.current)
-      }
-    }
-
-    document.addEventListener('touchmove', handleTouchMove, { passive: false })
-    document.addEventListener('touchend', handleTouchEnd)
   }, [])
 
   // 获取选中的 diff 数据
@@ -416,7 +335,6 @@ export const SessionChangesPanel = memo(function SessionChangesPanel({
                     key={node.path}
                     node={node}
                     depth={0}
-                    selectedFile={selectedFile}
                     expandedDirs={expandedDirs}
                     onSelectFile={handleSelectFile}
                     onToggleDir={handleToggleDir}
@@ -424,7 +342,6 @@ export const SessionChangesPanel = memo(function SessionChangesPanel({
                 ))
               : // Flat list view
                 diffs.map(diff => {
-                  const isSelected = selectedFile === diff.file
                   const fileStatus = getFileStatus(diff)
 
                   return (
@@ -432,10 +349,10 @@ export const SessionChangesPanel = memo(function SessionChangesPanel({
                       key={diff.file}
                       onClick={() => handleSelectFile(diff.file)}
                       className={`
-                      w-full min-w-0 flex items-center gap-2 px-3 py-1 text-left
-                      hover:bg-bg-200/50 transition-colors text-[12px]
-                      ${isSelected ? 'bg-bg-200/70 text-text-100' : 'text-text-300'}
-                    `}
+                       w-full min-w-0 flex items-center gap-2 px-3 py-1 text-left
+                       hover:bg-bg-200/50 transition-colors text-[12px]
+                       text-text-300
+                     `}
                     >
                       <img
                         src={getMaterialIconUrl(diff.file, 'file')}
@@ -480,7 +397,6 @@ export const SessionChangesPanel = memo(function SessionChangesPanel({
       {showPreview && selectedDiff && (
         <div className="flex-1 flex flex-col min-h-0" style={{ minHeight: MIN_PREVIEW_HEIGHT }}>
           <DiffPreviewPanel
-            panelTabId={panelTabId}
             diff={selectedDiff}
             previewDiffs={previewDiffs}
             viewMode={viewMode}
@@ -501,7 +417,6 @@ export const SessionChangesPanel = memo(function SessionChangesPanel({
 // ============================================
 
 interface DiffPreviewPanelProps {
-  panelTabId: string
   diff: FileDiff
   previewDiffs: FileDiff[]
   viewMode: ViewMode
@@ -513,7 +428,6 @@ interface DiffPreviewPanelProps {
 }
 
 const DiffPreviewPanel = memo(function DiffPreviewPanel({
-  panelTabId,
   diff,
   previewDiffs,
   viewMode,
@@ -525,124 +439,44 @@ const DiffPreviewPanel = memo(function DiffPreviewPanel({
 }: DiffPreviewPanelProps) {
   const language = detectLanguage(diff.file) || 'text'
   const { t } = useTranslation(['components', 'common'])
-  const tabsScrollRef = useRef<HTMLDivElement>(null)
-  const [draggedFile, setDraggedFile] = useState<string | null>(null)
-  const [dragOverFile, setDragOverFile] = useState<string | null>(null)
+  const previewTabItems = useMemo<PreviewTabsBarItem[]>(
+    () =>
+      previewDiffs.map(previewDiff => {
+        const currentFileName = previewDiff.file.split(/[/\\]/).pop() || previewDiff.file
 
-  const handlePreviewDragEnd = useCallback(() => {
-    if (draggedFile && dragOverFile && draggedFile !== dragOverFile) {
-      onReorderPreview(draggedFile, dragOverFile)
-    }
-    setDraggedFile(null)
-    setDragOverFile(null)
-  }, [draggedFile, dragOverFile, onReorderPreview])
-
-  const handleTabsWheel = useCallback((e: React.WheelEvent<HTMLDivElement>) => {
-    const container = tabsScrollRef.current
-    if (!container || container.scrollWidth <= container.clientWidth) return
-
-    const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY
-    if (delta === 0) return
-
-    e.preventDefault()
-    container.scrollLeft += delta
-  }, [])
+        return {
+          id: previewDiff.file,
+          title: previewDiff.file,
+          closeTitle: `${t('common:close')} ${currentFileName}`,
+          iconPath: previewDiff.file,
+          label: (
+            <>
+              <span className="block min-w-0 flex-1 truncate text-[11px] font-mono">{currentFileName}</span>
+              <span className="shrink-0 text-[10px] font-mono text-success-100/90">
+                {previewDiff.additions > 0 ? `+${previewDiff.additions}` : ''}
+              </span>
+              <span className="shrink-0 text-[10px] font-mono text-danger-100/90">
+                {previewDiff.deletions > 0 ? `-${previewDiff.deletions}` : ''}
+              </span>
+            </>
+          ),
+        }
+      }),
+    [previewDiffs, t],
+  )
 
   return (
     <div className="flex flex-col h-full">
-      {/* Tab bar — 与 Files 预览区保持一致 */}
-      <div className="relative flex items-center justify-between shrink-0 bg-bg-200/60 h-[30px]">
-        <div
-          ref={tabsScrollRef}
-          onWheel={handleTabsWheel}
-          className="min-w-0 flex-1 h-full overflow-x-auto overflow-y-hidden no-scrollbar"
-        >
-          <div className="flex min-w-max items-center h-full gap-0">
-            {previewDiffs.map(previewDiff => {
-              const currentFileName = previewDiff.file.split(/[/\\]/).pop() || previewDiff.file
-              const isActive = previewDiff.file === diff.file
-              const isDragOver = dragOverFile === previewDiff.file && draggedFile !== previewDiff.file
-
-              return (
-                <div
-                  key={`${panelTabId}:${previewDiff.file}`}
-                  draggable
-                  onDragStart={e => {
-                    e.dataTransfer.effectAllowed = 'move'
-                    e.dataTransfer.setData('text/plain', previewDiff.file)
-                    setDraggedFile(previewDiff.file)
-                    setDragOverFile(null)
-                  }}
-                  onDragOver={e => {
-                    e.preventDefault()
-                    if (draggedFile && draggedFile !== previewDiff.file) {
-                      setDragOverFile(previewDiff.file)
-                    }
-                  }}
-                  onDrop={e => {
-                    e.preventDefault()
-                    if (draggedFile && draggedFile !== previewDiff.file) {
-                      setDragOverFile(previewDiff.file)
-                    }
-                  }}
-                  onDragEnd={handlePreviewDragEnd}
-                  className={
-                    isActive
-                      ? `tab-active relative z-10 flex h-full w-44 max-w-44 shrink-0 items-center gap-1 bg-bg-100 text-text-100 ${isDragOver ? '' : ''}`
-                      : `relative flex h-full w-44 max-w-44 shrink-0 items-center gap-1 overflow-hidden bg-transparent text-text-400 mx-px hover:bg-bg-100/60 hover:text-text-200 ${isDragOver ? 'bg-accent-main-100/8' : ''}`
-                  }
-                  title={previewDiff.file}
-                >
-                  <button
-                    type="button"
-                    onClick={() => onActivatePreview(previewDiff.file)}
-                    className="flex min-w-0 flex-1 cursor-pointer items-center gap-1.5 overflow-hidden pl-2.5 pr-1 text-left"
-                  >
-                    <img
-                      src={getMaterialIconUrl(previewDiff.file, 'file')}
-                      alt=""
-                      width={13}
-                      height={13}
-                      className="shrink-0"
-                      onError={e => {
-                        e.currentTarget.style.visibility = 'hidden'
-                      }}
-                    />
-                    <span className="block min-w-0 flex-1 truncate text-[11px] font-mono">{currentFileName}</span>
-                    <span className="shrink-0 text-[10px] font-mono text-success-100/90">
-                      {previewDiff.additions > 0 ? `+${previewDiff.additions}` : ''}
-                    </span>
-                    <span className="shrink-0 text-[10px] font-mono text-danger-100/90">
-                      {previewDiff.deletions > 0 ? `-${previewDiff.deletions}` : ''}
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={e => {
-                      e.stopPropagation()
-                      onClosePreview(previewDiff.file)
-                    }}
-                    onDragStart={e => e.stopPropagation()}
-                    className="mr-1.5 shrink-0 rounded p-1 text-text-500 hover:bg-bg-300 hover:text-text-100 transition-colors"
-                    title={`${t('common:close')} ${currentFileName}`}
-                  >
-                    <CloseIcon size={10} />
-                  </button>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-        <div className="flex items-center gap-0.5 shrink-0 px-1.5 h-full">
-          <button
-            onClick={onClose}
-            className="p-1 text-text-400 hover:text-text-100 hover:bg-bg-300/50 rounded transition-colors shrink-0"
-            title={t('common:closeAllTabs')}
-          >
-            <CloseIcon size={12} />
-          </button>
-        </div>
-      </div>
+      <PreviewTabsBar
+        items={previewTabItems}
+        activeId={diff.file}
+        closeAllTitle={t('common:closeAllTabs')}
+        onActivate={onActivatePreview}
+        onClose={onClosePreview}
+        onCloseAll={onClose}
+        onReorder={onReorderPreview}
+        tabWidthClassName="w-44 max-w-44"
+      />
 
       {/* Diff Content - DiffViewer 自带滚动 */}
       <div className="flex-1 min-h-0">
@@ -786,7 +620,6 @@ function collectExpandedDirPaths(nodes: ChangesTreeNode[]): Set<string> {
 interface ChangesTreeItemProps {
   node: ChangesTreeNode
   depth: number
-  selectedFile: string | null
   expandedDirs: Set<string>
   onSelectFile: (path: string) => void
   onToggleDir: (path: string) => void
@@ -795,13 +628,11 @@ interface ChangesTreeItemProps {
 const ChangesTreeItem = memo(function ChangesTreeItem({
   node,
   depth,
-  selectedFile,
   expandedDirs,
   onSelectFile,
   onToggleDir,
 }: ChangesTreeItemProps) {
   const isExpanded = expandedDirs.has(node.path)
-  const isSelected = node.type === 'file' && selectedFile === node.diff?.file
   const paddingLeft = 8 + depth * 16
 
   // 状态颜色
@@ -840,7 +671,6 @@ const ChangesTreeItem = memo(function ChangesTreeItem({
               key={child.path}
               node={child}
               depth={depth + 1}
-              selectedFile={selectedFile}
               expandedDirs={expandedDirs}
               onSelectFile={onSelectFile}
               onToggleDir={onToggleDir}
@@ -855,10 +685,10 @@ const ChangesTreeItem = memo(function ChangesTreeItem({
     <button
       onClick={() => node.diff && onSelectFile(node.diff.file)}
       className={`
-        w-full min-w-0 flex items-center gap-1.5 py-1 transition-colors text-[12px]
-        hover:bg-bg-200/50
-        ${isSelected ? 'bg-bg-200/70 text-text-100' : 'text-text-300'}
-      `}
+         w-full min-w-0 flex items-center gap-1.5 py-1 transition-colors text-[12px]
+         hover:bg-bg-200/50
+         text-text-300
+       `}
       style={{ paddingLeft: paddingLeft + 16 }}
     >
       <img

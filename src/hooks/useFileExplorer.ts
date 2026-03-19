@@ -32,10 +32,6 @@ export interface UseFileExplorerResult {
   expandPath: (path: string) => void
   collapsePath: (path: string) => void
 
-  // 选中状态
-  selectedPath: string | null
-  selectFile: (path: string) => void
-
   // 文件预览
   previewContent: FileContent | null
   previewLoading: boolean
@@ -62,9 +58,6 @@ export function useFileExplorer(options: UseFileExplorerOptions = {}): UseFileEx
 
   // 展开状态
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set())
-
-  // 选中状态
-  const [selectedPath, setSelectedPath] = useState<string | null>(null)
 
   // 预览状态
   const [previewContent, setPreviewContent] = useState<FileContent | null>(null)
@@ -237,11 +230,6 @@ export function useFileExplorer(options: UseFileExplorerOptions = {}): UseFileEx
     })
   }, [])
 
-  // 选中文件
-  const selectFile = useCallback((path: string) => {
-    setSelectedPath(path)
-  }, [])
-
   // 加载文件预览
   const loadPreview = useCallback(
     async (path: string) => {
@@ -289,7 +277,6 @@ export function useFileExplorer(options: UseFileExplorerOptions = {}): UseFileEx
   // 刷新
   const refresh = useCallback(async () => {
     setExpandedPaths(new Set())
-    setSelectedPath(null)
     previewCacheRef.current.clear()
     setPreviewContent(null)
     await loadRoot()
@@ -318,8 +305,6 @@ export function useFileExplorer(options: UseFileExplorerOptions = {}): UseFileEx
     toggleExpand,
     expandPath,
     collapsePath,
-    selectedPath,
-    selectFile,
     previewContent,
     previewLoading,
     previewError,

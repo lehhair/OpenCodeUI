@@ -36,7 +36,7 @@ describe('SessionChangesPanel', () => {
   })
 
   it('loads session diffs and shows the first file preview by default', async () => {
-    render(<SessionChangesPanel panelTabId="changes-1" sessionId="session-1" />)
+    render(<SessionChangesPanel sessionId="session-1" />)
 
     await act(async () => {
       vi.runAllTimers()
