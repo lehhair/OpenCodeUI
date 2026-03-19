@@ -38,8 +38,8 @@
     "tryDifferentKeyword": "试试其他关键词",
     "pinned": "已置顶",
     "recent": "最近使用",
-    "thinking": "推理",
-    "vision": "视觉",
+    "thinking": "Thinking",
+    "vision": "Vision",
     "unpin": "取消置顶",
     "pinToTop": "置顶",
     "model": "模型"
@@ -69,13 +69,13 @@
     "permission": "权限：{{permission}}",
     "moreCount": "还有 {{count}} 个",
     "minimize": "最小化",
-    "fromSubtask": "来自子任务：{{title}}",
+    "fromSubtask": "来自 Subtask：{{title}}",
     "changesPreview": "变更预览",
     "request": "请求",
     "rule": "规则",
     "allowOnce": "允许一次",
     "alwaysAllow": "始终允许",
-    "subtaskFallback": "子任务",
+    "subtaskFallback": "Subtask",
     "browserSession": "浏览器会话",
     "thisSession": "本次会话",
     "autoApproveEnabled": "自动放行已启用。刷新浏览器以重置权限。",
@@ -88,7 +88,7 @@
     "addCurrent": "添加当前目录"
   },
   "inputToolbar": {
-    "default": "默认",
+    "default": "Default",
     "attachFile": "附加文件",
     "stopGeneration": "停止生成",
     "sendingMessage": "发送消息中",
@@ -111,9 +111,9 @@
     "reply": "回复..."
   },
   "undoStatus": {
-    "editing": "编辑中",
-    "redo": "重做",
-    "redoAll": "全部重做"
+    "editing": "Editing",
+    "redo": "Redo",
+    "redoAll": "Redo All"
   },
   "sidebar": {
     "allProjects": "全部项目",
@@ -164,7 +164,7 @@
     "context": "上下文",
     "session": "会话",
     "messages": "消息",
-    "provider": "提供方",
+    "provider": "Provider",
     "model": "模型",
     "contextLimit": "上下文限制",
     "totalTokens": "Token 总量",
@@ -172,7 +172,7 @@
     "totalCost": "总费用",
     "inputTokens": "输入",
     "outputTokens": "输出",
-    "reasoning": "推理",
+    "reasoning": "Reasoning",
     "cacheRW": "缓存 (读/写)",
     "rawMessages": "原始消息"
   },

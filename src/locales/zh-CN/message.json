@@ -4,24 +4,24 @@
   "hideSystemContext": "隐藏",
   "showSystemContext": "显示系统上下文 ({{count}})",
   "undoFromHere": "从此处撤销",
-  "stepsCount": "{{done}}/{{total}} 步",
-  "tokens": "Token",
-  "tokensK": "{{count}}k Token",
+  "stepsCount": "{{done}}/{{total}} steps",
+  "tokens": "token",
+  "tokensK": "{{count}}k token",
   "defaultRenderer": {
-    "input": "输入",
-    "error": "错误",
-    "output": "输出",
-    "diagnostics": "诊断信息",
-    "errorsCount": "{{count}} 个错误",
-    "errorsCount_other": "{{count}} 个错误",
-    "warningsCount": "{{count}} 条警告",
-    "warningsCount_other": "{{count}} 条警告",
-    "result": "结果",
-    "nameResult": "{{name}} 结果"
+    "input": "Input",
+    "error": "Error",
+    "output": "Output",
+    "diagnostics": "Diagnostics",
+    "errorsCount": "{{count}} error",
+    "errorsCount_other": "{{count}} errors",
+    "warningsCount": "{{count}} warning",
+    "warningsCount_other": "{{count}} warnings",
+    "result": "Result",
+    "nameResult": "{{name}} Result"
   },
   "reasoning": {
-    "thinking": "思考中...",
-    "thinkingLabel": "思考",
+    "thinking": "Thinking...",
+    "thinkingLabel": "Thinking",
     "thoughtFor": "思考了 {{duration}}",
     "thoughtProcess": "思考过程"
   },
@@ -34,10 +34,10 @@
     "completedCount": "{{completed}}/{{total}}"
   },
   "task": {
-    "subtask": "子任务",
-    "result": "结果",
-    "error": "错误",
-    "stop": "停止",
+    "subtask": "Subtask",
+    "result": "Result",
+    "error": "Error",
+    "stop": "Stop",
     "openSession": "打开会话",
     "waitingForResponse": "等待响应..."
   },
@@ -52,20 +52,20 @@
   },
   "subtask": {
     "running": "运行中",
-    "done": "完成",
-    "error": "错误",
+    "done": "Done",
+    "error": "Error",
     "enter": "Enter",
-    "task": "任务",
+    "task": "Task",
     "viewFullSession": "查看完整会话"
   },
   "stepFinish": {
-    "inputTokens": "输入：{{input}}",
-    "outputTokens": "输出：{{output}}",
-    "reasoningTokens": "推理：{{reasoning}}",
-    "cacheRead": "缓存读取：{{read}}",
-    "cacheWrite": "缓存写入：{{write}}",
-    "cached": "已缓存 {{count}}",
-    "totalDuration": "总耗时 {{duration}}"
+    "inputTokens": "Input: {{input}}",
+    "outputTokens": "Output: {{output}}",
+    "reasoningTokens": "Reasoning: {{reasoning}}",
+    "cacheRead": "Cache read: {{read}}",
+    "cacheWrite": "Cache write: {{write}}",
+    "cached": "{{count}} cached",
+    "totalDuration": "total {{duration}}"
   },
   "errors": {
     "authError": "认证错误",
