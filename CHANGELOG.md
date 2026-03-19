@@ -1,5 +1,13 @@
 # Changelog
 
+## [v0.2.9] - 2026-03-19
+
+- fix: preserve custom audio when switching to builtin sounds (57119da)
+- fix: resolve all eslint warnings across codebase (4b31da3)
+- feat: add notification sound system with per-event configuration (b6019e2)
+- perf: defer offscreen chat message rendering (52d8ba8)
+- refactor: unify file and changes preview panels (9f315d8)
+
 ## [v0.2.8] - 2026-03-18
 
 - fix: wrap panel tab label case blocks (d353b80)
