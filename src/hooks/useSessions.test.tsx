@@ -1,15 +1,19 @@
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { EventCallbacks } from '../types/api/event'
 import { useSessions } from './useSessions'
 
 const getSessionsMock = vi.fn()
 const createSessionMock = vi.fn()
 const deleteSessionMock = vi.fn()
+const subscribeToEventsMock = vi.fn()
+let latestEventCallbacks: Partial<EventCallbacks> = {}
 
 vi.mock('../api', () => ({
   getSessions: (...args: unknown[]) => getSessionsMock(...args),
   createSession: (...args: unknown[]) => createSessionMock(...args),
   deleteSession: (...args: unknown[]) => deleteSessionMock(...args),
+  subscribeToEvents: (...args: unknown[]) => subscribeToEventsMock(...args),
 }))
 
 function makeSession(id: string, directory = '/workspace/demo') {
@@ -31,9 +35,15 @@ describe('useSessions', () => {
     getSessionsMock.mockReset()
     createSessionMock.mockReset()
     deleteSessionMock.mockReset()
+    subscribeToEventsMock.mockReset()
     getSessionsMock.mockResolvedValue([])
     createSessionMock.mockResolvedValue(makeSession('new'))
     deleteSessionMock.mockResolvedValue(true)
+    latestEventCallbacks = {}
+    subscribeToEventsMock.mockImplementation((callbacks: EventCallbacks) => {
+      latestEventCallbacks = callbacks
+      return vi.fn()
+    })
   })
 
   afterEach(() => {
@@ -78,5 +88,22 @@ describe('useSessions', () => {
     })
 
     expect(deleteSessionMock).toHaveBeenCalledWith('session-1', '/workspace/demo')
+  })
+
+  it('adds matching sessions from realtime events immediately', async () => {
+    const { result } = renderHook(() => useSessions({ directory: '/workspace/demo' }))
+
+    await act(async () => {
+      vi.runAllTimers()
+      await Promise.resolve()
+    })
+
+    await act(async () => {
+      latestEventCallbacks.onSessionCreated?.(makeSession('session-1'))
+      latestEventCallbacks.onSessionCreated?.(makeSession('session-ignored', '/workspace/other'))
+      latestEventCallbacks.onSessionCreated?.({ ...makeSession('session-child'), parentID: 'parent-1' })
+    })
+
+    expect(result.current.sessions.map(session => session.id)).toEqual(['session-1'])
   })
 })

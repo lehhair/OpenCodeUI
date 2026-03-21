@@ -406,6 +406,9 @@ export function SessionListItem({
   // 标题 + 时间 + 活跃状态圆点
   // ============================================
   if (isMinimal) {
+    const statusIndicatorTitle =
+      activeStatus?.label || (hasUnreadCompletedNotification ? t('chat:notification.completed') : undefined)
+
     return (
       <div
         ref={itemRef}
@@ -418,21 +421,18 @@ export function SessionListItem({
         } ${showActions ? 'bg-bg-200/40' : ''}`}
       >
         {/* 活跃状态圆点 / 已完成未读圆点 */}
-        {activeStatus ? (
-          <span className="relative shrink-0 flex items-center justify-center w-3 h-3" title={activeStatus.label}>
-            <span className={`absolute w-1.5 h-1.5 rounded-full ${activeStatus.dot}`} />
-            {activeStatus.pulse && (
-              <span className={`absolute w-1.5 h-1.5 rounded-full ${activeStatus.dot} animate-ping opacity-50`} />
-            )}
-          </span>
-        ) : hasUnreadCompletedNotification ? (
-          <span
-            className="relative shrink-0 flex items-center justify-center w-3 h-3"
-            title={t('chat:notification.completed')}
-          >
+        <span className="relative shrink-0 flex items-center justify-center w-3 h-3" title={statusIndicatorTitle}>
+          {activeStatus ? (
+            <>
+              <span className={`absolute w-1.5 h-1.5 rounded-full ${activeStatus.dot}`} />
+              {activeStatus.pulse && (
+                <span className={`absolute w-1.5 h-1.5 rounded-full ${activeStatus.dot} animate-ping opacity-50`} />
+              )}
+            </>
+          ) : hasUnreadCompletedNotification ? (
             <span className="absolute w-1.5 h-1.5 rounded-full bg-accent-main-100" />
-          </span>
-        ) : null}
+          ) : null}
+        </span>
 
         <div
           className={`flex min-w-0 flex-1 items-center gap-1.5 transition-[padding] duration-200 ${
