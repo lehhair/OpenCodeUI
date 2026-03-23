@@ -69,15 +69,34 @@ export const ToolPartView = memo(function ToolPartView({
   const questionRequest = inlineToolRequests
     ? findQuestionRequestForTool(pendingQuestions, part.callID, childSessionId)
     : undefined
+
+  // ── 延迟卸载 edit/write 权限组件 ──
+  // 用户授权后 permissionRequest 会立即消失，但工具结果可能还没到，
+  // 为了避免 "权限消失→空白→结果出现" 的跳动，缓存最后一次权限请求，
+  // 在工具完成之前继续渲染（以 resolved 状态）
+  const lastPermissionRef = useRef(permissionRequest)
+  if (permissionRequest) {
+    lastPermissionRef.current = permissionRequest
+  }
+  const isFilePermission =
+    lastPermissionRef.current?.permission === 'edit' || lastPermissionRef.current?.permission === 'write'
+  // 工具完成后清除缓存
+  const toolDone = state.status === 'completed' || state.status === 'error'
+  if (toolDone) {
+    lastPermissionRef.current = undefined
+  }
+  // 权限已批准但工具还没完成 → 保留渲染
+  const permissionResolved = !permissionRequest && !!lastPermissionRef.current && isFilePermission && !toolDone
+
   const hasPendingInteraction = !!permissionRequest || !!questionRequest
   const hideToolBodyForPermission =
-    permissionRequest?.permission === 'edit' || permissionRequest?.permission === 'write'
-  const effectiveExpanded = expanded || hasPendingInteraction
+    permissionRequest?.permission === 'edit' || permissionRequest?.permission === 'write' || permissionResolved
+  const effectiveExpanded = expanded || hasPendingInteraction || permissionResolved
   const shouldRenderBody = useDelayedRender(effectiveExpanded)
   const isReadable = isReadableTool(toolName)
 
   useEffect(() => {
-    if (isActive || hasPendingInteraction) {
+    if (isActive || hasPendingInteraction || permissionResolved) {
       if (immersiveMode && descriptive && isReadable) {
         hasAutoExpandedReadableRef.current = true
       }
@@ -89,7 +108,7 @@ export const ToolPartView = memo(function ToolPartView({
       hasAutoExpandedReadableRef.current = true
       setExpanded(true)
     }
-  }, [isActive, hasPendingInteraction, immersiveMode, descriptive, isStreaming, isReadable])
+  }, [isActive, hasPendingInteraction, permissionResolved, immersiveMode, descriptive, isStreaming, isReadable])
 
   // Shared icon element
   const toolIcon = (
@@ -111,12 +130,20 @@ export const ToolPartView = memo(function ToolPartView({
     </div>
   )
 
+  // 需要渲染权限组件的请求对象：优先用活跃的，否则用缓存的（resolved 态）
+  const displayPermission = permissionRequest || (permissionResolved ? lastPermissionRef.current : undefined)
+
   const bodyContent = (
     <>
       {!hideToolBodyForPermission && <ToolBody part={part} />}
-      {permissionRequest && (
+      {displayPermission && (
         <div className={hideToolBodyForPermission ? '' : 'pt-2'}>
-          <InlinePermission request={permissionRequest} onReply={onPermissionReply} isReplying={isReplying} />
+          <InlinePermission
+            request={displayPermission}
+            onReply={onPermissionReply}
+            isReplying={isReplying}
+            resolved={permissionResolved}
+          />
         </div>
       )}
       {questionRequest && (

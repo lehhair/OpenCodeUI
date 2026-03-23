@@ -42,11 +42,12 @@ export function QuestionRenderer({ part, data }: ToolRendererProps) {
   const isActive = state.status === 'running' || state.status === 'pending'
   const inputObj = state.input as Record<string, unknown> | undefined
   const output = data.output?.trim()
+  const metadata = state.metadata as Record<string, unknown> | undefined
 
-  // 从 input 拿问题结构，从 output 解析答案
+  // 从 input 拿问题结构，从 metadata/output 解析答案
   const qaList = useMemo(() => {
-    return buildQAList(inputObj, output)
-  }, [inputObj, output])
+    return buildQAList(inputObj, output, metadata)
+  }, [inputObj, output, metadata])
 
   // 运行中不渲染（InlineQuestion 接管交互）
   if (isActive) {
@@ -130,12 +131,26 @@ function AnsweredQuestion({ qa }: { qa: QAPair }) {
 // Parser
 // ============================================
 
-function buildQAList(inputObj: Record<string, unknown> | undefined, output: string | undefined): QAPair[] {
-  // 从 output 解析答案映射
-  const answerMap = parseAnswersFromOutput(output)
-
+function buildQAList(
+  inputObj: Record<string, unknown> | undefined,
+  output: string | undefined,
+  metadata: Record<string, unknown> | undefined,
+): QAPair[] {
   // 从 input 获取问题结构
   const questions = extractQuestions(inputObj)
+
+  // 优先从 metadata.answers 获取结构化答案（后端原始数组）
+  const metadataAnswers = extractMetadataAnswers(metadata)
+
+  if (metadataAnswers && questions.length > 0) {
+    return questions.map((q, idx) => ({
+      ...q,
+      answers: metadataAnswers[idx] || [],
+    }))
+  }
+
+  // fallback: 从 output 文本解析答案
+  const answerMap = parseAnswersFromOutput(output)
 
   if (questions.length === 0 && answerMap.size === 0) {
     return []
@@ -184,7 +199,23 @@ function extractQuestions(inputObj: Record<string, unknown> | undefined): Questi
 }
 
 /**
+ * 从 metadata.answers 提取结构化答案（后端原始 string[][] 格式）
+ */
+function extractMetadataAnswers(metadata: Record<string, unknown> | undefined): string[][] | undefined {
+  if (!metadata?.answers || !Array.isArray(metadata.answers)) return undefined
+  const answers = metadata.answers as unknown[][]
+  // 验证结构：应该是 string[][] 格式
+  if (answers.every(a => Array.isArray(a) && a.every(v => typeof v === 'string'))) {
+    return answers as string[][]
+  }
+  return undefined
+}
+
+/**
  * 从 output 文本解析 "question"="answer" 对
+ *
+ * 后端格式：多选答案用 ", " 拼接（如 "question"="A, B"）
+ * 需要拆分逗号分隔的答案
  */
 function parseAnswersFromOutput(output: string | undefined): Map<string, string[]> {
   const map = new Map<string, string[]>()
@@ -194,10 +225,13 @@ function parseAnswersFromOutput(output: string | undefined): Map<string, string[
   let match: RegExpExecArray | null
   while ((match = regex.exec(output)) !== null) {
     const question = match[1]
-    const answer = match[2]
-    const existing = map.get(question) || []
-    existing.push(answer)
-    map.set(question, existing)
+    const rawAnswer = match[2]
+    // 后端用 answer.join(", ") 拼接多选答案，这里拆回来
+    const answers = rawAnswer
+      .split(', ')
+      .map(s => s.trim())
+      .filter(Boolean)
+    map.set(question, answers)
   }
 
   return map
