@@ -35,7 +35,7 @@ export const RetryPartView = memo(function RetryPartView({ part }: RetryPartView
           </span>
         )}
         <ChevronDownIcon
-          className={`w-4 h-4 text-text-400 transition-transform duration-300 ${expanded ? 'rotate-180' : ''}`}
+          className={`w-4 h-4 text-text-400 transition-transform duration-300 ${expanded ? '' : '-rotate-90'}`}
         />
       </div>
 
@@ -112,7 +112,7 @@ export const PatchPartView = memo(function PatchPartView({ part }: PatchPartView
           <span className="text-xs text-text-500 ml-2 font-mono">{hash.slice(0, 7)}</span>
         </div>
         <ChevronDownIcon
-          className={`w-4 h-4 text-text-400 transition-transform duration-300 ${expanded ? 'rotate-180' : ''}`}
+          className={`w-4 h-4 text-text-400 transition-transform duration-300 ${expanded ? '' : '-rotate-90'}`}
         />
       </div>
 

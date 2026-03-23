@@ -263,7 +263,7 @@ const UserMessageView = memo(function UserMessageView({ message, onUndo, onFork,
               <span>
                 {showSystemContext ? t('hideSystemContext') : t('showSystemContext', { count: syntheticParts.length })}
               </span>
-              <span className={`transition-transform duration-300 ${showSystemContext ? 'rotate-180' : ''}`}>
+              <span className={`transition-transform duration-300 ${showSystemContext ? '' : '-rotate-90'}`}>
                 <ChevronDownIcon size={10} />
               </span>
             </button>

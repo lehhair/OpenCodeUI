@@ -54,7 +54,7 @@ export const MessageErrorView = memo(function MessageErrorView({ error }: Messag
         <span className={`text-sm ${colorClass} flex-1 min-w-0 truncate`}>{title}</span>
         {hasDetails && (
           <ChevronDownIcon
-            className={`w-4 h-4 text-text-400 transition-transform duration-300 ${expanded ? 'rotate-180' : ''}`}
+            className={`w-4 h-4 text-text-400 transition-transform duration-300 ${expanded ? '' : '-rotate-90'}`}
           />
         )}
       </div>

@@ -89,7 +89,7 @@ function AttachmentItemComponent({
           {attachment.displayName}
         </span>
         {canExpand && (
-          <span className={`text-text-400 transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`}>
+          <span className={`text-text-400 transition-transform duration-300 ${isExpanded ? '' : '-rotate-90'}`}>
             <ChevronDownIcon size={10} />
           </span>
         )}

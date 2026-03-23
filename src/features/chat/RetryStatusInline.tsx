@@ -59,7 +59,7 @@ export const RetryStatusInline = memo(function RetryStatusInline({ status }: { s
         </span>
         {hasMessage && (
           <ChevronDownIcon
-            className={`w-4 h-4 text-text-400 transition-transform duration-300 ${expanded ? 'rotate-180' : ''}`}
+            className={`w-4 h-4 text-text-400 transition-transform duration-300 ${expanded ? '' : '-rotate-90'}`}
           />
         )}
       </div>

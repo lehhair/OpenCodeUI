@@ -96,7 +96,7 @@ export const SubtaskPartView = memo(function SubtaskPartView({ part }: SubtaskPa
             </button>
           )}
           <ChevronDownIcon
-            className={`text-text-400 transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`}
+            className={`text-text-400 transition-transform duration-200 ${expanded ? '' : '-rotate-90'}`}
           />
         </div>
       </div>

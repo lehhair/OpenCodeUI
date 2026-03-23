@@ -94,7 +94,7 @@ export const DiffView = memo(function DiffView({
         onClick={() => setCollapsed(!collapsed)}
       >
         <div className="flex items-center gap-2 min-w-0 flex-1">
-          <div className={`transition-transform duration-200 ${collapsed ? '' : 'rotate-180'} text-text-400`}>
+          <div className={`transition-transform duration-200 ${collapsed ? '-rotate-90' : ''} text-text-400`}>
             <ChevronDownIcon />
           </div>
           {fileName && <span className="text-text-200 font-medium truncate flex-1 min-w-0">{fileName}</span>}

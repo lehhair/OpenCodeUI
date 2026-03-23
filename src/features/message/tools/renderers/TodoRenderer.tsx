@@ -49,7 +49,7 @@ function TodoList({ todos }: { todos: TodoItem[] }) {
         onClick={() => setCollapsed(!collapsed)}
       >
         <div className="flex items-center gap-2">
-          <span className={`text-text-400 transition-transform duration-200 ${collapsed ? '' : 'rotate-180'}`}>
+          <span className={`text-text-400 transition-transform duration-200 ${collapsed ? '-rotate-90' : ''}`}>
             <ChevronDownIcon />
           </span>
           <span className="text-text-300 font-medium font-mono">{t('todo.tasks')}</span>

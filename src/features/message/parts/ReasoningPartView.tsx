@@ -145,7 +145,7 @@ export const ReasoningPartView = memo(function ReasoningPartView({ part, isStrea
             </span>
           </div>
           <span
-            className={`inline-flex h-5 w-3 items-center justify-center shrink-0 text-text-500 group-hover/reasoning:text-text-300 transition-[transform,color] duration-200 ${expanded ? 'rotate-180' : ''}`}
+            className={`inline-flex h-5 w-3 items-center justify-center shrink-0 text-text-500 group-hover/reasoning:text-text-300 transition-[transform,color] duration-200 ${expanded ? '' : '-rotate-90'}`}
           >
             <ChevronDownIcon size={12} />
           </span>
@@ -235,7 +235,7 @@ export const ReasoningPartView = memo(function ReasoningPartView({ part, isStrea
           {isPartStreaming ? t('reasoning.thinking') : t('reasoning.thinkingLabel')}
         </span>
         <span
-          className={`inline-flex h-5 w-3 items-center justify-center shrink-0 transition-transform duration-300 ${expanded ? 'rotate-180' : ''}`}
+          className={`inline-flex h-5 w-3 items-center justify-center shrink-0 transition-transform duration-300 ${expanded ? '' : '-rotate-90'}`}
         >
           <ChevronDownIcon size={12} />
         </span>
