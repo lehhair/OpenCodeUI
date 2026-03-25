@@ -962,7 +962,6 @@ textarea.custom-scrollbar::-webkit-scrollbar-thumb {
  * ============================================
  * .glass       — 通用浮层（下拉菜单、输入框、Dialog、Toast 等）
  * .glass-alt   — bg-100 底色变体（sidebar footer、popover 等）
- * .glass-sticky — 列表内 sticky header（极薄透明，只做分隔）
  *
  * 调参改这里，全局生效。组件里只写 class 名，不写具体数值。
  */
@@ -984,12 +983,4 @@ textarea.custom-scrollbar::-webkit-scrollbar-thumb {
   backdrop-filter: blur(var(--_glass-blur));
   -webkit-backdrop-filter: blur(var(--_glass-blur));
   border-color: hsl(var(--border-200) / 0.6);
-}
-
-.glass-sticky {
-  --_glass-opacity: 0.5;
-  --_glass-blur: 12px;
-  background-color: hsl(var(--bg-000) / var(--_glass-opacity));
-  backdrop-filter: blur(var(--_glass-blur));
-  -webkit-backdrop-filter: blur(var(--_glass-blur));
 }
