@@ -137,7 +137,7 @@ export function EmptyState({ currentProject, projects, onStartChat }: EmptyState
 
               {/* Dropdown */}
               {isDropdownOpen && (
-                <div className="absolute top-full left-0 right-0 mt-1 bg-bg-100 border border-border-300/30 rounded-lg shadow-lg overflow-hidden z-50">
+                <div className="absolute top-full left-0 right-0 mt-1 bg-bg-100/50 backdrop-blur-md border border-border-200/60 rounded-xl shadow-xl overflow-hidden z-50">
                   <div className="max-h-48 overflow-y-auto custom-scrollbar">
                     {/* Current directory */}
                     <button

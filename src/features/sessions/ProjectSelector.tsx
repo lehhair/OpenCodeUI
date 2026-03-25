@@ -118,7 +118,7 @@ export function ProjectSelector({
           ${isOpen ? 'opacity-100 scale-100 pointer-events-auto' : 'opacity-0 scale-95 pointer-events-none'}
         `}
       >
-        <div className="bg-bg-000 border border-border-200 rounded-xl shadow-xl overflow-hidden">
+        <div className="bg-bg-000/50 backdrop-blur-md border border-border-200/60 rounded-xl shadow-xl overflow-hidden">
           <div className="max-h-[280px] overflow-y-auto custom-scrollbar p-1">
             <div className="px-2 py-1.5 text-[10px] font-semibold text-text-400/70 uppercase tracking-wider">
               {t('sessions.switchProject')}

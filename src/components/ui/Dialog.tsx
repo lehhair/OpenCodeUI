@@ -177,7 +177,7 @@ export function Dialog({
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
         className={`
-          relative bg-bg-000 border border-border-200 rounded-xl shadow-2xl 
+          relative bg-bg-000/50 backdrop-blur-md border border-border-200/60 rounded-xl shadow-2xl 
           flex flex-col overflow-hidden
           ${isDraggingActive ? '' : 'transition-all duration-200 ease-out'}
           ${className}

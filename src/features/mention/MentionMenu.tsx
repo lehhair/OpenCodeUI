@@ -328,7 +328,7 @@ export const MentionMenu = forwardRef<MentionMenuHandle, MentionMenuProps>(funct
     <div
       ref={menuRef}
       data-dropdown-open
-      className="absolute z-50 w-full md:max-w-[360px] flex flex-col bg-bg-000 border border-border-300 rounded-lg shadow-lg overflow-hidden"
+      className="absolute z-50 w-full md:max-w-[360px] flex flex-col bg-bg-000/50 backdrop-blur-md border border-border-200/60 rounded-xl shadow-xl overflow-hidden"
       style={{
         bottom: '100%',
         left: 0,

@@ -233,7 +233,7 @@ function PopoverPanel({
     <div
       ref={ref}
       style={style}
-      className="absolute bottom-full bg-bg-100 border border-border-200/50 rounded-2xl shadow-2xl shadow-black/20 overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-150 z-50"
+      className="absolute bottom-full bg-bg-100/50 backdrop-blur-md border border-border-200/60 rounded-2xl shadow-2xl shadow-black/20 overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-150 z-50"
     >
       {children}
     </div>

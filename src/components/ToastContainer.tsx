@@ -75,7 +75,7 @@ function Toast({ item, onDismiss, onClick }: { item: ToastItem; onDismiss: () =>
         transform: show ? 'translateY(0) translateX(0)' : 'translateY(-8px) translateX(8px)',
         pointerEvents: show ? 'auto' : 'none',
       }}
-      className="group relative flex items-center gap-2.5 p-3 bg-bg-000 border border-border-200/50 backdrop-blur-xl rounded-xl shadow-lg cursor-pointer hover:bg-bg-100 hover:border-border-300 transition-colors duration-150"
+      className="group relative flex items-center gap-2.5 p-3 bg-bg-000/50 border border-border-200/60 backdrop-blur-md rounded-xl shadow-lg cursor-pointer hover:bg-bg-100/80 hover:border-border-300 transition-colors duration-150"
       onClick={onClick}
       role="alert"
     >

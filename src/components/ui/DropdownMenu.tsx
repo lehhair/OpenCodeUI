@@ -151,7 +151,7 @@ export function DropdownMenu({
     <div
       className={`
         fixed z-[100]
-        p-1 bg-bg-000 border border-border-200/50 backdrop-blur-xl rounded-xl shadow-xl
+        p-1 bg-bg-000/50 border border-border-200/60 backdrop-blur-md rounded-xl shadow-xl
         transition-all duration-200 cubic-bezier(0.34, 1.15, 0.64, 1)
         ${isVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}
         ${className}

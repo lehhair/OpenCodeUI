@@ -938,12 +938,12 @@ function InputBoxComponent({
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
-                className={`bg-bg-000 rounded-2xl relative z-30 transition-all focus-within:outline-none shadow-lg shadow-black/5 ${
+                className={`bg-bg-000/50 backdrop-blur-md rounded-2xl relative z-30 transition-all focus-within:outline-none shadow-lg shadow-black/[0.08] ${
                   isDragging
                     ? 'border border-accent-main-100 ring-2 ring-accent-main-100/30'
                     : isStreaming
                       ? 'border border-accent-main-100/50 animate-border-pulse'
-                      : 'border border-border-200/50'
+                      : 'border border-border-200/60'
                 }`}
               >
                 {/* Drop overlay */}
@@ -1002,11 +1002,11 @@ function InputBoxComponent({
                             </div>
 
                             {attachmentsOverflowing && showAttachmentLeftFade && (
-                              <div className="pointer-events-none absolute inset-y-0 left-0 w-8 bg-gradient-to-r from-bg-000 via-bg-000/95 to-transparent" />
+                              <div className="pointer-events-none absolute inset-y-0 left-0 w-8 bg-gradient-to-r from-bg-000/65 to-transparent" />
                             )}
 
                             {attachmentsOverflowing && showAttachmentRightFade && (
-                              <div className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-bg-000 via-bg-000/95 to-transparent" />
+                              <div className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-bg-000/65 to-transparent" />
                             )}
                           </div>
                         </div>

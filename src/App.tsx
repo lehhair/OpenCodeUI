@@ -697,7 +697,7 @@ function App() {
               {/* Hints — absolute 浮层，不占文档流，不推消息 */}
               {(showCancelHint || (fullAutoHint && !showCancelHint)) && (
                 <div className="absolute bottom-full inset-x-0 flex justify-center pb-2 pointer-events-none z-20">
-                  <div className="px-3 py-1.5 bg-bg-000/95 border border-border-200 rounded-lg shadow-lg text-xs text-text-300 backdrop-blur-sm animate-in fade-in slide-in-from-bottom-2 duration-150">
+                  <div className="px-3 py-1.5 bg-bg-000/50 border border-border-200/60 rounded-lg shadow-lg text-xs text-text-300 backdrop-blur-md animate-in fade-in slide-in-from-bottom-2 duration-150">
                     {showCancelHint ? (
                       <Trans
                         i18nKey="chat:hints.pressEscAgain"

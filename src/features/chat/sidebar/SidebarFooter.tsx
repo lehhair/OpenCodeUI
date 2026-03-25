@@ -202,7 +202,7 @@ export function SidebarFooter({ showLabels, connectionState, stats, hasMessages,
         <div
           ref={menuRef}
           className={`
-        fixed z-[9999] rounded-xl border border-border-200/60 bg-bg-100 shadow-2xl overflow-hidden
+        fixed z-[9999] rounded-xl border border-border-200/60 bg-bg-100/50 backdrop-blur-md shadow-2xl overflow-hidden
         transition-all duration-150 ease-out
         ${isVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}
       `}
