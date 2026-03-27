@@ -1,6 +1,18 @@
 @import 'tailwindcss';
 
 /* ============================================
+ * Tauri WebView backdrop-filter 修复
+ * ============================================
+ * WebView2 (Windows) 和 WebKitGTK (Linux) 的部分版本
+ * 不渲染 backdrop-filter blur。
+ * will-change:auto 强制 GPU 合成层，使 blur 生效。
+ * .tauri-app class 由 main.tsx 在 Tauri 环境下添加到 <html>。
+ */
+.tauri-app * {
+  will-change: auto;
+}
+
+/* ============================================
  * Mobile Viewport & Safe Area
  * ============================================ */
 
@@ -357,14 +369,15 @@ body {
 
 /* ── Overlay thumb ── */
 .os-thumb {
-  position: fixed;
+  position: absolute;
+  top: 0;
   width: 12px;
   opacity: 0;
   transition: opacity 200ms ease;
   cursor: default;
   user-select: none;
   pointer-events: none;
-  z-index: 9999;
+  z-index: 50;
 }
 
 .os-thumb::after {
@@ -806,23 +819,23 @@ body {
  * .glass-alt   — bg-100 底色变体（sidebar footer、popover 等）
  *
  * 调参改这里，全局生效。组件里只写 class 名，不写具体数值。
+ *
+ * 注意：
+ *  - backdrop-filter 里不能用 var()，webkit2gtk (Linux Tauri) 不支持
+ *  - -webkit- 前缀必须写在非前缀前面，否则构建工具会删掉非前缀版本
  */
 
 .glass {
-  --_glass-opacity: 0.5;
-  --_glass-blur: 12px;
-  background-color: hsl(var(--bg-000) / var(--_glass-opacity));
-  backdrop-filter: blur(var(--_glass-blur));
-  -webkit-backdrop-filter: blur(var(--_glass-blur));
+  background-color: hsl(var(--bg-000) / 0.5);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
   border-color: hsl(var(--border-200) / 0.6);
 }
 
 /* bg-100 底色的变体（sidebar footer、popover 等用 bg-100 的场景） */
 .glass-alt {
-  --_glass-opacity: 0.5;
-  --_glass-blur: 12px;
-  background-color: hsl(var(--bg-100) / var(--_glass-opacity));
-  backdrop-filter: blur(var(--_glass-blur));
-  -webkit-backdrop-filter: blur(var(--_glass-blur));
+  background-color: hsl(var(--bg-100) / 0.5);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
   border-color: hsl(var(--border-200) / 0.6);
 }

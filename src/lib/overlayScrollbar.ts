@@ -2,26 +2,24 @@
  * overlayScrollbar — 全局自绘滚动条
  *
  * 隐藏浏览器原生滚动条，自动为所有可垂直滚动的容器注入 overlay thumb。
- * 不需要修改任何组件代码——纯运行时注入。
  *
  * 架构：
  *   CSS  :where(:not(textarea)) { scrollbar-width:none }   隐藏原生
  *   JS   MutationObserver 扫描 DOM → attach(el)            发现可滚动容器
- *        attach() → 在 body 上创建 .os-thumb (fixed)       不随内容滚走
- *        scroll / resize / pointerenter → update()          实时定位
- *        document scroll (capture) → 更新所有 thumb          父级滚动同步
+ *        attach() → 在容器的父元素上创建 .os-thumb          不随内容滚走
+ *        scroll → getBoundingClientRect 定位 thumb           跟随容器视口
  *
- * 学习自 opencode/packages/ui scroll-view 的 thumb 计算和拖拽交互，
- * 改为全局自动挂载方案。
+ * thumb 挂在容器的父元素上（而非容器内部），这样：
+ *   - 不会被容器的滚动带走
+ *   - 不会干扰 column-reverse 等 flex 布局
+ *   - 受父元素及祖先的 overflow 裁剪 → 容器消失 thumb 自然消失
  */
 
-// ── 常量 ────────────────────────────────────────────────
 const ATTR = 'data-os'
 const TRACK_PAD = 8
 const MIN_THUMB = 32
 const FADE_MS = 800
 
-// ── 管理表 ──────────────────────────────────────────────
 interface Entry {
   vp: HTMLElement
   thumb: HTMLDivElement
@@ -44,15 +42,25 @@ function isScrollableY(el: HTMLElement): boolean {
 function attach(vp: HTMLElement) {
   if (entries.has(vp)) return
 
+  const parent = vp.parentElement
+  if (!parent) return
+
+  // 确保父元素是定位上下文
+  const parentPos = getComputedStyle(parent).position
+  if (parentPos === 'static' || parentPos === '') {
+    parent.style.position = 'relative'
+  }
+
+  // thumb 挂在父元素上，不在滚动容器内部
   const thumb = document.createElement('div')
   thumb.className = 'os-thumb'
-  document.body.appendChild(thumb)
+  parent.appendChild(thumb)
   vp.setAttribute(ATTR, '')
 
   let fadeTimer: ReturnType<typeof setTimeout> | null = null
   let dragging = false
 
-  // ── update: 计算 thumb 大小和位置 ──────────────────
+  // ── update ────────────────────────────────────────
   const update = () => {
     const { scrollTop, scrollHeight, clientHeight } = vp
     if (scrollHeight <= clientHeight + 1) {
@@ -60,28 +68,26 @@ function attach(vp: HTMLElement) {
       return
     }
 
-    const rect = vp.getBoundingClientRect()
-    const track = rect.height - TRACK_PAD * 2
+    // 容器相对于父元素的位置
+    const vpRect = vp.getBoundingClientRect()
+    const parentRect = parent.getBoundingClientRect()
+    const offsetTop = vpRect.top - parentRect.top
+    const offsetRight = parentRect.right - vpRect.right
+
+    const track = vpRect.height - TRACK_PAD * 2
     let h = (clientHeight / scrollHeight) * track
     h = Math.max(h, MIN_THUMB)
 
     const maxScroll = scrollHeight - clientHeight
     const maxTop = track - h
 
-    // column-reverse 的 scrollTop 为负值 (0 → -maxScroll)
     const isReverse = scrollTop < 0 || getComputedStyle(vp).flexDirection === 'column-reverse'
     const ratio = isReverse ? (maxScroll + scrollTop) / maxScroll : scrollTop / maxScroll
     const thumbY = TRACK_PAD + (maxScroll > 0 ? ratio * maxTop : 0)
 
-    const top = rect.top + thumbY
     thumb.style.height = `${h}px`
-    thumb.style.top = `${top}px`
-    thumb.style.left = `${rect.right - 12}px`
-
-    // 裁剪：防止 thumb 跑出容器可见区域
-    const clipTop = Math.max(0, rect.top - top)
-    const clipBottom = Math.max(0, top + h - rect.bottom)
-    thumb.style.clipPath = clipTop > 0 || clipBottom > 0 ? `inset(${clipTop}px 0 ${clipBottom}px 0)` : ''
+    thumb.style.top = `${offsetTop + thumbY}px`
+    thumb.style.right = `${offsetRight}px`
   }
 
   // ── reveal / fade ─────────────────────────────────
@@ -97,7 +103,6 @@ function attach(vp: HTMLElement) {
     scheduleFade()
   }
 
-  // ── 事件处理 ──────────────────────────────────────
   const onScroll = () => {
     update()
     reveal()
@@ -118,7 +123,7 @@ function attach(vp: HTMLElement) {
     }
   }
 
-  // ── 拖拽 thumb ────────────────────────────────────
+  // ── 拖拽 ──────────────────────────────────────────
   const onThumbDown = (e: PointerEvent) => {
     e.preventDefault()
     e.stopPropagation()
@@ -160,7 +165,6 @@ function attach(vp: HTMLElement) {
   ro.observe(vp)
   update()
 
-  // ── 清理 ──────────────────────────────────────────
   const cleanup = () => {
     vp.removeEventListener('scroll', onScroll)
     vp.removeEventListener('pointerenter', onEnter)
@@ -186,11 +190,9 @@ function detach(vp: HTMLElement) {
 
 // ── 扫描 DOM ────────────────────────────────────────────
 function scan() {
-  // 清理已卸载或不再可滚动的
   for (const [vp] of entries) {
     if (!document.contains(vp) || !isScrollableY(vp)) detach(vp)
   }
-  // 发现新的可滚动容器
   const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_ELEMENT)
   let node: Node | null = walker.currentNode
   while (node) {
@@ -208,7 +210,7 @@ function scan() {
   }
 }
 
-// ── 初始化入口 ──────────────────────────────────────────
+// ── 初始化 ──────────────────────────────────────────────
 let inited = false
 
 export function initOverlayScrollbars() {
@@ -217,7 +219,6 @@ export function initOverlayScrollbars() {
 
   scan()
 
-  // DOM 变化 → 延迟重新扫描
   let timer: ReturnType<typeof setTimeout> | null = null
   const debounceScan = () => {
     if (timer) return
@@ -236,8 +237,8 @@ export function initOverlayScrollbars() {
 
   window.addEventListener('resize', debounceScan, { passive: true })
 
-  // 任何元素滚动 → 更新所有 thumb 位置（capture 阶段拦截）
-  // 确保父级滚动时子级的 thumb 也跟着重定位
+  // 任何元素滚动 → 更新所有 thumb 位置
+  // 父级滚动时子级 thumb 需要重定位
   document.addEventListener(
     'scroll',
     () => {
