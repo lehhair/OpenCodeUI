@@ -798,22 +798,6 @@ body {
 }
 
 /* ============================================
- * Chat Message Item - content-visibility 优化
- * ============================================
- * content-visibility: auto 让浏览器跳过视口外元素的 layout/paint。
- * loadMore prepend 时通过 .prepending class 临时禁用，
- * 确保 column-reverse 下新节点用真实高度，避免跳变。
- */
-.chat-message-item {
-  content-visibility: auto;
-}
-
-.prepending .chat-message-item {
-  content-visibility: visible !important;
-  contain-intrinsic-size: auto !important;
-}
-
-/* ============================================
  * Frosted Glass 毛玻璃浮层系统
  * ============================================
  * .glass       — 通用浮层（下拉菜单、输入框、Dialog、Toast 等）

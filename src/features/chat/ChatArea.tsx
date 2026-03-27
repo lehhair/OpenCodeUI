@@ -6,7 +6,7 @@
 // - scrollTop=0 是底部，负值是向上滚动
 // - 新内容向上生长，浏览器自动维持底部锚定，零 JS auto-scroll
 // - 消息反序渲染：DOM 前面=视觉底部，loadMore append 到 DOM 末尾=视觉顶部
-// - IntersectionObserver 触发 loadMore，prepend 时临时禁用 content-visibility
+// - IntersectionObserver 触发 loadMore，历史消息在视觉顶部自然追加
 
 import {
   useRef,
@@ -228,8 +228,7 @@ export const ChatArea = memo(
       // ============================================
       // Load more: IntersectionObserver on top sentinel
       // ============================================
-      // prepend 时临时 .prepending 禁用 content-visibility，
-      // 确保 column-reverse 下新节点用真实高度，避免估算高度导致跳变。
+      // 依赖 column-reverse + ViewportMessageItem 占位，自然保持滚动位置。
 
       useEffect(() => {
         const sentinel = topSentinelRef.current
@@ -252,19 +251,9 @@ export const ChatArea = memo(
             isLoadingRef.current = true
             setIsLoadingMore(true)
 
-            // 临时禁用 content-visibility，让所有消息用真实高度
-            root.classList.add('prepending')
-
             Promise.resolve(fn()).finally(() => {
               isLoadingRef.current = false
               setIsLoadingMore(false)
-
-              // double rAF: 等 React 渲染 + 浏览器 paint 后恢复 content-visibility
-              requestAnimationFrame(() => {
-                requestAnimationFrame(() => {
-                  root.classList.remove('prepending')
-                })
-              })
             })
           },
           { root, rootMargin: '200px 0px 0px 0px' },
@@ -481,7 +470,7 @@ export const ChatArea = memo(
             {reversedGroups.map(group => {
               const first = group[0]
               return (
-                <div key={first.info.id} className="chat-message-item shrink-0">
+                <div key={first.info.id} className="shrink-0">
                   {renderMessageGroup(group)}
                 </div>
               )

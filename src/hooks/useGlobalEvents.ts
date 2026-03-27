@@ -153,11 +153,19 @@ export function useGlobalEvents(callbacks?: GlobalEventsCallbacks, directories?:
   useEffect(() => {
     // 节流滚动
     let scrollPending = false
-    const scheduleScroll = () => {
+    const pendingScrollSessionIds = new Set<string>()
+
+    const scheduleScroll = (sessionId: string) => {
+      pendingScrollSessionIds.add(sessionId)
       if (scrollPending) return
       scrollPending = true
       requestAnimationFrame(() => {
         scrollPending = false
+
+        const shouldScroll = Array.from(pendingScrollSessionIds).some(id => belongsToCurrentSession(id))
+        pendingScrollSessionIds.clear()
+        if (!shouldScroll) return
+
         callbacksRef.current?.onScrollRequest?.()
       })
     }
@@ -188,13 +196,13 @@ export function useGlobalEvents(callbacks?: GlobalEventsCallbacks, directories?:
       onPartUpdated: (apiPart: ApiPart) => {
         if ('sessionID' in apiPart && 'messageID' in apiPart) {
           messageStore.handlePartUpdated(apiPart as ApiPart & { sessionID: string; messageID: string })
-          scheduleScroll()
+          scheduleScroll(apiPart.sessionID)
         }
       },
 
       onPartDelta: data => {
         messageStore.handlePartDelta(data)
-        scheduleScroll()
+        scheduleScroll(data.sessionID)
       },
 
       onPartRemoved: data => {
