@@ -40,3 +40,13 @@ public/material-icons/
 *.njsproj
 *.sln
 *.sw?
+
+# Planner / session artifacts
+.sisyphus/
+
+# Secrets (deploy/.htpasswd already in deploy/.gitignore, root-level safety net)
+deploy/.htpasswd
+
+# Archives
+*.tar.gz
+*.zip
