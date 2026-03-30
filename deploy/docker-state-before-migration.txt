@@ -1,0 +1,13 @@
+=== Docker Container Status ===
+NAMES        IMAGE                                        PORTS     STATUS
+opencodeui   ghcr.io/lehhair/opencodeui-frontend:latest             Up 3 days
+
+=== Network Mode ===
+host
+
+=== Port Usage ===
+LISTEN 0      512                                 0.0.0.0:4096       0.0.0.0:*    users:((".opencode",pid=3823508,fd=19))                                                                                                                                                                                                                                                                                                                 
+LISTEN 0      4096                                      *:3100             *:*    users:(("caddy",pid=2820351,fd=7))                                                                                                                                                                                                                                                                                                                      
+
+=== Timestamp ===
+2026-03-30T10:59:04+08:00
