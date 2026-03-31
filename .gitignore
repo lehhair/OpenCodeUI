@@ -46,6 +46,8 @@ public/material-icons/
 
 # Secrets (deploy/.htpasswd already in deploy/.gitignore, root-level safety net)
 deploy/.htpasswd
+deploy/data/*
+!deploy/data/.gitkeep
 
 # Archives
 *.tar.gz
