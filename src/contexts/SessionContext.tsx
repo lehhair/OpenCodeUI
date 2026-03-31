@@ -220,7 +220,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         title,
         directory: targetDir,
       })
-      // SSE 会处理添加到列表，这里只是更新 currentSessionId
+      // 本地立即添加到列表（SSE 可能延迟或丢失 session.created 事件）
+      setSessions(prev => {
+        if (prev.some(s => s.id === newSession.id)) return prev
+        return [newSession, ...prev]
+      })
       setCurrentSessionId(newSession.id)
       return newSession
     },
