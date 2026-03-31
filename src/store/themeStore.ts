@@ -10,7 +10,7 @@
 
 import { getThemePreset, themeColorsToCSSVars, builtinThemes, DEFAULT_THEME_ID } from '../themes'
 import type { ThemePreset, ThemeColors } from '../themes'
-import { syncableSetItem, onSyncRemoteChange } from '../utils/syncableStorage'
+import { syncableSetItem } from '../utils/syncableStorage'
 
 // ============================================
 // Color Conversion Utility
