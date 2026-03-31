@@ -176,6 +176,13 @@ function _M.get_version()
     if not db then
         return nil, "failed to open database: " .. (err or "unknown error")
     end
+
+    -- Set busy timeout (5 seconds)
+    local ok, err = sqlite3.exec(db, "PRAGMA busy_timeout=5000")
+    if not ok then
+        sqlite3.close(db)
+        return nil, "failed to set busy timeout: " .. (err or "unknown error")
+    end
     
     local stmt = sqlite3.prepare(db, "SELECT current_version FROM version_counter WHERE id = 1")
     if not stmt then
@@ -213,9 +220,16 @@ function _M.upsert(key, value, server_id)
     if not db then
         return nil, "failed to open database: " .. (err or "unknown error")
     end
+
+    -- Set busy timeout (5 seconds)
+    local ok, err = sqlite3.exec(db, "PRAGMA busy_timeout=5000")
+    if not ok then
+        sqlite3.close(db)
+        return nil, "failed to set busy timeout: " .. (err or "unknown error")
+    end
     
     -- Begin transaction
-    local ok, err = sqlite3.exec(db, "BEGIN IMMEDIATE")
+    ok, err = sqlite3.exec(db, "BEGIN IMMEDIATE")
     if not ok then
         local msg = sqlite3.errmsg(db)
         sqlite3.close(db)
@@ -319,6 +333,13 @@ function _M.get_all(server_id_filter)
     if not db then
         return nil, "failed to open database: " .. (err or "unknown error")
     end
+
+    -- Set busy timeout (5 seconds)
+    local ok, err = sqlite3.exec(db, "PRAGMA busy_timeout=5000")
+    if not ok then
+        sqlite3.close(db)
+        return nil, "failed to set busy timeout: " .. (err or "unknown error")
+    end
     
     local sql = "SELECT key, value FROM settings"
     local stmt
@@ -365,6 +386,13 @@ function _M.get_since(version)
     local db, err = sqlite3.open(DB_PATH)
     if not db then
         return nil, "failed to open database: " .. (err or "unknown error")
+    end
+
+    -- Set busy timeout (5 seconds)
+    local ok, err = sqlite3.exec(db, "PRAGMA busy_timeout=5000")
+    if not ok then
+        sqlite3.close(db)
+        return nil, "failed to set busy timeout: " .. (err or "unknown error")
     end
     
     -- Get current version
@@ -429,6 +457,13 @@ function _M.get(key)
     if not db then
         return nil, "failed to open database: " .. (err or "unknown error")
     end
+
+    -- Set busy timeout (5 seconds)
+    local ok, err = sqlite3.exec(db, "PRAGMA busy_timeout=5000")
+    if not ok then
+        sqlite3.close(db)
+        return nil, "failed to set busy timeout: " .. (err or "unknown error")
+    end
     
     local stmt = sqlite3.prepare(db, 
         "SELECT key, value, updated_at, version FROM settings WHERE key = ?")
@@ -468,9 +503,16 @@ function _M.delete(key)
     if not db then
         return nil, "failed to open database: " .. (err or "unknown error")
     end
+
+    -- Set busy timeout (5 seconds)
+    local ok, err = sqlite3.exec(db, "PRAGMA busy_timeout=5000")
+    if not ok then
+        sqlite3.close(db)
+        return nil, "failed to set busy timeout: " .. (err or "unknown error")
+    end
     
     -- Begin transaction
-    local ok, err = sqlite3.exec(db, "BEGIN IMMEDIATE")
+    ok, err = sqlite3.exec(db, "BEGIN IMMEDIATE")
     if not ok then
         local msg = sqlite3.errmsg(db)
         sqlite3.close(db)
@@ -565,6 +607,13 @@ function _M.get_stats()
     
     local db, err = sqlite3.open(DB_PATH)
     if not db then
+        return result
+    end
+
+    -- Set busy timeout (5 seconds)
+    local ok, err = sqlite3.exec(db, "PRAGMA busy_timeout=5000")
+    if not ok then
+        sqlite3.close(db)
         return result
     end
     

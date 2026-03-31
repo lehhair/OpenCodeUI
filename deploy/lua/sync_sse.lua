@@ -13,9 +13,27 @@ function _M.handle()
     ngx.header["Connection"] = "keep-alive"
     ngx.header["X-Accel-Buffering"] = "no"
 
+    -- Ensure database is initialized (prevents 500 on first request before sync_api runs)
+    -- pcall returns (ok, result1, result2, ...) so init returns (true, true) on success
+    -- or (false, errmsg) on error — we need to capture both return values
+    local pcall_ok, init_ok, init_err = pcall(sync_db.init)
+    if not pcall_ok or not init_ok then
+        ngx.log(ngx.ERR, "sync_sse: init() pcall error: ", tostring(init_err))
+        ngx.sleep(0.5)
+        pcall_ok, init_ok, init_err = pcall(sync_db.init)
+    end
+    if not pcall_ok or not init_ok then
+        ngx.log(ngx.ERR, "sync_sse: init() failed after retry: ", tostring(init_err))
+        ngx.status = 500
+        ngx.say("event: error\ndata: {\"message\":\"db init failed\"}\n")
+        ngx.flush(true)
+        return
+    end
+
     -- Get shared dict for cross-worker version notification
     local shared = ngx.shared.sync_version
     if not shared then
+        ngx.log(ngx.ERR, "sync_sse: shared dict sync_version not available")
         ngx.status = 500
         ngx.say("event: error\ndata: {\"message\":\"shared dict sync_version not available\"}\n")
         ngx.flush(true)
@@ -23,10 +41,18 @@ function _M.handle()
     end
 
     -- Send initial connected event with current version
-    local version, err = sync_db.get_version()
-    if not version then
+    -- pcall returns (ok, result1, result2, ...) so get_version returns (true, version_num) on success
+    -- or (true, nil, errmsg) on DB error — must check ok AND version separately
+    local pcall_ok, version, ver_err = pcall(sync_db.get_version)
+    if not pcall_ok or not version then
+        ngx.log(ngx.ERR, "sync_sse: get_version() pcall error: ", tostring(ver_err))
+        ngx.sleep(0.3)
+        pcall_ok, version, ver_err = pcall(sync_db.get_version)
+    end
+    if not pcall_ok or not version then
+        ngx.log(ngx.ERR, "sync_sse: get_version() failed after retry: ", tostring(ver_err))
         ngx.status = 500
-        ngx.say("event: error\ndata: {\"message\":\"failed to get version: " .. tostring(err) .. "\"}\n")
+        ngx.say("event: error\ndata: {\"message\":\"failed to get version\"}\n")
         ngx.flush(true)
         return
     end

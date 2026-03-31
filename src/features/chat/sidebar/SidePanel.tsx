@@ -352,9 +352,9 @@ export function SidePanel({
             opacity: showLabels ? 1 : 0,
           }}
         >
-          <a href="/" className="flex items-center whitespace-nowrap">
+          <button onClick={onNewSession} className="flex items-center whitespace-nowrap">
             <span className="text-base font-semibold text-text-100 tracking-tight">{t('header.openCode')}</span>
-          </a>
+          </button>
         </div>
 
         {/* Toggle Button - 桌面端和移动端都显示 */}

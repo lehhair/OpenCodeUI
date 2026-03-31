@@ -104,6 +104,7 @@
           if (ok) {
             setAuth(user, pass)
             overlay.remove()
+            window.dispatchEvent(new Event('auth-ready'))
           } else {
             errDiv.textContent = 'Invalid username or password'
             errDiv.style.display = 'block'

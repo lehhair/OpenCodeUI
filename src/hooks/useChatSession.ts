@@ -90,7 +90,7 @@ export function useChatSession({ chatAreaRef, currentModel, refetchModels }: Use
   const { resetPermissions } = usePermissions()
   const { sessionId: routeSessionId, navigateToSession, navigateHome } = useRouter()
   const { currentDirectory, savedDirectories, sidebarExpanded, setSidebarExpanded } = useDirectory()
-  const { createSession, sessions } = useSessionContext()
+  const { createSession, sessions, isLoading } = useSessionContext()
   const { sendNotification } = useNotification()
 
   const routeStatus = routeSessionId ? statusMap[routeSessionId] : undefined
@@ -587,6 +587,15 @@ export function useChatSession({ chatAreaRef, currentModel, refetchModels }: Use
       handleError('archive session', error)
     }
   }, [routeSessionId, effectiveDirectory, navigateHome, handleNewChat])
+
+  // Auto-select first session on initial load when no session is selected
+  // This prevents the blank page state when first opening the app
+  useEffect(() => {
+    if (routeSessionId) return // already in a session
+    if (!sessions.length) return // no sessions available
+    if (isLoading) return // wait for initial load to complete
+    navigateToSession(sessions[0].id)
+  }, [sessions, routeSessionId, isLoading, navigateToSession])
 
   // Navigate to previous session
   const handlePreviousSession = useCallback(() => {

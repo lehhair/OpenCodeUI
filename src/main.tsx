@@ -114,12 +114,6 @@ window.addEventListener('unhandledrejection', event => {
   event.preventDefault()
 })
 
-// 调试：追踪页面刷新来源
-window.addEventListener('beforeunload', _event => {
-  console.error('[beforeunload] Page is about to reload! Stack trace:')
-  console.trace()
-})
-
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <Suspense fallback={null}>

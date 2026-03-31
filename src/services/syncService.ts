@@ -32,7 +32,13 @@ class SyncService {
   private abortController: AbortController | null = null
 
   private constructor() {
-    // Singleton - use syncService export
+    window.addEventListener('auth-ready', () => {
+      if (this.running) {
+        this.retries = 0
+        this.fullSync()
+        this.connectSSE()
+      }
+    })
   }
 
   static getInstance(): SyncService {
@@ -53,13 +59,16 @@ class SyncService {
     if (this.running) return
     this.running = true
     this.retries = 0
+
+    const hasAuth = !!sessionStorage.getItem('oc_auth')
+    if (!hasAuth) {
+      return
+    }
+
     this.fullSync()
     this.connectSSE()
   }
 
-  /**
-   * Stop sync service - call on app unmount
-   */
   stop(): void {
     this.running = false
     this.disconnectSSE()
@@ -137,6 +146,9 @@ class SyncService {
    */
   private connectSSE(): void {
     if (!this.running) return
+
+    // Disconnect existing SSE connection before creating new one
+    this.disconnectSSE()
 
     const auth = serverStore.getActiveAuth()
     const headers: Record<string, string> = {
@@ -300,6 +312,7 @@ class SyncService {
    */
   private async flush(): Promise<void> {
     if (this.pendingChanges.size === 0) return
+    if (!sessionStorage.getItem('oc_auth')) return
 
     const changes = new Map(this.pendingChanges)
     this.pendingChanges.clear()

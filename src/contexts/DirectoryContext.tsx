@@ -10,6 +10,7 @@ import { layoutStore, useLayoutStore } from '../store/layoutStore'
 import { serverStore } from '../store/serverStore'
 import { isTauri } from '../utils/tauri'
 import { DirectoryContext, type DirectoryContextValue, type SavedDirectory } from './DirectoryContext.shared'
+import { logger } from '../utils/logger'
 
 const STORAGE_KEY_SAVED = 'opencode-saved-directories'
 const STORAGE_KEY_RECENT = 'opencode-recent-projects'
@@ -58,6 +59,19 @@ export function DirectoryProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     serverStorage.setJSON(STORAGE_KEY_RECENT, recentProjects)
   }, [recentProjects])
+
+  // 首次加载时自动选择第一个已保存目录（Sync 同步完成后触发）
+  const autoSelectedRef = useRef(false)
+  useEffect(() => {
+    if (autoSelectedRef.current) return
+    if (urlDirectory !== undefined) return
+    if (savedDirectories.length === 0) return
+
+    autoSelectedRef.current = true
+    const first = savedDirectories[0].path
+    setUrlDirectory(first)
+    logger.log(`[DirectoryContext] Auto-selected first directory: ${first}`)
+  }, [urlDirectory, savedDirectories, setUrlDirectory])
 
   // 设置当前目录（更新 URL + 记录最近使用）
   const setCurrentDirectory = useCallback(

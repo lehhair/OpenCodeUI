@@ -259,7 +259,16 @@ class ServerStore {
    */
   getActiveBaseUrl(): string {
     const server = this.getActiveServer()
-    return server?.url ?? API_BASE_URL
+    const url = server?.url ?? API_BASE_URL
+    if ((url.includes('127.0.0.1') || url.includes('localhost')) && server) {
+      const origin = window.location.origin
+      if (!origin.includes('127.0.0.1') && !origin.includes('localhost')) {
+        server.url = origin
+        this.saveToStorage()
+        return origin
+      }
+    }
+    return url
   }
 
   /**
