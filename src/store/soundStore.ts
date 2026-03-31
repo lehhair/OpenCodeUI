@@ -14,6 +14,7 @@
 import { useSyncExternalStore } from 'react'
 import type { NotificationType } from './notificationStore'
 import { DEFAULT_SOUNDS } from '../utils/soundPlayer'
+import { syncableSetItem, onSyncRemoteChange } from '../utils/syncableStorage'
 
 // ============================================
 // Types
@@ -98,7 +99,7 @@ function loadSettings(): SoundSettings {
 
 function saveSettings(settings: SoundSettings) {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(settings))
+    syncableSetItem(STORAGE_KEY, JSON.stringify(settings))
   } catch {
     // quota exceeded
   }
@@ -200,8 +201,11 @@ class SoundStore {
   private customAudioLoading = new Set<NotificationType>()
 
   constructor() {
-    // 异步预加载所有自定义音频到内存
     this.preloadCustomAudio()
+    onSyncRemoteChange([STORAGE_KEY], () => {
+      this.settings = loadSettings()
+      this.notify()
+    })
   }
 
   private notify() {

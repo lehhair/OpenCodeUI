@@ -3,6 +3,7 @@ import { SidePanel } from './sidebar/SidePanel'
 import { ProjectDialog } from './ProjectDialog'
 import { useDirectory } from '../../hooks'
 import { type ApiSession } from '../../api'
+import { syncableSetItem, onSyncRemoteChange } from '../../utils/syncableStorage'
 
 const MIN_WIDTH = 240
 const MAX_WIDTH = 480
@@ -113,7 +114,7 @@ export const Sidebar = memo(function Sidebar({
         const finalWidth = currentWidthRef.current
         setWidth(finalWidth)
         setIsResizing(false)
-        localStorage.setItem('sidebar-width', finalWidth.toString())
+        syncableSetItem('sidebar-width', finalWidth.toString())
       }
 
       document.addEventListener('mousemove', handleMouseMove)
@@ -126,6 +127,23 @@ export const Sidebar = memo(function Sidebar({
   useEffect(() => {
     currentWidthRef.current = width
   }, [width])
+
+  useEffect(() => {
+    const unsub = onSyncRemoteChange(['sidebar-width'], () => {
+      try {
+        const saved = localStorage.getItem('sidebar-width')
+        if (saved) {
+          const w = Math.min(Math.max(parseInt(saved), MIN_WIDTH), MAX_WIDTH)
+          if (!isNaN(w)) {
+            setWidth(w)
+          }
+        }
+      } catch {
+        // ignore
+      }
+    })
+    return unsub
+  }, [])
 
   // 移动端遮罩点击关闭
   const handleBackdropClick = useCallback(() => {

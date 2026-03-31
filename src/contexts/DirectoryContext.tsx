@@ -39,8 +39,8 @@ export function DirectoryProvider({ children }: { children: ReactNode }) {
     return serverStore.onServerChange(() => {
       setSavedDirectories(serverStorage.getJSON<SavedDirectory[]>(STORAGE_KEY_SAVED) ?? [])
       setRecentProjects(serverStorage.getJSON<RecentProjects>(STORAGE_KEY_RECENT) ?? {})
-      setPathInfo(null) // 重置，等待重新加载
-      setUrlDirectory(undefined) // 清除当前目录选择
+      setPathInfo(null)
+      setUrlDirectory(undefined)
     })
   }, [setUrlDirectory])
 

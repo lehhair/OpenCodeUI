@@ -9,6 +9,7 @@
 // 由 useGlobalEvents 统一推送，不再由 activeSessionStore 管通知
 
 import { useSyncExternalStore } from 'react'
+import { syncableSetItem, onSyncRemoteChange } from '../utils/syncableStorage'
 
 // ============================================
 // Types
@@ -97,6 +98,13 @@ class NotificationStore {
     }
   })()
 
+  constructor() {
+    onSyncRemoteChange([TOAST_ENABLED_KEY], () => {
+      this.toastEnabled = localStorage.getItem(TOAST_ENABLED_KEY) !== 'false'
+      this.notify()
+    })
+  }
+
   subscribe = (callback: Subscriber): (() => void) => {
     this.subscribers.add(callback)
     return () => this.subscribers.delete(callback)
@@ -115,7 +123,7 @@ class NotificationStore {
   setToastEnabled(enabled: boolean) {
     this.toastEnabled = enabled
     try {
-      localStorage.setItem(TOAST_ENABLED_KEY, String(enabled))
+      syncableSetItem(TOAST_ENABLED_KEY, String(enabled))
     } catch {
       // Ignore storage write failures.
     }

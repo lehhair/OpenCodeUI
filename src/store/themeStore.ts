@@ -10,6 +10,7 @@
 
 import { getThemePreset, themeColorsToCSSVars, builtinThemes, DEFAULT_THEME_ID } from '../themes'
 import type { ThemePreset, ThemeColors } from '../themes'
+import { syncableSetItem, onSyncRemoteChange } from '../utils/syncableStorage'
 
 // ============================================
 // Color Conversion Utility
@@ -307,7 +308,7 @@ class ThemeStore {
   setPreset(id: string) {
     if (this.state.presetId === id) return
     this.state = { ...this.state, presetId: id }
-    localStorage.setItem(STORAGE_KEY_PRESET, id)
+    syncableSetItem(STORAGE_KEY_PRESET, id)
     this.applyTheme()
     this.emit()
   }
@@ -315,14 +316,14 @@ class ThemeStore {
   setColorMode(mode: ColorMode) {
     if (this.state.colorMode === mode) return
     this.state = { ...this.state, colorMode: mode }
-    localStorage.setItem(STORAGE_KEY_COLOR_MODE, mode)
+    syncableSetItem(STORAGE_KEY_COLOR_MODE, mode)
     this.applyTheme()
     this.emit()
   }
 
   setCustomCSS(css: string) {
     this.state = { ...this.state, customCSS: css }
-    localStorage.setItem(STORAGE_KEY_CUSTOM_CSS, css)
+    syncableSetItem(STORAGE_KEY_CUSTOM_CSS, css)
     this.applyCustomCSS()
     this.emit()
   }
@@ -330,28 +331,28 @@ class ThemeStore {
   setCollapseUserMessages(enabled: boolean) {
     if (this.state.collapseUserMessages === enabled) return
     this.state = { ...this.state, collapseUserMessages: enabled }
-    localStorage.setItem(STORAGE_KEY_COLLAPSE_USER_MESSAGES, String(enabled))
+    syncableSetItem(STORAGE_KEY_COLLAPSE_USER_MESSAGES, String(enabled))
     this.emit()
   }
 
   setStepFinishDisplay(display: Partial<StepFinishDisplay>) {
     const next = { ...this.state.stepFinishDisplay, ...display }
     this.state = { ...this.state, stepFinishDisplay: next }
-    localStorage.setItem(STORAGE_KEY_STEP_FINISH_DISPLAY, JSON.stringify(next))
+    syncableSetItem(STORAGE_KEY_STEP_FINISH_DISPLAY, JSON.stringify(next))
     this.emit()
   }
 
   setReasoningDisplayMode(mode: ReasoningDisplayMode) {
     if (this.state.reasoningDisplayMode === mode) return
     this.state = { ...this.state, reasoningDisplayMode: mode }
-    localStorage.setItem(STORAGE_KEY_REASONING_DISPLAY_MODE, mode)
+    syncableSetItem(STORAGE_KEY_REASONING_DISPLAY_MODE, mode)
     this.emit()
   }
 
   setWideMode(enabled: boolean) {
     if (this.state.wideMode === enabled) return
     this.state = { ...this.state, wideMode: enabled }
-    localStorage.setItem(STORAGE_KEY_WIDE_MODE, String(enabled))
+    syncableSetItem(STORAGE_KEY_WIDE_MODE, String(enabled))
     this.emit()
   }
 
@@ -362,35 +363,35 @@ class ThemeStore {
   setDiffStyle(style: DiffStyle) {
     if (this.state.diffStyle === style) return
     this.state = { ...this.state, diffStyle: style }
-    localStorage.setItem(STORAGE_KEY_DIFF_STYLE, style)
+    syncableSetItem(STORAGE_KEY_DIFF_STYLE, style)
     this.emit()
   }
 
   setDescriptiveToolSteps(enabled: boolean) {
     if (this.state.descriptiveToolSteps === enabled) return
     this.state = { ...this.state, descriptiveToolSteps: enabled }
-    localStorage.setItem(STORAGE_KEY_DESCRIPTIVE_TOOL_STEPS, String(enabled))
+    syncableSetItem(STORAGE_KEY_DESCRIPTIVE_TOOL_STEPS, String(enabled))
     this.emit()
   }
 
   setInlineToolRequests(enabled: boolean) {
     if (this.state.inlineToolRequests === enabled) return
     this.state = { ...this.state, inlineToolRequests: enabled }
-    localStorage.setItem(STORAGE_KEY_INLINE_TOOL_REQUESTS, String(enabled))
+    syncableSetItem(STORAGE_KEY_INLINE_TOOL_REQUESTS, String(enabled))
     this.emit()
   }
 
   setCodeWordWrap(enabled: boolean) {
     if (this.state.codeWordWrap === enabled) return
     this.state = { ...this.state, codeWordWrap: enabled }
-    localStorage.setItem(STORAGE_KEY_CODE_WORD_WRAP, String(enabled))
+    syncableSetItem(STORAGE_KEY_CODE_WORD_WRAP, String(enabled))
     this.emit()
   }
 
   setToolCardStyle(style: ToolCardStyle) {
     if (this.state.toolCardStyle === style) return
     this.state = { ...this.state, toolCardStyle: style }
-    localStorage.setItem(STORAGE_KEY_TOOL_CARD_STYLE, style)
+    syncableSetItem(STORAGE_KEY_TOOL_CARD_STYLE, style)
     this.emit()
   }
 
@@ -405,18 +406,18 @@ class ThemeStore {
       toolCardStyle: enabled ? 'compact' : 'classic',
       compactInlinePermission: enabled,
     }
-    localStorage.setItem(STORAGE_KEY_IMMERSIVE_MODE, String(enabled))
-    localStorage.setItem(STORAGE_KEY_INLINE_TOOL_REQUESTS, String(enabled))
-    localStorage.setItem(STORAGE_KEY_DESCRIPTIVE_TOOL_STEPS, String(enabled))
-    localStorage.setItem(STORAGE_KEY_TOOL_CARD_STYLE, enabled ? 'compact' : 'classic')
-    localStorage.setItem(STORAGE_KEY_COMPACT_INLINE_PERMISSION, String(enabled))
+    syncableSetItem(STORAGE_KEY_IMMERSIVE_MODE, String(enabled))
+    syncableSetItem(STORAGE_KEY_INLINE_TOOL_REQUESTS, String(enabled))
+    syncableSetItem(STORAGE_KEY_DESCRIPTIVE_TOOL_STEPS, String(enabled))
+    syncableSetItem(STORAGE_KEY_TOOL_CARD_STYLE, enabled ? 'compact' : 'classic')
+    syncableSetItem(STORAGE_KEY_COMPACT_INLINE_PERMISSION, String(enabled))
     this.emit()
   }
 
   setCompactInlinePermission(enabled: boolean) {
     if (this.state.compactInlinePermission === enabled) return
     this.state = { ...this.state, compactInlinePermission: enabled }
-    localStorage.setItem(STORAGE_KEY_COMPACT_INLINE_PERMISSION, String(enabled))
+    syncableSetItem(STORAGE_KEY_COMPACT_INLINE_PERMISSION, String(enabled))
     this.emit()
   }
 

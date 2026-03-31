@@ -5,6 +5,7 @@
 // ============================================
 
 import { useSyncExternalStore } from 'react'
+import { syncableSetItem, onSyncRemoteChange } from '../utils/syncableStorage'
 
 const STORAGE_KEY_AUTO_START = 'opencode-auto-start-service'
 const STORAGE_KEY_BINARY_PATH = 'opencode-binary-path'
@@ -58,6 +59,26 @@ class ServiceStore {
       this._envVars = []
     }
     this._snapshot = this._buildSnapshot()
+
+    onSyncRemoteChange([STORAGE_KEY_AUTO_START, STORAGE_KEY_BINARY_PATH, STORAGE_KEY_ENV_VARS], () => {
+      try {
+        this._autoStart = localStorage.getItem(STORAGE_KEY_AUTO_START) === 'true'
+      } catch {
+        this._autoStart = false
+      }
+      try {
+        this._binaryPath = localStorage.getItem(STORAGE_KEY_BINARY_PATH) || ''
+      } catch {
+        this._binaryPath = ''
+      }
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY_ENV_VARS)
+        this._envVars = raw ? JSON.parse(raw) : []
+      } catch {
+        this._envVars = []
+      }
+      this._notify()
+    })
   }
 
   // ---- Getters ----
@@ -101,7 +122,7 @@ class ServiceStore {
   setAutoStart(v: boolean) {
     this._autoStart = v
     try {
-      localStorage.setItem(STORAGE_KEY_AUTO_START, String(v))
+      syncableSetItem(STORAGE_KEY_AUTO_START, String(v))
     } catch {
       /* */
     }
@@ -111,7 +132,7 @@ class ServiceStore {
   setBinaryPath(v: string) {
     this._binaryPath = v
     try {
-      localStorage.setItem(STORAGE_KEY_BINARY_PATH, v)
+      syncableSetItem(STORAGE_KEY_BINARY_PATH, v)
     } catch {
       /* */
     }
@@ -121,7 +142,7 @@ class ServiceStore {
   setEnvVars(vars: EnvVar[]) {
     this._envVars = vars
     try {
-      localStorage.setItem(STORAGE_KEY_ENV_VARS, JSON.stringify(vars))
+      syncableSetItem(STORAGE_KEY_ENV_VARS, JSON.stringify(vars))
     } catch {
       /* */
     }

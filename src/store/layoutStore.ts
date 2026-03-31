@@ -2,6 +2,8 @@
 // LayoutStore - 全局 UI 布局状态
 // ============================================
 
+import { syncableSetItem, onSyncRemoteChange } from '../utils/syncableStorage'
+
 // 面板位置
 export type PanelPosition = 'bottom' | 'right'
 
@@ -119,6 +121,45 @@ class LayoutStore {
     } catch {
       // ignore
     }
+
+    // Listen for remote sync changes
+    onSyncRemoteChange(
+      [
+        STORAGE_KEY_SIDEBAR,
+        STORAGE_KEY_SIDEBAR_FOLDER_RECENTS,
+        'opencode-right-panel-width',
+        'opencode-bottom-panel-height',
+      ],
+      () => {
+        try {
+          const savedSidebar = localStorage.getItem(STORAGE_KEY_SIDEBAR)
+          if (savedSidebar !== null) {
+            this.state.sidebarExpanded = savedSidebar !== 'false'
+          }
+          const savedFolderRecents = localStorage.getItem(STORAGE_KEY_SIDEBAR_FOLDER_RECENTS)
+          if (savedFolderRecents !== null) {
+            this.state.sidebarFolderRecents = savedFolderRecents === 'true'
+          }
+          const savedWidth = localStorage.getItem('opencode-right-panel-width')
+          if (savedWidth) {
+            const w = parseInt(savedWidth)
+            if (!isNaN(w) && w >= 300 && w <= MAX_RIGHT_PANEL_WIDTH) {
+              this.state.rightPanelWidth = w
+            }
+          }
+          const savedBottomHeight = localStorage.getItem('opencode-bottom-panel-height')
+          if (savedBottomHeight) {
+            const h = parseInt(savedBottomHeight)
+            if (!isNaN(h) && h >= 100 && h <= 500) {
+              this.state.bottomPanelHeight = h
+            }
+          }
+        } catch {
+          // ignore
+        }
+        this.notify()
+      },
+    )
   }
 
   // ============================================
@@ -146,7 +187,7 @@ class LayoutStore {
     if (this.state.sidebarExpanded === expanded) return
     this.state.sidebarExpanded = expanded
     try {
-      localStorage.setItem(STORAGE_KEY_SIDEBAR, String(expanded))
+      syncableSetItem(STORAGE_KEY_SIDEBAR, String(expanded))
     } catch {
       // ignore
     }
@@ -157,7 +198,7 @@ class LayoutStore {
     if (this.state.sidebarFolderRecents === enabled) return
     this.state.sidebarFolderRecents = enabled
     try {
-      localStorage.setItem(STORAGE_KEY_SIDEBAR_FOLDER_RECENTS, String(enabled))
+      syncableSetItem(STORAGE_KEY_SIDEBAR_FOLDER_RECENTS, String(enabled))
     } catch {
       // ignore
     }
@@ -400,7 +441,7 @@ class LayoutStore {
   setRightPanelWidth(width: number) {
     this.state.rightPanelWidth = Math.min(Math.max(width, 300), MAX_RIGHT_PANEL_WIDTH)
     try {
-      localStorage.setItem('opencode-right-panel-width', this.state.rightPanelWidth.toString())
+      syncableSetItem('opencode-right-panel-width', this.state.rightPanelWidth.toString())
     } catch {
       // ignore
     }
@@ -533,7 +574,7 @@ class LayoutStore {
   setBottomPanelHeight(height: number) {
     this.state.bottomPanelHeight = height
     try {
-      localStorage.setItem('opencode-bottom-panel-height', height.toString())
+      syncableSetItem('opencode-bottom-panel-height', height.toString())
     } catch {
       // ignore
     }

@@ -4,6 +4,7 @@
 
 import { API_BASE_URL } from '../constants'
 import { isTauri } from '../utils/tauri'
+import { syncableSetItem, onSyncRemoteChange } from '../utils/syncableStorage'
 
 // Tauri plugin-http fetch 缓存（避免重复 dynamic import）
 let _tauriFetch: typeof globalThis.fetch | null = null
@@ -55,6 +56,41 @@ type Listener = () => void
 const STORAGE_KEY = 'opencode-servers'
 const ACTIVE_SERVER_KEY = 'opencode-active-server'
 
+function stripPasswordsForSync(serversJson: string): string {
+  try {
+    const servers = JSON.parse(serversJson)
+    if (!Array.isArray(servers)) return serversJson
+    return JSON.stringify(
+      servers.map((s: ServerConfig) => {
+        if (s.auth) {
+          const { password, ...rest } = s.auth
+          return { ...s, auth: rest }
+        }
+        return s
+      }),
+    )
+  } catch {
+    return serversJson
+  }
+}
+
+function mergeServerPasswords(localJson: string, remoteJson: string): string {
+  try {
+    const local = JSON.parse(localJson)
+    const remote = JSON.parse(remoteJson)
+    const merged = remote.map((rs: ServerConfig) => {
+      const ls = local.find((l: ServerConfig) => l.id === rs.id)
+      if (ls?.auth?.password) {
+        return { ...rs, auth: { ...rs.auth, password: ls.auth.password } }
+      }
+      return rs
+    })
+    return JSON.stringify(merged)
+  } catch {
+    return remoteJson
+  }
+}
+
 /**
  * Server Store
  * 管理多个 OpenCode 后端服务器配置
@@ -79,6 +115,25 @@ class ServerStore {
   constructor() {
     this.loadFromStorage()
     this.updateSnapshots()
+
+    onSyncRemoteChange([STORAGE_KEY, ACTIVE_SERVER_KEY], () => {
+      try {
+        const remoteServers = localStorage.getItem(STORAGE_KEY)
+        if (remoteServers) {
+          const localServersJson = JSON.stringify(this.servers)
+          this.servers = JSON.parse(mergeServerPasswords(localServersJson, remoteServers))
+        }
+
+        const remoteActive = localStorage.getItem(ACTIVE_SERVER_KEY)
+        if (remoteActive && this.servers.some(s => s.id === remoteActive)) {
+          this.activeServerId = remoteActive
+        }
+      } catch {
+        // ignore
+      }
+      this.updateSnapshots()
+      this.notify()
+    })
   }
 
   // ============================================
@@ -131,11 +186,10 @@ class ServerStore {
 
   private saveToStorage(): void {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(this.servers))
+      syncableSetItem(STORAGE_KEY, stripPasswordsForSync(JSON.stringify(this.servers)))
       if (this.activeServerId) {
-        // 写入 sessionStorage（当前窗口刷新保持）+ localStorage（新窗口默认值）
         sessionStorage.setItem(ACTIVE_SERVER_KEY, this.activeServerId)
-        localStorage.setItem(ACTIVE_SERVER_KEY, this.activeServerId)
+        syncableSetItem(ACTIVE_SERVER_KEY, this.activeServerId)
       }
     } catch {
       // ignore

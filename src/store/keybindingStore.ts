@@ -2,6 +2,8 @@
 // Keybinding Store - 快捷键配置管理
 // ============================================
 
+import { syncableSetItem, onSyncRemoteChange } from '../utils/syncableStorage'
+
 /**
  * 快捷键动作 ID
  */
@@ -493,6 +495,10 @@ class KeybindingStore {
   constructor() {
     this.loadFromStorage()
     this.updateSnapshot()
+    onSyncRemoteChange([STORAGE_KEY], () => {
+      this.loadFromStorage()
+      this.notify()
+    })
   }
 
   // ============================================
@@ -528,7 +534,7 @@ class KeybindingStore {
           customKeys[kb.action] = kb.currentKey
         }
       }
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(customKeys))
+      syncableSetItem(STORAGE_KEY, JSON.stringify(customKeys))
     } catch {
       // ignore
     }

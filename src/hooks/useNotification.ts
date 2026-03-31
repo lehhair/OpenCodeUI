@@ -12,6 +12,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { STORAGE_KEY_NOTIFICATIONS_ENABLED } from '../constants/storage'
 import { isTauri } from '../utils/tauri'
+import { syncableSetItem, onSyncRemoteChange } from '../utils/syncableStorage'
 
 // ============================================
 // Types
@@ -129,6 +130,19 @@ export function useNotification() {
     }
   }, [enabled])
 
+  useEffect(() => {
+    const unsub = onSyncRemoteChange([STORAGE_KEY_NOTIFICATIONS_ENABLED], () => {
+      setEnabledState(() => {
+        try {
+          return localStorage.getItem(STORAGE_KEY_NOTIFICATIONS_ENABLED) === 'true'
+        } catch {
+          return false
+        }
+      })
+    })
+    return unsub
+  }, [])
+
   // 监听 SW 的 notificationclick 消息（浏览器环境用于跳转）
   useEffect(() => {
     if (isTauri()) return
@@ -166,7 +180,7 @@ export function useNotification() {
     setEnabledState(value)
     try {
       if (value) {
-        localStorage.setItem(STORAGE_KEY_NOTIFICATIONS_ENABLED, 'true')
+        syncableSetItem(STORAGE_KEY_NOTIFICATIONS_ENABLED, 'true')
       } else {
         localStorage.removeItem(STORAGE_KEY_NOTIFICATIONS_ENABLED)
       }
