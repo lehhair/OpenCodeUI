@@ -13,6 +13,13 @@ A third-party Web frontend for [OpenCode](https://github.com/anomalyco/opencode)
 <img width="2298" height="1495" alt="image" src="https://github.com/user-attachments/assets/dc68837b-0560-4701-b6ab-ecb13fdc1f4f" />
 <img width="2296" height="1500" alt="image" src="https://github.com/user-attachments/assets/7a8d9754-69c4-49c5-99ee-6452d94f5420" />
 
+## ✨ New Features
+
+> Features recently added, marked as **NEW**.
+
+- **NEW** **Multi-device Settings Sync** — Quasi-real-time (1-3s) multi-device sync based on SQLite + SSE. All user settings (~35 config keys including theme, layout, shortcuts, server list, notification preferences, etc.) automatically sync across devices with merge conflict resolution (LWW strategy), password sanitization, versioned differential push, and zero new dependencies
+- **NEW** **Nginx + Lua Deployment** — Lightweight deployment solution based on OpenResty/Nginx Lua module. LuaJIT FFI connects directly to SQLite, with Basic Auth, SSE push, and dynamic port routing support
+
 ## Features
 
 - **Full Chat Interface** — Message streaming, Markdown rendering, code highlighting (Shiki)

@@ -13,6 +13,13 @@
 <img width="2298" height="1495" alt="image" src="https://github.com/user-attachments/assets/dc68837b-0560-4701-b6ab-ecb13fdc1f4f" />
 <img width="2296" height="1500" alt="image" src="https://github.com/user-attachments/assets/7a8d9754-69c4-49c5-99ee-6452d94f5420" />
 <img width="411" height="906" alt="image" src="https://github.com/user-attachments/assets/0cfbf8b2-3fed-4e3c-8b49-1175c6e12f54" />
+## ✨ 功能新增
+
+> 以下功能在近期版本中新增，标记为 **NEW**。
+
+- **NEW** **多设备设置同步** — 基于 SQLite + SSE 的准实时（1-3s）多设备同步，所有用户设置（主题、布局、快捷键、服务器列表、通知偏好等 ~35 项配置）跨设备自动同步，包含合并冲突解决（LWW 策略）、密码脱敏、版本化差分推送，零新依赖
+- **NEW** **Nginx + Lua 部署** — 基于 OpenResty/Nginx Lua 模块的轻量级部署方案，LuaJIT FFI 直连 SQLite，支持 Basic Auth、SSE 推送、动态端口路由
+
 ## 特性
 
 - **完整的 Chat 界面** — 消息流、Markdown 渲染、代码高亮（Shiki）
