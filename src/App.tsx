@@ -32,6 +32,7 @@ import { autoApproveStore } from './store/autoApproveStore'
 import type { TerminalTab } from './store/layoutStore'
 import { InlineToolRequestContext, type InlineToolRequestContextValue } from './features/chat/InlineToolRequestContext'
 import { useTheme } from './hooks/useTheme'
+import { SyncProvider } from './providers/SyncProvider'
 
 const SettingsDialog = lazy(() =>
   import('./features/settings/SettingsDialog').then(module => ({ default: module.SettingsDialog })),
@@ -627,211 +628,217 @@ function App() {
     : undefined
 
   return (
-    <div
-      className="relative h-[var(--app-height)] flex bg-bg-100 overflow-hidden"
-      style={{ paddingTop: 'var(--safe-area-inset-top)' }}
-    >
-      {/* Sidebar */}
-      <Sidebar
-        isOpen={sidebarExpanded}
-        selectedSessionId={routeSessionId}
-        onSelectSession={handleSelectSession}
-        onNewSession={handleNewSession}
-        onOpen={() => setSidebarExpanded(true)}
-        onClose={() => setSidebarExpanded(false)}
-        contextLimit={currentModel?.contextLimit}
-        onOpenSettings={openSettings}
-        projectDialogOpen={projectDialogOpen}
-        onProjectDialogClose={closeProjectDialog}
-      />
+    <SyncProvider>
+      <div
+        className="relative h-[var(--app-height)] flex bg-bg-100 overflow-hidden"
+        style={{ paddingTop: 'var(--safe-area-inset-top)' }}
+      >
+        {/* Sidebar */}
+        <Sidebar
+          isOpen={sidebarExpanded}
+          selectedSessionId={routeSessionId}
+          onSelectSession={handleSelectSession}
+          onNewSession={handleNewSession}
+          onOpen={() => setSidebarExpanded(true)}
+          onClose={() => setSidebarExpanded(false)}
+          contextLimit={currentModel?.contextLimit}
+          onOpenSettings={openSettings}
+          projectDialogOpen={projectDialogOpen}
+          onProjectDialogClose={closeProjectDialog}
+        />
 
-      {/* Main Content Area: Chat Column + Right Panel */}
-      <div className="flex-1 flex min-w-0 h-full overflow-hidden">
-        {/* Left Column: Chat + Bottom Panel */}
-        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-          {/* Chat Area */}
-          <div className="flex-1 relative overflow-hidden flex flex-col min-h-0">
-            {/* Header Overlay */}
-            <div className="absolute top-0 left-0 right-0 z-20 pointer-events-none">
-              <div className="pointer-events-auto">
-                <Header
+        {/* Main Content Area: Chat Column + Right Panel */}
+        <div className="flex-1 flex min-w-0 h-full overflow-hidden">
+          {/* Left Column: Chat + Bottom Panel */}
+          <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+            {/* Chat Area */}
+            <div className="flex-1 relative overflow-hidden flex flex-col min-h-0">
+              {/* Header Overlay */}
+              <div className="absolute top-0 left-0 right-0 z-20 pointer-events-none">
+                <div className="pointer-events-auto">
+                  <Header
+                    models={models}
+                    modelsLoading={modelsLoading}
+                    selectedModelKey={selectedModelKey}
+                    onModelChange={handleModelChange}
+                    onOpenSidebar={() => setSidebarExpanded(true)}
+                    modelSelectorRef={modelSelectorRef}
+                  />
+                </div>
+              </div>
+
+              {/* Scrollable Area */}
+              <div className="absolute inset-0">
+                <InlineToolRequestContext.Provider value={inlineToolRequestCtx}>
+                  <ChatArea
+                    ref={chatAreaRef}
+                    messages={messages}
+                    sessionId={routeSessionId}
+                    isStreaming={isStreaming}
+                    allowStreamingLayoutAnimation={isAtBottom}
+                    loadState={loadState}
+                    hasMoreHistory={hasMoreHistory}
+                    onLoadMore={loadMoreHistory}
+                    onUndo={handleUndoWithAnimation}
+                    onFork={handleForkMessage}
+                    canUndo={canUndo}
+                    registerMessage={registerMessage}
+                    retryStatus={retryStatus}
+                    bottomPadding={inputBoxHeight}
+                    onVisibleMessageIdsChange={handleVisibleIdsChange}
+                    onAtBottomChange={setIsAtBottom}
+                  />
+                </InlineToolRequestContext.Provider>
+              </div>
+
+              {/* Outline Index - 消息目录索引 */}
+              <OutlineIndex messages={messages} onScrollToMessageId={handleOutlineScrollToMessage} />
+
+              {/* Floating Input Box */}
+              <div ref={inputBoxWrapperRef} className="absolute bottom-0 left-0 right-0 z-10 pointer-events-none">
+                {/* Hints — absolute 浮层，不占文档流，不推消息 */}
+                {(showCancelHint || (fullAutoHint && !showCancelHint)) && (
+                  <div className="absolute bottom-full inset-x-0 flex justify-center pb-2 pointer-events-none z-20">
+                    <div className="px-3 py-1.5 bg-bg-000/95 border border-border-200 rounded-lg shadow-lg text-xs text-text-300 backdrop-blur-sm animate-in fade-in slide-in-from-bottom-2 duration-150">
+                      {showCancelHint ? (
+                        <Trans
+                          i18nKey="chat:hints.pressEscAgain"
+                          components={{
+                            1: (
+                              <kbd className="mx-0.5 px-1.5 py-0.5 bg-bg-200 border border-border-200 rounded text-[11px] font-mono font-medium text-text-200" />
+                            ),
+                          }}
+                        />
+                      ) : (
+                        fullAutoHint
+                      )}
+                    </div>
+                  </div>
+                )}
+                <InputBox
+                  onSend={handleSend}
+                  onAbort={handleAbort}
+                  onCommand={handleCommand}
+                  onNewChat={handleNewSession}
+                  disabled={false}
+                  isStreaming={isStreaming}
+                  agents={agents}
+                  selectedAgent={selectedAgent}
+                  onAgentChange={handleAgentChange}
+                  variants={currentModel?.variants ?? []}
+                  selectedVariant={selectedVariant}
+                  onVariantChange={handleVariantChange}
+                  fileCapabilities={
+                    currentModel
+                      ? {
+                          image: currentModel.supportsImages,
+                          pdf: currentModel.supportsPdf,
+                          audio: currentModel.supportsAudio,
+                          video: currentModel.supportsVideo,
+                        }
+                      : undefined
+                  }
                   models={models}
-                  modelsLoading={modelsLoading}
                   selectedModelKey={selectedModelKey}
                   onModelChange={handleModelChange}
-                  onOpenSidebar={() => setSidebarExpanded(true)}
-                  modelSelectorRef={modelSelectorRef}
+                  modelsLoading={modelsLoading}
+                  rootPath={effectiveDirectory}
+                  sessionId={routeSessionId}
+                  revertedText={revertedMessage?.text}
+                  revertedAttachments={revertedMessage?.attachments}
+                  canRedo={canRedo}
+                  revertSteps={redoSteps}
+                  onRedo={handleRedoWithAnimation}
+                  onRedoAll={handleRedoAll}
+                  onClearRevert={clearRevert}
+                  registerInputBox={registerInputBox}
+                  isAtBottom={isAtBottom}
+                  showScrollToBottom={!isAtBottom}
+                  onScrollToBottom={() => chatAreaRef.current?.scrollToBottom()}
+                  collapsedPermission={
+                    !inlineToolRequests && pendingPermissionRequests.length > 0 && permissionCollapsed
+                      ? {
+                          label: t('chat:permissionDialog.permission', {
+                            permission: pendingPermissionRequests[0].permission,
+                          }),
+                          queueLength: pendingPermissionRequests.length,
+                          onExpand: () => setPermissionCollapsed(false),
+                        }
+                      : undefined
+                  }
+                  collapsedQuestion={
+                    !inlineToolRequests &&
+                    pendingPermissionRequests.length === 0 &&
+                    pendingQuestionRequests.length > 0 &&
+                    questionCollapsed
+                      ? {
+                          label: t('chat:questionDialog.title'),
+                          queueLength: pendingQuestionRequests.length,
+                          onExpand: () => setQuestionCollapsed(false),
+                        }
+                      : undefined
+                  }
                 />
               </div>
-            </div>
 
-            {/* Scrollable Area */}
-            <div className="absolute inset-0">
-              <InlineToolRequestContext.Provider value={inlineToolRequestCtx}>
-                <ChatArea
-                  ref={chatAreaRef}
-                  messages={messages}
-                  sessionId={routeSessionId}
-                  isStreaming={isStreaming}
-                  allowStreamingLayoutAnimation={isAtBottom}
-                  loadState={loadState}
-                  hasMoreHistory={hasMoreHistory}
-                  onLoadMore={loadMoreHistory}
-                  onUndo={handleUndoWithAnimation}
-                  onFork={handleForkMessage}
-                  canUndo={canUndo}
-                  registerMessage={registerMessage}
-                  retryStatus={retryStatus}
-                  bottomPadding={inputBoxHeight}
-                  onVisibleMessageIdsChange={handleVisibleIdsChange}
-                  onAtBottomChange={setIsAtBottom}
+              {!inlineToolRequests && pendingPermissionRequests.length > 0 && (
+                <PermissionDialog
+                  request={pendingPermissionRequests[0]}
+                  onReply={reply => handlePermissionReply(pendingPermissionRequests[0].id, reply, effectiveDirectory)}
+                  queueLength={pendingPermissionRequests.length}
+                  isReplying={isReplying}
+                  currentSessionId={routeSessionId}
+                  collapsed={permissionCollapsed}
+                  onCollapsedChange={setPermissionCollapsed}
                 />
-              </InlineToolRequestContext.Provider>
-            </div>
-
-            {/* Outline Index - 消息目录索引 */}
-            <OutlineIndex messages={messages} onScrollToMessageId={handleOutlineScrollToMessage} />
-
-            {/* Floating Input Box */}
-            <div ref={inputBoxWrapperRef} className="absolute bottom-0 left-0 right-0 z-10 pointer-events-none">
-              {/* Hints — absolute 浮层，不占文档流，不推消息 */}
-              {(showCancelHint || (fullAutoHint && !showCancelHint)) && (
-                <div className="absolute bottom-full inset-x-0 flex justify-center pb-2 pointer-events-none z-20">
-                  <div className="px-3 py-1.5 bg-bg-000/95 border border-border-200 rounded-lg shadow-lg text-xs text-text-300 backdrop-blur-sm animate-in fade-in slide-in-from-bottom-2 duration-150">
-                    {showCancelHint ? (
-                      <Trans
-                        i18nKey="chat:hints.pressEscAgain"
-                        components={{
-                          1: (
-                            <kbd className="mx-0.5 px-1.5 py-0.5 bg-bg-200 border border-border-200 rounded text-[11px] font-mono font-medium text-text-200" />
-                          ),
-                        }}
-                      />
-                    ) : (
-                      fullAutoHint
-                    )}
-                  </div>
-                </div>
               )}
-              <InputBox
-                onSend={handleSend}
-                onAbort={handleAbort}
-                onCommand={handleCommand}
-                onNewChat={handleNewSession}
-                disabled={false}
-                isStreaming={isStreaming}
-                agents={agents}
-                selectedAgent={selectedAgent}
-                onAgentChange={handleAgentChange}
-                variants={currentModel?.variants ?? []}
-                selectedVariant={selectedVariant}
-                onVariantChange={handleVariantChange}
-                fileCapabilities={
-                  currentModel
-                    ? {
-                        image: currentModel.supportsImages,
-                        pdf: currentModel.supportsPdf,
-                        audio: currentModel.supportsAudio,
-                        video: currentModel.supportsVideo,
-                      }
-                    : undefined
-                }
-                models={models}
-                selectedModelKey={selectedModelKey}
-                onModelChange={handleModelChange}
-                modelsLoading={modelsLoading}
-                rootPath={effectiveDirectory}
-                sessionId={routeSessionId}
-                revertedText={revertedMessage?.text}
-                revertedAttachments={revertedMessage?.attachments}
-                canRedo={canRedo}
-                revertSteps={redoSteps}
-                onRedo={handleRedoWithAnimation}
-                onRedoAll={handleRedoAll}
-                onClearRevert={clearRevert}
-                registerInputBox={registerInputBox}
-                isAtBottom={isAtBottom}
-                showScrollToBottom={!isAtBottom}
-                onScrollToBottom={() => chatAreaRef.current?.scrollToBottom()}
-                collapsedPermission={
-                  !inlineToolRequests && pendingPermissionRequests.length > 0 && permissionCollapsed
-                    ? {
-                        label: t('chat:permissionDialog.permission', {
-                          permission: pendingPermissionRequests[0].permission,
-                        }),
-                        queueLength: pendingPermissionRequests.length,
-                        onExpand: () => setPermissionCollapsed(false),
-                      }
-                    : undefined
-                }
-                collapsedQuestion={
-                  !inlineToolRequests &&
-                  pendingPermissionRequests.length === 0 &&
-                  pendingQuestionRequests.length > 0 &&
-                  questionCollapsed
-                    ? {
-                        label: t('chat:questionDialog.title'),
-                        queueLength: pendingQuestionRequests.length,
-                        onExpand: () => setQuestionCollapsed(false),
-                      }
-                    : undefined
-                }
-              />
+
+              {!inlineToolRequests && pendingPermissionRequests.length === 0 && pendingQuestionRequests.length > 0 && (
+                <QuestionDialog
+                  request={pendingQuestionRequests[0]}
+                  onReply={answers => handleQuestionReply(pendingQuestionRequests[0].id, answers, effectiveDirectory)}
+                  onReject={() => handleQuestionReject(pendingQuestionRequests[0].id, effectiveDirectory)}
+                  queueLength={pendingQuestionRequests.length}
+                  isReplying={isReplying}
+                  collapsed={questionCollapsed}
+                  onCollapsedChange={setQuestionCollapsed}
+                />
+              )}
             </div>
 
-            {!inlineToolRequests && pendingPermissionRequests.length > 0 && (
-              <PermissionDialog
-                request={pendingPermissionRequests[0]}
-                onReply={reply => handlePermissionReply(pendingPermissionRequests[0].id, reply, effectiveDirectory)}
-                queueLength={pendingPermissionRequests.length}
-                isReplying={isReplying}
-                currentSessionId={routeSessionId}
-                collapsed={permissionCollapsed}
-                onCollapsedChange={setPermissionCollapsed}
-              />
-            )}
-
-            {!inlineToolRequests && pendingPermissionRequests.length === 0 && pendingQuestionRequests.length > 0 && (
-              <QuestionDialog
-                request={pendingQuestionRequests[0]}
-                onReply={answers => handleQuestionReply(pendingQuestionRequests[0].id, answers, effectiveDirectory)}
-                onReject={() => handleQuestionReject(pendingQuestionRequests[0].id, effectiveDirectory)}
-                queueLength={pendingQuestionRequests.length}
-                isReplying={isReplying}
-                collapsed={questionCollapsed}
-                onCollapsedChange={setQuestionCollapsed}
-              />
-            )}
+            {/* Bottom Panel */}
+            <BottomPanel directory={effectiveDirectory} />
           </div>
 
-          {/* Bottom Panel */}
-          <BottomPanel directory={effectiveDirectory} />
+          {/* Right Panel - 占满整个高度 */}
+          <RightPanel />
         </div>
 
-        {/* Right Panel - 占满整个高度 */}
-        <RightPanel />
+        <Suspense fallback={null}>
+          {/* Settings Dialog */}
+          <SettingsDialog isOpen={settingsDialogOpen} onClose={closeSettings} initialTab={settingsInitialTab} />
+
+          {/* Command Palette */}
+          <CommandPalette
+            isOpen={commandPaletteOpen}
+            onClose={() => setCommandPaletteOpen(false)}
+            commands={commands}
+          />
+        </Suspense>
+
+        {/* Toast Notifications */}
+        <ToastContainer />
+
+        <Suspense fallback={null}>
+          {/* Close Service Dialog (Tauri desktop) */}
+          <CloseServiceDialog
+            isOpen={showCloseDialog}
+            onConfirm={handleCloseDialogConfirm}
+            onCancel={handleCloseDialogCancel}
+          />
+        </Suspense>
       </div>
-
-      <Suspense fallback={null}>
-        {/* Settings Dialog */}
-        <SettingsDialog isOpen={settingsDialogOpen} onClose={closeSettings} initialTab={settingsInitialTab} />
-
-        {/* Command Palette */}
-        <CommandPalette isOpen={commandPaletteOpen} onClose={() => setCommandPaletteOpen(false)} commands={commands} />
-      </Suspense>
-
-      {/* Toast Notifications */}
-      <ToastContainer />
-
-      <Suspense fallback={null}>
-        {/* Close Service Dialog (Tauri desktop) */}
-        <CloseServiceDialog
-          isOpen={showCloseDialog}
-          onConfirm={handleCloseDialogConfirm}
-          onCancel={handleCloseDialogCancel}
-        />
-      </Suspense>
-    </div>
+    </SyncProvider>
   )
 }
 
