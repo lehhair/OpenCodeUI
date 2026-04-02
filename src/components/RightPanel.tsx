@@ -6,7 +6,7 @@ import { createPtySession, removePtySession } from '../api/pty'
 import type { TerminalTab } from '../store/layoutStore'
 import { ResizablePanel } from './ui/ResizablePanel'
 import { logger } from '../utils/logger'
-import { uiErrorHandler } from '../utils'
+import { normalizeToForwardSlash, uiErrorHandler } from '../utils'
 import { useChatViewport } from '../features/chat/chatViewport'
 
 const SessionChangesPanel = lazy(() =>
@@ -34,6 +34,7 @@ export const RightPanel = memo(function RightPanel({ directory, sessionId }: Rig
   const { t } = useTranslation(['components', 'common'])
   const { rightPanelOpen, rightPanelWidth } = useLayoutStore()
   const { interaction, layout } = useChatViewport()
+  const normalizedDirectory = directory ? normalizeToForwardSlash(directory) : undefined
 
   // 追踪面板 resize 状态
   const [isPanelResizing, setIsPanelResizing] = useState(false)
@@ -52,19 +53,19 @@ export const RightPanel = memo(function RightPanel({ directory, sessionId }: Rig
   const handleCloseTerminal = useCallback(
     async (ptyId: string) => {
       try {
-        await removePtySession(ptyId, directory)
+        await removePtySession(ptyId, normalizedDirectory)
       } catch {
         // ignore cleanup errors
       }
     },
-    [directory],
+    [normalizedDirectory],
   )
 
   // 创建新终端
   const handleNewTerminal = useCallback(async () => {
     try {
-      logger.log('[RightPanel] Creating PTY session, directory:', directory)
-      const pty = await createPtySession({ cwd: directory }, directory)
+      logger.log('[RightPanel] Creating PTY session, directory:', normalizedDirectory)
+      const pty = await createPtySession({ cwd: normalizedDirectory }, normalizedDirectory)
       logger.log('[RightPanel] PTY created:', pty)
       const tab: TerminalTab = {
         id: pty.id,
@@ -75,7 +76,7 @@ export const RightPanel = memo(function RightPanel({ directory, sessionId }: Rig
     } catch (error) {
       uiErrorHandler('create terminal', error)
     }
-  }, [directory])
+  }, [normalizedDirectory])
 
   // 渲染内容
   const renderContent = useCallback(
@@ -92,7 +93,7 @@ export const RightPanel = memo(function RightPanel({ directory, sessionId }: Rig
             <Suspense fallback={<PanelFallback />}>
               <FilesContent
                 activeTab={activeTab}
-                directory={directory}
+                directory={normalizedDirectory}
                 isPanelResizing={isPanelResizing}
                 sessionId={sessionId}
               />
@@ -114,7 +115,7 @@ export const RightPanel = memo(function RightPanel({ directory, sessionId }: Rig
         case 'terminal':
           return (
             <Suspense fallback={<PanelFallback />}>
-              <TerminalContent activeTab={activeTab} directory={directory} />
+              <TerminalContent activeTab={activeTab} directory={normalizedDirectory} />
             </Suspense>
           )
         case 'mcp':
@@ -139,7 +140,7 @@ export const RightPanel = memo(function RightPanel({ directory, sessionId }: Rig
           return null
       }
     },
-    [directory, sessionId, isPanelResizing, t],
+    [normalizedDirectory, sessionId, isPanelResizing, t],
   )
 
   return (

@@ -583,6 +583,19 @@ class LayoutStore {
   // ============================================
 
   addTerminalTab(tab: TerminalTab, openPanel = true, position: PanelPosition = 'bottom') {
+    const existing = this.state.panelTabs.find(t => t.id === tab.id && t.position === position)
+    if (existing) {
+      existing.title = tab.title
+      existing.status = tab.status
+      existing.ptyId = tab.id
+      this.state.activeTabId[position] = tab.id
+      if (openPanel) {
+        this.setPanelOpen(position, true)
+      }
+      this.notify()
+      return
+    }
+
     this.addTab(
       {
         id: tab.id,

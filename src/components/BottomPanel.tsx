@@ -7,7 +7,7 @@ import { createPtySession, removePtySession, listPtySessions } from '../api/pty'
 import { useMessageStore } from '../store'
 import { ResizablePanel } from './ui/ResizablePanel'
 import { logger } from '../utils/logger'
-import { uiErrorHandler } from '../utils'
+import { normalizeToForwardSlash, uiErrorHandler } from '../utils'
 import { useChatViewport } from '../features/chat/chatViewport'
 
 const Terminal = lazy(() => import('./Terminal').then(module => ({ default: module.Terminal })))
@@ -37,6 +37,7 @@ export const BottomPanel = memo(function BottomPanel({ directory }: BottomPanelP
   const { interaction, layout } = useChatViewport()
 
   const [isRestoring, setIsRestoring] = useState(false)
+  const normalizedDirectory = directory ? normalizeToForwardSlash(directory) : undefined
 
   // 追踪面板 resize 状态
   const [isPanelResizing, setIsPanelResizing] = useState(false)
@@ -53,11 +54,13 @@ export const BottomPanel = memo(function BottomPanel({ directory }: BottomPanelP
 
   // 目录变化时（包括首次加载），重新拉取该目录的 PTY 会话
   const prevDirectoryRef = useRef<string | undefined>(undefined)
+  const restoreRequestIdRef = useRef(0)
   useEffect(() => {
-    if (!directory) return
+    if (!normalizedDirectory) return
     // 目录没变就不重复拉取
-    if (prevDirectoryRef.current === directory) return
-    prevDirectoryRef.current = directory
+    if (prevDirectoryRef.current === normalizedDirectory) return
+    prevDirectoryRef.current = normalizedDirectory
+    const requestId = ++restoreRequestIdRef.current
 
     const restoreSessions = async () => {
       try {
@@ -70,8 +73,9 @@ export const BottomPanel = memo(function BottomPanel({ directory }: BottomPanelP
         }
 
         // 拉取新目录下的 PTY 会话
-        const sessions = await listPtySessions(directory)
-        logger.log('[BottomPanel] PTY sessions for', directory, ':', sessions)
+        const sessions = await listPtySessions(normalizedDirectory)
+        if (restoreRequestIdRef.current !== requestId) return
+        logger.log('[BottomPanel] PTY sessions for', normalizedDirectory, ':', sessions)
 
         for (const pty of sessions) {
           const tab: TerminalTab = {
@@ -84,18 +88,20 @@ export const BottomPanel = memo(function BottomPanel({ directory }: BottomPanelP
       } catch (error) {
         uiErrorHandler('restore terminal sessions', error)
       } finally {
-        setIsRestoring(false)
+        if (restoreRequestIdRef.current === requestId) {
+          setIsRestoring(false)
+        }
       }
     }
 
     restoreSessions()
-  }, [directory])
+  }, [normalizedDirectory])
 
   // 创建新终端
   const handleNewTerminal = useCallback(async () => {
     try {
-      logger.log('[BottomPanel] Creating PTY session, directory:', directory)
-      const pty = await createPtySession({ cwd: directory }, directory)
+      logger.log('[BottomPanel] Creating PTY session, directory:', normalizedDirectory)
+      const pty = await createPtySession({ cwd: normalizedDirectory }, normalizedDirectory)
       logger.log('[BottomPanel] PTY created:', pty)
       const tab: TerminalTab = {
         id: pty.id,
@@ -106,18 +112,18 @@ export const BottomPanel = memo(function BottomPanel({ directory }: BottomPanelP
     } catch (error) {
       uiErrorHandler('create terminal', error)
     }
-  }, [directory])
+  }, [normalizedDirectory])
 
   // 关闭终端
   const handleCloseTerminal = useCallback(
     async (ptyId: string) => {
       try {
-        await removePtySession(ptyId, directory)
+        await removePtySession(ptyId, normalizedDirectory)
       } catch {
         // ignore - may already be closed
       }
     },
-    [directory],
+    [normalizedDirectory],
   )
 
   // 渲染内容
