@@ -3,7 +3,7 @@
 // ============================================
 //
 // 核心设计：
-// 1. 每个 session 的消息独立存储在内存中，session 切换只改变 currentSessionId
+// 1. 每个 session 的消息独立存储在内存中
 // 2. SSE 事件直接修改对应 session 的消息（找不到则丢弃）
 // 3. Undo/Redo 通过 revertState 实现
 // 4. RAF 批量通知 React 组件更新
@@ -22,7 +22,6 @@ const MAX_CACHED_SESSIONS = 10
 
 class MessageStore {
   private sessions = new Map<string, SessionState>()
-  private currentSessionId: string | null = null
   private subscribers = new Set<Subscriber>()
   private sessionAccessTime = new Map<string, number>()
   /** 被分屏 pane 保护的 sessionId 集合，evict 时跳过 */
@@ -106,21 +105,13 @@ class MessageStore {
   // Getters
   // ============================================
 
-  getCurrentSessionId(): string | null {
-    return this.currentSessionId
-  }
-
   getSessionState(sessionId: string): SessionState | undefined {
     return this.sessions.get(sessionId)
   }
 
-  getCurrentSessionState(): SessionState | undefined {
-    if (!this.currentSessionId) return undefined
-    return this.sessions.get(this.currentSessionId)
-  }
-
-  getVisibleMessages(): Message[] {
-    const state = this.getCurrentSessionState()
+  getVisibleMessages(sessionId: string | null): Message[] {
+    if (!sessionId) return []
+    const state = this.sessions.get(sessionId)
     if (!state) return []
 
     const { messages, revertState } = state
@@ -130,36 +121,43 @@ class MessageStore {
     return revertIndex === -1 ? messages : messages.slice(0, revertIndex)
   }
 
-  getIsStreaming(): boolean {
-    return this.getCurrentSessionState()?.isStreaming ?? false
+  getIsStreaming(sessionId: string | null): boolean {
+    if (!sessionId) return false
+    return this.sessions.get(sessionId)?.isStreaming ?? false
   }
 
-  getRevertState(): RevertState | null {
-    return this.getCurrentSessionState()?.revertState ?? null
+  getRevertState(sessionId: string | null): RevertState | null {
+    if (!sessionId) return null
+    return this.sessions.get(sessionId)?.revertState ?? null
   }
 
   getPrependedCount(): number {
     return 0
   }
 
-  getHasMoreHistory(): boolean {
-    return this.getCurrentSessionState()?.hasMoreHistory ?? false
+  getHasMoreHistory(sessionId: string | null): boolean {
+    if (!sessionId) return false
+    return this.sessions.get(sessionId)?.hasMoreHistory ?? false
   }
 
-  getSessionDirectory(): string {
-    return this.getCurrentSessionState()?.directory ?? ''
+  getSessionDirectory(sessionId: string | null): string {
+    if (!sessionId) return ''
+    return this.sessions.get(sessionId)?.directory ?? ''
   }
 
-  getSessionTitle(): string {
-    return this.getCurrentSessionState()?.title ?? ''
+  getSessionTitle(sessionId: string | null): string {
+    if (!sessionId) return ''
+    return this.sessions.get(sessionId)?.title ?? ''
   }
 
-  getShareUrl(): string | undefined {
-    return this.getCurrentSessionState()?.shareUrl
+  getShareUrl(sessionId: string | null): string | undefined {
+    if (!sessionId) return undefined
+    return this.sessions.get(sessionId)?.shareUrl
   }
 
-  getLoadState(): SessionState['loadState'] {
-    return this.getCurrentSessionState()?.loadState ?? 'idle'
+  getLoadState(sessionId: string | null): SessionState['loadState'] {
+    if (!sessionId) return 'idle'
+    return this.sessions.get(sessionId)?.loadState ?? 'idle'
   }
 
   isSessionStale(sessionId: string): boolean {
@@ -169,12 +167,6 @@ class MessageStore {
   // ============================================
   // Session Management
   // ============================================
-
-  setCurrentSession(sessionId: string | null) {
-    if (this.currentSessionId === sessionId) return
-    this.currentSessionId = sessionId
-    this.notifyImmediate()
-  }
 
   private ensureSession(sessionId: string): SessionState {
     this.sessionAccessTime.set(sessionId, Date.now())
@@ -205,7 +197,6 @@ class MessageStore {
     let oldestTime = Infinity
 
     for (const [id, time] of this.sessionAccessTime) {
-      if (id === this.currentSessionId) continue
       if (this.protectedSessions.has(id)) continue
       const state = this.sessions.get(id)
       if (state?.isStreaming) continue
@@ -359,7 +350,6 @@ class MessageStore {
   }
 
   clearAll() {
-    this.currentSessionId = null
     this.sessions.clear()
     this.sessionAccessTime.clear()
     if (this.rafId !== null) {
@@ -575,33 +565,37 @@ class MessageStore {
     this.notify()
   }
 
-  getLastUserMessageId(): string | null {
-    const messages = this.getVisibleMessages()
+  getLastUserMessageId(sessionId: string | null): string | null {
+    const messages = this.getVisibleMessages(sessionId)
     for (let i = messages.length - 1; i >= 0; i--) {
       if (messages[i].info.role === 'user') return messages[i].info.id
     }
     return null
   }
 
-  canUndo(sessionId?: string): boolean {
-    const state = sessionId ? this.sessions.get(sessionId) : this.getCurrentSessionState()
+  canUndo(sessionId: string | null): boolean {
+    if (!sessionId) return false
+    const state = this.sessions.get(sessionId)
     if (!state || state.isStreaming) return false
     return state.messages.some(m => m.info.role === 'user')
   }
 
-  canRedo(sessionId?: string): boolean {
-    const state = sessionId ? this.sessions.get(sessionId) : this.getCurrentSessionState()
+  canRedo(sessionId: string | null): boolean {
+    if (!sessionId) return false
+    const state = this.sessions.get(sessionId)
     if (!state || state.isStreaming) return false
     return (state.revertState?.history.length ?? 0) > 0
   }
 
-  getRedoSteps(sessionId?: string): number {
-    const state = sessionId ? this.sessions.get(sessionId) : this.getCurrentSessionState()
+  getRedoSteps(sessionId: string | null): number {
+    if (!sessionId) return 0
+    const state = this.sessions.get(sessionId)
     return state?.revertState?.history.length ?? 0
   }
 
-  getCurrentRevertedContent(sessionId?: string): RevertHistoryItem | null {
-    const state = sessionId ? this.sessions.get(sessionId) : this.getCurrentSessionState()
+  getCurrentRevertedContent(sessionId: string | null): RevertHistoryItem | null {
+    if (!sessionId) return null
+    const state = this.sessions.get(sessionId)
     const revertState = state?.revertState ?? null
     if (!revertState || revertState.history.length === 0) return null
     return revertState.history[0]
@@ -616,26 +610,6 @@ class MessageStore {
     if (!state) return
     state.isStreaming = isStreaming
     this.notify()
-  }
-
-  // ============================================
-  // Legacy API stubs (no-op, kept for compat)
-  // ============================================
-
-  /** @deprecated No-op. Parts are always in memory now. */
-  async hydrateMessageParts(_sessionId: string, _messageId: string): Promise<boolean> {
-    return true
-  }
-
-  /** @deprecated No-op. */
-  async prefetchMessageParts(_sessionId: string, _messageIds: string[]): Promise<void> {}
-
-  /** @deprecated No-op. */
-  evictMessageParts(_sessionId: string, _keepMessageIds: string[]): void {}
-
-  /** @deprecated Always returns empty set. */
-  getHydratedMessageIds(): Set<string> {
-    return new Set()
   }
 
   // ============================================

@@ -5,7 +5,7 @@
 // 职责：
 // 1. 加载 session 消息（初始加载 + 懒加载历史）
 // 2. 处理 undo/redo（调用 API + 更新 store）
-// 3. 同步路由和 store 的 currentSessionId
+// 3. 只管理单个 session 的加载状态，不再承担全局当前 session 同步
 
 import { useCallback, useEffect, useRef } from 'react'
 import { logger } from '../utils/logger'
@@ -346,8 +346,8 @@ export function useSessionManager({ sessionId, directory, onLoadComplete, onErro
   // ============================================
 
   // 根据 sessionId 切换缓存视图。
-  // focused pane 到 currentSessionId 的同步由 App 顶层统一负责，
-  // 这里不再直接写全局 currentSessionId，避免多 pane 争抢。
+  // focused pane / URL 的同步由 App 顶层统一负责，
+  // 这里不再写任何“全局当前 session”状态。
   useEffect(() => {
     if (sessionId) {
       const cached = messageStore.getSessionState(sessionId)

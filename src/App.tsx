@@ -13,7 +13,7 @@ import { useViewportHeight } from './hooks/useViewportHeight'
 import { useCloseServiceDialog } from './hooks/useCloseServiceDialog'
 import type { KeybindingHandlers } from './hooks/useKeybindings'
 import { keybindingStore } from './store/keybindingStore'
-import { layoutStore, messageStore, paneLayoutStore, useLayoutStore, usePaneController, usePaneLayout } from './store'
+import { layoutStore, paneLayoutStore, useLayoutStore, usePaneController, usePaneLayout } from './store'
 import { ChatViewportProvider, CHAT_SURFACE_MIN_WIDTH, useChatViewportController } from './features/chat/chatViewport'
 import { uiErrorHandler, isSameDirectory } from './utils'
 import { initNotificationSound } from './utils/notificationSoundBridge'
@@ -73,7 +73,7 @@ function App() {
   }, [savedDirectories, currentDirectory])
 
   // 全局唯一 SSE 连接。所有 pane 通过 consumer 机制接收自己的 session 事件。
-  useGlobalEvents(undefined, activeDirectories)
+  useGlobalEvents(activeDirectories)
 
   // URL -> focused pane session
   useEffect(() => {
@@ -81,11 +81,6 @@ function App() {
     syncingFromRouteRef.current = true
     paneLayoutStore.setFocusedSession(routeSessionId)
   }, [routeSessionId])
-
-  // focused pane session -> legacy focused-session projection
-  useEffect(() => {
-    messageStore.setCurrentSession(paneLayout.focusedSessionId)
-  }, [paneLayout.focusedSessionId])
 
   // focused pane session -> URL（路由只反映当前 focused pane）
   useEffect(() => {
@@ -419,7 +414,7 @@ function App() {
             <BottomPanel directory={focusedDirectory} />
           </div>
 
-          <RightPanel />
+          <RightPanel directory={focusedDirectory} sessionId={paneLayout.focusedSessionId} />
         </div>
 
         <Suspense fallback={null}>

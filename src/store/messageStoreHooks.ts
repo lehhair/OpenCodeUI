@@ -7,6 +7,7 @@
 
 import { useSyncExternalStore, useRef, useCallback } from 'react'
 import { messageStore } from './messageStore'
+import { paneLayoutStore } from './paneLayoutStore'
 import type { MessageStoreSnapshot, SessionStateSnapshot } from './messageStoreTypes'
 
 // ============================================
@@ -16,20 +17,21 @@ import type { MessageStoreSnapshot, SessionStateSnapshot } from './messageStoreT
 let cachedSnapshot: MessageStoreSnapshot | null = null
 
 function createSnapshot(): MessageStoreSnapshot {
+  const sessionId = paneLayoutStore.getFocusedSessionId()
   return {
-    sessionId: messageStore.getCurrentSessionId(),
-    messages: messageStore.getVisibleMessages(),
-    isStreaming: messageStore.getIsStreaming(),
-    revertState: messageStore.getRevertState(),
-    hasMoreHistory: messageStore.getHasMoreHistory(),
-    sessionDirectory: messageStore.getSessionDirectory(),
-    sessionTitle: messageStore.getSessionTitle(),
-    shareUrl: messageStore.getShareUrl(),
-    canUndo: messageStore.canUndo(),
-    canRedo: messageStore.canRedo(),
-    redoSteps: messageStore.getRedoSteps(),
-    revertedContent: messageStore.getCurrentRevertedContent(),
-    loadState: messageStore.getLoadState(),
+    sessionId,
+    messages: messageStore.getVisibleMessages(sessionId),
+    isStreaming: messageStore.getIsStreaming(sessionId),
+    revertState: messageStore.getRevertState(sessionId),
+    hasMoreHistory: messageStore.getHasMoreHistory(sessionId),
+    sessionDirectory: messageStore.getSessionDirectory(sessionId),
+    sessionTitle: messageStore.getSessionTitle(sessionId),
+    shareUrl: messageStore.getShareUrl(sessionId),
+    canUndo: messageStore.canUndo(sessionId),
+    canRedo: messageStore.canRedo(sessionId),
+    redoSteps: messageStore.getRedoSteps(sessionId),
+    revertedContent: messageStore.getCurrentRevertedContent(sessionId),
+    loadState: messageStore.getLoadState(sessionId),
   }
 }
 
@@ -45,16 +47,28 @@ messageStore.subscribe(() => {
   cachedSnapshot = null
 })
 
+paneLayoutStore.subscribe(() => {
+  cachedSnapshot = null
+})
+
+function subscribeFocusedSnapshot(onStoreChange: () => void): () => void {
+  const unsubscribeMessageStore = messageStore.subscribe(onStoreChange)
+  const unsubscribePaneLayout = paneLayoutStore.subscribe(onStoreChange)
+  return () => {
+    unsubscribeMessageStore()
+    unsubscribePaneLayout()
+  }
+}
+
 // ============================================
 // React Hooks
 // ============================================
 
 /**
- * React hook to subscribe to message store
- * (Global / Current Session)
+ * React hook to subscribe to the focused pane's session snapshot.
  */
 export function useMessageStore(): MessageStoreSnapshot {
-  return useSyncExternalStore(onStoreChange => messageStore.subscribe(onStoreChange), getSnapshot, getSnapshot)
+  return useSyncExternalStore(subscribeFocusedSnapshot, getSnapshot, getSnapshot)
 }
 
 /**
@@ -85,11 +99,7 @@ export function useMessageStoreSelector<T>(
     return newResult
   }, [selector, equalityFn])
 
-  return useSyncExternalStore(
-    onStoreChange => messageStore.subscribe(onStoreChange),
-    getSelectedSnapshot,
-    getSelectedSnapshot,
-  )
+  return useSyncExternalStore(subscribeFocusedSnapshot, getSelectedSnapshot, getSelectedSnapshot)
 }
 
 /**

@@ -404,10 +404,7 @@ export const ChatArea = memo(
                         onFork={onFork}
                         forkMessageId={forkTargetIdMap.get(msg.info.id)}
                         canUndo={canUndo}
-                        onEnsureParts={id => {
-                          if (!sessionId) return
-                          void messageStore.hydrateMessageParts(sessionId, id)
-                        }}
+                        onEnsureParts={() => {}}
                       />
                     </ViewportMessageItem>
                   ))}

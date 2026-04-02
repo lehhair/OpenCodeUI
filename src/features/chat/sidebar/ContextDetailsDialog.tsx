@@ -2,8 +2,8 @@ import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Dialog } from '../../../components/ui'
 import { CodeBlock } from '../../../components/CodeBlock'
-import { ChevronDownIcon, ChevronUpIcon, CpuIcon, DollarSignIcon, SpinnerIcon } from '../../../components/Icons'
-import { useMessageStore, messageStore } from '../../../store'
+import { ChevronDownIcon, ChevronUpIcon, CpuIcon, DollarSignIcon } from '../../../components/Icons'
+import { useMessageStore } from '../../../store'
 import { useSessionStats, formatTokens, formatCost } from '../../../hooks'
 import type { Message, TokenUsage } from '../../../types/message'
 
@@ -41,7 +41,6 @@ export function ContextDetailsDialog({ isOpen, onClose, contextLimit }: ContextD
   const stats = useSessionStats(contextLimit)
 
   const [expandedId, setExpandedId] = useState<string | null>(null)
-  const [hydratingId, setHydratingId] = useState<string | null>(null)
 
   const lastAssistantWithTokens = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i--) {
@@ -74,25 +73,10 @@ export function ContextDetailsDialog({ isOpen, onClose, contextLimit }: ContextD
   const contextTokens = contextMsg?.info.role === 'assistant' ? contextMsg.info.tokens : undefined
   const contextTotal = lastAssistantWithTokens?.total
 
-  const handleToggleMessage = useCallback(
-    async (msg: Message) => {
-      const id = msg.info.id
-      const isOpening = expandedId !== id
-      setExpandedId(prev => (prev === id ? null : id))
-
-      if (!isOpening) return
-      if (!sessionId) return
-      if (msg.parts.length > 0) return
-
-      setHydratingId(id)
-      try {
-        await messageStore.hydrateMessageParts(sessionId, id)
-      } finally {
-        setHydratingId(current => (current === id ? null : current))
-      }
-    },
-    [expandedId, sessionId],
-  )
+  const handleToggleMessage = useCallback((msg: Message) => {
+    const id = msg.info.id
+    setExpandedId(prev => (prev === id ? null : id))
+  }, [])
 
   return (
     <Dialog isOpen={isOpen} onClose={onClose} title={t('contextDetails.context')} width={900} className="w-full">
@@ -148,7 +132,6 @@ export function ContextDetailsDialog({ isOpen, onClose, contextLimit }: ContextD
         <div className="space-y-1">
           {messages.map(msg => {
             const isExpanded = expandedId === msg.info.id
-            const isHydrating = hydratingId === msg.info.id
 
             const headerLabel = `${msg.info.role} • ${msg.info.id}`
             const time = formatTimestamp(msg.info.time?.created)
@@ -191,7 +174,6 @@ export function ContextDetailsDialog({ isOpen, onClose, contextLimit }: ContextD
                   </div>
 
                   <div className="shrink-0 flex items-center gap-2 text-text-400">
-                    {isHydrating && <SpinnerIcon size={14} className="animate-spin" />}
                     {isExpanded ? <ChevronUpIcon size={16} /> : <ChevronDownIcon size={16} />}
                   </div>
                 </button>
