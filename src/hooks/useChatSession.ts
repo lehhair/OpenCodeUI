@@ -702,10 +702,11 @@ export function useChatSession({
     if (!sessions.length) return
     const currentIndex = sessions.findIndex(s => s.id === routeSessionId)
     if (currentIndex > 0) {
-      navigateToSession(sessions[currentIndex - 1].id)
+      const target = sessions[currentIndex - 1]
+      navigateToSession(target.id, target.directory)
     } else if (currentIndex === -1 && sessions.length > 0) {
       // Not in any session, go to first
-      navigateToSession(sessions[0].id)
+      navigateToSession(sessions[0].id, sessions[0].directory)
     }
   }, [sessions, routeSessionId, navigateToSession])
 
@@ -714,7 +715,8 @@ export function useChatSession({
     if (!sessions.length) return
     const currentIndex = sessions.findIndex(s => s.id === routeSessionId)
     if (currentIndex >= 0 && currentIndex < sessions.length - 1) {
-      navigateToSession(sessions[currentIndex + 1].id)
+      const target = sessions[currentIndex + 1]
+      navigateToSession(target.id, target.directory)
     }
   }, [sessions, routeSessionId, navigateToSession])
 

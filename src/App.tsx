@@ -35,6 +35,7 @@ function App() {
   const router = useRouter()
   const {
     sessionId: routeSessionId,
+    directory: routeDirectory,
     navigateToSession: navigateRouteToSession,
     navigateHome: navigateRouteHome,
     replaceSession,
@@ -49,6 +50,10 @@ function App() {
   const paneLayout = usePaneLayout()
   const focusedController = usePaneController(paneLayout.focusedPaneId)
   const syncingFromRouteRef = useRef(false)
+  const focusedRouteDirectory =
+    paneLayout.focusedSessionId === routeSessionId
+      ? routeDirectory || focusedController?.effectiveDirectory || currentDirectory
+      : focusedController?.effectiveDirectory || currentDirectory
 
   useEffect(() => {
     const cleanup = initNotificationSound()
@@ -88,15 +93,15 @@ function App() {
       syncingFromRouteRef.current = false
       return
     }
-    if (paneLayout.focusedSessionId === routeSessionId) return
-    replaceSession(paneLayout.focusedSessionId, focusedController?.effectiveDirectory || currentDirectory)
+    if (paneLayout.focusedSessionId === routeSessionId && isSameDirectory(routeDirectory, focusedRouteDirectory)) return
+    replaceSession(paneLayout.focusedSessionId, focusedRouteDirectory)
   }, [
     paneLayout.focusedPaneId,
     paneLayout.focusedSessionId,
     routeSessionId,
+    routeDirectory,
     replaceSession,
-    focusedController,
-    currentDirectory,
+    focusedRouteDirectory,
   ])
 
   const navigatePaneToSession = useCallback(
@@ -166,7 +171,7 @@ function App() {
     ],
   )
 
-  const focusedDirectory = focusedController?.effectiveDirectory || currentDirectory || ''
+  const focusedDirectory = focusedRouteDirectory || ''
 
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false)
   const [settingsInitialTab, setSettingsInitialTab] = useState<

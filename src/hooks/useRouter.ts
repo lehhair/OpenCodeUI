@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useCallback, useSyncExternalStore } from 'react'
 import { normalizeToForwardSlash, serverStorage } from '../utils'
 import { STORAGE_KEY_LAST_DIRECTORY } from '../constants/storage'
 
@@ -6,13 +6,21 @@ import { STORAGE_KEY_LAST_DIRECTORY } from '../constants/storage'
  * Hash 路由，支持 directory 参数
  * 格式: #/session/{sessionId}?dir={path} 或 #/?dir={path}
  *
- * directory 存 URL 的好处：每个标签独立，刷新保持状态
+ * 这里使用模块级 route store，而不是每个 useRouter() 各自 useState。
+ * 原因：App、DirectoryProvider、Settings 都会消费路由；如果各自持有本地 state，
+ * replaceState 只会更新当前实例，其他实例看不到，导致侧边栏目录/项目高亮错乱。
  */
 
 interface RouteState {
   sessionId: string | null
   directory: string | undefined
 }
+
+type Listener = () => void
+
+const listeners = new Set<Listener>()
+let routeSnapshot: RouteState | null = null
+let isListening = false
 
 function decodeDirectoryParam(value: string): string {
   try {
@@ -24,28 +32,21 @@ function decodeDirectoryParam(value: string): string {
 
 function parseHash(): RouteState {
   const hash = window.location.hash
-
-  // 分离路径和查询参数
   const [path, queryString] = hash.split('?')
 
-  // 解析 directory 参数（不需要 URL 解码，直接使用原始路径）
   let directory: string | undefined
   if (queryString) {
-    // 手动解析 dir 参数，避免 URLSearchParams 自动解码
     const dirMatch = queryString.match(/(?:^|&)dir=([^&]*)/)
     if (dirMatch && dirMatch[1]) {
-      // 入口标准化：统一转为正斜杠
       directory = normalizeToForwardSlash(decodeDirectoryParam(dirMatch[1])) || undefined
     }
   }
 
-  // URL 没有 dir 参数时，从 per-server storage 恢复上次目录
   if (!directory) {
     const saved = serverStorage.get(STORAGE_KEY_LAST_DIRECTORY)
     if (saved) directory = saved
   }
 
-  // 匹配 #/session/{id}
   const sessionMatch = path.match(/^#\/session\/(.+)$/)
   if (sessionMatch) {
     return { sessionId: sessionMatch[1], directory }
@@ -62,77 +63,102 @@ function buildHash(sessionId: string | null, directory: string | undefined): str
   return path
 }
 
+function isSameRoute(a: RouteState, b: RouteState): boolean {
+  return a.sessionId === b.sessionId && a.directory === b.directory
+}
+
+function ensureSnapshot(): RouteState {
+  if (typeof window === 'undefined') {
+    return { sessionId: null, directory: undefined }
+  }
+  if (routeSnapshot === null) {
+    routeSnapshot = parseHash()
+  }
+  return routeSnapshot
+}
+
+function emitRoute(next: RouteState) {
+  const prev = ensureSnapshot()
+  if (isSameRoute(prev, next)) return
+  routeSnapshot = next
+  for (const listener of listeners) listener()
+}
+
+function syncRouteFromHash() {
+  emitRoute(parseHash())
+}
+
+function ensureWindowListener() {
+  if (typeof window === 'undefined' || isListening) return
+  routeSnapshot = parseHash()
+  window.addEventListener('hashchange', syncRouteFromHash)
+  isListening = true
+}
+
+function subscribe(listener: Listener): () => void {
+  ensureWindowListener()
+  listeners.add(listener)
+  return () => {
+    listeners.delete(listener)
+  }
+}
+
+function getSnapshot(): RouteState {
+  ensureWindowListener()
+  return ensureSnapshot()
+}
+
 export function useRouter() {
-  const [route, setRoute] = useState<RouteState>(parseHash)
+  const route = useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
 
-  // 监听 hash 变化
-  useEffect(() => {
-    const handleHashChange = () => {
-      setRoute(parseHash())
-    }
-
-    window.addEventListener('hashchange', handleHashChange)
-    return () => window.removeEventListener('hashchange', handleHashChange)
+  const navigateToSession = useCallback((sessionId: string, directory?: string) => {
+    const currentRoute = getSnapshot()
+    const dir = directory !== undefined ? normalizeToForwardSlash(directory) || undefined : currentRoute.directory
+    const next = { sessionId, directory: dir }
+    window.location.hash = buildHash(sessionId, dir)
+    emitRoute(next)
   }, [])
 
-  // 导航到 session（默认保留当前 directory，可选传入目标 directory）
-  const navigateToSession = useCallback(
-    (sessionId: string, directory?: string) => {
-      const dir = directory !== undefined ? normalizeToForwardSlash(directory) || undefined : route.directory
-      window.location.hash = buildHash(sessionId, dir)
-    },
-    [route.directory],
-  )
-
-  // 导航到首页（保留当前 directory）
   const navigateHome = useCallback(() => {
-    window.location.hash = buildHash(null, route.directory)
-  }, [route.directory])
+    const currentRoute = getSnapshot()
+    const next = { sessionId: null, directory: currentRoute.directory }
+    window.location.hash = buildHash(null, currentRoute.directory)
+    emitRoute(next)
+  }, [])
 
-  // 替换当前路由（不产生历史记录）
-  const replaceSession = useCallback(
-    (sessionId: string | null, directory?: string) => {
-      const dir = directory !== undefined ? normalizeToForwardSlash(directory) || undefined : route.directory
-      const newHash = buildHash(sessionId, dir)
-      window.history.replaceState(null, '', newHash)
-      setRoute({ sessionId, directory: dir })
-    },
-    [route.directory],
-  )
+  const replaceSession = useCallback((sessionId: string | null, directory?: string) => {
+    const currentRoute = getSnapshot()
+    const dir = directory !== undefined ? normalizeToForwardSlash(directory) || undefined : currentRoute.directory
+    const newHash = buildHash(sessionId, dir)
+    window.history.replaceState(null, '', newHash)
+    emitRoute({ sessionId, directory: dir })
+  }, [])
 
-  // 设置 directory（切换目录时清除当前 session，避免 session 与目录不匹配）
   const setDirectory = useCallback((directory: string | undefined) => {
-    // 入口标准化：统一转为正斜杠
     const normalized = directory ? normalizeToForwardSlash(directory) : undefined
-    // 切换目录时清除 sessionId，回到首页
-    // 否则 URL 会变成 #/session/OLD_SESSION?dir=NEW_DIR，导致请求路径错乱
     const newHash = buildHash(null, normalized || undefined)
-    // 持久化到 per-server storage
+    const next = { sessionId: null, directory: normalized || undefined }
     if (normalized) {
       serverStorage.set(STORAGE_KEY_LAST_DIRECTORY, normalized)
     } else {
       serverStorage.remove(STORAGE_KEY_LAST_DIRECTORY)
     }
     window.location.hash = newHash
+    emitRoute(next)
   }, [])
 
-  // 替换 directory（不产生历史记录）
-  const replaceDirectory = useCallback(
-    (directory: string | undefined) => {
-      // 入口标准化：统一转为正斜杠
-      const normalized = directory ? normalizeToForwardSlash(directory) : undefined
-      const newHash = buildHash(route.sessionId, normalized || undefined)
-      // 持久化到 per-server storage
-      if (normalized) {
-        serverStorage.set(STORAGE_KEY_LAST_DIRECTORY, normalized)
-      } else {
-        serverStorage.remove(STORAGE_KEY_LAST_DIRECTORY)
-      }
-      window.history.replaceState(null, '', newHash)
-      setRoute({ sessionId: route.sessionId, directory: normalized || undefined })
-    },
-    [route.sessionId],
-  )
+  const replaceDirectory = useCallback((directory: string | undefined) => {
+    const currentRoute = getSnapshot()
+    const normalized = directory ? normalizeToForwardSlash(directory) : undefined
+    const newHash = buildHash(currentRoute.sessionId, normalized || undefined)
+    if (normalized) {
+      serverStorage.set(STORAGE_KEY_LAST_DIRECTORY, normalized)
+    } else {
+      serverStorage.remove(STORAGE_KEY_LAST_DIRECTORY)
+    }
+    window.history.replaceState(null, '', newHash)
+    emitRoute({ sessionId: currentRoute.sessionId, directory: normalized || undefined })
+  }, [])
 
   return {
     sessionId: route.sessionId,
