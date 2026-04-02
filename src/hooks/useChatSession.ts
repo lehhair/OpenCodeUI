@@ -2,17 +2,18 @@
 // useChatSession - 聊天会话管理
 // ============================================
 
-import { useState, useCallback, useEffect, useMemo } from 'react'
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
 import {
   useMessageStore,
   messageStore,
   useSessionFamily,
+  useSessionState,
   autoApproveStore,
   childSessionStore,
   useActiveSessionStore,
   type RevertHistoryItem,
 } from '../store'
-import { useSessionManager, useGlobalEvents } from '../hooks'
+import { useSessionManager, useGlobalEvents, registerSessionConsumer, updateConsumerSessionId } from '../hooks'
 import {
   usePermissions,
   useRouter,
@@ -56,6 +57,16 @@ interface UseChatSessionOptions {
   chatAreaRef: React.RefObject<ChatAreaHandle | null>
   currentModel: ModelInfo | undefined
   refetchModels: () => Promise<void>
+  // --- 多实例支持（不传 = 原来的单实例行为）---
+  /** 外部传入的 sessionId，不传则从 useRouter 读 */
+  sessionId?: string | null
+  /** 自定义导航回调，不传则用 useRouter */
+  navigateToSession?: (sessionId: string, directory?: string) => void
+  navigateHome?: () => void
+  /** 跳过 messageStore.setCurrentSession()，多实例模式使用 */
+  skipGlobalSync?: boolean
+  /** 消费者 ID（通常是 paneId），注册 pub/sub 接收 SSE 事件。不传则走原有 callbacksRef 路径 */
+  consumerId?: string
 }
 
 interface LiveRetryStatus {
@@ -65,12 +76,22 @@ interface LiveRetryStatus {
   next: number
 }
 
-export function useChatSession({ chatAreaRef, currentModel, refetchModels }: UseChatSessionOptions) {
+export function useChatSession({
+  chatAreaRef,
+  currentModel,
+  refetchModels,
+  sessionId: externalSessionId,
+  navigateToSession: externalNavigateToSession,
+  navigateHome: externalNavigateHome,
+  skipGlobalSync = false,
+  consumerId,
+}: UseChatSessionOptions) {
+  // ============================================
+  // 多实例模式判定：有 consumerId = 多实例（分屏 pane）
+  // ============================================
+  const isMultiInstance = !!consumerId
+
   // Store State
-  // 注意：store 的 currentSessionId 通过 useEffect 切换（延迟一帧），
-  // 而 routeSessionId 通过路由立即变化。在切换瞬间两者不同步，
-  // 此时 store 返回的仍是旧 session 的数据。
-  // 下方 guard 确保不同步时返回安全默认值，避免下游组件误读旧数据。
   const storeState = useMessageStore()
   const { statusMap } = useActiveSessionStore()
 
@@ -89,26 +110,61 @@ export function useChatSession({ chatAreaRef, currentModel, refetchModels }: Use
 
   // Hooks
   const { resetPermissions } = usePermissions()
-  const { sessionId: routeSessionId, navigateToSession, navigateHome } = useRouter()
+  const router = useRouter()
   const { currentDirectory, savedDirectories, sidebarExpanded, setSidebarExpanded } = useDirectory()
   const { createSession, sessions } = useSessionContext()
   const { sendNotification } = useNotification()
 
+  // 导航和 sessionId：外部传入优先，否则从路由读取
+  const routeSessionId = externalSessionId !== undefined ? externalSessionId : router.sessionId
+  const navigateToSession = externalNavigateToSession || router.navigateToSession
+  const navigateHome = externalNavigateHome || router.navigateHome
+
   const routeStatus = routeSessionId ? statusMap[routeSessionId] : undefined
 
-  // Session 同步 guard：store.currentSessionId 在 useEffect 中切换（延迟一帧），
-  // routeSessionId 通过路由立即变化。不同步时只覆盖 loadState 阻止 scroll-to-bottom 误触发，
-  // 其他字段保持旧值（反正在 opacity=0 下不可见，不会造成 spinner 闪烁等副作用）。
-  const isSessionSynced = storeState.sessionId === routeSessionId
-  const messages = storeState.messages
-  const isStreaming = storeState.isStreaming
-  const sessionDirectory = storeState.sessionDirectory
-  const canUndo = isSessionSynced ? storeState.canUndo : false
-  const canRedo = isSessionSynced ? storeState.canRedo : false
-  const redoSteps = isSessionSynced ? storeState.redoSteps : 0
-  const revertedContent = isSessionSynced ? storeState.revertedContent : null
-  const hasMoreHistory = isSessionSynced ? storeState.hasMoreHistory : false
-  const loadState = isSessionSynced ? storeState.loadState : routeSessionId ? ('loading' as const) : ('idle' as const)
+  // Session state 数据来源：
+  // - 多实例模式：从 useSessionState(sessionId) 直接读（不依赖全局 currentSessionId 指针）
+  // - 单实例模式：从 useMessageStore() 读（保持原有行为，含 sync guard）
+  const perSessionStateRaw = useSessionState(routeSessionId)
+  const perSessionState = perSessionStateRaw ?? {
+    messages: [] as import('../types/message').Message[],
+    isStreaming: false,
+    loadState: 'idle' as const,
+    revertState: null,
+    canUndo: false,
+    canRedo: false,
+    redoSteps: 0,
+    revertedContent: null,
+    hasMoreHistory: false,
+    directory: '',
+    title: null,
+  }
+
+  // 单实例 sync guard：store.currentSessionId 与 routeSessionId 不同步时返回安全默认值
+  const isSessionSynced = isMultiInstance ? true : storeState.sessionId === routeSessionId
+  const messages = isMultiInstance ? perSessionState.messages : storeState.messages
+  const isStreaming = isMultiInstance ? perSessionState.isStreaming : storeState.isStreaming
+  const sessionDirectory = isMultiInstance ? perSessionState.directory : storeState.sessionDirectory
+  const canUndo = isSessionSynced ? (isMultiInstance ? perSessionState.canUndo : storeState.canUndo) : false
+  const canRedo = isSessionSynced ? (isMultiInstance ? perSessionState.canRedo : storeState.canRedo) : false
+  const redoSteps = isSessionSynced ? (isMultiInstance ? perSessionState.redoSteps : storeState.redoSteps) : 0
+  const revertedContent = isSessionSynced
+    ? isMultiInstance
+      ? perSessionState.revertedContent
+      : storeState.revertedContent
+    : null
+  const hasMoreHistory = isSessionSynced
+    ? isMultiInstance
+      ? perSessionState.hasMoreHistory
+      : storeState.hasMoreHistory
+    : false
+  const loadState = isSessionSynced
+    ? isMultiInstance
+      ? perSessionState.loadState
+      : storeState.loadState
+    : routeSessionId
+      ? ('loading' as const)
+      : ('idle' as const)
 
   // OpenAPI SessionStatus.retry: { attempt, message, next }
   const retryStatus = useMemo<LiveRetryStatus | null>(() => {
@@ -146,6 +202,7 @@ export function useChatSession({ chatAreaRef, currentModel, refetchModels }: Use
   const { loadSession, loadMoreHistory, handleUndo, handleRedo, handleRedoAll, clearRevert } = useSessionManager({
     sessionId: routeSessionId,
     directory: currentDirectory,
+    skipGlobalSync,
   })
 
   // Permission handling
@@ -183,10 +240,13 @@ export function useChatSession({ chatAreaRef, currentModel, refetchModels }: Use
     return directories
   }, [savedDirectories, currentDirectory])
 
-  // Global Events (SSE)
-  useGlobalEvents(
-    {
-      onPermissionAsked: request => {
+  // ============================================
+  // SSE 事件回调（permission / question / scroll / idle / error / reconnect）
+  // 单实例和多实例模式共用同一套回调逻辑
+  // ============================================
+  const sseCallbacks = useMemo(
+    () => ({
+      onPermissionAsked: (request: import('../api').ApiPermissionRequest) => {
         // Full Auto 会话级：当前 session 的 handler 天然只处理当前 session 的请求
         // 全局模式已在 useGlobalEvents 层拦截，这里只需判断 session 模式
         if (autoApproveStore.fullAutoMode === 'session') {
@@ -218,10 +278,10 @@ export function useChatSession({ chatAreaRef, currentModel, refetchModels }: Use
         })
         // 应用内 toast 已在 useGlobalEvents 中统一处理
       },
-      onPermissionReplied: data => {
+      onPermissionReplied: (data: { sessionID: string; requestID: string }) => {
         setPendingPermissionRequests(prev => prev.filter(r => r.id !== data.requestID))
       },
-      onQuestionAsked: request => {
+      onQuestionAsked: (request: import('../api').ApiQuestionRequest) => {
         setPendingQuestionRequests(prev => {
           if (prev.some(r => r.id === request.id)) return prev
           return [...prev, request]
@@ -236,16 +296,16 @@ export function useChatSession({ chatAreaRef, currentModel, refetchModels }: Use
         })
         // 应用内 toast 已在 useGlobalEvents 中统一处理
       },
-      onQuestionReplied: data => {
+      onQuestionReplied: (data: { sessionID: string; requestID: string }) => {
         setPendingQuestionRequests(prev => prev.filter(r => r.id !== data.requestID))
       },
-      onQuestionRejected: data => {
+      onQuestionRejected: (data: { sessionID: string; requestID: string }) => {
         setPendingQuestionRequests(prev => prev.filter(r => r.id !== data.requestID))
       },
       onScrollRequest: () => {
         chatAreaRef.current?.scrollToBottomIfAtBottom()
       },
-      onSessionIdle: sessionID => {
+      onSessionIdle: (sessionID: string) => {
         // 页面不在前台时发送浏览器通知
         const title = buildNotificationTitle(sessionID, 'Session completed')
         sendNotification(title, 'Session completed', {
@@ -254,7 +314,7 @@ export function useChatSession({ chatAreaRef, currentModel, refetchModels }: Use
         })
         // 应用内 toast 已在 useGlobalEvents 中统一处理
       },
-      onSessionError: sessionID => {
+      onSessionError: (sessionID: string) => {
         // 页面不在前台时通知用户 session 出错
         const title = buildNotificationTitle(sessionID, 'Session error')
         sendNotification(title, 'Session error', {
@@ -263,7 +323,7 @@ export function useChatSession({ chatAreaRef, currentModel, refetchModels }: Use
         })
         // 应用内 toast 已在 useGlobalEvents 中统一处理
       },
-      onReconnected: _reason => {
+      onReconnected: (_reason: 'network' | 'server-switch') => {
         messageStore.markAllSessionsStale()
 
         // SSE 重连后重新加载当前会话，补齐断连期间可能丢失的消息
@@ -279,9 +339,60 @@ export function useChatSession({ chatAreaRef, currentModel, refetchModels }: Use
           .then(setAgents)
           .catch(() => {})
       },
-    },
-    activeDirectories,
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- refs and stable functions
+    [
+      effectiveDirectory,
+      routeSessionId,
+      sessionFamily,
+      currentDirectory,
+      handlePermissionReply,
+      setPendingPermissionRequests,
+      setPendingQuestionRequests,
+      buildNotificationTitle,
+      sendNotification,
+      loadSession,
+      refreshPendingRequests,
+      refetchModels,
+    ],
   )
+
+  // 保存 callbacks ref 供 consumer 注册使用（避免 consumer 注册/注销频繁）
+  const sseCallbacksRef = useRef(sseCallbacks)
+  useEffect(() => {
+    sseCallbacksRef.current = sseCallbacks
+  }, [sseCallbacks])
+
+  // Global Events (SSE)
+  // 单实例模式：直接传 callbacks 走 callbacksRef 路径
+  // 多实例模式：传 undefined（SSE 连接仍共享），通过 consumer 注册接收事件
+  useGlobalEvents(isMultiInstance ? undefined : sseCallbacks, isMultiInstance ? undefined : activeDirectories)
+
+  // 多实例模式：注册 pub/sub consumer，SSE 事件按 sessionId 分发到此
+  useEffect(() => {
+    if (!consumerId) return
+
+    const unregister = registerSessionConsumer(consumerId, routeSessionId, {
+      onPermissionAsked: req => sseCallbacksRef.current.onPermissionAsked(req),
+      onPermissionReplied: data => sseCallbacksRef.current.onPermissionReplied(data),
+      onQuestionAsked: req => sseCallbacksRef.current.onQuestionAsked(req),
+      onQuestionReplied: data => sseCallbacksRef.current.onQuestionReplied(data),
+      onQuestionRejected: data => sseCallbacksRef.current.onQuestionRejected(data),
+      onScrollRequest: () => sseCallbacksRef.current.onScrollRequest(),
+      onSessionIdle: sid => sseCallbacksRef.current.onSessionIdle(sid),
+      onSessionError: sid => sseCallbacksRef.current.onSessionError(sid),
+      onReconnected: reason => sseCallbacksRef.current.onReconnected(reason),
+    })
+
+    return unregister
+  }, [consumerId, routeSessionId])
+
+  // 多实例模式：sessionId 变化时更新 consumer 的 sessionId（无需重新注册）
+  useEffect(() => {
+    if (consumerId) {
+      updateConsumerSessionId(consumerId, routeSessionId)
+    }
+  }, [consumerId, routeSessionId])
 
   const handleVisibleMessageIdsChange = useCallback((_ids: string[]) => {
     // No-op: parts are always in memory now
@@ -393,7 +504,9 @@ export function useChatSession({ chatAreaRef, currentModel, refetchModels }: Use
         if (!sessionId) {
           const newSession = await createSession()
           sessionId = newSession.id
-          messageStore.setCurrentSession(sessionId)
+          if (!skipGlobalSync) {
+            messageStore.setCurrentSession(sessionId)
+          }
           navigateToSession(sessionId)
         }
 
@@ -464,7 +577,7 @@ export function useChatSession({ chatAreaRef, currentModel, refetchModels }: Use
         return false
       }
     },
-    [currentModel, routeSessionId, effectiveDirectory, navigateToSession, createSession],
+    [currentModel, routeSessionId, effectiveDirectory, navigateToSession, createSession, skipGlobalSync],
   )
 
   // New chat handler
@@ -568,7 +681,9 @@ export function useChatSession({ chatAreaRef, currentModel, refetchModels }: Use
         if (!sessionId) {
           const newSession = await createSession()
           sessionId = newSession.id
-          messageStore.setCurrentSession(sessionId)
+          if (!skipGlobalSync) {
+            messageStore.setCurrentSession(sessionId)
+          }
           navigateToSession(sessionId)
         }
 
@@ -592,7 +707,16 @@ export function useChatSession({ chatAreaRef, currentModel, refetchModels }: Use
         return false
       }
     },
-    [routeSessionId, effectiveDirectory, createSession, navigateToSession, currentModel, navigateHome, handleNewChat],
+    [
+      routeSessionId,
+      effectiveDirectory,
+      createSession,
+      navigateToSession,
+      currentModel,
+      navigateHome,
+      handleNewChat,
+      skipGlobalSync,
+    ],
   )
 
   // Undo with animation
