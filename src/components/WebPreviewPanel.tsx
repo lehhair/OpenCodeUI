@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useState, type FormEvent } from 'react'
+import { memo, useMemo, useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { RedoIcon, RetryIcon, UndoIcon } from './Icons'
 import { layoutStore, useLayoutStore } from '../store/layoutStore'
@@ -57,27 +57,6 @@ export const WebPreviewPanel = memo(function WebPreviewPanel({ tabId }: WebPrevi
     index: tab?.url ? 0 : -1,
   }))
   const [refreshKey, setRefreshKey] = useState(0)
-
-  useEffect(() => {
-    setInputValue(tab?.url ?? '')
-  }, [tab?.url])
-
-  useEffect(() => {
-    if (!tab?.url) {
-      return
-    }
-
-    setNavigationState(prev => {
-      if (prev.history.length > 0) {
-        return prev
-      }
-
-      return {
-        history: [tab.url!],
-        index: 0,
-      }
-    })
-  }, [tab?.url])
 
   const committedUrl = tab?.url?.trim() ?? ''
   const canGoBack = navigationState.index > 0

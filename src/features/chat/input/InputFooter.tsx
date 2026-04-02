@@ -168,18 +168,32 @@ export const InputFooter = memo(function InputFooter({ sessionId, onNewChat, inp
 
   useEffect(() => {
     if (!hasTodos && panelState !== 'closed') {
-      closePanel()
+      const timer = window.setTimeout(() => {
+        closePanel()
+      }, 0)
+
+      return () => {
+        window.clearTimeout(timer)
+      }
     }
   }, [closePanel, hasTodos, panelState])
 
   useEffect(() => {
-    closePanel()
+    const timer = window.setTimeout(() => {
+      closePanel()
+    }, 0)
+
+    return () => {
+      window.clearTimeout(timer)
+    }
   }, [closePanel, sessionId])
 
   useEffect(() => {
+    const inputContainer = inputContainerRef?.current
+
     return () => {
       clearPanelTimers()
-      inputContainerRef?.current?.removeAttribute('data-todo-swap')
+      inputContainer?.removeAttribute('data-todo-swap')
     }
   }, [clearPanelTimers, inputContainerRef])
 
