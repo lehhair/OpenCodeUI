@@ -13,6 +13,7 @@ import {
   TerminalIcon,
   FolderIcon,
   GitCommitIcon,
+  GlobeIcon,
   PlugIcon,
   TeachIcon,
   GitWorktreeIcon,
@@ -35,6 +36,7 @@ const TAB_ICONS: Record<PanelTabType, React.ReactNode> = {
   terminal: <TerminalIcon size={12} />,
   files: <FolderIcon size={12} />,
   changes: <GitCommitIcon size={12} />,
+  'web-preview': <GlobeIcon size={12} />,
   mcp: <PlugIcon size={12} />,
   skill: <TeachIcon size={12} />,
   worktree: <GitWorktreeIcon size={12} />,
@@ -57,6 +59,12 @@ function getTabLabel(tab: PanelTab, tabs: PanelTab[], t: (key: string) => string
       const changesTabs = tabs.filter(item => item.type === 'changes')
       if (changesTabs.length <= 1) return t('panelContainer.changes')
       return `${t('panelContainer.changes')} ${changesTabs.findIndex(item => item.id === tab.id) + 1}`
+    }
+    case 'web-preview': {
+      if (tab.title) return tab.title
+      const webPreviewTabs = tabs.filter(item => item.type === 'web-preview')
+      if (webPreviewTabs.length <= 1) return t('panelContainer.webPreview')
+      return `${t('panelContainer.webPreview')} ${webPreviewTabs.findIndex(item => item.id === tab.id) + 1}`
     }
     case 'mcp':
       return t('panelContainer.mcp')
@@ -355,6 +363,18 @@ export const PanelContainer = memo(function PanelContainer({
                 <GitCommitIcon size={12} />
               </span>
               {t('panelContainer.changes')}
+            </button>
+            <button
+              onClick={() => {
+                layoutStore.addWebPreviewTab(position)
+                setAddMenuPos(null)
+              }}
+              className="w-full flex items-center gap-2 px-2.5 py-1.5 text-left text-xs text-text-200 hover:bg-bg-200/60 hover:text-text-100 rounded-md transition-colors"
+            >
+              <span className="opacity-60 shrink-0">
+                <GlobeIcon size={12} />
+              </span>
+              {t('panelContainer.webPreview')}
             </button>
             <button
               onClick={() => {

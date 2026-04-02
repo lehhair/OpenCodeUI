@@ -36,6 +36,7 @@
   "panelContainer": {
     "files": "Files",
     "changes": "Changes",
+    "webPreview": "Web Preview",
     "mcp": "MCP",
     "skills": "Skills",
     "worktrees": "Worktrees",
@@ -44,6 +45,17 @@
     "moveToRight": "Move to Right Panel",
     "moveToBottom": "Move to Bottom Panel",
     "mcpServers": "MCP Servers"
+  },
+  "webPreview": {
+    "addressBar": "Web preview address bar",
+    "placeholder": "Enter a URL and press Enter",
+    "open": "Open",
+    "back": "Back",
+    "forward": "Forward",
+    "refresh": "Refresh",
+    "title": "Web Preview",
+    "empty": "Enter a URL to preview it here",
+    "invalidUrl": "Enter a valid http or https URL"
   },
   "sessionChanges": {
     "loadingChanges": "Loading changes...",

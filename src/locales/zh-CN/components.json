@@ -36,6 +36,7 @@
   "panelContainer": {
     "files": "文件",
     "changes": "变更",
+    "webPreview": "网页预览",
     "mcp": "MCP",
     "skills": "Skills",
     "worktrees": "Worktrees",
@@ -44,6 +45,17 @@
     "moveToRight": "移动到右侧面板",
     "moveToBottom": "移动到底部面板",
     "mcpServers": "MCP 服务器"
+  },
+  "webPreview": {
+    "addressBar": "网页预览地址栏",
+    "placeholder": "输入网址后按回车",
+    "open": "打开",
+    "back": "后退",
+    "forward": "前进",
+    "refresh": "刷新",
+    "title": "网页预览",
+    "empty": "输入网址后即可预览网页",
+    "invalidUrl": "请输入有效的 http 或 https 地址"
   },
   "sessionChanges": {
     "loadingChanges": "加载变更中...",
