@@ -14,6 +14,8 @@ import {
   PanelBottomIcon,
   PanelRightIcon,
   SidebarIcon,
+  MaximizeIcon,
+  MinimizeIcon,
 } from '../../components/Icons'
 import { IconButton } from '../../components/ui'
 import { paneLayoutStore } from '../../store/paneLayoutStore'
@@ -29,8 +31,10 @@ interface PaneHeaderProps {
   sessionId: string | null
   isFocused: boolean
   paneCount: number
+  isPaneFullscreen?: boolean
   showSidebarButton?: boolean
   onOpenSidebar?: () => void
+  onTogglePaneFullscreen?: () => void
   onFocus: () => void
 }
 
@@ -39,15 +43,16 @@ export function PaneHeader({
   sessionId,
   isFocused,
   paneCount,
+  isPaneFullscreen = false,
   showSidebarButton = false,
   onOpenSidebar,
+  onTogglePaneFullscreen,
   onFocus,
 }: PaneHeaderProps) {
   const { t } = useTranslation('chat')
   const sessionState = useSessionState(sessionId)
   const { currentDirectory } = useDirectory()
   const { rightPanelOpen, bottomPanelOpen } = useLayoutStore()
-
   const [isEditing, setIsEditing] = useState(false)
   const [editValue, setEditValue] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
@@ -176,23 +181,81 @@ export function PaneHeader({
       </div>
 
       {/* Right: Actions */}
-      <div className="flex items-center gap-0.5 shrink-0">
-        {isFocused && showSidebarButton && onOpenSidebar && (
+      <div className="flex items-center gap-1 shrink-0">
+        <div className="flex items-center gap-0.5 shrink-0">
+          {paneCount > 1 && (
+            <IconButton
+              size="sm"
+              aria-label="Close pane"
+              onClick={e => {
+                e.stopPropagation()
+                handleClose()
+              }}
+              className="text-text-400 hover:text-red-400 hover:bg-bg-200/50"
+            >
+              <CloseIcon size={14} />
+            </IconButton>
+          )}
+
+          {isFocused && onTogglePaneFullscreen && (
+            <IconButton
+              size="sm"
+              aria-label={isPaneFullscreen ? 'Exit fullscreen pane' : 'Fullscreen pane'}
+              onClick={e => {
+                e.stopPropagation()
+                onTogglePaneFullscreen()
+              }}
+              className={`transition-colors ${
+                isPaneFullscreen
+                  ? 'text-accent-main-100 bg-bg-200/50'
+                  : 'text-text-400 hover:text-text-100 hover:bg-bg-200/50'
+              }`}
+            >
+              {isPaneFullscreen ? <MinimizeIcon size={14} /> : <MaximizeIcon size={14} />}
+            </IconButton>
+          )}
+
           <IconButton
             size="sm"
-            aria-label={t('header.openSidebar')}
+            aria-label="Split horizontal"
             onClick={e => {
               e.stopPropagation()
-              onOpenSidebar()
+              handleSplitH()
             }}
             className="text-text-400 hover:text-text-100 hover:bg-bg-200/50"
           >
-            <SidebarIcon size={14} />
+            <SplitHorizontalIcon size={14} />
           </IconButton>
-        )}
+
+          <IconButton
+            size="sm"
+            aria-label="Split vertical"
+            onClick={e => {
+              e.stopPropagation()
+              handleSplitV()
+            }}
+            className="text-text-400 hover:text-text-100 hover:bg-bg-200/50"
+          >
+            <SplitVerticalIcon size={14} />
+          </IconButton>
+        </div>
 
         {isFocused && (
-          <>
+          <div className="flex items-center gap-0.5 shrink-0">
+            {showSidebarButton && onOpenSidebar && (
+              <IconButton
+                size="sm"
+                aria-label={t('header.openSidebar')}
+                onClick={e => {
+                  e.stopPropagation()
+                  onOpenSidebar()
+                }}
+                className="text-text-400 hover:text-text-100 hover:bg-bg-200/50"
+              >
+                <SidebarIcon size={14} />
+              </IconButton>
+            )}
+
             <IconButton
               size="sm"
               aria-label={bottomPanelOpen ? t('header.closeBottomPanel') : t('header.openBottomPanel')}
@@ -224,45 +287,7 @@ export function PaneHeader({
             >
               <PanelRightIcon size={14} />
             </IconButton>
-          </>
-        )}
-
-        <IconButton
-          size="sm"
-          aria-label="Split horizontal"
-          onClick={e => {
-            e.stopPropagation()
-            handleSplitH()
-          }}
-          className="text-text-400 hover:text-text-100 hover:bg-bg-200/50"
-        >
-          <SplitHorizontalIcon size={14} />
-        </IconButton>
-
-        <IconButton
-          size="sm"
-          aria-label="Split vertical"
-          onClick={e => {
-            e.stopPropagation()
-            handleSplitV()
-          }}
-          className="text-text-400 hover:text-text-100 hover:bg-bg-200/50"
-        >
-          <SplitVerticalIcon size={14} />
-        </IconButton>
-
-        {paneCount > 1 && (
-          <IconButton
-            size="sm"
-            aria-label="Close pane"
-            onClick={e => {
-              e.stopPropagation()
-              handleClose()
-            }}
-            className="text-text-400 hover:text-red-400 hover:bg-bg-200/50"
-          >
-            <CloseIcon size={14} />
-          </IconButton>
+          </div>
         )}
       </div>
 

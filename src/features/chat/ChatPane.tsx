@@ -32,9 +32,11 @@ interface ChatPaneProps {
   isFocused: boolean
   paneCount: number
   displayMode: 'single' | 'split'
+  isPaneFullscreen?: boolean
   onOpenSidebar?: () => void
   showSidebarButton?: boolean
   onSplitPane?: () => void
+  onTogglePaneFullscreen?: () => void
   navigatePaneToSession: (paneId: string, sessionId: string, directory?: string) => void
   navigatePaneHome: (paneId: string) => void
 }
@@ -94,13 +96,16 @@ export const ChatPane = memo(function ChatPane({
   isFocused,
   paneCount,
   displayMode,
+  isPaneFullscreen = false,
   onOpenSidebar,
   showSidebarButton = false,
   onSplitPane,
+  onTogglePaneFullscreen,
   navigatePaneToSession,
   navigatePaneHome,
 }: ChatPaneProps) {
   const { t } = useTranslation(['chat', 'common'])
+  const showCompactShell = displayMode === 'split' && !isPaneFullscreen
 
   // ============================================
   // Refs
@@ -515,6 +520,8 @@ export const ChatPane = memo(function ChatPane({
               onModelChange={handleModelChange}
               onOpenSidebar={onOpenSidebar}
               onSplitPane={onSplitPane}
+              isPaneFullscreen={isPaneFullscreen}
+              onTogglePaneFullscreen={onTogglePaneFullscreen}
               modelSelectorRef={modelSelectorRef}
             />
           </div>
@@ -667,7 +674,7 @@ export const ChatPane = memo(function ChatPane({
     <SessionNavigationContext.Provider value={navigationCtx}>
       <div
         className={
-          displayMode === 'split'
+          showCompactShell
             ? `h-full flex flex-col overflow-hidden rounded-lg transition-all duration-200 ${
                 isFocused
                   ? 'ring-1 ring-accent-main-100/60 bg-bg-100'
@@ -677,7 +684,7 @@ export const ChatPane = memo(function ChatPane({
         }
         onClick={handlePaneFocus}
       >
-        {displayMode === 'split' && (
+        {showCompactShell && (
           <PaneHeader
             paneId={paneId}
             sessionId={routeSessionId}
@@ -685,6 +692,8 @@ export const ChatPane = memo(function ChatPane({
             paneCount={paneCount}
             showSidebarButton={showSidebarButton}
             onOpenSidebar={onOpenSidebar}
+            isPaneFullscreen={isPaneFullscreen}
+            onTogglePaneFullscreen={onTogglePaneFullscreen}
             onFocus={handlePaneFocus}
           />
         )}
@@ -693,7 +702,7 @@ export const ChatPane = memo(function ChatPane({
     </SessionNavigationContext.Provider>
   )
 
-  if (displayMode === 'split') {
+  if (showCompactShell) {
     return <ChatViewportProvider value={PANE_VIEWPORT}>{content}</ChatViewportProvider>
   }
 

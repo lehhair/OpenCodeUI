@@ -38,6 +38,7 @@ export interface PaneLayoutSnapshot {
   root: PaneNode
   focusedPaneId: string | null
   focusedSessionId: string | null
+  fullscreenPaneId: string | null
   /** Total number of leaves */
   paneCount: number
   /** Whether split mode is active (paneCount > 1) */
@@ -155,6 +156,7 @@ type Listener = () => void
 function createPaneLayoutStore() {
   let _root: PaneNode = { type: 'leaf', id: genPaneId(), sessionId: null }
   let _focusedPaneId: string | null = _root.id
+  let _fullscreenPaneId: string | null = null
   const _listeners = new Set<Listener>()
 
   function _notify() {
@@ -168,6 +170,7 @@ function createPaneLayoutStore() {
       root: _root,
       focusedPaneId: _focusedPaneId,
       focusedSessionId: focusedLeaf?.sessionId ?? null,
+      fullscreenPaneId: _fullscreenPaneId,
       paneCount: count,
       isSplit: count > 1,
     }
@@ -209,6 +212,10 @@ function createPaneLayoutStore() {
       return _focusedPaneId ? (findLeaf(_root, _focusedPaneId)?.sessionId ?? null) : null
     },
 
+    getFullscreenPaneId() {
+      return _fullscreenPaneId
+    },
+
     findLeaf(paneId: string) {
       return findLeaf(_root, paneId)
     },
@@ -231,6 +238,27 @@ function createPaneLayoutStore() {
       if (_focusedPaneId === paneId) return
       _focusedPaneId = paneId
       _refreshSnapshot()
+    },
+
+    enterPaneFullscreen(paneId: string) {
+      if (!findLeaf(_root, paneId)) return
+      _focusedPaneId = paneId
+      _fullscreenPaneId = paneId
+      _refreshSnapshot()
+    },
+
+    exitPaneFullscreen() {
+      if (_fullscreenPaneId === null) return
+      _fullscreenPaneId = null
+      _refreshSnapshot()
+    },
+
+    togglePaneFullscreen(paneId: string) {
+      if (_fullscreenPaneId === paneId) {
+        this.exitPaneFullscreen()
+        return
+      }
+      this.enterPaneFullscreen(paneId)
     },
 
     /**
@@ -268,6 +296,9 @@ function createPaneLayoutStore() {
 
       _root = replaceNode(_root, paneId, split)
       _focusedPaneId = newLeaf.id
+      if (_fullscreenPaneId === paneId) {
+        _fullscreenPaneId = null
+      }
       _refreshSnapshot()
       return newLeaf.id
     },
@@ -288,6 +319,9 @@ function createPaneLayoutStore() {
       if (!result) return
 
       _root = result
+      if (_fullscreenPaneId === paneId || (_fullscreenPaneId && !findLeaf(_root, _fullscreenPaneId))) {
+        _fullscreenPaneId = null
+      }
 
       // Update focus
       if (_focusedPaneId === paneId) {
@@ -342,6 +376,7 @@ function createPaneLayoutStore() {
 
       _root = { type: 'leaf', id: survivor.id, sessionId: survivor.sessionId }
       _focusedPaneId = survivor.id
+      _fullscreenPaneId = null
       _refreshSnapshot()
     },
 
@@ -352,6 +387,7 @@ function createPaneLayoutStore() {
       _nextPaneId = 1
       _root = { type: 'leaf', id: genPaneId(), sessionId: null }
       _focusedPaneId = _root.id
+      _fullscreenPaneId = null
       _refreshSnapshot()
     },
   }

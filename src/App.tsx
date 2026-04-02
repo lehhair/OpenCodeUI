@@ -149,6 +149,12 @@ function App() {
     paneLayoutStore.enterSplitMode(paneLayout.focusedSessionId)
   }, [paneLayout.focusedSessionId])
 
+  const handleToggleFocusedPaneFullscreen = useCallback(() => {
+    const paneId = paneLayout.focusedPaneId ?? paneLayoutStore.getFocusedPaneId()
+    if (!paneId) return
+    paneLayoutStore.togglePaneFullscreen(paneId)
+  }, [paneLayout.focusedPaneId])
+
   const handleOpenSidebar = useCallback(() => setSidebarExpanded(true), [setSidebarExpanded])
 
   const renderPaneLeaf = useCallback(
@@ -159,10 +165,12 @@ function App() {
         sessionId={paneSessionId}
         isFocused={paneLayout.focusedPaneId === paneId}
         paneCount={paneLayout.paneCount}
-        displayMode={paneLayout.isSplit ? 'split' : 'single'}
+        displayMode={paneLayout.isSplit && !paneLayout.fullscreenPaneId ? 'split' : 'single'}
+        isPaneFullscreen={paneLayout.fullscreenPaneId === paneId}
         onOpenSidebar={handleOpenSidebar}
         showSidebarButton={chatViewport.interaction.sidebarBehavior === 'overlay'}
         onSplitPane={handleEnterSplitMode}
+        onTogglePaneFullscreen={paneLayout.isSplit ? handleToggleFocusedPaneFullscreen : undefined}
         navigatePaneToSession={navigatePaneToSession}
         navigatePaneHome={navigatePaneHome}
       />
@@ -171,12 +179,16 @@ function App() {
       paneLayout.focusedPaneId,
       paneLayout.paneCount,
       paneLayout.isSplit,
+      paneLayout.fullscreenPaneId,
       handleOpenSidebar,
       handleEnterSplitMode,
+      handleToggleFocusedPaneFullscreen,
       navigatePaneToSession,
       navigatePaneHome,
     ],
   )
+
+  const fullscreenLeaf = paneLayout.fullscreenPaneId ? paneLayoutStore.findLeaf(paneLayout.fullscreenPaneId) : null
 
   const focusedDirectory = focusedRouteDirectory || ''
 
@@ -410,8 +422,12 @@ function App() {
                 chatViewport.interaction.sidebarBehavior === 'overlay' ? undefined : `${CHAT_SURFACE_MIN_WIDTH}px`,
             }}
           >
-            <div className={paneLayout.isSplit ? 'flex-1 min-h-0 p-2' : 'flex-1 min-h-0'}>
-              <SplitContainer node={paneLayout.root} renderLeaf={renderPaneLeaf} />
+            <div className={paneLayout.isSplit && !fullscreenLeaf ? 'flex-1 min-h-0 p-2' : 'flex-1 min-h-0'}>
+              {fullscreenLeaf ? (
+                renderPaneLeaf(fullscreenLeaf.id, fullscreenLeaf.sessionId)
+              ) : (
+                <SplitContainer node={paneLayout.root} renderLeaf={renderPaneLeaf} />
+              )}
             </div>
 
             <BottomPanel directory={focusedDirectory} />
