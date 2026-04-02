@@ -3,7 +3,6 @@ import { useTranslation } from 'react-i18next'
 import { Sidebar } from './features/chat'
 import { ChatPane } from './features/chat/ChatPane'
 import { SplitContainer } from './features/chat/SplitContainer'
-import { SplitToolbar } from './features/chat/SplitToolbar'
 import type { CommandItem } from './components/CommandPalette'
 import { ToastContainer } from './components/ToastContainer'
 import { RightPanel } from './components/RightPanel'
@@ -150,10 +149,6 @@ function App() {
     paneLayoutStore.enterSplitMode(paneLayout.focusedSessionId)
   }, [paneLayout.focusedSessionId])
 
-  const handleExitSplitMode = useCallback(() => {
-    paneLayoutStore.exitSplitMode()
-  }, [])
-
   const renderPaneLeaf = useCallback(
     (paneId: string, paneSessionId: string | null) => (
       <ChatPane
@@ -164,6 +159,7 @@ function App() {
         paneCount={paneLayout.paneCount}
         displayMode={paneLayout.isSplit ? 'split' : 'single'}
         onOpenSidebar={() => setSidebarExpanded(true)}
+        showSidebarButton={chatViewport.interaction.sidebarBehavior === 'overlay'}
         onSplitPane={handleEnterSplitMode}
         navigatePaneToSession={navigatePaneToSession}
         navigatePaneHome={navigatePaneHome}
@@ -412,16 +408,7 @@ function App() {
                 chatViewport.interaction.sidebarBehavior === 'overlay' ? undefined : `${CHAT_SURFACE_MIN_WIDTH}px`,
             }}
           >
-            {paneLayout.isSplit && (
-              <SplitToolbar
-                onNewSession={handleNewSession}
-                onExitSplit={handleExitSplitMode}
-                onOpenSidebar={() => setSidebarExpanded(true)}
-                showSidebarButton={chatViewport.interaction.sidebarBehavior === 'overlay'}
-              />
-            )}
-
-            <div className={paneLayout.isSplit ? 'flex-1 min-h-0 p-1 pt-0' : 'flex-1 min-h-0'}>
+            <div className={paneLayout.isSplit ? 'flex-1 min-h-0 p-2' : 'flex-1 min-h-0'}>
               <SplitContainer node={paneLayout.root} renderLeaf={renderPaneLeaf} />
             </div>
 

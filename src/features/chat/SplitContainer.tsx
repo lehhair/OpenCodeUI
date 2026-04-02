@@ -5,7 +5,7 @@
  * rendered as flex containers with a thin draggable divider between them.
  */
 
-import { useCallback, useRef } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { PaneNode, PaneSplit } from '../../store/paneLayoutStore'
 import { paneLayoutStore } from '../../store/paneLayoutStore'
 
@@ -39,6 +39,36 @@ interface SplitNodeProps {
 function SplitNode({ split, renderLeaf }: SplitNodeProps) {
   const isHorizontal = split.direction === 'horizontal'
   const containerRef = useRef<HTMLDivElement>(null)
+  const [displayRatio, setDisplayRatio] = useState(split.ratio)
+  const [isEntering, setIsEntering] = useState(true)
+  const isBootstrappingRef = useRef(true)
+
+  useLayoutEffect(() => {
+    let raf1 = 0
+    let raf2 = 0
+
+    // 首次挂载时从“单个 pane”平滑分裂成两个 pane。
+    setDisplayRatio(1)
+    setIsEntering(true)
+
+    raf1 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(() => {
+        isBootstrappingRef.current = false
+        setIsEntering(false)
+        setDisplayRatio(split.ratio)
+      })
+    })
+
+    return () => {
+      cancelAnimationFrame(raf1)
+      cancelAnimationFrame(raf2)
+    }
+  }, [split.id])
+
+  useEffect(() => {
+    if (isBootstrappingRef.current) return
+    setDisplayRatio(split.ratio)
+  }, [split.ratio])
 
   const handleDrag = useCallback(
     (e: React.PointerEvent) => {
@@ -73,8 +103,8 @@ function SplitNode({ split, renderLeaf }: SplitNodeProps) {
     [split.id, isHorizontal],
   )
 
-  const firstBasis = `${split.ratio * 100}%`
-  const secondBasis = `${(1 - split.ratio) * 100}%`
+  const firstGrow = Math.max(displayRatio, 0.0001)
+  const secondGrow = Math.max(1 - displayRatio, 0.0001)
 
   const hitSize = SPLIT_GAP + HIT_EXTEND * 2
   const negMargin = -(hitSize + SPLIT_GAP) / 2
@@ -86,13 +116,18 @@ function SplitNode({ split, renderLeaf }: SplitNodeProps) {
       style={{ gap: SPLIT_GAP }}
     >
       {/* First child */}
-      <div className="min-w-0 min-h-0 relative" style={{ flexBasis: firstBasis, flexGrow: 0, flexShrink: 0 }}>
+      <div
+        className="min-w-0 min-h-0 relative transition-[flex-grow] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]"
+        style={{ flexBasis: 0, flexGrow: firstGrow, flexShrink: 1 }}
+      >
         <SplitContainer node={split.first} renderLeaf={renderLeaf} />
       </div>
 
       {/* Divider — invisible hit area overlapping the gap */}
       <div
-        className={`relative z-10 shrink-0 ${isHorizontal ? 'cursor-col-resize' : 'cursor-row-resize'}`}
+        className={`relative z-10 shrink-0 transition-opacity duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+          isHorizontal ? 'cursor-col-resize' : 'cursor-row-resize'
+        } ${isEntering ? 'opacity-0' : 'opacity-100'}`}
         style={{
           [isHorizontal ? 'width' : 'height']: hitSize,
           [isHorizontal ? 'marginLeft' : 'marginTop']: negMargin,
@@ -102,7 +137,12 @@ function SplitNode({ split, renderLeaf }: SplitNodeProps) {
       />
 
       {/* Second child */}
-      <div className="min-w-0 min-h-0 relative" style={{ flexBasis: secondBasis, flexGrow: 0, flexShrink: 0 }}>
+      <div
+        className={`min-w-0 min-h-0 relative transition-[flex-grow,opacity,transform] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+          isEntering ? 'opacity-0 scale-[0.985]' : 'opacity-100 scale-100'
+        }`}
+        style={{ flexBasis: 0, flexGrow: secondGrow, flexShrink: 1 }}
+      >
         <SplitContainer node={split.second} renderLeaf={renderLeaf} />
       </div>
     </div>

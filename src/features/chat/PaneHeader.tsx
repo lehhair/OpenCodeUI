@@ -7,10 +7,18 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import { CloseIcon, SplitHorizontalIcon, SplitVerticalIcon } from '../../components/Icons'
+import {
+  CloseIcon,
+  SplitHorizontalIcon,
+  SplitVerticalIcon,
+  PanelBottomIcon,
+  PanelRightIcon,
+  SidebarIcon,
+} from '../../components/Icons'
 import { IconButton } from '../../components/ui'
 import { paneLayoutStore } from '../../store/paneLayoutStore'
 import { useSessionState } from '../../store'
+import { layoutStore, useLayoutStore } from '../../store/layoutStore'
 import { messageStore } from '../../store'
 import { updateSession } from '../../api'
 import { useDirectory } from '../../contexts/useDirectory'
@@ -21,13 +29,24 @@ interface PaneHeaderProps {
   sessionId: string | null
   isFocused: boolean
   paneCount: number
+  showSidebarButton?: boolean
+  onOpenSidebar?: () => void
   onFocus: () => void
 }
 
-export function PaneHeader({ paneId, sessionId, isFocused, paneCount, onFocus }: PaneHeaderProps) {
+export function PaneHeader({
+  paneId,
+  sessionId,
+  isFocused,
+  paneCount,
+  showSidebarButton = false,
+  onOpenSidebar,
+  onFocus,
+}: PaneHeaderProps) {
   const { t } = useTranslation('chat')
   const sessionState = useSessionState(sessionId)
   const { currentDirectory } = useDirectory()
+  const { rightPanelOpen, bottomPanelOpen } = useLayoutStore()
 
   const [isEditing, setIsEditing] = useState(false)
   const [editValue, setEditValue] = useState('')
@@ -120,7 +139,7 @@ export function PaneHeader({ paneId, sessionId, isFocused, paneCount, onFocus }:
 
   return (
     <div
-      className={`h-10 flex items-center justify-between px-2 transition-colors duration-200 shrink-0 ${
+      className={`relative h-10 flex items-center justify-between px-2 transition-colors duration-200 shrink-0 z-20 ${
         isDragOver ? 'bg-accent-main-100/10' : 'bg-bg-100'
       }`}
       onClick={onFocus}
@@ -132,13 +151,6 @@ export function PaneHeader({ paneId, sessionId, isFocused, paneCount, onFocus }:
     >
       {/* Left: Title */}
       <div className="flex items-center min-w-0 flex-1">
-        {/* Focus indicator */}
-        <div
-          className={`w-1.5 h-1.5 rounded-full mr-2 shrink-0 transition-colors ${
-            isFocused ? 'bg-accent-main-100' : 'bg-transparent'
-          }`}
-        />
-
         {isEditing ? (
           <input
             ref={inputRef}
@@ -165,6 +177,56 @@ export function PaneHeader({ paneId, sessionId, isFocused, paneCount, onFocus }:
 
       {/* Right: Actions */}
       <div className="flex items-center gap-0.5 shrink-0">
+        {isFocused && showSidebarButton && onOpenSidebar && (
+          <IconButton
+            size="sm"
+            aria-label={t('header.openSidebar')}
+            onClick={e => {
+              e.stopPropagation()
+              onOpenSidebar()
+            }}
+            className="text-text-400 hover:text-text-100 hover:bg-bg-200/50"
+          >
+            <SidebarIcon size={14} />
+          </IconButton>
+        )}
+
+        {isFocused && (
+          <>
+            <IconButton
+              size="sm"
+              aria-label={bottomPanelOpen ? t('header.closeBottomPanel') : t('header.openBottomPanel')}
+              onClick={e => {
+                e.stopPropagation()
+                layoutStore.toggleBottomPanel()
+              }}
+              className={`transition-colors ${
+                bottomPanelOpen
+                  ? 'text-accent-main-100 bg-bg-200/50'
+                  : 'text-text-400 hover:text-text-100 hover:bg-bg-200/50'
+              }`}
+            >
+              <PanelBottomIcon size={14} />
+            </IconButton>
+
+            <IconButton
+              size="sm"
+              aria-label={rightPanelOpen ? t('header.closePanel') : t('header.openPanel')}
+              onClick={e => {
+                e.stopPropagation()
+                layoutStore.toggleRightPanel()
+              }}
+              className={`transition-colors ${
+                rightPanelOpen
+                  ? 'text-accent-main-100 bg-bg-200/50'
+                  : 'text-text-400 hover:text-text-100 hover:bg-bg-200/50'
+              }`}
+            >
+              <PanelRightIcon size={14} />
+            </IconButton>
+          </>
+        )}
+
         <IconButton
           size="sm"
           aria-label="Split horizontal"
@@ -203,6 +265,8 @@ export function PaneHeader({ paneId, sessionId, isFocused, paneCount, onFocus }:
           </IconButton>
         )}
       </div>
+
+      <div className="absolute top-full left-0 right-0 h-8 bg-gradient-to-b from-bg-100 to-transparent pointer-events-none z-10" />
     </div>
   )
 }

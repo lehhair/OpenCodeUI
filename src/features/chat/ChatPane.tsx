@@ -33,6 +33,7 @@ interface ChatPaneProps {
   paneCount: number
   displayMode: 'single' | 'split'
   onOpenSidebar?: () => void
+  showSidebarButton?: boolean
   onSplitPane?: () => void
   navigatePaneToSession: (paneId: string, sessionId: string, directory?: string) => void
   navigatePaneHome: (paneId: string) => void
@@ -94,6 +95,7 @@ export function ChatPane({
   paneCount,
   displayMode,
   onOpenSidebar,
+  showSidebarButton = false,
   onSplitPane,
   navigatePaneToSession,
   navigatePaneHome,
@@ -681,6 +683,8 @@ export function ChatPane({
             sessionId={routeSessionId}
             isFocused={isFocused}
             paneCount={paneCount}
+            showSidebarButton={showSidebarButton}
+            onOpenSidebar={onOpenSidebar}
             onFocus={handlePaneFocus}
           />
         )}
