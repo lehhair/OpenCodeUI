@@ -1,5 +1,13 @@
 # Changelog
 
+## [v0.4.2] - 2026-04-03
+
+- fix: switch folder recents to the clicked directory (d579407)
+- fix: support sticky ctrl+alt combos in mobile terminal keyboard (4d9c5b3)
+- fix: use tauri plugin-opener for external links in terminal and MCP auth (9b80bf3)
+- fix: add background tint and equal spacing to plain code block copy button (102b5d4)
+- fix: prevent global mode from being overridden by pane directory sync (b7a665c)
+
 ## [v0.4.1] - 2026-04-03
 
 - fix: disable split-pane entry points on small touch screens (3c1a607)
