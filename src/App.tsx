@@ -63,10 +63,14 @@ function App() {
   const focusedController = usePaneController(paneLayout.focusedPaneId)
   const paneControllers = usePaneControllers()
   const syncingFromRouteRef = useRef(false)
+  // 当 currentDirectory 为 undefined 时表示全局模式，
+  // 不应 fallback 到 session 自身的 directory，否则 replaceSession 会把 dir 参数写回 URL
   const focusedRouteDirectory =
-    paneLayout.focusedSessionId === routeSessionId
-      ? routeDirectory || focusedController?.effectiveDirectory || currentDirectory
-      : focusedController?.effectiveDirectory || currentDirectory
+    currentDirectory !== undefined
+      ? paneLayout.focusedSessionId === routeSessionId
+        ? routeDirectory || focusedController?.effectiveDirectory || currentDirectory
+        : focusedController?.effectiveDirectory || currentDirectory
+      : undefined
 
   useEffect(() => {
     const cleanup = initNotificationSound()
