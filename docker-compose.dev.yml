@@ -1,0 +1,109 @@
+# ============================================
+# OpenCode WebUI - Docker Compose (Frontend Dev)
+# ============================================
+#
+# 架构:
+#   gateway  (Caddy) :6658 -> 主入口，继续反代 frontend / backend
+#                     :6659 -> 后端 preview 入口
+#   frontend (Vite)  :3000 -> 本地源码热更新开发服务
+#   backend  (opencode):4096 -> opencode serve
+#
+# 使用方法:
+#   cp .env.example .env    # 填写 API Key
+#   docker compose -f docker-compose.dev.yml up -d --build
+#
+# 说明:
+#   - 前端源码通过 bind mount 挂进容器，修改后由 Vite HMR 立即生效
+#   - gateway 仍然通过 opencode-frontend:3000 访问前端，因此主入口保持不变
+#   - 请通过 http://127.0.0.1:6658 访问，不要直接访问 frontend 容器端口
+
+services:
+  gateway:
+    image: opencodeui-gateway:dev
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.gateway
+    container_name: opencode-gateway
+    restart: unless-stopped
+    ports:
+      - '127.0.0.1:${GATEWAY_PORT:-6658}:6658'
+      - '127.0.0.1:${PREVIEW_PORT:-6659}:6659'
+    volumes:
+      - opencode-router-data:/data
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      - frontend
+      - backend
+    environment:
+      - TARGET_CONTAINER=opencode-backend
+      - ROUTER_STATE_FILE=/data/routes.json
+      - ROUTER_SCAN_INTERVAL=${ROUTER_SCAN_INTERVAL:-5}
+      - ROUTER_TOKEN_LENGTH=${ROUTER_TOKEN_LENGTH:-12}
+      - ROUTER_PORT_RANGE=${ROUTER_PORT_RANGE:-3000-9999}
+      - ROUTER_EXCLUDE_PORTS=${ROUTER_EXCLUDE_PORTS:-4096}
+      - PUBLIC_BASE_URL=${PUBLIC_BASE_URL:-}
+      - PREVIEW_DOMAIN=${PREVIEW_DOMAIN:-}
+      - ROUTER_USERNAME=${OPENCODE_SERVER_USERNAME:-opencode}
+      - ROUTER_PASSWORD=${OPENCODE_SERVER_PASSWORD:-}
+    networks:
+      - opencode-net
+
+  frontend:
+    image: node:22-alpine
+    container_name: opencode-frontend
+    restart: unless-stopped
+    working_dir: /app
+    volumes:
+      - ./:/app
+      - opencode-frontend-node-modules:/app/node_modules
+    environment:
+      - CHOKIDAR_USEPOLLING=true
+      - NODE_ENV=development
+      - VITE_API_BASE_URL=/api
+    command: >-
+      sh -c "LOCK_HASH=$$(sha256sum package-lock.json | awk '{print $$1}');
+      CACHED_HASH=$$(cat node_modules/.package-lock.hash 2>/dev/null || true);
+      if [ ! -d node_modules ] || [ \"$$LOCK_HASH\" != \"$$CACHED_HASH\" ]; then
+      npm ci --no-audit --prefer-offline && echo $$LOCK_HASH > node_modules/.package-lock.hash; fi &&
+      npm run dev -- --host 0.0.0.0 --port 3000"
+    expose:
+      - '3000'
+    networks:
+      - opencode-net
+
+  backend:
+    image: opencodeui-backend:dev
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.backend
+    container_name: opencode-backend
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+    volumes:
+      - ${WORKSPACE:-./workspace}:/workspace
+      - opencode-home:/root
+    working_dir: /workspace
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
+      - GROQ_API_KEY=${GROQ_API_KEY:-}
+      - MISTRAL_API_KEY=${MISTRAL_API_KEY:-}
+      - XAI_API_KEY=${XAI_API_KEY:-}
+      - OPENCODE_SERVER_PASSWORD=${OPENCODE_SERVER_PASSWORD:-}
+      - OPENCODE_SERVER_USERNAME=${OPENCODE_SERVER_USERNAME:-opencode}
+    networks:
+      - opencode-net
+
+volumes:
+  opencode-home:
+  opencode-router-data:
+  opencode-frontend-node-modules:
+
+networks:
+  opencode-net:
+    name: opencode-net
