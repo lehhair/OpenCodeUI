@@ -1,6 +1,14 @@
 import { useState, useRef, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { PanelRightIcon, PanelBottomIcon, ChevronDownIcon, SidebarIcon } from '../../components/Icons'
+import {
+  PanelRightIcon,
+  PanelBottomIcon,
+  ChevronDownIcon,
+  SidebarIcon,
+  SplitHorizontalIcon,
+  MaximizeIcon,
+  MinimizeIcon,
+} from '../../components/Icons'
 import { IconButton } from '../../components/ui'
 import { ModelSelector, type ModelSelectorHandle } from './ModelSelector'
 import { ShareDialog } from './ShareDialog'
@@ -19,6 +27,9 @@ interface HeaderProps {
   selectedModelKey: string | null
   onModelChange: (modelKey: string, model: ModelInfo) => void
   onOpenSidebar?: () => void
+  onSplitPane?: () => void
+  isPaneFullscreen?: boolean
+  onTogglePaneFullscreen?: () => void
   modelSelectorRef?: React.RefObject<ModelSelectorHandle | null>
 }
 
@@ -105,6 +116,9 @@ export function Header({
   selectedModelKey,
   onModelChange,
   onOpenSidebar,
+  onSplitPane,
+  isPaneFullscreen = false,
+  onTogglePaneFullscreen,
   modelSelectorRef,
 }: HeaderProps) {
   const { t } = useTranslation('chat')
@@ -211,6 +225,30 @@ export function Header({
 
       <div className="flex items-center gap-1 pointer-events-auto shrink-0 z-20">
         <div className="flex items-center gap-0.5">
+          {onTogglePaneFullscreen && (
+            <IconButton
+              aria-label={isPaneFullscreen ? 'Exit fullscreen pane' : 'Fullscreen pane'}
+              onClick={onTogglePaneFullscreen}
+              className={`transition-colors ${
+                isPaneFullscreen
+                  ? 'text-accent-main-100 bg-bg-200/50'
+                  : 'text-text-400 hover:text-text-100 hover:bg-bg-200/50'
+              }`}
+            >
+              {isPaneFullscreen ? <MinimizeIcon size={18} /> : <MaximizeIcon size={18} />}
+            </IconButton>
+          )}
+
+          {onSplitPane && (
+            <IconButton
+              aria-label="Split pane"
+              onClick={onSplitPane}
+              className="transition-colors text-text-400 hover:text-text-100 hover:bg-bg-200/50"
+            >
+              <SplitHorizontalIcon size={18} />
+            </IconButton>
+          )}
+
           <IconButton
             aria-label={bottomPanelOpen ? t('header.closeBottomPanel') : t('header.openBottomPanel')}
             onClick={() => layoutStore.toggleBottomPanel()}

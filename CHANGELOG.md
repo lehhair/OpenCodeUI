@@ -1,5 +1,35 @@
 # Changelog
 
+## [v0.4.1] - 2026-04-03
+
+- fix: disable split-pane entry points on small touch screens (3c1a607)
+
+## [v0.4.0] - 2026-04-03
+
+- fix: align request dialogs with the input dock width (59b5962)
+- perf: fix memo-defeating patterns in message rendering pipeline (f678d36)
+- fix: stabilize ChatPane tree structure across fullscreen toggle (79b28f1)
+- fix: preserve DOM across pane fullscreen toggle and hide split button in fullscreen (13c7f5e)
+- fix: keep split resizing off the render path (750dd50)
+- fix: normalize panel PTY restoration and dedupe terminal tabs (d1b4565)
+- feat: add pane fullscreen mode and refine split header actions (cf959e0)
+- fix: remove split container transition side effects (5332f61)
+- fix: stabilize split-pane header interactions (6631e01)
+- refactor: streamline split-pane chrome and transitions (cdb4a8b)
+- fix: avoid first-frame tool expansion flicker on session switch (a71dea2)
+- refactor: finish pane-first cleanup and auto-approve wiring (8af9e57)
+- fix: unify router state and focused-pane directory sync (2cbb177)
+- refactor: remove legacy focused-session compatibility layer (e4d0616)
+- refactor: unify chat shell around focused pane state (e45dd17)
+- fix: sidebar selectedSessionId follows focused pane in split mode (a82abaf)
+- fix: isolate per-pane state — fullAutoMode, agent selection, session eviction, clearSession (18bc9af)
+- fix: prevent duplicate SSE subscriptions in split-pane mode (e15ad08)
+- feat: add split-pane UI with full-parity ChatPane, SplitContainer, PaneHeader, SplitToolbar (3af6b14)
+- refactor: parameterize useChatSession for multi-instance support (1b37d8d)
+- refactor: make session infrastructure multi-instance ready (e0ce47d)
+- fix: hide assistant fork action when no text can be copied (f734462)
+- fix: keep composer action blur out of transform layers (6eb3bf0)
+
 ## [v0.3.8] - 2026-03-31
 
 - feat: add fullscreen button to file preview and changes diff preview (9e4ca2d)

@@ -4,6 +4,7 @@ import { ContentBlock } from '../../../../components'
 import { ChevronRightIcon, ExternalLinkIcon, StopIcon } from '../../../../components/Icons'
 import { useDelayedRender, useResponsiveMaxHeight } from '../../../../hooks'
 import { useSessionState, messageStore, childSessionStore } from '../../../../store'
+import { useSessionNavigation } from '../../../../contexts/SessionNavigationContext'
 import { abortSession, getSessionMessages } from '../../../../api'
 import { sessionErrorHandler } from '../../../../utils'
 import { formatToolName } from '../../../../utils/formatUtils'
@@ -24,6 +25,7 @@ const EMPTY_MESSAGES: Message[] = []
 
 export const TaskRenderer = memo(function TaskRenderer({ part }: ToolRendererProps) {
   const { t } = useTranslation('message')
+  const { currentSessionId, currentDirectory } = useSessionNavigation()
   const { state } = part
   const [expanded, setExpanded] = useState(() => state.status === 'running' || state.status === 'pending')
   const shouldRenderBody = useDelayedRender(expanded)
@@ -50,12 +52,12 @@ export const TaskRenderer = memo(function TaskRenderer({ part }: ToolRendererPro
       e.stopPropagation()
       if (!targetSessionId) return
       const childInfo = childSessionStore.getSessionInfo(targetSessionId)
-      const parentSessionId = childInfo?.parentID || messageStore.getCurrentSessionId()
+      const parentSessionId = childInfo?.parentID || currentSessionId || null
       const parentState = parentSessionId ? messageStore.getSessionState(parentSessionId) : null
-      const directory = parentState?.directory || ''
+      const directory = parentState?.directory || currentDirectory || ''
       abortSession(targetSessionId, directory)
     },
-    [targetSessionId],
+    [targetSessionId, currentSessionId, currentDirectory],
   )
 
   // 运行时自动展开
@@ -161,20 +163,20 @@ const TaskHeader = memo(function TaskHeader({
   onStop,
 }: TaskHeaderProps) {
   const { t } = useTranslation('message')
+  const { navigateToSession, currentSessionId, currentDirectory } = useSessionNavigation()
   const handleOpenSession = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation()
       if (!sessionId) return
 
       const childInfo = childSessionStore.getSessionInfo(sessionId)
-      const parentSessionId = childInfo?.parentID || messageStore.getCurrentSessionId()
+      const parentSessionId = childInfo?.parentID || currentSessionId || null
       const parentState = parentSessionId ? messageStore.getSessionState(parentSessionId) : null
-      const directory = parentState?.directory || ''
+      const directory = parentState?.directory || currentDirectory || ''
 
-      const hash = directory ? `#/session/${sessionId}?dir=${directory}` : `#/session/${sessionId}`
-      window.location.hash = hash
+      navigateToSession(sessionId, directory || undefined)
     },
-    [sessionId],
+    [sessionId, navigateToSession, currentSessionId, currentDirectory],
   )
 
   const isRunning = status === 'running' || status === 'pending'

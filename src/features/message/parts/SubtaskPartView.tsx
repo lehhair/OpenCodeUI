@@ -2,7 +2,7 @@ import { memo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { SubtaskPart } from '../../../types/message'
 import { useChildSessions, type ChildSessionInfo } from '../../../store'
-import { useRouter } from '../../../hooks/useRouter'
+import { useSessionNavigation } from '../../../contexts/SessionNavigationContext'
 import { useDelayedRender } from '../../../hooks'
 import { UsersIcon, ChevronDownIcon, LayersIcon, TerminalIcon, ReturnIcon } from '../../../components/Icons'
 
@@ -21,7 +21,7 @@ export const SubtaskPartView = memo(function SubtaskPartView({ part }: SubtaskPa
   const { t } = useTranslation('message')
   const [expanded, setExpanded] = useState(false)
   const shouldRenderBody = useDelayedRender(expanded)
-  const { navigateToSession } = useRouter()
+  const { navigateToSession } = useSessionNavigation()
 
   // 获取子 session 信息（如果已创建）
   // 注意：part.sessionID 是父 session，我们需要找到这个 subtask 创建的子 session

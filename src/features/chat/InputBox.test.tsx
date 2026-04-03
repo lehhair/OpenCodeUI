@@ -105,7 +105,7 @@ describe('InputBox slash command selection', () => {
     slashCommands = [{ name: 'compact', description: 'Compact session', source: 'frontend' }]
     const onCommand = vi.fn()
 
-    render(<InputBox onSend={vi.fn()} onCommand={onCommand} />)
+    render(<InputBox paneId="pane-test" onSend={vi.fn()} onCommand={onCommand} />)
 
     const textarea = screen.getByRole('textbox') as HTMLTextAreaElement
     fireEvent.change(textarea, { target: { value: '/', selectionStart: 1 } })
@@ -121,7 +121,7 @@ describe('InputBox slash command selection', () => {
     slashCommands = [{ name: 'review', description: 'Run review', source: 'api' }]
     const onCommand = vi.fn()
 
-    render(<InputBox onSend={vi.fn()} onCommand={onCommand} />)
+    render(<InputBox paneId="pane-test" onSend={vi.fn()} onCommand={onCommand} />)
 
     const textarea = screen.getByRole('textbox') as HTMLTextAreaElement
     fireEvent.change(textarea, { target: { value: '/', selectionStart: 1 } })
@@ -136,7 +136,7 @@ describe('InputBox slash command selection', () => {
   it('keeps the draft when sending fails', async () => {
     const onSend = vi.fn().mockResolvedValue(false)
 
-    render(<InputBox onSend={onSend} />)
+    render(<InputBox paneId="pane-test" onSend={onSend} />)
 
     const textarea = screen.getByRole('textbox') as HTMLTextAreaElement
     fireEvent.change(textarea, { target: { value: 'hello world' } })
@@ -158,7 +158,7 @@ describe('InputBox slash command selection', () => {
         }),
     )
 
-    render(<InputBox onSend={onSend} />)
+    render(<InputBox paneId="pane-test" onSend={onSend} />)
 
     const textarea = screen.getByRole('textbox') as HTMLTextAreaElement
     fireEvent.change(textarea, { target: { value: 'pending send' } })
@@ -185,7 +185,7 @@ describe('InputBox slash command selection', () => {
         }),
     )
 
-    render(<InputBox onSend={vi.fn()} onCommand={onCommand} />)
+    render(<InputBox paneId="pane-test" onSend={vi.fn()} onCommand={onCommand} />)
 
     const textarea = screen.getByRole('textbox') as HTMLTextAreaElement
     fireEvent.change(textarea, { target: { value: '/', selectionStart: 1 } })
@@ -219,7 +219,7 @@ describe('InputBox slash command selection', () => {
         }),
     )
 
-    render(<InputBox onSend={vi.fn()} onCommand={onCommand} />)
+    render(<InputBox paneId="pane-test" onSend={vi.fn()} onCommand={onCommand} />)
 
     const textarea = screen.getByRole('textbox') as HTMLTextAreaElement
     fireEvent.change(textarea, { target: { value: '/', selectionStart: 1 } })
@@ -245,7 +245,7 @@ describe('InputBox slash command selection', () => {
     slashCommands = [{ name: 'review', description: 'Run review', source: 'api' }]
     const onCommand = vi.fn().mockReturnValue(false)
 
-    render(<InputBox onSend={vi.fn()} onCommand={onCommand} />)
+    render(<InputBox paneId="pane-test" onSend={vi.fn()} onCommand={onCommand} />)
 
     const textarea = screen.getByRole('textbox') as HTMLTextAreaElement
     fireEvent.change(textarea, { target: { value: '/', selectionStart: 1 } })

@@ -21,7 +21,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [hasMore, setHasMore] = useState(true)
   const [search, setSearch] = useState('')
-  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null)
 
   const requestIdRef = useRef(0)
   const searchTimerRef = useRef<number | null>(null)
@@ -173,16 +172,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         // 更新 todoStore
         todoStore.setTodos(data.sessionID, data.todos)
       },
-      onReconnected: reason => {
+      onReconnected: () => {
         // SSE 重连成功后
         // 清空旧 session 列表，重新从服务器拉取
         setSessions([])
-
-        if (reason === 'server-switch') {
-          // 切换服务器：旧 session 在新服务器上不存在，必须清除
-          setCurrentSessionId(null)
-        }
-        // 网络重连：保留 currentSessionId，不把用户踢出当前 session
 
         // 重新加载 session 列表
         fetchSessionsRef.current()
@@ -220,8 +213,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         title,
         directory: targetDir,
       })
-      // SSE 会处理添加到列表，这里只是更新 currentSessionId
-      setCurrentSessionId(newSession.id)
       return newSession
     },
     [currentDirectory],
@@ -234,9 +225,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       // 清理该 session 的子 session 记录，防止内存泄漏
       childSessionStore.clearChildren(id)
       setSessions(prev => prev.filter(s => s.id !== id))
-      if (currentSessionId === id) setCurrentSessionId(null)
     },
-    [currentSessionId, currentDirectory],
+    [currentDirectory],
   )
 
   // 稳定化 Provider value，避免每次渲染创建新对象导致子组件不必要重渲染
@@ -252,21 +242,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       loadMore,
       createSession,
       deleteSession,
-      currentSessionId,
-      setCurrentSessionId,
     }),
-    [
-      sessions,
-      isLoading,
-      isLoadingMore,
-      hasMore,
-      search,
-      refresh,
-      loadMore,
-      createSession,
-      deleteSession,
-      currentSessionId,
-    ],
+    [sessions, isLoading, isLoadingMore, hasMore, search, refresh, loadMore, createSession, deleteSession],
   )
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>

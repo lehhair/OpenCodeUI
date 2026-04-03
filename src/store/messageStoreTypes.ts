@@ -68,6 +68,12 @@ export interface SessionStateSnapshot {
   loadState: SessionState['loadState']
   revertState: RevertState | null
   canUndo: boolean
+  canRedo: boolean
+  redoSteps: number
+  revertedContent: RevertHistoryItem | null
+  hasMoreHistory: boolean
+  directory: string
+  title: string | null
 }
 
 // Re-export Part for convenience

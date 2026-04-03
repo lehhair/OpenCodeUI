@@ -9,7 +9,9 @@ import { serverStorage } from '../utils/perServerStorage'
 export type FullAutoMode = 'off' | 'session' | 'global'
 
 // Full Auto 状态变更回调
-type FullAutoListener = (mode: FullAutoMode) => void
+// sourcePaneId 可选：表示这次切换是从哪个 pane 触发的。
+// 即使是 global 变更，也可以携带触发源 pane，供 UI hint 精准展示。
+type FullAutoListener = (mode: FullAutoMode, sourcePaneId?: string) => void
 
 /**
  * 自动批准规则
@@ -52,6 +54,8 @@ class AutoApproveStore {
   // global: 所有会话的权限请求无差别自动放行
   private _fullAutoMode: FullAutoMode = 'off'
   private _fullAutoListeners = new Set<FullAutoListener>()
+  /** per-pane Full Auto 模式（分屏模式下各 pane 独立控制） */
+  private _paneFullAutoModes = new Map<string, FullAutoMode>()
 
   constructor() {
     // 从 localStorage 读取开关状态
@@ -75,6 +79,7 @@ class AutoApproveStore {
     }
     // 切换服务器时清空规则并关闭 Full Auto
     this.rulesMap.clear()
+    this._paneFullAutoModes.clear()
     if (this._fullAutoMode !== 'off') {
       this._fullAutoMode = 'off'
       this._fullAutoListeners.forEach(fn => fn('off'))
@@ -117,11 +122,55 @@ class AutoApproveStore {
   }
 
   /**
-   * 设置 Full Auto 模式
+   * 设置 Full Auto 模式（全局）
    */
-  setFullAutoMode(mode: FullAutoMode): void {
+  setFullAutoMode(mode: FullAutoMode, sourcePaneId?: string): void {
     this._fullAutoMode = mode
-    this._fullAutoListeners.forEach(fn => fn(mode))
+    this._fullAutoListeners.forEach(fn => fn(mode, sourcePaneId))
+  }
+
+  // ---- Per-pane Full Auto 模式 ----
+
+  /** 获取指定 pane 的生效 Full Auto 模式（global 优先，否则看 pane-local） */
+  getPaneFullAutoMode(paneId: string): FullAutoMode {
+    if (this._fullAutoMode === 'global') return 'global'
+    return this._paneFullAutoModes.get(paneId) ?? 'off'
+  }
+
+  /** 设置指定 pane 的 Full Auto 模式 */
+  setPaneFullAutoMode(paneId: string, mode: FullAutoMode): void {
+    if (mode === 'global') {
+      this._paneFullAutoModes.delete(paneId)
+      this.setFullAutoMode('global', paneId)
+      return
+    }
+    this._paneFullAutoModes.set(paneId, mode)
+    this._fullAutoListeners.forEach(fn => fn(mode, paneId))
+  }
+
+  /** 清除指定 pane 的 Full Auto 模式（恢复跟随全局） */
+  clearPaneFullAutoMode(paneId: string): void {
+    this._paneFullAutoModes.delete(paneId)
+  }
+
+  /** 按当前 pane 的生效状态循环：off -> session -> global -> off */
+  cyclePaneFullAutoMode(paneId: string): FullAutoMode {
+    const current = this.getPaneFullAutoMode(paneId)
+
+    if (current === 'off') {
+      this.setPaneFullAutoMode(paneId, 'session')
+      return 'session'
+    }
+
+    if (current === 'session') {
+      // 进入 global 前清掉当前 pane 的局部状态，global 关闭后回到 off。
+      this._paneFullAutoModes.delete(paneId)
+      this.setFullAutoMode('global', paneId)
+      return 'global'
+    }
+
+    this.setFullAutoMode('off', paneId)
+    return 'off'
   }
 
   /**

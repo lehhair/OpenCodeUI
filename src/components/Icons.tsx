@@ -89,6 +89,9 @@ import {
   Upload,
   Shield,
   TriangleAlert,
+  Columns2,
+  Rows2,
+  GripVertical,
 } from 'lucide-react'
 
 export interface IconProps extends SVGProps<SVGSVGElement> {
@@ -216,3 +219,6 @@ export const PlayIcon = wrap(Play)
 export const UploadIcon = wrap(Upload)
 export const ShieldIcon = wrap(Shield)
 export const WarningIcon = wrap(TriangleAlert)
+export const SplitHorizontalIcon = wrap(Columns2)
+export const SplitVerticalIcon = wrap(Rows2)
+export const GripVerticalIcon = wrap(GripVertical)

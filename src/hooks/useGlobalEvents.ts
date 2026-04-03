@@ -9,7 +9,7 @@
 // 4. 与具体 session 无关，处理所有 session 的事件
 
 import { useEffect, useRef } from 'react'
-import { messageStore, childSessionStore } from '../store'
+import { messageStore, childSessionStore, paneLayoutStore } from '../store'
 import { activeSessionStore } from '../store/activeSessionStore'
 import { notificationStore } from '../store/notificationStore'
 import { soundStore } from '../store/soundStore'
@@ -17,21 +17,93 @@ import { playNotificationSoundDeduped } from '../utils/notificationSoundBridge'
 import { subscribeToEvents, getSessionStatus, getPendingPermissions, getPendingQuestions } from '../api'
 import { replyPermission } from '../api/permission'
 import { autoApproveStore } from '../store/autoApproveStore'
-import type { ApiMessage, ApiPart, ApiPermissionRequest, ApiQuestionRequest, SessionStatusPayload } from '../api/types'
+import type { ApiMessage, ApiPart, ApiPermissionRequest, ApiQuestionRequest } from '../api/types'
 import type { SessionStatusMap } from '../types/api/session'
 
-interface GlobalEventsCallbacks {
+// ============================================
+// Session-level pub/sub 消费者注册
+// ============================================
+//
+// 支持多个消费者（每个 pane 一个）按 sessionId 注册回调。
+// SSE 事件到达后，按 sessionId 找到匹配的消费者分发。
+
+/** 消费者可以注册的回调类型（与 GlobalEventsCallbacks 的子集对应） */
+export interface SessionEventCallbacks {
   onPermissionAsked?: (request: ApiPermissionRequest) => void
   onPermissionReplied?: (data: { sessionID: string; requestID: string }) => void
   onQuestionAsked?: (request: ApiQuestionRequest) => void
   onQuestionReplied?: (data: { sessionID: string; requestID: string }) => void
   onQuestionRejected?: (data: { sessionID: string; requestID: string }) => void
-  onSessionStatus?: (data: SessionStatusPayload) => void
   onScrollRequest?: () => void
   onSessionIdle?: (sessionID: string) => void
   onSessionError?: (sessionID: string) => void
-  /** SSE 重连成功后触发，调用方可刷新当前 session 数据 */
   onReconnected?: (reason: 'network' | 'server-switch') => void
+}
+
+interface SessionConsumer {
+  sessionId: string | null
+  callbacks: SessionEventCallbacks
+}
+
+/** 全局消费者注册表 */
+const sessionConsumers = new Map<string, SessionConsumer>()
+
+/**
+ * 注册一个 session 级事件消费者。
+ * @param consumerId 唯一标识（通常用 paneId）
+ * @param sessionId 关心的 sessionId（null = 不接收事件）
+ * @param callbacks 回调函数集
+ * @returns 注销函数
+ */
+export function registerSessionConsumer(
+  consumerId: string,
+  sessionId: string | null,
+  callbacks: SessionEventCallbacks,
+): () => void {
+  sessionConsumers.set(consumerId, { sessionId, callbacks })
+  return () => {
+    sessionConsumers.delete(consumerId)
+  }
+}
+
+/** 更新已注册消费者的 sessionId（pane 切换 session 时，无需重新注册） */
+export function updateConsumerSessionId(consumerId: string, sessionId: string | null) {
+  const c = sessionConsumers.get(consumerId)
+  if (c) c.sessionId = sessionId
+}
+
+/** 按 sessionId 找到所有匹配的消费者回调（包括子 session 冒泡） */
+function dispatchToConsumers(sessionId: string, invoke: (cb: SessionEventCallbacks) => void): boolean {
+  let dispatched = false
+  for (const consumer of sessionConsumers.values()) {
+    if (!consumer.sessionId) continue
+    if (consumer.sessionId === sessionId || childSessionStore.belongsToSession(sessionId, consumer.sessionId)) {
+      invoke(consumer.callbacks)
+      dispatched = true
+    }
+  }
+  return dispatched
+}
+
+/** 检查是否有任何消费者关心此 sessionId */
+function hasConsumerForSession(sessionId: string): boolean {
+  for (const consumer of sessionConsumers.values()) {
+    if (!consumer.sessionId) continue
+    if (consumer.sessionId === sessionId) return true
+    if (childSessionStore.belongsToSession(sessionId, consumer.sessionId)) return true
+  }
+  return false
+}
+
+/** 检查是否有“其他”消费者仍在使用该 sessionId（排除当前 pane 自己） */
+export function hasOtherConsumerForSession(sessionId: string, consumerId: string): boolean {
+  for (const [id, consumer] of sessionConsumers.entries()) {
+    if (id === consumerId) continue
+    if (!consumer.sessionId) continue
+    if (consumer.sessionId === sessionId) return true
+    if (childSessionStore.belongsToSession(sessionId, consumer.sessionId)) return true
+  }
+  return false
 }
 
 // ============================================
@@ -126,29 +198,30 @@ async function fetchActiveScopeData(directories?: string[]) {
 }
 
 /**
- * 检查 sessionID 是否属于当前 session 或其子 session
+ * 检查 sessionID 是否属于当前活跃的 session family。
+ * 依次检查：
+ *   1. focused pane 的 session family
+ *   2. pub/sub 消费者注册表（其他 pane）
  */
 function belongsToCurrentSession(sessionId: string): boolean {
-  const currentSessionId = messageStore.getCurrentSessionId()
-  if (!currentSessionId) return false
+  const focusedSessionId = paneLayoutStore.getFocusedSessionId()
 
-  // 是当前 session
-  if (sessionId === currentSessionId) return true
+  // 检查当前 focused pane 的 session family
+  if (focusedSessionId) {
+    if (sessionId === focusedSessionId) return true
+    if (childSessionStore.belongsToSession(sessionId, focusedSessionId)) return true
+  }
 
-  // 是当前 session 的子 session
-  return childSessionStore.belongsToSession(sessionId, currentSessionId)
+  // 检查 pub/sub 消费者注册表（多 pane 模式下各 pane 注册的 session）
+  if (hasConsumerForSession(sessionId)) return true
+
+  return false
 }
 
-export function useGlobalEvents(callbacks?: GlobalEventsCallbacks, directories?: string[]) {
-  // 使用 ref 保存 callbacks，避免重新订阅 SSE
-  const callbacksRef = useRef(callbacks)
+export function useGlobalEvents(directories?: string[]) {
   const directoriesRef = useRef<string[] | undefined>(directories)
   const refreshRef = useRef<(() => void) | null>(null)
   const initializedDirectoriesRef = useRef(false)
-
-  useEffect(() => {
-    callbacksRef.current = callbacks
-  }, [callbacks])
 
   useEffect(() => {
     // 节流滚动
@@ -162,11 +235,11 @@ export function useGlobalEvents(callbacks?: GlobalEventsCallbacks, directories?:
       requestAnimationFrame(() => {
         scrollPending = false
 
-        const shouldScroll = Array.from(pendingScrollSessionIds).some(id => belongsToCurrentSession(id))
+        // 分发到 pub/sub 消费者
+        for (const sid of pendingScrollSessionIds) {
+          dispatchToConsumers(sid, cb => cb.onScrollRequest?.())
+        }
         pendingScrollSessionIds.clear()
-        if (!shouldScroll) return
-
-        callbacksRef.current?.onScrollRequest?.()
       })
     }
 
@@ -221,10 +294,10 @@ export function useGlobalEvents(callbacks?: GlobalEventsCallbacks, directories?:
           // 处理因时序问题缓存的权限请求（可能有多个）
           if (belongsToCurrentSession(session.id)) {
             for (const req of drainPending(pendingPermissions, session.id)) {
-              callbacksRef.current?.onPermissionAsked?.(req)
+              dispatchToConsumers(req.sessionID, cb => cb.onPermissionAsked?.(req))
             }
             for (const req of drainPending(pendingQuestions, session.id)) {
-              callbacksRef.current?.onQuestionAsked?.(req)
+              dispatchToConsumers(req.sessionID, cb => cb.onQuestionAsked?.(req))
             }
           }
         }
@@ -240,7 +313,7 @@ export function useGlobalEvents(callbacks?: GlobalEventsCallbacks, directories?:
       onSessionIdle: data => {
         messageStore.handleSessionIdle(data.sessionID)
         childSessionStore.markIdle(data.sessionID)
-        callbacksRef.current?.onSessionIdle?.(data.sessionID)
+        dispatchToConsumers(data.sessionID, cb => cb.onSessionIdle?.(data.sessionID))
       },
 
       onSessionError: error => {
@@ -262,7 +335,7 @@ export function useGlobalEvents(callbacks?: GlobalEventsCallbacks, directories?:
             playNotificationSoundDeduped('error')
           }
         }
-        callbacksRef.current?.onSessionError?.(error.sessionID)
+        dispatchToConsumers(error.sessionID, cb => cb.onSessionError?.(error.sessionID))
       },
 
       onSessionUpdated: session => {
@@ -309,9 +382,8 @@ export function useGlobalEvents(callbacks?: GlobalEventsCallbacks, directories?:
           playNotificationSoundDeduped('permission')
         }
 
-        // 回调给 UI 处理权限弹框
         if (belongsToCurrentSession(request.sessionID)) {
-          callbacksRef.current?.onPermissionAsked?.(request)
+          dispatchToConsumers(request.sessionID, cb => cb.onPermissionAsked?.(request))
         } else {
           addPending(pendingPermissions, request.sessionID, request)
         }
@@ -322,7 +394,7 @@ export function useGlobalEvents(callbacks?: GlobalEventsCallbacks, directories?:
         activeSessionStore.resolvePendingRequest(data.requestID)
 
         if (belongsToCurrentSession(data.sessionID)) {
-          callbacksRef.current?.onPermissionReplied?.(data)
+          dispatchToConsumers(data.sessionID, cb => cb.onPermissionReplied?.(data))
         }
       },
 
@@ -346,7 +418,7 @@ export function useGlobalEvents(callbacks?: GlobalEventsCallbacks, directories?:
         }
 
         if (belongsToCurrentSession(request.sessionID)) {
-          callbacksRef.current?.onQuestionAsked?.(request)
+          dispatchToConsumers(request.sessionID, cb => cb.onQuestionAsked?.(request))
         } else {
           addPending(pendingQuestions, request.sessionID, request)
         }
@@ -357,7 +429,7 @@ export function useGlobalEvents(callbacks?: GlobalEventsCallbacks, directories?:
         activeSessionStore.resolvePendingRequest(data.requestID)
 
         if (belongsToCurrentSession(data.sessionID)) {
-          callbacksRef.current?.onQuestionReplied?.(data)
+          dispatchToConsumers(data.sessionID, cb => cb.onQuestionReplied?.(data))
         }
       },
 
@@ -366,7 +438,7 @@ export function useGlobalEvents(callbacks?: GlobalEventsCallbacks, directories?:
         activeSessionStore.resolvePendingRequest(data.requestID)
 
         if (belongsToCurrentSession(data.sessionID)) {
-          callbacksRef.current?.onQuestionRejected?.(data)
+          dispatchToConsumers(data.sessionID, cb => cb.onQuestionRejected?.(data))
         }
       },
 
@@ -393,10 +465,6 @@ export function useGlobalEvents(callbacks?: GlobalEventsCallbacks, directories?:
         ) {
           playNotificationSoundDeduped('completed')
         }
-
-        if (belongsToCurrentSession(data.sessionID)) {
-          callbacksRef.current?.onSessionStatus?.(data)
-        }
       },
 
       // ============================================
@@ -409,7 +477,10 @@ export function useGlobalEvents(callbacks?: GlobalEventsCallbacks, directories?:
         }
         // 重连后重新拉取全量状态 + pending requests
         fetchAndInitialize()
-        callbacksRef.current?.onReconnected?.(reason)
+        // 通知所有 pub/sub 消费者
+        for (const consumer of sessionConsumers.values()) {
+          consumer.callbacks.onReconnected?.(reason)
+        }
       },
     })
 
@@ -421,7 +492,7 @@ export function useGlobalEvents(callbacks?: GlobalEventsCallbacks, directories?:
       }
       unsubscribe()
     }
-  }, []) // 空依赖，只订阅一次
+  }, [])
 
   useEffect(() => {
     directoriesRef.current = directories

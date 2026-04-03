@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { QuestionIcon, CheckIcon, ReturnIcon, ChevronDownIcon } from '../../components/Icons'
 import type { ApiQuestionRequest, ApiQuestionInfo, QuestionAnswer } from '../../api'
 import { usePresence } from '../../hooks'
+import { useChatViewport } from './chatViewport'
 
 interface QuestionDialogProps {
   request: ApiQuestionRequest
@@ -24,6 +25,8 @@ export function QuestionDialog({
   onCollapsedChange,
 }: QuestionDialogProps) {
   const { t } = useTranslation(['chat', 'common'])
+  const { presentation } = useChatViewport()
+  const isCompact = presentation.isCompact
   // 每个问题选中的选项 labels
   const [answers, setAnswers] = useState<Map<number, Set<string>>>(() => {
     const map = new Map<number, Set<string>>()
@@ -158,8 +161,12 @@ export function QuestionDialog({
   return (
     <div ref={animRef} className="absolute bottom-0 left-0 right-0 z-[10]">
       <div
-        className="mx-auto max-w-3xl px-4 pb-2"
-        style={{ paddingBottom: 'max(8px, var(--safe-area-inset-bottom, 8px))' }}
+        className="mx-auto max-w-3xl pointer-events-auto transition-[max-width] duration-300 ease-in-out pb-2"
+        style={{
+          paddingLeft: isCompact ? 6 : 14,
+          paddingRight: isCompact ? 6 : 14,
+          paddingBottom: 'max(8px, var(--safe-area-inset-bottom, 8px))',
+        }}
       >
         <div className="border border-border-300/40 rounded-[14px] shadow-float bg-bg-100 overflow-hidden">
           <div className="bg-bg-000 rounded-t-[14px]">

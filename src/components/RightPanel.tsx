@@ -2,13 +2,11 @@ import { lazy, memo, Suspense, useCallback, useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLayoutStore, layoutStore, type PanelTab } from '../store/layoutStore'
 import { PanelContainer } from './PanelContainer'
-import { useMessageStore } from '../store'
-import { useDirectory } from '../hooks'
 import { createPtySession, removePtySession } from '../api/pty'
 import type { TerminalTab } from '../store/layoutStore'
 import { ResizablePanel } from './ui/ResizablePanel'
 import { logger } from '../utils/logger'
-import { uiErrorHandler } from '../utils'
+import { normalizeToForwardSlash, uiErrorHandler } from '../utils'
 import { useChatViewport } from '../features/chat/chatViewport'
 
 const SessionChangesPanel = lazy(() =>
@@ -28,12 +26,16 @@ function PanelFallback() {
   )
 }
 
-export const RightPanel = memo(function RightPanel() {
+interface RightPanelProps {
+  directory?: string
+  sessionId?: string | null
+}
+
+export const RightPanel = memo(function RightPanel({ directory, sessionId }: RightPanelProps) {
   const { t } = useTranslation(['components', 'common'])
   const { rightPanelOpen, rightPanelWidth } = useLayoutStore()
-  const { sessionId } = useMessageStore()
-  const { currentDirectory } = useDirectory()
   const { interaction, layout } = useChatViewport()
+  const normalizedDirectory = directory ? normalizeToForwardSlash(directory) : undefined
 
   // 追踪面板 resize 状态
   const [isPanelResizing, setIsPanelResizing] = useState(false)
@@ -52,19 +54,19 @@ export const RightPanel = memo(function RightPanel() {
   const handleCloseTerminal = useCallback(
     async (ptyId: string) => {
       try {
-        await removePtySession(ptyId, currentDirectory)
+        await removePtySession(ptyId, normalizedDirectory)
       } catch {
         // ignore cleanup errors
       }
     },
-    [currentDirectory],
+    [normalizedDirectory],
   )
 
   // 创建新终端
   const handleNewTerminal = useCallback(async () => {
     try {
-      logger.log('[RightPanel] Creating PTY session, directory:', currentDirectory)
-      const pty = await createPtySession({ cwd: currentDirectory }, currentDirectory)
+      logger.log('[RightPanel] Creating PTY session, directory:', normalizedDirectory)
+      const pty = await createPtySession({ cwd: normalizedDirectory }, normalizedDirectory)
       logger.log('[RightPanel] PTY created:', pty)
       const tab: TerminalTab = {
         id: pty.id,
@@ -75,7 +77,7 @@ export const RightPanel = memo(function RightPanel() {
     } catch (error) {
       uiErrorHandler('create terminal', error)
     }
-  }, [currentDirectory])
+  }, [normalizedDirectory])
 
   // 渲染内容
   const renderContent = useCallback(
@@ -92,7 +94,7 @@ export const RightPanel = memo(function RightPanel() {
             <Suspense fallback={<PanelFallback />}>
               <FilesContent
                 activeTab={activeTab}
-                directory={currentDirectory}
+                directory={normalizedDirectory}
                 isPanelResizing={isPanelResizing}
                 sessionId={sessionId}
               />
@@ -120,7 +122,7 @@ export const RightPanel = memo(function RightPanel() {
         case 'terminal':
           return (
             <Suspense fallback={<PanelFallback />}>
-              <TerminalContent activeTab={activeTab} directory={currentDirectory} />
+              <TerminalContent activeTab={activeTab} directory={normalizedDirectory} />
             </Suspense>
           )
         case 'mcp':
@@ -145,7 +147,7 @@ export const RightPanel = memo(function RightPanel() {
           return null
       }
     },
-    [currentDirectory, sessionId, isPanelResizing, t],
+    [normalizedDirectory, sessionId, isPanelResizing, t],
   )
 
   return (
@@ -156,8 +158,8 @@ export const RightPanel = memo(function RightPanel() {
       size={layout.rightPanel.dockedWidth || rightPanelWidth}
       minSize={layout.rightPanel.hardMinWidth}
       maxSize={layout.rightPanel.resizeMaxWidth}
-      onSizeChange={layoutStore.setRightPanelWidth}
-      onClose={layoutStore.closeRightPanel}
+      onSizeChange={w => layoutStore.setRightPanelWidth(w)}
+      onClose={() => layoutStore.closeRightPanel()}
       className="pb-[var(--safe-area-inset-bottom)]"
     >
       <PanelContainer position="right" onNewTerminal={handleNewTerminal} onCloseTerminal={handleCloseTerminal}>

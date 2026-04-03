@@ -5,6 +5,7 @@ import { DiffView } from '../../components/DiffView'
 import { ContentBlock } from '../../components'
 import { childSessionStore, autoApproveStore } from '../../store'
 import { usePresence } from '../../hooks'
+import { useChatViewport } from './chatViewport'
 
 interface PermissionDialogProps {
   request: ApiPermissionRequest
@@ -28,6 +29,8 @@ export function PermissionDialog({
   onCollapsedChange,
 }: PermissionDialogProps) {
   const { t } = useTranslation(['chat', 'common'])
+  const { presentation } = useChatViewport()
+  const isCompact = presentation.isCompact
   // 从 metadata 中提取 diff 信息
   const metadata = request.metadata
   const diff = metadata?.diff as string | undefined
@@ -62,8 +65,12 @@ export function PermissionDialog({
   return (
     <div ref={animRef} className="absolute bottom-0 left-0 right-0 z-[10]">
       <div
-        className="mx-auto max-w-3xl px-4 pb-2"
-        style={{ paddingBottom: 'max(8px, var(--safe-area-inset-bottom, 8px))' }}
+        className="mx-auto max-w-3xl pointer-events-auto transition-[max-width] duration-300 ease-in-out pb-2"
+        style={{
+          paddingLeft: isCompact ? 6 : 14,
+          paddingRight: isCompact ? 6 : 14,
+          paddingBottom: 'max(8px, var(--safe-area-inset-bottom, 8px))',
+        }}
       >
         <div className="border border-border-300/40 rounded-[14px] shadow-float bg-bg-100 overflow-hidden">
           <div className="bg-bg-000 rounded-t-[14px]">

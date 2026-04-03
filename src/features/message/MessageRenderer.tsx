@@ -572,11 +572,16 @@ const ToolGroup = memo(function ToolGroup({ parts, stepFinish, duration, turnDur
 
   // 沉浸模式下：判断工具组是否包含需要用户阅读的工具
   const hasReadableTools = immersiveMode && parts.some(p => isReadableTool(p.tool))
+  const shouldStartExpanded =
+    !descriptiveToolSteps ||
+    hasActiveTools ||
+    hasPendingInteraction ||
+    (immersiveMode && isStreaming && hasReadableTools)
 
   // descriptive 模式默认收起，运行时展开，完成后保持展开
   // 沉浸模式下：没有可读工具则完成后自动收起
-  const [expanded, setExpanded] = useState(() => (descriptiveToolSteps ? false : true))
-  const hasAutoExpandedReadableRef = useRef(false)
+  const [expanded, setExpanded] = useState(() => shouldStartExpanded)
+  const hasAutoExpandedReadableRef = useRef(shouldStartExpanded && immersiveMode && hasReadableTools)
 
   useEffect(() => {
     if (!descriptiveToolSteps) return

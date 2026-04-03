@@ -40,6 +40,7 @@ export interface CollapsedDialogInfo {
 }
 
 export interface InputBoxProps {
+  paneId: string
   onSend: (
     text: string,
     attachments: Attachment[],
@@ -89,6 +90,7 @@ export interface InputBoxProps {
 // ============================================
 
 function InputBoxComponent({
+  paneId,
   onSend,
   onAbort,
   onCommand,
@@ -1081,7 +1083,12 @@ function InputBoxComponent({
             onPointerDown={handleContainerPointerDown}
             className="h-8 flex items-center justify-center"
           >
-            <InputFooter sessionId={sessionId} onNewChat={onNewChat} inputContainerRef={inputContainerRef} />
+            <InputFooter
+              paneId={paneId}
+              sessionId={sessionId}
+              onNewChat={onNewChat}
+              inputContainerRef={inputContainerRef}
+            />
           </div>
         )}
       </div>

@@ -1,38 +1,35 @@
-import { lazy, Suspense, useRef, useEffect, useState, useCallback, useMemo } from 'react'
-import { Trans, useTranslation } from 'react-i18next'
-import {
-  Header,
-  InputBox,
-  PermissionDialog,
-  QuestionDialog,
-  Sidebar,
-  ChatArea,
-  type ChatAreaHandle,
-} from './features/chat'
-import { type ModelSelectorHandle } from './features/chat/ModelSelector'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import { Sidebar } from './features/chat'
+import { ChatPane } from './features/chat/ChatPane'
+import { SplitContainer } from './features/chat/SplitContainer'
 import type { CommandItem } from './components/CommandPalette'
 import { ToastContainer } from './components/ToastContainer'
 import { RightPanel } from './components/RightPanel'
-import { OutlineIndex } from './components/OutlineIndex'
 import { BottomPanel } from './components/BottomPanel'
-import { useModels, useModelSelection, useChatSession, useGlobalKeybindings } from './hooks'
+import { useDirectory, useGlobalEvents, useGlobalKeybindings, useRouter } from './hooks'
 import { useViewportHeight } from './hooks/useViewportHeight'
-import { useCancelHint } from './hooks/useCancelHint'
 import { useCloseServiceDialog } from './hooks/useCloseServiceDialog'
 import type { KeybindingHandlers } from './hooks/useKeybindings'
 import { keybindingStore } from './store/keybindingStore'
-import { layoutStore, useLayoutStore } from './store/layoutStore'
-import { uiErrorHandler } from './utils'
-import { restoreModelSelection } from './utils/sessionHelpers'
+import {
+  layoutStore,
+  paneLayoutStore,
+  useLayoutStore,
+  usePaneController,
+  usePaneControllers,
+  usePaneLayout,
+} from './store'
+import {
+  ChatViewportProvider,
+  CHAT_SURFACE_MIN_WIDTH,
+  canUseSplitPane,
+  useChatViewportController,
+} from './features/chat/chatViewport'
+import { uiErrorHandler, isSameDirectory } from './utils'
 import { initNotificationSound } from './utils/notificationSoundBridge'
-import { findModelByKey } from './utils/modelUtils'
-import type { Attachment } from './api'
 import { createPtySession } from './api/pty'
-import { autoApproveStore } from './store/autoApproveStore'
 import type { TerminalTab } from './store/layoutStore'
-import { InlineToolRequestContext, type InlineToolRequestContextValue } from './features/chat/InlineToolRequestContext'
-import { ChatViewportProvider, CHAT_SURFACE_MIN_WIDTH, useChatViewportController } from './features/chat/chatViewport'
-import { useTheme } from './hooks/useTheme'
 
 const SettingsDialog = lazy(() =>
   import('./features/settings/SettingsDialog').then(module => ({ default: module.SettingsDialog })),
@@ -46,103 +43,160 @@ const CloseServiceDialog = lazy(() =>
 
 function App() {
   const { t } = useTranslation(['commands', 'chat', 'common', 'components'])
+  const router = useRouter()
+  const {
+    sessionId: routeSessionId,
+    directory: routeDirectory,
+    navigateToSession: navigateRouteToSession,
+    navigateHome: navigateRouteHome,
+    replaceSession,
+  } = router
+  const { currentDirectory, sidebarExpanded, setSidebarExpanded } = useDirectory()
+  const { rightPanelOpen, rightPanelWidth } = useLayoutStore()
+  const { surfaceRef, value: chatViewport } = useChatViewportController({
+    sidebarExpanded,
+    rightPanelOpen,
+    requestedRightPanelWidth: rightPanelWidth,
+  })
+  const splitPaneEnabled = canUseSplitPane(chatViewport)
+  const paneLayout = usePaneLayout()
+  const focusedController = usePaneController(paneLayout.focusedPaneId)
+  const paneControllers = usePaneControllers()
+  const syncingFromRouteRef = useRef(false)
+  const focusedRouteDirectory =
+    paneLayout.focusedSessionId === routeSessionId
+      ? routeDirectory || focusedController?.effectiveDirectory || currentDirectory
+      : focusedController?.effectiveDirectory || currentDirectory
 
-  // ============================================
-  // 初始化通知声音系统
-  // ============================================
   useEffect(() => {
     const cleanup = initNotificationSound()
     return cleanup
   }, [])
 
-  // ============================================
-  // Refs
-  // ============================================
-  const chatAreaRef = useRef<ChatAreaHandle>(null)
-  const modelSelectorRef = useRef<ModelSelectorHandle>(null)
-
-  // ============================================
-  // Full Auto Hint
-  // ============================================
-  const [fullAutoHint, setFullAutoHint] = useState<string | null>(null)
-  const fullAutoHintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  // ============================================
-  // Models
-  // ============================================
-  const { models, isLoading: modelsLoading, refetch: refetchModels } = useModels()
-  const {
-    selectedModelKey,
-    selectedVariant,
-    currentModel,
-    handleModelChange,
-    handleVariantChange,
-    restoreFromMessage,
-  } = useModelSelection({ models })
-
-  // ============================================
-  // Visible Message IDs (for outline index)
-  // 用 ref 存最新值，只在内容真正变化时才 setState，
-  // 避免滚动时 rangeChanged 高频创建新数组引用导致 OutlineIndex 无意义 re-render
-  // ============================================
-  const [visibleMessageIds, setVisibleMessageIds] = useState<string[]>([])
-  const visibleMessageIdsRef = useRef<string[]>([])
-  const setVisibleMessageIdsStable = useCallback((ids: string[]) => {
-    const prev = visibleMessageIdsRef.current
-    // 浅比较：长度不同 或 任何元素不同 才更新
-    if (prev.length === ids.length && prev.every((id, i) => id === ids[i])) return
-    visibleMessageIdsRef.current = ids
-    setVisibleMessageIds(ids)
-  }, [])
-  const [isAtBottom, setIsAtBottom] = useState(true)
-
-  // 稳定引用：OutlineIndex 的 scrollToMessageId 回调
-  const handleOutlineScrollToMessage = useCallback((messageId: string) => {
-    chatAreaRef.current?.scrollToMessageId(messageId)
-  }, [])
-
-  // 稳定引用：可见消息 ID 变化回调（ref 在 useChatSession 之后赋值）
-  const handleVisibleMessageIdsChangeRef = useRef<((ids: string[]) => void) | null>(null)
-
-  // ============================================
-  // Input Box Height (动态测量，用于 ChatArea 底部留白)
-  // ============================================
-  const [inputBoxHeight, setInputBoxHeight] = useState(0)
-  const inputBoxWrapperRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    const el = inputBoxWrapperRef.current
-    if (!el) return
-    const ro = new ResizeObserver(entries => {
-      for (const entry of entries) {
-        setInputBoxHeight(entry.contentRect.height)
-      }
-    })
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [])
-
-  // Full Auto hint: 订阅 toggle 变更，在输入框上方弹提示
-  useEffect(() => {
-    return autoApproveStore.onFullAutoChange(mode => {
-      if (fullAutoHintTimerRef.current) clearTimeout(fullAutoHintTimerRef.current)
-      const label =
-        mode === 'global'
-          ? t('chat:hints.autoApproveAll')
-          : mode === 'session'
-            ? t('chat:hints.autoApproveSession')
-            : t('chat:hints.autoApproveOffHint')
-      setFullAutoHint(label)
-      fullAutoHintTimerRef.current = setTimeout(() => setFullAutoHint(null), 2000)
-    })
-  }, [t])
-
-  // Viewport height tracking (移动端键盘适配)
   useViewportHeight()
 
-  // ============================================
-  // Settings Dialog
-  // ============================================
+  const activeDirectories = useMemo(() => {
+    const directories: string[] = []
+
+    const pushDirectory = (directory?: string) => {
+      if (!directory) return
+      if (directories.some(existing => isSameDirectory(existing, directory))) return
+      directories.push(directory)
+    }
+
+    pushDirectory(routeDirectory)
+    pushDirectory(currentDirectory)
+    paneControllers.forEach(controller => pushDirectory(controller.effectiveDirectory))
+
+    return directories
+  }, [routeDirectory, currentDirectory, paneControllers])
+
+  // 全局唯一 SSE 连接。所有 pane 通过 consumer 机制接收自己的 session 事件。
+  useGlobalEvents(activeDirectories)
+
+  // URL -> focused pane session
+  useEffect(() => {
+    if (paneLayout.focusedSessionId === routeSessionId) return
+    syncingFromRouteRef.current = true
+    paneLayoutStore.setFocusedSession(routeSessionId)
+  }, [routeSessionId])
+
+  // focused pane session -> URL（路由只反映当前 focused pane）
+  useEffect(() => {
+    if (syncingFromRouteRef.current) {
+      syncingFromRouteRef.current = false
+      return
+    }
+    if (paneLayout.focusedSessionId === routeSessionId && isSameDirectory(routeDirectory, focusedRouteDirectory)) return
+    replaceSession(paneLayout.focusedSessionId, focusedRouteDirectory)
+  }, [
+    paneLayout.focusedPaneId,
+    paneLayout.focusedSessionId,
+    routeSessionId,
+    routeDirectory,
+    replaceSession,
+    focusedRouteDirectory,
+  ])
+
+  const navigatePaneToSession = useCallback(
+    (paneId: string, sessionId: string, directory?: string) => {
+      paneLayoutStore.focusPane(paneId)
+      paneLayoutStore.setPaneSession(paneId, sessionId)
+      navigateRouteToSession(sessionId, directory)
+    },
+    [navigateRouteToSession],
+  )
+
+  const navigatePaneHome = useCallback(
+    (paneId: string) => {
+      paneLayoutStore.focusPane(paneId)
+      paneLayoutStore.setPaneSession(paneId, null)
+      navigateRouteHome()
+    },
+    [navigateRouteHome],
+  )
+
+  const handleSelectSession = useCallback(
+    (session: { id: string; directory?: string }) => {
+      const paneId = paneLayout.focusedPaneId ?? paneLayoutStore.getFocusedPaneId()
+      if (!paneId) return
+      navigatePaneToSession(paneId, session.id, session.directory)
+    },
+    [paneLayout.focusedPaneId, navigatePaneToSession],
+  )
+
+  const handleNewSession = useCallback(() => {
+    const paneId = paneLayout.focusedPaneId ?? paneLayoutStore.getFocusedPaneId()
+    if (!paneId) return
+    navigatePaneHome(paneId)
+  }, [paneLayout.focusedPaneId, navigatePaneHome])
+
+  const handleEnterSplitMode = useCallback(() => {
+    paneLayoutStore.enterSplitMode(paneLayout.focusedSessionId)
+  }, [paneLayout.focusedSessionId])
+
+  const handleToggleFocusedPaneFullscreen = useCallback(() => {
+    const paneId = paneLayout.focusedPaneId ?? paneLayoutStore.getFocusedPaneId()
+    if (!paneId) return
+    paneLayoutStore.togglePaneFullscreen(paneId)
+  }, [paneLayout.focusedPaneId])
+
+  const handleOpenSidebar = useCallback(() => setSidebarExpanded(true), [setSidebarExpanded])
+
+  const renderPaneLeaf = useCallback(
+    (paneId: string, paneSessionId: string | null) => (
+      <ChatPane
+        key={paneId}
+        paneId={paneId}
+        sessionId={paneSessionId}
+        isFocused={paneLayout.focusedPaneId === paneId}
+        paneCount={paneLayout.paneCount}
+        displayMode={paneLayout.isSplit && paneLayout.fullscreenPaneId !== paneId ? 'split' : 'single'}
+        isPaneFullscreen={paneLayout.fullscreenPaneId === paneId}
+        onOpenSidebar={handleOpenSidebar}
+        showSidebarButton={chatViewport.interaction.sidebarBehavior === 'overlay'}
+        onSplitPane={splitPaneEnabled && !paneLayout.fullscreenPaneId ? handleEnterSplitMode : undefined}
+        onTogglePaneFullscreen={paneLayout.isSplit ? handleToggleFocusedPaneFullscreen : undefined}
+        navigatePaneToSession={navigatePaneToSession}
+        navigatePaneHome={navigatePaneHome}
+      />
+    ),
+    [
+      paneLayout.focusedPaneId,
+      paneLayout.paneCount,
+      paneLayout.isSplit,
+      paneLayout.fullscreenPaneId,
+      splitPaneEnabled,
+      handleOpenSidebar,
+      handleEnterSplitMode,
+      handleToggleFocusedPaneFullscreen,
+      navigatePaneToSession,
+      navigatePaneHome,
+    ],
+  )
+
+  const focusedDirectory = focusedRouteDirectory || ''
+
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false)
   const [settingsInitialTab, setSettingsInitialTab] = useState<
     'appearance' | 'chat' | 'notifications' | 'service' | 'servers' | 'keybindings'
@@ -153,191 +207,15 @@ function App() {
   }, [])
   const closeSettings = useCallback(() => setSettingsDialogOpen(false), [])
 
-  // ============================================
-  // Project Dialog (triggered externally via keybinding)
-  // ============================================
   const [projectDialogOpen, setProjectDialogOpen] = useState(false)
   const openProject = useCallback(() => setProjectDialogOpen(true), [])
   const closeProjectDialog = useCallback(() => setProjectDialogOpen(false), [])
 
-  // ============================================
-  // Command Palette
-  // ============================================
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
 
-  // ============================================
-  // Chat Session
-  // ============================================
-  const {
-    // State
-    messages,
-    isStreaming,
-    canUndo,
-    canRedo,
-    redoSteps,
-    revertedContent,
-    restoredContent,
-    agents,
-    selectedAgent,
-    setSelectedAgent,
-    routeSessionId,
-    loadState,
-    hasMoreHistory,
-    retryStatus,
-    sidebarExpanded,
-    setSidebarExpanded,
-    effectiveDirectory,
-
-    // Permissions
-    pendingPermissionRequests,
-    pendingQuestionRequests,
-    handlePermissionReply,
-    handleQuestionReply,
-    handleQuestionReject,
-    isReplying,
-
-    // Session management
-    loadMoreHistory,
-    handleRedoAll,
-    clearRevert,
-
-    // Animation
-    registerMessage,
-    registerInputBox,
-
-    // Handlers
-    handleSend,
-    handleAbort,
-    handleCommand,
-    handleUndoWithAnimation,
-    handleRedoWithAnimation,
-    handleForkMessage,
-    handleSelectSession,
-    handleNewSession,
-    handleVisibleMessageIdsChange,
-    handleArchiveSession,
-    handlePreviousSession,
-    handleNextSession,
-    handleCopyLastResponse,
-    restoreAgentFromMessage,
-  } = useChatSession({ chatAreaRef, currentModel, refetchModels })
-
-  const { rightPanelOpen, rightPanelWidth } = useLayoutStore()
-  const { surfaceRef, value: chatViewport } = useChatViewportController({
-    sidebarExpanded,
-    rightPanelOpen,
-    requestedRightPanelWidth: rightPanelWidth,
-  })
-
-  // ============================================
-  // Cancel Hint (double-Esc to abort)
-  // ============================================
-  const { showCancelHint, handleCancelMessage } = useCancelHint(isStreaming, handleAbort)
-
-  // 赋值 ref（需在 useChatSession 之后，因为 handleVisibleMessageIdsChange 来自该 hook）
-  useEffect(() => {
-    handleVisibleMessageIdsChangeRef.current = handleVisibleMessageIdsChange
-  }, [handleVisibleMessageIdsChange])
-  const handleVisibleIdsChange = useCallback(
-    (ids: string[]) => {
-      handleVisibleMessageIdsChangeRef.current?.(ids)
-      setVisibleMessageIdsStable(ids)
-    },
-    [setVisibleMessageIdsStable],
-  )
-
-  // ============================================
-  // Agent Change with Model Sync
-  // ============================================
-  // 切换 agent 时，如果 agent 绑定了模型，同步切换左上角模型选择
-  const syncModelForAgent = useCallback(
-    (agentName: string) => {
-      const agent = agents.find(a => a.name === agentName)
-      if (agent?.model) {
-        const modelKey = `${agent.model.providerID}:${agent.model.modelID}`
-        const model = findModelByKey(models, modelKey)
-        if (model) {
-          handleModelChange(modelKey, model)
-        }
-      }
-    },
-    [agents, models, handleModelChange],
-  )
-
-  const handleAgentChange = useCallback(
-    (agentName: string) => {
-      setSelectedAgent(agentName)
-      syncModelForAgent(agentName)
-    },
-    [setSelectedAgent, syncModelForAgent],
-  )
-
-  // 包装 handleToggleAgent，切换后同步模型
-  const handleToggleAgentWithSync = useCallback(() => {
-    const primaryAgents = agents.filter(a => a.mode !== 'subagent' && !a.hidden)
-    if (primaryAgents.length <= 1) return
-    const currentIndex = primaryAgents.findIndex(a => a.name === selectedAgent)
-    const nextIndex = (currentIndex + 1) % primaryAgents.length
-    const nextAgentName = primaryAgents[nextIndex].name
-    handleAgentChange(nextAgentName)
-  }, [agents, selectedAgent, handleAgentChange])
-
-  // ============================================
-  // Model Restoration Effect
-  // ============================================
-  const inputRestoreContent = revertedContent ?? restoredContent
-
-  useEffect(() => {
-    // 1. 优先从 revertedContent 恢复（Undo/Redo 场景）
-    if (inputRestoreContent?.model) {
-      const modelSelection = restoreModelSelection(
-        inputRestoreContent.model,
-        inputRestoreContent.variant ?? null,
-        models,
-      )
-      if (modelSelection) {
-        restoreFromMessage(inputRestoreContent.model, inputRestoreContent.variant)
-        return
-      }
-    }
-
-    // 2. 其次从历史消息恢复
-    if (messages.length === 0) return
-
-    const lastUserMsg = [...messages].reverse().find(m => m.info.role === 'user')
-    if (lastUserMsg && 'model' in lastUserMsg.info) {
-      const userInfo = lastUserMsg.info as { model?: { providerID: string; modelID: string }; variant?: string }
-      restoreFromMessage(userInfo.model, userInfo.variant)
-    }
-  }, [inputRestoreContent, messages, models, restoreFromMessage])
-
-  // ============================================
-  // Agent Restoration Effect
-  // ============================================
-  useEffect(() => {
-    // 1. 优先从 revertedContent 恢复（Undo/Redo 场景）
-    if (inputRestoreContent?.agent) {
-      restoreAgentFromMessage(inputRestoreContent.agent)
-      return
-    }
-
-    // 2. 从历史消息恢复（切换 session 时）
-    if (messages.length === 0) return
-
-    const lastUserMsg = [...messages].reverse().find(m => m.info.role === 'user')
-    if (lastUserMsg && 'agent' in lastUserMsg.info) {
-      restoreAgentFromMessage((lastUserMsg.info as { agent?: string }).agent)
-    }
-  }, [inputRestoreContent, messages, restoreAgentFromMessage])
-
-  // ============================================
-  // Global Keybindings
-  // ============================================
-
-  // Create new terminal handler
   const handleNewTerminal = useCallback(async () => {
     try {
-      const pty = await createPtySession({ cwd: effectiveDirectory }, effectiveDirectory)
+      const pty = await createPtySession({ cwd: focusedDirectory }, focusedDirectory)
       const tab: TerminalTab = {
         id: pty.id,
         title: pty.title || t('components:terminal.terminal'),
@@ -347,11 +225,10 @@ function App() {
     } catch (error) {
       uiErrorHandler('create terminal', error)
     }
-  }, [effectiveDirectory, t])
+  }, [focusedDirectory, t])
 
   const keybindingHandlers = useMemo<KeybindingHandlers>(
     () => ({
-      // General
       openSettings,
       openProject,
       commandPalette: () => setCommandPaletteOpen(true),
@@ -361,62 +238,28 @@ function App() {
         const input = document.querySelector<HTMLTextAreaElement>('[data-input-box] textarea')
         input?.focus()
       },
-
-      // Session
-      newSession: handleNewSession,
-      archiveSession: handleArchiveSession,
-      previousSession: handlePreviousSession,
-      nextSession: handleNextSession,
-
-      // Terminal
+      newSession: () => focusedController?.newSession(),
+      archiveSession: () => focusedController?.archiveSession(),
+      previousSession: () => focusedController?.previousSession(),
+      nextSession: () => focusedController?.nextSession(),
       toggleTerminal: () => layoutStore.toggleBottomPanel(),
       newTerminal: handleNewTerminal,
-
-      // Model
-      selectModel: () => modelSelectorRef.current?.openMenu(),
-      toggleAgent: handleToggleAgentWithSync,
-
-      // Message
-      cancelMessage: handleCancelMessage,
-      copyLastResponse: handleCopyLastResponse,
-      toggleFullAuto: () => {
-        const mode = autoApproveStore.fullAutoMode
-        if (mode === 'off') {
-          autoApproveStore.setFullAutoMode('session')
-        } else if (mode === 'session') {
-          autoApproveStore.setFullAutoMode('global')
-        } else {
-          autoApproveStore.setFullAutoMode('off')
-        }
-      },
+      selectModel: () => focusedController?.openModelSelector(),
+      toggleAgent: () => focusedController?.toggleAgent(),
+      cancelMessage: () => focusedController?.cancelMessage(),
+      copyLastResponse: () => focusedController?.copyLastResponse(),
+      toggleFullAuto: () => focusedController?.toggleFullAuto(),
     }),
-    [
-      openSettings,
-      openProject,
-      sidebarExpanded,
-      setSidebarExpanded,
-      handleNewSession,
-      handleArchiveSession,
-      handlePreviousSession,
-      handleNextSession,
-      handleNewTerminal,
-      handleToggleAgentWithSync,
-      handleCancelMessage,
-      handleCopyLastResponse,
-    ],
+    [openSettings, openProject, sidebarExpanded, setSidebarExpanded, focusedController, handleNewTerminal],
   )
 
   useGlobalKeybindings(keybindingHandlers)
 
-  // ============================================
-  // Command Palette - Commands List
-  // ============================================
   const commands = useMemo<CommandItem[]>(() => {
     const getShortcut = (action: string) =>
       keybindingStore.getKey(action as import('./store/keybindingStore').KeybindingAction)
 
     return [
-      // General
       {
         id: 'openSettings',
         label: t('commands:openSettings'),
@@ -470,15 +313,13 @@ function App() {
           input?.focus()
         },
       },
-
-      // Session
       {
         id: 'newSession',
         label: t('commands:newSession'),
         description: t('commands:newSessionDesc'),
         category: t('commands:categories.session'),
         shortcut: getShortcut('newSession'),
-        action: handleNewSession,
+        action: () => focusedController?.newSession(),
       },
       {
         id: 'archiveSession',
@@ -486,7 +327,7 @@ function App() {
         description: t('commands:archiveSessionDesc'),
         category: t('commands:categories.session'),
         shortcut: getShortcut('archiveSession'),
-        action: handleArchiveSession,
+        action: () => focusedController?.archiveSession(),
       },
       {
         id: 'previousSession',
@@ -494,7 +335,7 @@ function App() {
         description: t('commands:previousSessionDesc'),
         category: t('commands:categories.session'),
         shortcut: getShortcut('previousSession'),
-        action: handlePreviousSession,
+        action: () => focusedController?.previousSession(),
       },
       {
         id: 'nextSession',
@@ -502,10 +343,8 @@ function App() {
         description: t('commands:nextSessionDesc'),
         category: t('commands:categories.session'),
         shortcut: getShortcut('nextSession'),
-        action: handleNextSession,
+        action: () => focusedController?.nextSession(),
       },
-
-      // Terminal
       {
         id: 'toggleTerminal',
         label: t('commands:toggleTerminal'),
@@ -522,15 +361,13 @@ function App() {
         shortcut: getShortcut('newTerminal'),
         action: handleNewTerminal,
       },
-
-      // Model
       {
         id: 'selectModel',
         label: t('commands:selectModel'),
         description: t('commands:selectModelDesc'),
         category: t('commands:categories.model'),
         shortcut: getShortcut('selectModel'),
-        action: () => modelSelectorRef.current?.openMenu(),
+        action: () => focusedController?.openModelSelector(),
       },
       {
         id: 'toggleAgent',
@@ -538,17 +375,15 @@ function App() {
         description: t('commands:toggleAgentDesc'),
         category: t('commands:categories.model'),
         shortcut: getShortcut('toggleAgent'),
-        action: handleToggleAgentWithSync,
+        action: () => focusedController?.toggleAgent(),
       },
-
-      // Message
       {
         id: 'copyLastResponse',
         label: t('commands:copyLastResponse'),
         description: t('commands:copyLastResponseDesc'),
         category: t('commands:categories.message'),
         shortcut: getShortcut('copyLastResponse'),
-        action: handleCopyLastResponse,
+        action: () => focusedController?.copyLastResponse(),
       },
       {
         id: 'cancelMessage',
@@ -556,83 +391,13 @@ function App() {
         description: t('commands:cancelMessageDesc'),
         category: t('commands:categories.message'),
         shortcut: getShortcut('cancelMessage'),
-        action: () => {
-          if (isStreaming) handleAbort()
-        },
-        when: () => isStreaming,
+        action: () => focusedController?.cancelMessage(),
+        when: () => !!focusedController?.isStreaming,
       },
     ]
-  }, [
-    t,
-    openSettings,
-    openProject,
-    sidebarExpanded,
-    setSidebarExpanded,
-    handleNewSession,
-    handleArchiveSession,
-    handlePreviousSession,
-    handleNextSession,
-    handleNewTerminal,
-    handleToggleAgentWithSync,
-    handleCopyLastResponse,
-    isStreaming,
-    handleAbort,
-  ])
+  }, [t, openSettings, openProject, sidebarExpanded, setSidebarExpanded, focusedController, handleNewTerminal])
 
-  // ============================================
-  // Render
-  // ============================================
-
-  // ============================================
-  // Close Service Dialog (Tauri desktop only)
-  // ============================================
   const { showCloseDialog, handleCloseDialogConfirm, handleCloseDialogCancel } = useCloseServiceDialog()
-
-  // ============================================
-  // Dialog Collapsed State
-  // ============================================
-  const [permissionCollapsed, setPermissionCollapsed] = useState(false)
-  const [questionCollapsed, setQuestionCollapsed] = useState(false)
-
-  const permissionRequestId = pendingPermissionRequests[0]?.id
-  const questionRequestId = pendingQuestionRequests[0]?.id
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- 新请求到来时自动展开对应弹窗
-    if (permissionRequestId) setPermissionCollapsed(false)
-  }, [permissionRequestId])
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- 新请求到来时自动展开对应弹窗
-    if (questionRequestId) setQuestionCollapsed(false)
-  }, [questionRequestId])
-
-  const { inlineToolRequests } = useTheme()
-
-  const inlineToolRequestCtx = useMemo<InlineToolRequestContextValue>(
-    () => ({
-      pendingPermissions: pendingPermissionRequests,
-      pendingQuestions: pendingQuestionRequests,
-      onPermissionReply: (requestId, reply) => handlePermissionReply(requestId, reply, effectiveDirectory),
-      onQuestionReply: (requestId, answers) => handleQuestionReply(requestId, answers, effectiveDirectory),
-      onQuestionReject: requestId => handleQuestionReject(requestId, effectiveDirectory),
-      isReplying,
-    }),
-    [
-      pendingPermissionRequests,
-      pendingQuestionRequests,
-      handlePermissionReply,
-      handleQuestionReply,
-      handleQuestionReject,
-      isReplying,
-      effectiveDirectory,
-    ],
-  )
-
-  const revertedMessage = inputRestoreContent
-    ? {
-        text: inputRestoreContent.text,
-        attachments: inputRestoreContent.attachments as Attachment[],
-      }
-    : undefined
 
   return (
     <div
@@ -640,23 +405,20 @@ function App() {
       style={{ paddingTop: 'var(--safe-area-inset-top)' }}
     >
       <ChatViewportProvider value={chatViewport}>
-        {/* Sidebar */}
         <Sidebar
           isOpen={sidebarExpanded}
-          selectedSessionId={routeSessionId}
+          selectedSessionId={paneLayout.focusedSessionId}
           onSelectSession={handleSelectSession}
           onNewSession={handleNewSession}
-          onOpen={() => setSidebarExpanded(true)}
+          onOpen={handleOpenSidebar}
           onClose={() => setSidebarExpanded(false)}
-          contextLimit={currentModel?.contextLimit}
+          contextLimit={focusedController?.contextLimit}
           onOpenSettings={openSettings}
           projectDialogOpen={projectDialogOpen}
           onProjectDialogClose={closeProjectDialog}
         />
 
-        {/* Main Content Area: Chat Column + Right Panel */}
         <div className="flex-1 flex min-w-0 h-full overflow-hidden">
-          {/* Left Column: Chat + Bottom Panel */}
           <div
             ref={surfaceRef}
             className="flex-1 flex flex-col min-w-0 overflow-hidden"
@@ -665,179 +427,24 @@ function App() {
                 chatViewport.interaction.sidebarBehavior === 'overlay' ? undefined : `${CHAT_SURFACE_MIN_WIDTH}px`,
             }}
           >
-            {/* Chat Area */}
-            <div className="flex-1 relative overflow-hidden flex flex-col min-h-0">
-              {/* Header Overlay */}
-              <div className="absolute top-0 left-0 right-0 z-20 pointer-events-none">
-                <div className="pointer-events-auto">
-                  <Header
-                    models={models}
-                    modelsLoading={modelsLoading}
-                    selectedModelKey={selectedModelKey}
-                    onModelChange={handleModelChange}
-                    onOpenSidebar={() => setSidebarExpanded(true)}
-                    modelSelectorRef={modelSelectorRef}
-                  />
-                </div>
-              </div>
-
-              {/* Scrollable Area */}
-              <div className="absolute inset-0">
-                <InlineToolRequestContext.Provider value={inlineToolRequestCtx}>
-                  <ChatArea
-                    ref={chatAreaRef}
-                    messages={messages}
-                    sessionId={routeSessionId}
-                    isStreaming={isStreaming}
-                    allowStreamingLayoutAnimation={isAtBottom}
-                    loadState={loadState}
-                    hasMoreHistory={hasMoreHistory}
-                    onLoadMore={loadMoreHistory}
-                    onUndo={handleUndoWithAnimation}
-                    onFork={handleForkMessage}
-                    canUndo={canUndo}
-                    registerMessage={registerMessage}
-                    retryStatus={retryStatus}
-                    bottomPadding={inputBoxHeight}
-                    onVisibleMessageIdsChange={handleVisibleIdsChange}
-                    onAtBottomChange={setIsAtBottom}
-                  />
-                </InlineToolRequestContext.Provider>
-              </div>
-
-              {/* Outline Index - 消息目录索引 */}
-              <OutlineIndex
-                messages={messages}
-                visibleMessageIds={visibleMessageIds}
-                onScrollToMessageId={handleOutlineScrollToMessage}
+            <div
+              className={paneLayout.isSplit && !paneLayout.fullscreenPaneId ? 'flex-1 min-h-0 p-2' : 'flex-1 min-h-0'}
+            >
+              <SplitContainer
+                node={paneLayout.root}
+                renderLeaf={renderPaneLeaf}
+                fullscreenPaneId={paneLayout.fullscreenPaneId}
               />
-
-              {/* Floating Input Box */}
-              <div ref={inputBoxWrapperRef} className="absolute bottom-0 left-0 right-0 z-10 pointer-events-none">
-                {/* Hints — absolute 浮层，不占文档流，不推消息 */}
-                {(showCancelHint || (fullAutoHint && !showCancelHint)) && (
-                  <div className="absolute bottom-full inset-x-0 flex justify-center pb-2 pointer-events-none z-20">
-                    <div className="px-3 py-1.5 glass border border-border-200/60 rounded-lg shadow-lg text-xs text-text-300 animate-in fade-in slide-in-from-bottom-2 duration-150">
-                      {showCancelHint ? (
-                        <Trans
-                          i18nKey="chat:hints.pressEscAgain"
-                          components={{
-                            1: (
-                              <kbd className="mx-0.5 px-1.5 py-0.5 bg-bg-200 border border-border-200 rounded text-[11px] font-mono font-medium text-text-200" />
-                            ),
-                          }}
-                        />
-                      ) : (
-                        fullAutoHint
-                      )}
-                    </div>
-                  </div>
-                )}
-                <InputBox
-                  onSend={handleSend}
-                  onAbort={handleAbort}
-                  onCommand={handleCommand}
-                  onNewChat={handleNewSession}
-                  disabled={false}
-                  isStreaming={isStreaming}
-                  agents={agents}
-                  selectedAgent={selectedAgent}
-                  onAgentChange={handleAgentChange}
-                  variants={currentModel?.variants ?? []}
-                  selectedVariant={selectedVariant}
-                  onVariantChange={handleVariantChange}
-                  fileCapabilities={
-                    currentModel
-                      ? {
-                          image: currentModel.supportsImages,
-                          pdf: currentModel.supportsPdf,
-                          audio: currentModel.supportsAudio,
-                          video: currentModel.supportsVideo,
-                        }
-                      : undefined
-                  }
-                  models={models}
-                  selectedModelKey={selectedModelKey}
-                  onModelChange={handleModelChange}
-                  modelsLoading={modelsLoading}
-                  modelSelectorRef={modelSelectorRef}
-                  rootPath={effectiveDirectory}
-                  sessionId={routeSessionId}
-                  revertedText={revertedMessage?.text}
-                  revertedAttachments={revertedMessage?.attachments}
-                  canRedo={canRedo}
-                  revertSteps={redoSteps}
-                  onRedo={handleRedoWithAnimation}
-                  onRedoAll={handleRedoAll}
-                  onClearRevert={clearRevert}
-                  registerInputBox={registerInputBox}
-                  isAtBottom={isAtBottom}
-                  showScrollToBottom={!isAtBottom}
-                  onScrollToBottom={() => chatAreaRef.current?.scrollToBottom()}
-                  collapsedPermission={
-                    !inlineToolRequests && pendingPermissionRequests.length > 0 && permissionCollapsed
-                      ? {
-                          label: t('chat:permissionDialog.permission', {
-                            permission: pendingPermissionRequests[0].permission,
-                          }),
-                          queueLength: pendingPermissionRequests.length,
-                          onExpand: () => setPermissionCollapsed(false),
-                        }
-                      : undefined
-                  }
-                  collapsedQuestion={
-                    !inlineToolRequests &&
-                    pendingPermissionRequests.length === 0 &&
-                    pendingQuestionRequests.length > 0 &&
-                    questionCollapsed
-                      ? {
-                          label: t('chat:questionDialog.title'),
-                          queueLength: pendingQuestionRequests.length,
-                          onExpand: () => setQuestionCollapsed(false),
-                        }
-                      : undefined
-                  }
-                />
-              </div>
-
-              {!inlineToolRequests && pendingPermissionRequests.length > 0 && (
-                <PermissionDialog
-                  request={pendingPermissionRequests[0]}
-                  onReply={reply => handlePermissionReply(pendingPermissionRequests[0].id, reply, effectiveDirectory)}
-                  queueLength={pendingPermissionRequests.length}
-                  isReplying={isReplying}
-                  currentSessionId={routeSessionId}
-                  collapsed={permissionCollapsed}
-                  onCollapsedChange={setPermissionCollapsed}
-                />
-              )}
-
-              {!inlineToolRequests && pendingPermissionRequests.length === 0 && pendingQuestionRequests.length > 0 && (
-                <QuestionDialog
-                  request={pendingQuestionRequests[0]}
-                  onReply={answers => handleQuestionReply(pendingQuestionRequests[0].id, answers, effectiveDirectory)}
-                  onReject={() => handleQuestionReject(pendingQuestionRequests[0].id, effectiveDirectory)}
-                  queueLength={pendingQuestionRequests.length}
-                  isReplying={isReplying}
-                  collapsed={questionCollapsed}
-                  onCollapsedChange={setQuestionCollapsed}
-                />
-              )}
             </div>
 
-            {/* Bottom Panel */}
-            <BottomPanel directory={effectiveDirectory} />
+            <BottomPanel directory={focusedDirectory} />
           </div>
 
-          {/* Right Panel - 占满整个高度 */}
-          <RightPanel />
+          <RightPanel directory={focusedDirectory} sessionId={paneLayout.focusedSessionId} />
         </div>
 
         <Suspense fallback={null}>
-          {/* Settings Dialog */}
           <SettingsDialog isOpen={settingsDialogOpen} onClose={closeSettings} initialTab={settingsInitialTab} />
-
-          {/* Command Palette */}
           <CommandPalette
             isOpen={commandPaletteOpen}
             onClose={() => setCommandPaletteOpen(false)}
@@ -845,11 +452,9 @@ function App() {
           />
         </Suspense>
 
-        {/* Toast Notifications */}
         <ToastContainer />
 
         <Suspense fallback={null}>
-          {/* Close Service Dialog (Tauri desktop) */}
           <CloseServiceDialog
             isOpen={showCloseDialog}
             onConfirm={handleCloseDialogConfirm}

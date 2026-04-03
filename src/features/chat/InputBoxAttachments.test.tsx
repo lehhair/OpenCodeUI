@@ -76,7 +76,13 @@ describe('InputBox attachment handling', () => {
   it('accepts files whose mime is inferred from the filename extension', async () => {
     selectedFiles = [new File(['image'], 'photo.png')]
 
-    render(<InputBox onSend={vi.fn()} fileCapabilities={{ image: true, pdf: false, audio: false, video: false }} />)
+    render(
+      <InputBox
+        paneId="pane-test"
+        onSend={vi.fn()}
+        fileCapabilities={{ image: true, pdf: false, audio: false, video: false }}
+      />,
+    )
 
     fireEvent.click(screen.getByRole('button', { name: 'attach file' }))
 

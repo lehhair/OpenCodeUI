@@ -4,3 +4,5 @@ export type { DirectoryContextValue, SavedDirectory } from './DirectoryContext.s
 export { SessionProvider } from './SessionContext'
 export { useSessionContext } from './useSessionContext'
 export type { SessionContextValue } from './SessionContext.shared'
+export { SessionNavigationContext, useSessionNavigation } from './SessionNavigationContext'
+export type { SessionNavigationContextValue } from './SessionNavigationContext'

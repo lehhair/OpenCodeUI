@@ -12,8 +12,6 @@ export interface SessionContextValue {
   loadMore: () => Promise<void>
   createSession: (title?: string) => Promise<ApiSession>
   deleteSession: (id: string) => Promise<void>
-  currentSessionId: string | null
-  setCurrentSessionId: (id: string | null) => void
 }
 
 export const SessionContext = createContext<SessionContextValue | null>(null)

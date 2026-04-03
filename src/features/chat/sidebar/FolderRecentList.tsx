@@ -105,7 +105,11 @@ export function FolderRecentList({
   useEffect(() => {
     onExpandedProjectIdsChange(prev => {
       const next = prev.filter(id => projects.some(project => project.id === id))
-      return next.length > 0 ? next : getInitialExpandedProjectIds(projects, currentDirectory)
+      const fallback = next.length > 0 ? next : getInitialExpandedProjectIds(projects, currentDirectory)
+      if (fallback.length === prev.length && fallback.every((id, index) => id === prev[index])) {
+        return prev
+      }
+      return fallback
     })
   }, [projects, currentDirectory, onExpandedProjectIdsChange])
 
@@ -115,7 +119,10 @@ export function FolderRecentList({
     const currentProject = projects.find(project => isSameDirectory(project.worktree, currentDirectory))
     if (!currentProject) return
 
-    onExpandedProjectIdsChange(prev => (prev.includes(currentProject.id) ? prev : [currentProject.id, ...prev]))
+    onExpandedProjectIdsChange(prev => {
+      if (prev.includes(currentProject.id)) return prev
+      return [currentProject.id, ...prev]
+    })
   }, [projects, currentDirectory, onExpandedProjectIdsChange])
 
   const handleToggleProject = useCallback(
