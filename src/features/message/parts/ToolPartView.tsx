@@ -76,11 +76,15 @@ export const ToolPartView = memo(function ToolPartView({
   const [cachedPermissionRequest, setCachedPermissionRequest] = useState(permissionRequest)
   useEffect(() => {
     if (permissionRequest) {
-      setCachedPermissionRequest(permissionRequest)
+      queueMicrotask(() => {
+        setCachedPermissionRequest(permissionRequest)
+      })
       return
     }
     if (toolDone) {
-      setCachedPermissionRequest(undefined)
+      queueMicrotask(() => {
+        setCachedPermissionRequest(undefined)
+      })
     }
   }, [permissionRequest, toolDone])
 
@@ -113,16 +117,30 @@ export const ToolPartView = memo(function ToolPartView({
   const shouldRenderBody = useDelayedRender(effectiveExpanded)
 
   useEffect(() => {
+    let cancelled = false
+
+    const updateExpanded = (nextExpanded: boolean) => {
+      queueMicrotask(() => {
+        if (!cancelled) {
+          setExpanded(nextExpanded)
+        }
+      })
+    }
+
     if (isActive || hasPendingInteraction || permissionResolved) {
       if (immersiveMode && descriptive && isReadable) {
         hasAutoExpandedReadableRef.current = true
       }
-      setExpanded(true)
+      updateExpanded(true)
     } else if (immersiveMode && descriptive && !isReadable) {
-      setExpanded(false)
+      updateExpanded(false)
     } else if (immersiveMode && descriptive && isStreaming && isReadable && !hasAutoExpandedReadableRef.current) {
       hasAutoExpandedReadableRef.current = true
-      setExpanded(true)
+      updateExpanded(true)
+    }
+
+    return () => {
+      cancelled = true
     }
   }, [isActive, hasPendingInteraction, permissionResolved, immersiveMode, descriptive, isStreaming, isReadable])
 

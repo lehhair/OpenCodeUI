@@ -40,11 +40,14 @@ export function SessionChildrenSlot({
 
   useEffect(() => {
     if (!fetchAll) {
-      setFetched([])
       return
     }
     let cancelled = false
-    setLoading(true)
+    queueMicrotask(() => {
+      if (!cancelled) {
+        setLoading(true)
+      }
+    })
     getSessionChildren(parentSession.id, parentSession.directory)
       .then(data => {
         if (!cancelled) setFetched(data)

@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { DiffView } from './DiffView'
 
@@ -17,7 +17,7 @@ vi.mock('./FullscreenViewer', () => ({
 }))
 
 describe('DiffView', () => {
-  it('renders diff stats and can open fullscreen viewer', () => {
+  it('renders diff stats and can open fullscreen viewer', async () => {
     render(
       <DiffView
         before={'const a = 1\nconst keep = true'}
@@ -30,7 +30,10 @@ describe('DiffView', () => {
     expect(screen.getByText('+1')).toBeInTheDocument()
     expect(screen.getByText('-1')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByTitle('Fullscreen'))
+    await act(async () => {
+      fireEvent.click(screen.getByTitle('Fullscreen'))
+    })
+
     expect(screen.getByTestId('fullscreen-viewer')).toBeInTheDocument()
   })
 })

@@ -17,6 +17,7 @@ const Terminal = lazy(() => import('./Terminal').then(module => ({ default: modu
 const McpPanel = lazy(() => import('./McpPanel').then(module => ({ default: module.McpPanel })))
 const SkillPanel = lazy(() => import('./SkillPanel').then(module => ({ default: module.SkillPanel })))
 const WorktreePanel = lazy(() => import('./WorktreePanel').then(module => ({ default: module.WorktreePanel })))
+const WebPreviewPanel = lazy(() => import('./WebPreviewPanel').then(module => ({ default: module.WebPreviewPanel })))
 
 function PanelFallback() {
   const { t } = useTranslation(['components', 'common'])
@@ -110,6 +111,12 @@ export const RightPanel = memo(function RightPanel({ directory, sessionId }: Rig
           return (
             <Suspense fallback={<PanelFallback />}>
               <ChangesContent activeTab={activeTab} sessionId={sessionId} isPanelResizing={isPanelResizing} />
+            </Suspense>
+          )
+        case 'web-preview':
+          return (
+            <Suspense fallback={<PanelFallback />}>
+              <WebPreviewContent activeTab={activeTab} />
             </Suspense>
           )
         case 'terminal':
@@ -240,6 +247,25 @@ const ChangesContent = memo(function ChangesContent({
       {changeTabs.map(tab => (
         <div key={tab.id} className={tab.id === activeTab.id ? 'h-full' : 'hidden'}>
           <SessionChangesPanel sessionId={sessionId} isResizing={isPanelResizing} />
+        </div>
+      ))}
+    </>
+  )
+})
+
+interface WebPreviewContentProps {
+  activeTab: PanelTab
+}
+
+const WebPreviewContent = memo(function WebPreviewContent({ activeTab }: WebPreviewContentProps) {
+  const { panelTabs } = useLayoutStore()
+  const webPreviewTabs = panelTabs.filter(t => t.position === 'right' && t.type === 'web-preview')
+
+  return (
+    <>
+      {webPreviewTabs.map(tab => (
+        <div key={tab.id} className={tab.id === activeTab.id ? 'h-full' : 'hidden'}>
+          <WebPreviewPanel tabId={tab.id} />
         </div>
       ))}
     </>

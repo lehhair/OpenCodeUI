@@ -6,7 +6,7 @@
 export type PanelPosition = 'bottom' | 'right'
 
 // 面板内容类型
-export type PanelTabType = 'terminal' | 'files' | 'changes' | 'mcp' | 'skill' | 'worktree'
+export type PanelTabType = 'terminal' | 'files' | 'changes' | 'web-preview' | 'mcp' | 'skill' | 'worktree'
 
 // 统一的面板标签
 export interface PanelTab {
@@ -15,6 +15,7 @@ export interface PanelTab {
   position: PanelPosition
   previewFile?: PreviewFile | null
   previewFiles?: PreviewFile[]
+  url?: string
   // Terminal 特有属性
   ptyId?: string
   title?: string
@@ -283,6 +284,11 @@ class LayoutStore {
     return this.addTab({ type: 'changes', position })
   }
 
+  // 添加 Web Preview 标签
+  addWebPreviewTab(position: PanelPosition) {
+    return this.addTab({ type: 'web-preview', position, url: '' })
+  }
+
   // 添加 MCP 标签
   addMcpTab(position: PanelPosition) {
     return this.addSingletonTab('mcp', position, 'mcp')
@@ -329,6 +335,13 @@ class LayoutStore {
       Object.assign(tab, updates)
       this.notify()
     }
+  }
+
+  updateWebPreviewUrl(tabId: string, url: string) {
+    const tab = this.state.panelTabs.find(item => item.id === tabId && item.type === 'web-preview')
+    if (!tab) return
+    tab.url = url
+    this.notify()
   }
 
   // 移动 tab 到另一个位置

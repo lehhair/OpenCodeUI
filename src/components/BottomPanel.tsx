@@ -18,6 +18,7 @@ const FileExplorer = lazy(() => import('./FileExplorer').then(module => ({ defau
 const McpPanel = lazy(() => import('./McpPanel').then(module => ({ default: module.McpPanel })))
 const SkillPanel = lazy(() => import('./SkillPanel').then(module => ({ default: module.SkillPanel })))
 const WorktreePanel = lazy(() => import('./WorktreePanel').then(module => ({ default: module.WorktreePanel })))
+const WebPreviewPanel = lazy(() => import('./WebPreviewPanel').then(module => ({ default: module.WebPreviewPanel })))
 
 interface BottomPanelProps {
   directory?: string
@@ -184,6 +185,12 @@ export const BottomPanel = memo(function BottomPanel({ directory }: BottomPanelP
               <ChangesContent activeTab={activeTab} sessionId={sessionId} isPanelResizing={isPanelResizing} />
             </Suspense>
           )
+        case 'web-preview':
+          return (
+            <Suspense fallback={<PanelFallback />}>
+              <WebPreviewContent activeTab={activeTab} />
+            </Suspense>
+          )
         case 'mcp':
           return (
             <Suspense fallback={<PanelFallback />}>
@@ -305,6 +312,25 @@ const ChangesContent = memo(function ChangesContent({
       {changeTabs.map(tab => (
         <div key={tab.id} className={tab.id === activeTab.id ? 'h-full' : 'hidden'}>
           <SessionChangesPanel sessionId={sessionId} isResizing={isPanelResizing} />
+        </div>
+      ))}
+    </>
+  )
+})
+
+interface WebPreviewContentProps {
+  activeTab: PanelTab
+}
+
+const WebPreviewContent = memo(function WebPreviewContent({ activeTab }: WebPreviewContentProps) {
+  const { panelTabs } = useLayoutStore()
+  const webPreviewTabs = panelTabs.filter(t => t.position === 'bottom' && t.type === 'web-preview')
+
+  return (
+    <>
+      {webPreviewTabs.map(tab => (
+        <div key={tab.id} className={tab.id === activeTab.id ? 'h-full' : 'hidden'}>
+          <WebPreviewPanel tabId={tab.id} />
         </div>
       ))}
     </>
