@@ -635,15 +635,26 @@ export function useChatSession({
             handleError('execute command', new Error('No model selected'))
             return false
           }
-          await summarizeSession(
+
+          // Commands should count as sent once they are accepted for execution.
+          // Do not keep the draft alive until the long-running compaction finishes.
+          void summarizeSession(
             sessionId,
             { providerID: currentModel.providerId, modelID: currentModel.id },
             effectiveDirectory,
-          )
+          ).catch(err => {
+            handleError('execute command', err)
+          })
+
           return true
         }
 
-        await executeCommand(sessionId, command, args, effectiveDirectory)
+        // Keep command submission semantics aligned with normal messages:
+        // once the command is dispatched, clear the draft immediately.
+        void executeCommand(sessionId, command, args, effectiveDirectory).catch(err => {
+          handleError('execute command', err)
+        })
+
         return true
       } catch (err) {
         handleError('execute command', err)
