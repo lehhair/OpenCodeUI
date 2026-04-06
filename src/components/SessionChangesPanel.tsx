@@ -490,22 +490,16 @@ export const SessionChangesPanel = memo(function SessionChangesPanel({
       >
         {/* Header */}
         <div className="flex items-center gap-2 px-3 py-2 border-b border-border-100 bg-bg-100/30 shrink-0 overflow-hidden">
-          <div className="min-w-0 flex flex-1 items-center gap-1.5 overflow-hidden whitespace-nowrap text-[10px] font-mono tabular-nums">
-            <span
-              className="min-w-0 max-w-[9ch] shrink overflow-hidden text-success-100"
-              title={`+${totalStats.additions}`}
-              style={statFadeMaskStyle}
-            >
-              +{totalStats.additions}
-            </span>
-            <span
-              className="min-w-0 flex-1 overflow-hidden"
-              title={`-${totalStats.deletions} ${fullFileCountLabel}`}
-              style={statFadeMaskStyle}
-            >
+          <div
+            className="min-w-0 flex flex-1 overflow-hidden"
+            title={`+${totalStats.additions} -${totalStats.deletions} ${fullFileCountLabel}`}
+            style={statFadeMaskStyle}
+          >
+            <div className="inline-flex min-w-max items-center gap-1.5 whitespace-nowrap text-[10px] font-mono tabular-nums">
+              <span className="text-success-100">+{totalStats.additions}</span>
               <span className="text-danger-100">-{totalStats.deletions}</span>
-              <span className="text-text-400"> {compactFileCountLabel}</span>
-            </span>
+              <span className="text-text-400">{compactFileCountLabel}</span>
+            </div>
           </div>
 
           <div className="flex shrink-0 items-center gap-1">
