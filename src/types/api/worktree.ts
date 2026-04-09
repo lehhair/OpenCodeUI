@@ -1,39 +1,14 @@
-// ============================================
-// Worktree API Types
-// 基于 OpenAPI 规范 v0.0.3
-// ============================================
+import type {
+  Worktree as SDKWorktree,
+  WorktreeCreateInput as SDKWorktreeCreateInput,
+  WorktreeRemoveInput as SDKWorktreeRemoveInput,
+  WorktreeResetInput as SDKWorktreeResetInput,
+} from '@opencode-ai/sdk/v2/client'
 
-/**
- * Worktree 实体
- * 后端 schema: { name, branch, directory } 全部 required
- */
-export interface Worktree {
-  name: string
-  branch: string
-  directory: string
-}
+export type Worktree = SDKWorktree
 
-/**
- * Worktree 创建参数
- * 后端 schema: { name?, startCommand? }
- */
-export interface WorktreeCreateInput {
-  name?: string
-  startCommand?: string
-}
+export type WorktreeCreateInput = SDKWorktreeCreateInput
 
-/**
- * Worktree 删除参数
- * 后端 schema: { directory } required
- */
-export interface WorktreeRemoveInput {
-  directory: string
-}
+export type WorktreeRemoveInput = SDKWorktreeRemoveInput
 
-/**
- * Worktree 重置参数
- * 后端 schema: { directory } required
- */
-export interface WorktreeResetInput {
-  directory: string
-}
+export type WorktreeResetInput = SDKWorktreeResetInput

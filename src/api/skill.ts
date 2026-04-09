@@ -11,5 +11,5 @@ import type { SkillList } from '../types/api/skill'
  */
 export async function getSkills(directory?: string): Promise<SkillList> {
   const sdk = getSDKClient()
-  return unwrap(await sdk.app.skills({ directory: formatPathForApi(directory) })) as SkillList
+  return unwrap(await sdk.app.skills({ directory: formatPathForApi(directory) }))
 }

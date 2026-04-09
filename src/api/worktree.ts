@@ -11,7 +11,7 @@ import { formatPathForApi } from '../utils/directoryUtils'
  */
 export async function listWorktrees(directory?: string): Promise<string[]> {
   const sdk = getSDKClient()
-  return unwrap(await sdk.worktree.list({ directory: formatPathForApi(directory) })) as string[]
+  return unwrap(await sdk.worktree.list({ directory: formatPathForApi(directory) }))
 }
 
 /**
@@ -19,9 +19,7 @@ export async function listWorktrees(directory?: string): Promise<string[]> {
  */
 export async function createWorktree(params: WorktreeCreateInput, directory?: string): Promise<Worktree> {
   const sdk = getSDKClient()
-  return unwrap(
-    await sdk.worktree.create({ directory: formatPathForApi(directory), worktreeCreateInput: params }),
-  ) as Worktree
+  return unwrap(await sdk.worktree.create({ directory: formatPathForApi(directory), worktreeCreateInput: params }))
 }
 
 /**

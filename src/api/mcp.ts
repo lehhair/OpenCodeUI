@@ -49,12 +49,9 @@ export async function disconnectMcpServer(name: string, directory?: string): Pro
  */
 export async function startMcpAuth(name: string, directory?: string): Promise<{ url: string }> {
   const sdk = getSDKClient()
-  const result = unwrap(await sdk.mcp.auth.start({ name, directory: formatPathForApi(directory) })) as Record<
-    string,
-    string
-  >
+  const result = unwrap(await sdk.mcp.auth.start({ name, directory: formatPathForApi(directory) }))
   // SDK 返回 { authorizationUrl: string }，转换为我们期望的 { url: string }
-  return { url: result.authorizationUrl ?? result.url ?? '' }
+  return { url: result.authorizationUrl }
 }
 
 /**

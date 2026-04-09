@@ -15,7 +15,7 @@ export interface HealthInfo {
  */
 export async function getHealth(): Promise<HealthInfo> {
   const sdk = getSDKClient()
-  return unwrap(await sdk.global.health()) as HealthInfo
+  return unwrap(await sdk.global.health())
 }
 
 /**
