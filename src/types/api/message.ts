@@ -96,10 +96,3 @@ export type FilePartInput = SDKFilePartInput
 export type AgentPartInput = SDKAgentPartInput
 
 export type SubtaskPartInput = SDKSubtaskPartInput
-
-export interface SendMessageBody {
-  parts: (TextPartInput | FilePartInput | AgentPartInput | SubtaskPartInput)[]
-  model?: UserMessage['model']
-  agent?: string
-  variant?: string
-}

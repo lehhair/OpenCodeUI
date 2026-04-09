@@ -2,29 +2,10 @@
 // Global Event Subscription (SSE) - Singleton Pattern
 // ============================================
 
-import type {
-  EventMessagePartDelta as SDKEventMessagePartDelta,
-  EventMessagePartRemoved as SDKEventMessagePartRemoved,
-  EventMessagePartUpdated as SDKEventMessagePartUpdated,
-  EventMessageUpdated as SDKEventMessageUpdated,
-  EventPermissionAsked as SDKEventPermissionAsked,
-  EventPermissionReplied as SDKEventPermissionReplied,
-  EventQuestionAsked as SDKEventQuestionAsked,
-  EventQuestionRejected as SDKEventQuestionRejected,
-  EventQuestionReplied as SDKEventQuestionReplied,
-  EventSessionCreated as SDKEventSessionCreated,
-  EventSessionIdle as SDKEventSessionIdle,
-  EventSessionStatus as SDKEventSessionStatus,
-  EventSessionUpdated as SDKEventSessionUpdated,
-  EventTodoUpdated as SDKEventTodoUpdated,
-  EventVcsBranchUpdated as SDKEventVcsBranchUpdated,
-  EventWorktreeFailed as SDKEventWorktreeFailed,
-  EventWorktreeReady as SDKEventWorktreeReady,
-} from '@opencode-ai/sdk/v2/client'
 import { getApiBaseUrl, getAuthHeader } from './http'
 import { normalizeTodoItems } from './todo'
 import { isTauri } from '../utils/tauri'
-import type { GlobalEvent, EventCallbacks, SessionErrorPayload, TodoUpdatedPayload } from './types'
+import type { EventCallbacks, EventType, GlobalEvent, SessionErrorPayload, TodoUpdatedPayload } from './types'
 import { EventTypes } from '../types/api/event'
 
 // ============================================
@@ -81,6 +62,8 @@ const BACKGROUND_KEEPALIVE_INTERVAL = 30000
 // 所有订阅者的 callbacks
 const allSubscribers = new Set<EventCallbacks>()
 
+const EVENT_TYPE_SET = new Set<string>(Object.values(EventTypes))
+
 // 单例连接状态
 let singletonController: AbortController | null = null
 let heartbeatTimer: ReturnType<typeof setTimeout> | null = null
@@ -106,7 +89,7 @@ function disconnectTauri(): Promise<void> {
   if (!isTauri()) return Promise.resolve()
 
   const p = pendingDisconnect.then(() =>
-    import('@tauri-apps/api/core').then(({ invoke }) => invoke('sse_disconnect') as Promise<void>).catch(() => {}),
+    import('@tauri-apps/api/core').then(({ invoke }) => invoke('sse_disconnect').then(() => undefined)).catch(() => {}),
   )
   pendingDisconnect = p
   return p
@@ -247,13 +230,9 @@ async function connectViaTauri() {
         case 'message': {
           resetHeartbeat()
           if (msg.data?.raw) {
-            try {
-              const globalEvent = JSON.parse(msg.data.raw) as GlobalEvent
+            const globalEvent = parseGlobalEvent(msg.data.raw)
+            if (globalEvent) {
               broadcastEvent(globalEvent)
-            } catch (e) {
-              if (import.meta.env.DEV) {
-                console.warn('[SSE/Tauri] Failed to parse event:', e, msg.data.raw)
-              }
             }
           }
           break
@@ -400,13 +379,9 @@ function connectViaBrowser() {
             if (dataLines.length > 0) {
               const eventData = dataLines.join('\n')
               dataLines.length = 0
-              try {
-                const globalEvent = JSON.parse(eventData) as GlobalEvent
+              const globalEvent = parseGlobalEvent(eventData)
+              if (globalEvent) {
                 broadcastEvent(globalEvent)
-              } catch (e) {
-                if (import.meta.env.DEV) {
-                  console.warn('[SSE] Failed to parse event:', e, eventData)
-                }
               }
             }
           }
@@ -432,6 +407,34 @@ function connectViaBrowser() {
       allSubscribers.forEach(cb => cb.onError?.(error))
       scheduleReconnect()
     })
+}
+
+function parseGlobalEvent(raw: string): GlobalEvent | null {
+  try {
+    const parsed: unknown = JSON.parse(raw)
+    return isGlobalEvent(parsed) ? parsed : null
+  } catch (error) {
+    if (import.meta.env.DEV) {
+      console.warn('[SSE] Failed to parse event:', error, raw)
+    }
+    return null
+  }
+}
+
+function isGlobalEvent(value: unknown): value is GlobalEvent {
+  if (!isRecord(value)) return false
+  if (typeof value.directory !== 'string') return false
+  if (!isRecord(value.payload)) return false
+  if (!isEventType(value.payload.type)) return false
+  return 'properties' in value.payload
+}
+
+function isEventType(value: unknown): value is EventType {
+  return typeof value === 'string' && EVENT_TYPE_SET.has(value)
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object'
 }
 
 // ============================================
@@ -635,82 +638,82 @@ function unregisterLifecycleListeners() {
 
 // 广播事件给所有订阅者
 function broadcastEvent(globalEvent: GlobalEvent) {
-  const { type, properties } = globalEvent.payload
-
   // 广播给所有订阅者
   allSubscribers.forEach(callbacks => {
-    handleEventForSubscriber(type, properties, callbacks)
+    handleEventForSubscriber(globalEvent.payload, callbacks)
   })
 }
 
-function handleEventForSubscriber(type: string, properties: unknown, callbacks: EventCallbacks) {
-  switch (type) {
+function handleEventForSubscriber(payload: GlobalEvent['payload'], callbacks: EventCallbacks) {
+  switch (payload.type) {
     case EventTypes.MESSAGE_UPDATED: {
-      const data = properties as SDKEventMessageUpdated['properties']
-      callbacks.onMessageUpdated?.(data.info)
+      callbacks.onMessageUpdated?.(payload.properties.info)
       break
     }
     case EventTypes.MESSAGE_PART_UPDATED: {
-      const data = properties as SDKEventMessagePartUpdated['properties']
-      callbacks.onPartUpdated?.(data.part)
+      callbacks.onPartUpdated?.(payload.properties.part)
       break
     }
     case EventTypes.MESSAGE_PART_DELTA: {
-      const data = properties as SDKEventMessagePartDelta['properties']
-      callbacks.onPartDelta?.(data)
+      callbacks.onPartDelta?.(payload.properties)
       break
     }
     case EventTypes.MESSAGE_PART_REMOVED:
-      callbacks.onPartRemoved?.(properties as SDKEventMessagePartRemoved['properties'])
+      callbacks.onPartRemoved?.(payload.properties)
       break
     case EventTypes.SESSION_UPDATED: {
-      const data = properties as SDKEventSessionUpdated['properties']
-      callbacks.onSessionUpdated?.(data.info)
+      callbacks.onSessionUpdated?.(payload.properties.info)
       break
     }
     case EventTypes.SESSION_CREATED: {
-      const data = properties as SDKEventSessionCreated['properties']
-      callbacks.onSessionCreated?.(data.info)
+      callbacks.onSessionCreated?.(payload.properties.info)
+      break
+    }
+    case EventTypes.SESSION_DELETED: {
+      callbacks.onSessionDeleted?.(payload.properties.sessionID)
+      break
+    }
+    case EventTypes.PROJECT_UPDATED: {
+      callbacks.onProjectUpdated?.(payload.properties)
       break
     }
     case EventTypes.SESSION_ERROR:
-      callbacks.onSessionError?.(normalizeSessionError(properties))
+      callbacks.onSessionError?.(normalizeSessionError(payload.properties))
       break
     case EventTypes.SESSION_IDLE:
-      callbacks.onSessionIdle?.(properties as SDKEventSessionIdle['properties'])
+      callbacks.onSessionIdle?.(payload.properties)
       break
     case EventTypes.SESSION_STATUS:
-      callbacks.onSessionStatus?.(properties as SDKEventSessionStatus['properties'])
+      callbacks.onSessionStatus?.(payload.properties)
       break
     case EventTypes.PERMISSION_ASKED:
-      callbacks.onPermissionAsked?.(properties as SDKEventPermissionAsked['properties'])
+      callbacks.onPermissionAsked?.(payload.properties)
       break
     case EventTypes.PERMISSION_REPLIED:
-      callbacks.onPermissionReplied?.(properties as SDKEventPermissionReplied['properties'])
+      callbacks.onPermissionReplied?.(payload.properties)
       break
     case EventTypes.QUESTION_ASKED:
-      callbacks.onQuestionAsked?.(properties as SDKEventQuestionAsked['properties'])
+      callbacks.onQuestionAsked?.(payload.properties)
       break
     case EventTypes.QUESTION_REPLIED:
-      callbacks.onQuestionReplied?.(properties as SDKEventQuestionReplied['properties'])
+      callbacks.onQuestionReplied?.(payload.properties)
       break
     case EventTypes.QUESTION_REJECTED:
-      callbacks.onQuestionRejected?.(properties as SDKEventQuestionRejected['properties'])
+      callbacks.onQuestionRejected?.(payload.properties)
       break
     case EventTypes.WORKTREE_READY:
-      callbacks.onWorktreeReady?.(properties as SDKEventWorktreeReady['properties'])
+      callbacks.onWorktreeReady?.(payload.properties)
       break
     case EventTypes.WORKTREE_FAILED:
-      callbacks.onWorktreeFailed?.(properties as SDKEventWorktreeFailed['properties'])
+      callbacks.onWorktreeFailed?.(payload.properties)
       break
     case EventTypes.VCS_BRANCH_UPDATED:
-      callbacks.onVcsBranchUpdated?.(properties as SDKEventVcsBranchUpdated['properties'])
+      callbacks.onVcsBranchUpdated?.(payload.properties)
       break
     case EventTypes.TODO_UPDATED: {
-      const data = properties as SDKEventTodoUpdated['properties']
       callbacks.onTodoUpdated?.({
-        sessionID: data.sessionID,
-        todos: normalizeTodoItems(data.todos),
+        sessionID: payload.properties.sessionID,
+        todos: normalizeTodoItems(payload.properties.todos),
       } satisfies TodoUpdatedPayload)
       break
     }
@@ -721,28 +724,26 @@ function handleEventForSubscriber(type: string, properties: unknown, callbacks: 
 }
 
 function normalizeSessionError(properties: unknown): SessionErrorPayload {
-  if (!properties || typeof properties !== 'object') {
+  if (!isRecord(properties)) {
     return { sessionID: '', name: 'UnknownError', data: properties }
   }
 
-  const candidate = properties as Record<string, unknown>
-  const sessionID = typeof candidate.sessionID === 'string' ? candidate.sessionID : ''
+  const sessionID = typeof properties.sessionID === 'string' ? properties.sessionID : ''
 
-  if (typeof candidate.name === 'string') {
+  if (typeof properties.name === 'string') {
     return {
       sessionID,
-      name: candidate.name,
-      data: candidate.data,
+      name: properties.name,
+      data: properties.data,
     }
   }
 
-  const sdkError = candidate.error
-  if (sdkError && typeof sdkError === 'object') {
-    const errorRecord = sdkError as Record<string, unknown>
+  const sdkError = properties.error
+  if (isRecord(sdkError)) {
     return {
       sessionID,
-      name: typeof errorRecord.name === 'string' ? errorRecord.name : 'UnknownError',
-      data: 'data' in errorRecord ? errorRecord.data : sdkError,
+      name: typeof sdkError.name === 'string' ? sdkError.name : 'UnknownError',
+      data: 'data' in sdkError ? sdkError.data : sdkError,
     }
   }
 

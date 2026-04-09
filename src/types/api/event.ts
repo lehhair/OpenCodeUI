@@ -1,21 +1,34 @@
 // ============================================
 // Event API Types
-// 基于 OpenAPI 规范
+// SDK 是类型真相源，本地只保留必要的运行时适配
 // ============================================
 
-import type { Session, SessionStatus } from './session'
-import type { FileDiff } from './file'
+import type {
+  EventMessagePartDelta as SDKEventMessagePartDelta,
+  EventMessagePartRemoved as SDKEventMessagePartRemoved,
+  EventPermissionReplied as SDKEventPermissionReplied,
+  EventQuestionRejected as SDKEventQuestionRejected,
+  EventQuestionReplied as SDKEventQuestionReplied,
+  EventSessionDiff as SDKEventSessionDiff,
+  EventSessionIdle as SDKEventSessionIdle,
+  EventSessionStatus as SDKEventSessionStatus,
+  EventTodoUpdated as SDKEventTodoUpdated,
+  EventVcsBranchUpdated as SDKEventVcsBranchUpdated,
+  EventWorktreeFailed as SDKEventWorktreeFailed,
+  EventWorktreeReady as SDKEventWorktreeReady,
+  GlobalEvent as SDKGlobalEvent,
+  Todo as SDKTodo,
+} from '@opencode-ai/sdk/v2/client'
+import type { Session } from './session'
 import type { Message, Part } from './message'
-import type { PermissionRequest, PermissionReply, QuestionRequest, QuestionAnswer } from './permission'
+import type { PermissionRequest, QuestionRequest } from './permission'
 import type { Project } from './project'
 
 // ============================================
 // Event Payload Types
 // ============================================
 
-export interface SessionIdlePayload {
-  sessionID: string
-}
+export type SessionIdlePayload = SDKEventSessionIdle['properties']
 
 export interface SessionErrorPayload {
   sessionID: string
@@ -23,87 +36,40 @@ export interface SessionErrorPayload {
   data: unknown
 }
 
-export interface SessionStatusPayload {
-  sessionID: string
-  status: SessionStatus
-}
+export type SessionStatusPayload = SDKEventSessionStatus['properties']
 
-export interface SessionDiffPayload {
-  sessionID: string
-  diff: FileDiff[]
-}
+export type SessionDiffPayload = SDKEventSessionDiff['properties']
 
-export interface PartRemovedPayload {
-  partID: string
-  messageID: string
-  sessionID: string
-}
+export type PartRemovedPayload = SDKEventMessagePartRemoved['properties']
 
-export interface PartDeltaPayload {
-  sessionID: string
-  messageID: string
-  partID: string
-  field: string
-  delta: string
-}
+export type PartDeltaPayload = SDKEventMessagePartDelta['properties']
 
-export interface PermissionRepliedPayload {
-  sessionID: string
-  requestID: string
-  reply: PermissionReply
-}
+export type PermissionRepliedPayload = SDKEventPermissionReplied['properties']
 
-export interface QuestionRepliedPayload {
-  sessionID: string
-  requestID: string
-  answers: QuestionAnswer[]
-}
+export type QuestionRepliedPayload = SDKEventQuestionReplied['properties']
 
-export interface QuestionRejectedPayload {
-  sessionID: string
-  requestID: string
-}
+export type QuestionRejectedPayload = SDKEventQuestionRejected['properties']
 
-export interface TodoItem {
+export type TodoItem = SDKTodo & {
   // SDK 的 Todo 没有 id，这里是前端适配层补上的稳定 key
   id: string
-  content: string
-  status: 'pending' | 'in_progress' | 'completed' | 'cancelled'
-  priority: 'high' | 'medium' | 'low'
 }
 
-export interface TodoUpdatedPayload {
-  sessionID: string
+export type TodoUpdatedPayload = Omit<SDKEventTodoUpdated['properties'], 'todos'> & {
   todos: TodoItem[]
 }
 
-export interface WorktreeReadyPayload {
-  name: string
-  branch: string
-}
+export type WorktreeReadyPayload = SDKEventWorktreeReady['properties']
 
-export interface WorktreeFailedPayload {
-  message: string
-}
+export type WorktreeFailedPayload = SDKEventWorktreeFailed['properties']
 
-export interface VcsBranchUpdatedPayload {
-  branch?: string
-}
+export type VcsBranchUpdatedPayload = SDKEventVcsBranchUpdated['properties']
 
 // ============================================
 // Global Event Type
 // ============================================
 
-/**
- * 全局事件包装器
- */
-export interface GlobalEvent {
-  directory: string
-  payload: {
-    type: string
-    properties: unknown
-  }
-}
+export type GlobalEvent = SDKGlobalEvent
 
 /**
  * 事件类型常量
@@ -138,6 +104,12 @@ export const EventTypes = {
   // Todo events
   TODO_UPDATED: 'todo.updated',
 
+  // TUI events
+  TUI_PROMPT_APPEND: 'tui.prompt.append',
+  TUI_COMMAND_EXECUTE: 'tui.command.execute',
+  TUI_TOAST_SHOW: 'tui.toast.show',
+  TUI_SESSION_SELECT: 'tui.session.select',
+
   // Project events
   PROJECT_UPDATED: 'project.updated',
 
@@ -155,6 +127,8 @@ export const EventTypes = {
   INSTALLATION_UPDATE_AVAILABLE: 'installation.update-available',
   WORKTREE_READY: 'worktree.ready',
   WORKTREE_FAILED: 'worktree.failed',
+  WORKSPACE_READY: 'workspace.ready',
+  WORKSPACE_FAILED: 'workspace.failed',
   LSP_CLIENT_DIAGNOSTICS: 'lsp.client.diagnostics',
   LSP_UPDATED: 'lsp.updated',
   MCP_TOOLS_CHANGED: 'mcp.tools.changed',
@@ -165,17 +139,14 @@ export const EventTypes = {
   PTY_UPDATED: 'pty.updated',
   PTY_EXITED: 'pty.exited',
   PTY_DELETED: 'pty.deleted',
-} as const
+} as const satisfies Record<string, SDKGlobalEvent['payload']['type']>
 
-export type EventType = (typeof EventTypes)[keyof typeof EventTypes]
+export type EventType = SDKGlobalEvent['payload']['type']
 
 // ============================================
 // Event Callbacks Interface
 // ============================================
 
-/**
- * 事件回调接口
- */
 export interface EventCallbacks {
   onMessageUpdated?: (message: Message) => void
   onPartUpdated?: (part: Part, delta?: string) => void
@@ -198,8 +169,5 @@ export interface EventCallbacks {
   onWorktreeFailed?: (data: WorktreeFailedPayload) => void
   onVcsBranchUpdated?: (data: VcsBranchUpdatedPayload) => void
   onError?: (error: Error) => void
-  /** SSE 重连成功后触发，通知订阅者可能需要刷新数据
-   * @param reason - 重连原因：'network' 普通网络恢复, 'server-switch' 切换了服务器
-   */
   onReconnected?: (reason: 'network' | 'server-switch') => void
 }

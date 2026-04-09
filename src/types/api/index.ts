@@ -57,7 +57,6 @@ export type {
   FilePartInput,
   AgentPartInput,
   SubtaskPartInput,
-  SendMessageBody,
 } from './message'
 
 // Model types
