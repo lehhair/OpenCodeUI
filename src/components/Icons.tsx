@@ -8,7 +8,6 @@ import {
   ChevronUp,
   ChevronRight,
   SquarePen,
-  Ellipsis,
   Hand,
   Keyboard,
   Check,
@@ -16,7 +15,6 @@ import {
   Plus,
   GraduationCap,
   Settings,
-  Zap,
   Sun,
   Moon,
   Monitor,
@@ -36,10 +34,8 @@ import {
   Folder,
   FolderOpen,
   Search,
-  AtSign,
   Pencil,
   Trash2,
-  LayoutGrid,
   CornerDownLeft,
   Eye,
   Maximize,
@@ -57,7 +53,6 @@ import {
   Cpu,
   DollarSign,
   Lightbulb,
-  ClipboardList,
   Users,
   GitCommitHorizontal,
   GitBranch,
@@ -66,7 +61,6 @@ import {
   KeyRound,
   Wifi,
   WifiOff,
-  Menu,
   Bell,
   Download,
   Pin,
@@ -74,7 +68,6 @@ import {
   LoaderCircle,
   CircleHelp,
   Slash,
-  AlignJustify,
   FileDiff,
   Waypoints,
   GitCompare,
@@ -88,7 +81,6 @@ import {
   Play,
   Upload,
   Shield,
-  TriangleAlert,
   Columns2,
   Rows2,
   GripVertical,
@@ -117,7 +109,6 @@ export const ChevronDownIcon = wrap(ChevronDown)
 export const ChevronUpIcon = wrap(ChevronUp)
 export const ChevronRightIcon = wrap(ChevronRight)
 export const NewChatIcon = wrap(SquarePen)
-export const MenuDotsIcon = wrap(Ellipsis)
 export const HandIcon = wrap(Hand)
 export const KeyboardIcon = wrap(Keyboard)
 export const CheckIcon = wrap(Check)
@@ -125,7 +116,6 @@ export const SendIcon = wrap(Send)
 export const PlusIcon = wrap(Plus)
 export const TeachIcon = wrap(GraduationCap)
 export const SettingsIcon = wrap(Settings)
-export const BoltIcon = wrap(Zap)
 export const SunIcon = wrap(Sun)
 export const MoonIcon = wrap(Moon)
 export const SystemIcon = wrap(Monitor)
@@ -145,10 +135,8 @@ export const FileIcon = wrap(File)
 export const FolderIcon = wrap(Folder)
 export const FolderOpenIcon = wrap(FolderOpen)
 export const SearchIcon = wrap(Search)
-export const AtIcon = wrap(AtSign)
 export const PencilIcon = wrap(Pencil)
 export const TrashIcon = wrap(Trash2)
-export const GridIcon = wrap(LayoutGrid)
 export const ReturnIcon = wrap(CornerDownLeft)
 export const EyeIcon = wrap(Eye)
 export const MaximizeIcon = wrap(Maximize)
@@ -167,7 +155,6 @@ export const RetryIcon = wrap(RefreshCcw)
 export const CpuIcon = wrap(Cpu)
 export const DollarSignIcon = wrap(DollarSign)
 export const LightbulbIcon = wrap(Lightbulb)
-export const ClipboardListIcon = wrap(ClipboardList)
 export const UsersIcon = wrap(Users)
 export const GitCommitIcon = wrap(GitCommitHorizontal)
 export const GitBranchIcon = wrap(GitBranch)
@@ -176,7 +163,6 @@ export const PlugIcon = wrap(Plug)
 export const KeyIcon = wrap(KeyRound)
 export const WifiIcon = wrap(Wifi)
 export const WifiOffIcon = wrap(WifiOff)
-export const MenuIcon = wrap(Menu)
 export const BellIcon = wrap(Bell)
 export const DownloadIcon = wrap(Download)
 export const PinIcon = wrap(Pin)
@@ -184,8 +170,6 @@ export const PinIcon = wrap(Pin)
 // Aliases
 export const ComposeIcon = wrap(SquarePen)
 export const CogIcon = wrap(Settings)
-export const MoreHorizontalIcon = wrap(Ellipsis)
-export const LightningIcon = wrap(Zap)
 
 // ============================================
 // Icons with custom defaults (lucide-backed)
@@ -204,7 +188,6 @@ export const PathWindowsIcon = ({ size = 16, style, ...props }: IconProps) => (
   <Slash size={size} aria-hidden="true" style={{ transform: 'scaleX(-1)', ...style }} {...(props as LucideProps)} />
 )
 
-export const CompactIcon = wrap(AlignJustify)
 export const PatchIcon = wrap(FileDiff)
 export const GitWorktreeIcon = wrap(Waypoints)
 export const GitDiffIcon = wrap(GitCompare)
@@ -218,7 +201,6 @@ export const VolumeOffIcon = wrap(VolumeX)
 export const PlayIcon = wrap(Play)
 export const UploadIcon = wrap(Upload)
 export const ShieldIcon = wrap(Shield)
-export const WarningIcon = wrap(TriangleAlert)
 export const SplitHorizontalIcon = wrap(Columns2)
 export const SplitVerticalIcon = wrap(Rows2)
 export const GripVerticalIcon = wrap(GripVertical)
