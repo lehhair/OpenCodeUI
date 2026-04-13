@@ -26,12 +26,12 @@ describe('MarkdownRenderer', () => {
     expect(codeEl.tagName).toBe('CODE')
   })
 
-  it('renders inline code with accent badge styling', () => {
+  it('renders inline code with accent text styling (no border/bg)', () => {
     render(<MarkdownRenderer content={'Use `code` here'} />)
 
     const codeEl = screen.getByText('code')
-    expect(codeEl.className).toMatch(/border/)
-    expect(codeEl.className).toMatch(/bg-accent-main/)
+    expect(codeEl.className).not.toMatch(/border/)
+    expect(codeEl.className).not.toMatch(/bg-accent-main/)
     expect(codeEl.className).toMatch(/font-mono/)
     expect(codeEl.className).toMatch(/text-accent-main-100/)
   })
