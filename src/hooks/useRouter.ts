@@ -1,6 +1,7 @@
-import { useCallback, useSyncExternalStore } from 'react'
+import { useCallback, useRef, useSyncExternalStore } from 'react'
 import { normalizeToForwardSlash, serverStorage } from '../utils'
 import { STORAGE_KEY_LAST_DIRECTORY } from '../constants/storage'
+import { useIsMobile } from './useIsMobile'
 
 /**
  * Hash 路由，支持 directory 参数
@@ -111,18 +112,34 @@ function getSnapshot(): RouteState {
 export function useRouter() {
   const route = useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
 
+  // 移动端用 replaceState 导航，避免浏览器历史栈堆积会话路由。
+  // 手机浏览器左右滑动 = 前进/后退，历史栈里堆满会话会导致疯狂横跳。
+  const isMobile = useIsMobile()
+  const isMobileRef = useRef(isMobile)
+  isMobileRef.current = isMobile
+
   const navigateToSession = useCallback((sessionId: string, directory?: string) => {
     const currentRoute = getSnapshot()
     const dir = directory !== undefined ? normalizeToForwardSlash(directory) || undefined : currentRoute.directory
     const next = { sessionId, directory: dir }
-    window.location.hash = buildHash(sessionId, dir)
+    const newHash = buildHash(sessionId, dir)
+    if (isMobileRef.current) {
+      window.history.replaceState(null, '', newHash)
+    } else {
+      window.location.hash = newHash
+    }
     emitRoute(next)
   }, [])
 
   const navigateHome = useCallback(() => {
     const currentRoute = getSnapshot()
     const next = { sessionId: null, directory: currentRoute.directory }
-    window.location.hash = buildHash(null, currentRoute.directory)
+    const newHash = buildHash(null, currentRoute.directory)
+    if (isMobileRef.current) {
+      window.history.replaceState(null, '', newHash)
+    } else {
+      window.location.hash = newHash
+    }
     emitRoute(next)
   }, [])
 

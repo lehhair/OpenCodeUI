@@ -58,6 +58,14 @@ body,
     padding-right: var(--safe-area-inset-right);
     /* 不在这里加 padding-bottom，让 InputBox 自己处理 */
   }
+
+  /* PWA standalone 底部兜底：
+   * 部分 iOS 设备（如有物理 Home 键的 iPhone 8）env(safe-area-inset-bottom) 为 0，
+   * 但 Safari standalone 仍会在底部叠加系统 UI 横条，遮住贴底内容。
+   * 用 max() 取 safe-area 和最小保底值的较大者，确保 InputFooter 不被遮挡。 */
+  :root:not(.tauri-app) {
+    --safe-area-inset-bottom: max(env(safe-area-inset-bottom, 0px), 8px);
+  }
 }
 
 /* Tauri 原生 app：原生层 MainActivity.kt 已经通过 setPadding 处理了安全区域和键盘 */

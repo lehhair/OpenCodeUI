@@ -61,10 +61,14 @@ interface LayoutState {
   // 底部面板
   bottomPanelOpen: boolean
   bottomPanelHeight: number
+
+  // 屏幕常亮
+  wakeLock: boolean
 }
 
 type Subscriber = () => void
 
+const STORAGE_KEY_WAKE_LOCK = 'opencode-wake-lock'
 const STORAGE_KEY_SIDEBAR = 'opencode-sidebar-expanded'
 const STORAGE_KEY_SIDEBAR_FOLDER_RECENTS = 'opencode-sidebar-folder-recents'
 const STORAGE_KEY_SIDEBAR_FOLDER_RECENTS_SHOW_DIFF = 'opencode-sidebar-folder-recents-show-diff'
@@ -224,6 +228,7 @@ export class LayoutStore {
     rightPanelWidth: 450,
     bottomPanelOpen: false,
     bottomPanelHeight: 250,
+    wakeLock: false,
   }
   private subscribers = new Set<Subscriber>()
   private currentTerminalDirectory: string | null = null
@@ -298,6 +303,11 @@ export class LayoutStore {
       const savedShowChildSessions = localStorage.getItem(STORAGE_KEY_SIDEBAR_SHOW_CHILD_SESSIONS)
       if (savedShowChildSessions !== null) {
         this.state.sidebarShowChildSessions = savedShowChildSessions === 'true'
+      }
+
+      const savedWakeLock = localStorage.getItem(STORAGE_KEY_WAKE_LOCK)
+      if (savedWakeLock !== null) {
+        this.state.wakeLock = savedWakeLock === 'true'
       }
 
       // 右侧面板宽度
@@ -394,6 +404,17 @@ export class LayoutStore {
     this.state.sidebarShowChildSessions = enabled
     try {
       localStorage.setItem(STORAGE_KEY_SIDEBAR_SHOW_CHILD_SESSIONS, String(enabled))
+    } catch {
+      /* ignore */
+    }
+    this.notify()
+  }
+
+  setWakeLock(enabled: boolean) {
+    if (this.state.wakeLock === enabled) return
+    this.state.wakeLock = enabled
+    try {
+      localStorage.setItem(STORAGE_KEY_WAKE_LOCK, String(enabled))
     } catch {
       /* ignore */
     }

@@ -126,6 +126,8 @@
     "diffStyleChangeBars": "Change Bars",
     "codeWordWrap": "Code Word Wrap",
     "codeWordWrapDesc": "Wrap code blocks and diffs to the available width to reduce horizontal scrolling",
+    "wakeLock": "Keep Screen Awake",
+    "wakeLockDesc": "Prevent the screen from dimming or locking while the app is in the foreground",
     "language": "Language",
     "languageDesc": "Choose the display language for the interface",
     "languageAuto": "Auto (Browser)",

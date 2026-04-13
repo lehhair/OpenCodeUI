@@ -28,7 +28,7 @@ const InlineCode = memo(function InlineCode({
       className={
         variant === 'reasoning'
           ? 'font-mono text-accent-main-100 text-[0.9em] align-baseline break-words'
-          : 'px-1.5 py-0.5 bg-accent-main-100/8 border border-accent-main-100/12 rounded-xs text-accent-main-100 text-[0.9em] font-mono align-baseline break-words'
+          : 'text-accent-main-100 text-[0.9em] font-mono align-baseline break-words'
       }
     >
       {children}
@@ -352,8 +352,8 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
           rel="noopener noreferrer"
           className={
             isReasoning
-              ? 'text-xs font-medium text-accent-main-200/80 hover:text-accent-main-200 hover:underline underline-offset-2 transition-colors'
-              : 'font-medium text-accent-main-100 hover:text-accent-main-200 hover:underline underline-offset-2 transition-colors'
+              ? 'text-xs font-medium text-accent-main-200/80 hover:text-accent-main-200 underline underline-offset-2 transition-colors'
+              : 'font-medium text-accent-main-100 hover:text-accent-main-200 underline underline-offset-2 transition-colors'
           }
         >
           {children}

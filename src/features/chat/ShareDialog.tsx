@@ -87,7 +87,9 @@ export function ShareDialog({ isOpen, onClose }: ShareDialogProps) {
         {shareUrl ? (
           <div className="flex flex-col gap-3">
             <div className="flex items-center gap-2 p-2 bg-bg-100 border border-border-300 rounded-md">
-              <div className="flex-1 truncate text-sm font-mono text-text-200 select-all">{shareUrl}</div>
+              <div className="flex-1 overflow-x-auto text-sm font-mono text-text-200 select-all whitespace-nowrap">
+                {shareUrl}
+              </div>
               <IconButton
                 onClick={handleCopy}
                 title={t('shareDialog.copyLink')}

@@ -1,5 +1,14 @@
 # Changelog
 
+## [v0.5.0] - 2026-04-13
+
+- feat: add keep-screen-awake toggle in appearance settings (Wake Lock API) (3a6a13c)
+- fix: update inline code test to match simplified style (no border/bg) (edc4beb)
+- fix: simplify inline code style and add persistent underline to links (7f2cd73)
+- fix: allow share URL to scroll horizontally on mobile (d049ce0)
+- fix: ensure bottom padding in PWA standalone for devices without Home Indicator (eb8682c)
+- fix: use replaceState on mobile to prevent session history stacking (ceed83d)
+
 ## [v0.4.9] - 2026-04-11
 
 - fix: prevent model restoration from overriding user selection during streaming (0c799e3)

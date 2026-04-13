@@ -126,6 +126,8 @@
     "diffStyleChangeBars": "变更条",
     "codeWordWrap": "代码自动换行",
     "codeWordWrapDesc": "让代码块和 diff 在可用宽度内自动换行，减少横向滚动",
+    "wakeLock": "保持屏幕常亮",
+    "wakeLockDesc": "应用在前台时阻止屏幕变暗或锁定",
     "language": "语言",
     "languageDesc": "选择界面显示语言",
     "languageAuto": "自动（浏览器）",

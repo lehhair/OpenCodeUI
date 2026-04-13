@@ -328,7 +328,7 @@ export function AppearanceSettings() {
     glassEffect,
     setGlassEffect,
   } = useTheme()
-  const { sidebarFolderRecents, sidebarFolderRecentsShowDiff, sidebarShowChildSessions } = useLayoutStore()
+  const { sidebarFolderRecents, sidebarFolderRecentsShowDiff, sidebarShowChildSessions, wakeLock } = useLayoutStore()
 
   return (
     <div>
@@ -391,6 +391,14 @@ export function AppearanceSettings() {
           onClick={() => setCodeWordWrap(!codeWordWrap)}
         >
           <Toggle enabled={codeWordWrap} onChange={() => setCodeWordWrap(!codeWordWrap)} />
+        </SettingRow>
+
+        <SettingRow
+          label={t('appearance.wakeLock')}
+          description={t('appearance.wakeLockDesc')}
+          onClick={() => layoutStore.setWakeLock(!wakeLock)}
+        >
+          <Toggle enabled={wakeLock} onChange={() => layoutStore.setWakeLock(!wakeLock)} />
         </SettingRow>
 
         <div>

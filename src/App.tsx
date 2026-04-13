@@ -10,6 +10,7 @@ import { BottomPanel } from './components/BottomPanel'
 import { useDirectory, useGlobalEvents, useGlobalKeybindings, useRouter } from './hooks'
 import { useViewportHeight } from './hooks/useViewportHeight'
 import { useCloseServiceDialog } from './hooks/useCloseServiceDialog'
+import { useWakeLock } from './hooks/useWakeLock'
 import type { KeybindingHandlers } from './hooks/useKeybindings'
 import { keybindingStore } from './store/keybindingStore'
 import {
@@ -52,7 +53,7 @@ function App() {
     replaceSession,
   } = router
   const { currentDirectory, savedDirectories, sidebarExpanded, setSidebarExpanded } = useDirectory()
-  const { rightPanelOpen, rightPanelWidth } = useLayoutStore()
+  const { rightPanelOpen, rightPanelWidth, wakeLock } = useLayoutStore()
   const { surfaceRef, value: chatViewport } = useChatViewportController({
     sidebarExpanded,
     rightPanelOpen,
@@ -78,6 +79,7 @@ function App() {
   }, [])
 
   useViewportHeight()
+  useWakeLock(wakeLock)
 
   const activeDirectories = useMemo(
     () =>
