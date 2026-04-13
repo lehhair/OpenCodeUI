@@ -179,7 +179,7 @@ export function SettingsDialog({ isOpen, onClose, initialTab = 'servers' }: Sett
           <div className="shrink-0">
             {/* Title bar */}
             <div className="flex items-center justify-between px-4 pt-3 pb-2">
-              <div className="text-[15px] font-semibold text-text-100">{t('title')}</div>
+              <div className="text-[length:var(--fs-heading-3)] font-semibold text-text-100">{t('title')}</div>
               <button
                 onClick={onClose}
                 className="p-2 -mr-1 text-text-400 hover:text-text-200 active:bg-bg-100 rounded-lg transition-colors"
@@ -195,7 +195,7 @@ export function SettingsDialog({ isOpen, onClose, initialTab = 'servers' }: Sett
                   <button
                     key={vt.id}
                     onClick={() => switchTab(vt.id)}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[13px] font-medium transition-colors whitespace-nowrap shrink-0 border
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[length:var(--fs-md)] font-medium transition-colors whitespace-nowrap shrink-0 border
                       ${
                         vt.id === tab
                           ? 'bg-accent-main-100/10 text-accent-main-100 border-accent-main-100/30'
@@ -230,13 +230,15 @@ export function SettingsDialog({ isOpen, onClose, initialTab = 'servers' }: Sett
           onKeyDown={handleTabKeyDown}
         >
           <div className="px-2.5 xl:px-3 mb-4">
-            <div className="text-sm font-semibold text-text-100">{t('title')}</div>
-            <div className="text-[11px] text-text-400 mt-0.5 leading-relaxed hidden xl:block">{t('subtitle')}</div>
+            <div className="text-[length:var(--fs-base)] font-semibold text-text-100">{t('title')}</div>
+            <div className="text-[length:var(--fs-xs)] text-text-400 mt-0.5 leading-relaxed hidden xl:block">
+              {t('subtitle')}
+            </div>
           </div>
           <div className="space-y-3">
             {groupedTabs.map(group => (
               <div key={group.label}>
-                <div className="px-2.5 xl:px-3 mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-text-400/90">
+                <div className="px-2.5 xl:px-3 mb-1.5 text-[length:var(--fs-xxs)] font-semibold uppercase tracking-wider text-text-400/90">
                   {group.label}
                 </div>
                 <div className="space-y-0.5">
@@ -245,7 +247,7 @@ export function SettingsDialog({ isOpen, onClose, initialTab = 'servers' }: Sett
                       key={vt.id}
                       onClick={() => switchTab(vt.id)}
                       tabIndex={vt.id === tab ? 0 : -1}
-                      className={`w-full flex items-center gap-2.5 px-2.5 xl:px-3 py-2 xl:py-2.5 rounded-lg text-[13px] font-medium transition-colors
+                      className={`w-full flex items-center gap-2.5 px-2.5 xl:px-3 py-2 xl:py-2.5 rounded-lg text-[length:var(--fs-md)] font-medium transition-colors
                         ${
                           vt.id === tab
                             ? 'bg-bg-100 text-text-100 ring-1 ring-border-200/60'
@@ -261,7 +263,7 @@ export function SettingsDialog({ isOpen, onClose, initialTab = 'servers' }: Sett
             ))}
           </div>
 
-          <div className="mt-auto pt-3 px-2.5 xl:px-3 text-[10px] text-text-400">
+          <div className="mt-auto pt-3 px-2.5 xl:px-3 text-[length:var(--fs-xxs)] text-text-400">
             {t('version', { version: __APP_VERSION__ })}
           </div>
         </nav>
@@ -271,8 +273,8 @@ export function SettingsDialog({ isOpen, onClose, initialTab = 'servers' }: Sett
           {/* Content Header - sticky at top */}
           <div className="shrink-0 border-b border-border-100/60 px-5 xl:px-6 py-3.5 flex items-center justify-between gap-4">
             <div className="min-w-0">
-              <div className="text-[15px] font-semibold text-text-100">{activeTabMeta.label}</div>
-              <div className="text-[11.5px] text-text-400 mt-0.5 leading-relaxed truncate">
+              <div className="text-[length:var(--fs-heading-3)] font-semibold text-text-100">{activeTabMeta.label}</div>
+              <div className="text-[length:var(--fs-xs)] text-text-400 mt-0.5 leading-relaxed truncate">
                 {activeTabMeta.description}
               </div>
             </div>

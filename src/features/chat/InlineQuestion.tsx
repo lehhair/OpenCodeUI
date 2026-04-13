@@ -140,14 +140,14 @@ export const InlineQuestion = memo(function InlineQuestion({
         <button
           onClick={handleSubmit}
           disabled={!canSubmit || isReplying}
-          className="px-2.5 py-0.5 rounded text-[12px] font-medium bg-text-100 text-bg-000 hover:bg-text-200 transition-colors disabled:opacity-50"
+          className="px-2.5 py-0.5 rounded text-[length:var(--fs-sm)] font-medium bg-text-100 text-bg-000 hover:bg-text-200 transition-colors disabled:opacity-50"
         >
           {t('common:submit')}
         </button>
         <button
           onClick={() => onReject(request.id)}
           disabled={isReplying}
-          className="px-2.5 py-0.5 rounded text-[12px] text-text-400 hover:text-text-200 transition-colors disabled:opacity-50"
+          className="px-2.5 py-0.5 rounded text-[length:var(--fs-sm)] text-text-400 hover:text-text-200 transition-colors disabled:opacity-50"
         >
           {t('common:skip')}
         </button>
@@ -206,8 +206,8 @@ function InlineQuestionItem({
     <div className="space-y-2">
       {/* 问题文字 */}
       <div>
-        {question.header && <div className="text-[11px] text-text-400 font-medium mb-0.5">{question.header}</div>}
-        <div className="text-[13px] text-text-100">{question.question}</div>
+        {question.header && <div className="text-[length:var(--fs-xs)] text-text-400 font-medium mb-0.5">{question.header}</div>}
+        <div className="text-[length:var(--fs-md)] text-text-100">{question.question}</div>
       </div>
 
       {/* 选项 — 紧凑按钮组 */}
@@ -219,7 +219,7 @@ function InlineQuestionItem({
               key={idx}
               onClick={() => (isMultiple ? onToggleOption(option.label) : onSelectOption(option.label))}
               title={option.description}
-              className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-[12px] rounded-md border transition-all ${
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-[length:var(--fs-sm)] rounded-md border transition-all ${
                 isSelected
                   ? 'border-text-100 text-text-100 bg-bg-300/40'
                   : 'border-border-200/60 text-text-300 hover:border-text-400 hover:text-text-200'
@@ -278,7 +278,7 @@ function InlineQuestionItem({
             }}
             placeholder={t('questionDialog.typeYourAnswer')}
             rows={1}
-            className="flex-1 bg-transparent text-[12px] text-text-100 placeholder:text-text-500 focus:outline-none resize-none min-h-[32px] px-2.5 py-1.5 leading-relaxed"
+            className="flex-1 bg-transparent text-[length:var(--fs-sm)] text-text-100 placeholder:text-text-500 focus:outline-none resize-none min-h-[32px] px-2.5 py-1.5 leading-relaxed"
           />
         </div>
       )}

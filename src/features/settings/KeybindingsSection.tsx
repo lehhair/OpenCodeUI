@@ -45,7 +45,7 @@ function Kbd({ children }: { children: React.ReactNode }) {
   return (
     <kbd
       className="inline-flex items-center justify-center min-w-[22px] h-[22px] px-1.5
-                    text-[11px] font-mono font-medium leading-none
+                    text-[length:var(--fs-xs)] font-mono font-medium leading-none
                     bg-bg-100 text-text-300 border border-border-200 rounded
                     shadow-[0_1px_0_0_var(--border-200)]"
     >
@@ -143,7 +143,7 @@ function KeybindingRow({ config, onEdit, onReset, isKeyUsed, t }: KeybindingRowP
     `}
     >
       {/* Label */}
-      <span className="flex-1 text-[13px] text-text-200 truncate">{config.label}</span>
+      <span className="flex-1 text-[length:var(--fs-md)] text-text-200 truncate">{config.label}</span>
 
       {/* Reset */}
       {isModified && !isEditing && (
@@ -165,7 +165,7 @@ function KeybindingRow({ config, onEdit, onReset, isKeyUsed, t }: KeybindingRowP
             tabIndex={0}
             className={`
               min-w-[120px] h-7 flex items-center justify-center px-3 
-              text-xs font-mono rounded border-2 outline-none
+              text-[length:var(--fs-sm)] font-mono rounded border-2 outline-none
               ${
                 error
                   ? 'border-danger-100/60 bg-danger-100/5 text-danger-100'
@@ -175,7 +175,7 @@ function KeybindingRow({ config, onEdit, onReset, isKeyUsed, t }: KeybindingRowP
           >
             {tempKey || <span className="text-text-400">...</span>}
           </div>
-          {error && <span className="text-[11px] text-danger-100">{error}</span>}
+          {error && <span className="text-[length:var(--fs-xs)] text-danger-100">{error}</span>}
         </div>
       ) : (
         <button
@@ -270,11 +270,11 @@ export function KeybindingsSection() {
     <div className="flex flex-col">
       {/* Header */}
       <div className="flex items-center justify-between mb-3">
-        <span className="text-xs font-medium text-text-400 uppercase tracking-wider">{t('keybindings.title')}</span>
+        <span className="text-[length:var(--fs-sm)] font-medium text-text-400 uppercase tracking-wider">{t('keybindings.title')}</span>
         {hasModifications && (
           <button
             onClick={resetAll}
-            className="text-[11px] text-text-400 hover:text-danger-100 px-2 py-0.5 rounded hover:bg-danger-100/10 transition-colors"
+            className="text-[length:var(--fs-xs)] text-text-400 hover:text-danger-100 px-2 py-0.5 rounded hover:bg-danger-100/10 transition-colors"
           >
             {t('keybindings.resetAll')}
           </button>
@@ -290,7 +290,7 @@ export function KeybindingsSection() {
           value={search}
           onChange={e => setSearch(e.target.value)}
           placeholder={t('keybindings.filterPlaceholder')}
-          className="w-full h-8 pl-8 pr-3 text-[13px] bg-bg-050 border border-border-200 rounded-lg
+          className="w-full h-8 pl-8 pr-3 text-[length:var(--fs-md)] bg-bg-050 border border-border-200 rounded-lg
                      text-text-100 placeholder:text-text-400 
                      focus:outline-none focus:border-accent-main-100/50 transition-colors"
         />
@@ -299,11 +299,11 @@ export function KeybindingsSection() {
       {/* List - no inner scroll, parent handles scrolling */}
       <div className="-mx-1">
         {grouped.length === 0 ? (
-          <div className="py-8 text-center text-sm text-text-400">{t('common:noMatches')}</div>
+          <div className="py-8 text-center text-[length:var(--fs-base)] text-text-400">{t('common:noMatches')}</div>
         ) : (
           grouped.map(({ category, items }) => (
             <div key={category} className="mb-3">
-              <div className="px-3 py-1 text-[11px] font-medium text-text-400 uppercase tracking-wider">
+              <div className="px-3 py-1 text-[length:var(--fs-xs)] font-medium text-text-400 uppercase tracking-wider">
                 {t(CATEGORY_LABELS[category])}
               </div>
               {items.map(item => (
@@ -322,7 +322,7 @@ export function KeybindingsSection() {
       </div>
 
       {/* Help */}
-      <div className="pt-3 mt-2 border-t border-border-100/50 text-[11px] text-text-400">
+      <div className="pt-3 mt-2 border-t border-border-100/50 text-[length:var(--fs-xs)] text-text-400">
         {t('keybindings.clickToRebind')}
       </div>
     </div>

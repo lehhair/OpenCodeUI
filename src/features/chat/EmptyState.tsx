@@ -85,12 +85,14 @@ export function EmptyState({ currentProject, projects, onStartChat }: EmptyState
         </div>
 
         {/* Title */}
-        <h2 className="text-xl font-semibold text-text-100 text-center mb-2">{t('emptyState.title')}</h2>
-        <p className="text-sm text-text-400 text-center mb-6">{t('emptyState.description')}</p>
+        <h2 className="text-[length:var(--fs-heading-1)] font-semibold text-text-100 text-center mb-2">
+          {t('emptyState.title')}
+        </h2>
+        <p className="text-[length:var(--fs-base)] text-text-400 text-center mb-6">{t('emptyState.description')}</p>
 
         {/* Directory Selector */}
         <div className="space-y-3">
-          <label className="block text-xs font-medium text-text-400 uppercase tracking-wider">
+          <label className="block text-[length:var(--fs-sm)] font-medium text-text-400 uppercase tracking-wider">
             {t('emptyState.workingDirectory')}
           </label>
 
@@ -110,11 +112,11 @@ export function EmptyState({ currentProject, projects, onStartChat }: EmptyState
                   }
                 }}
                 placeholder={t('emptyState.enterAbsolutePath')}
-                className="w-full px-3 py-2.5 bg-bg-200 border border-border-300/30 rounded-lg text-sm text-text-100 placeholder:text-text-500 focus:outline-none focus:border-accent-main-100/50 transition-colors"
+                className="w-full px-3 py-2.5 bg-bg-200 border border-border-300/30 rounded-lg text-[length:var(--fs-base)] text-text-100 placeholder:text-text-500 focus:outline-none focus:border-accent-main-100/50 transition-colors"
               />
               <button
                 onClick={() => setIsCustomMode(false)}
-                className="text-xs text-text-400 hover:text-text-200 transition-colors"
+                className="text-[length:var(--fs-sm)] text-text-400 hover:text-text-200 transition-colors"
               >
                 ← {t('emptyState.backToDirectoryList')}
               </button>
@@ -124,7 +126,7 @@ export function EmptyState({ currentProject, projects, onStartChat }: EmptyState
             <div ref={dropdownRef} className="relative">
               <button
                 onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                className="w-full flex items-center justify-between px-3 py-2.5 bg-bg-200 border border-border-300/30 rounded-lg text-sm text-text-100 hover:border-border-300/50 transition-colors text-left"
+                className="w-full flex items-center justify-between px-3 py-2.5 bg-bg-200 border border-border-300/30 rounded-lg text-[length:var(--fs-base)] text-text-100 hover:border-border-300/50 transition-colors text-left"
               >
                 <div className="flex items-center gap-2 min-w-0 flex-1">
                   <FolderIcon className="w-4 h-4 text-text-400 flex-shrink-0" />
@@ -142,11 +144,13 @@ export function EmptyState({ currentProject, projects, onStartChat }: EmptyState
                     {/* Current directory */}
                     <button
                       onClick={() => handleSelectDirectory(currentDirectory)}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-bg-200/50 transition-colors text-sm text-text-200"
+                      className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-bg-200/50 transition-colors text-[length:var(--fs-base)] text-text-200"
                     >
                       <FolderIcon className="w-4 h-4 text-accent-main-100 flex-shrink-0" />
                       <span className="truncate">{currentDirectory}</span>
-                      <span className="text-xs text-text-500 flex-shrink-0">{t('emptyState.current')}</span>
+                      <span className="text-[length:var(--fs-sm)] text-text-500 flex-shrink-0">
+                        {t('emptyState.current')}
+                      </span>
                     </button>
 
                     {/* Other project directories */}
@@ -154,7 +158,7 @@ export function EmptyState({ currentProject, projects, onStartChat }: EmptyState
                       <button
                         key={dir}
                         onClick={() => handleSelectDirectory(dir)}
-                        className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-bg-200/50 transition-colors text-sm text-text-300"
+                        className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-bg-200/50 transition-colors text-[length:var(--fs-base)] text-text-300"
                       >
                         <FolderIcon className="w-4 h-4 text-text-500 flex-shrink-0" />
                         <span className="truncate">{dir}</span>
@@ -165,7 +169,7 @@ export function EmptyState({ currentProject, projects, onStartChat }: EmptyState
                     <div className="border-t border-border-300/20">
                       <button
                         onClick={handleCustomPath}
-                        className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-bg-200/50 transition-colors text-sm text-text-400"
+                        className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-bg-200/50 transition-colors text-[length:var(--fs-base)] text-text-400"
                       >
                         <NewChatIcon className="w-4 h-4 flex-shrink-0" />
                         <span>{t('emptyState.enterCustomPath')}</span>
@@ -182,13 +186,13 @@ export function EmptyState({ currentProject, projects, onStartChat }: EmptyState
         <button
           onClick={handleStart}
           disabled={isCustomMode ? !customPath.trim() : !currentDirectory}
-          className="w-full mt-6 px-4 py-2.5 bg-accent-main-100 hover:bg-accent-main-200 disabled:opacity-50 disabled:cursor-not-allowed text-oncolor-100 rounded-lg text-sm font-medium transition-colors"
+          className="w-full mt-6 px-4 py-2.5 bg-accent-main-100 hover:bg-accent-main-200 disabled:opacity-50 disabled:cursor-not-allowed text-oncolor-100 rounded-lg text-[length:var(--fs-base)] font-medium transition-colors"
         >
           {t('emptyState.startConversation')}
         </button>
 
         {/* Hint */}
-        <p className="mt-4 text-xs text-text-500 text-center">{t('emptyState.orJustType')}</p>
+        <p className="mt-4 text-[length:var(--fs-sm)] text-text-500 text-center">{t('emptyState.orJustType')}</p>
       </div>
     </div>
   )

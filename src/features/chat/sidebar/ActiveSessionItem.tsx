@@ -60,14 +60,14 @@ export function ActiveSessionItem({ entry, resolvedSession, isSelected, onSelect
       {/* Content */}
       <div className="flex-1 min-w-0">
         <p
-          className={`text-[13px] truncate font-medium ${
+          className={`text-[length:var(--fs-md)] truncate font-medium ${
             isSelected ? 'text-text-100' : 'text-text-200 group-hover:text-text-100'
           }`}
           title={displayTitle}
         >
           {displayTitle}
         </p>
-        <div className="flex items-center mt-0.5 h-4 min-w-0 overflow-hidden text-[10px] text-text-400 gap-1 whitespace-nowrap">
+        <div className="flex items-center mt-0.5 h-4 min-w-0 overflow-hidden text-[length:var(--fs-xxs)] text-text-400 gap-1 whitespace-nowrap">
           <span className={`shrink-0 whitespace-nowrap ${statusConfig.color}`}>{statusConfig.label}</span>
           {pending?.description && (
             <>

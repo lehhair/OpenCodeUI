@@ -167,7 +167,7 @@ const CollapsibleUserText = memo(function CollapsibleUserText({
       <div className="relative">
         <p
           ref={contentRef}
-          className={`m-0 whitespace-pre-wrap break-words text-sm text-text-100 leading-relaxed${
+          className={`m-0 whitespace-pre-wrap break-words text-[length:var(--fs-base)] text-text-100 leading-relaxed${
             isCollapsed ? ' overflow-hidden' : ''
           }`}
           style={isCollapsed ? { maxHeight: `${COLLAPSE_PREVIEW_LINES}lh` } : undefined}
@@ -189,7 +189,7 @@ const CollapsibleUserText = memo(function CollapsibleUserText({
               return next
             })
           }}
-          className="mt-1 text-xs text-text-400 hover:text-text-200 transition-colors"
+          className="mt-1 text-[length:var(--fs-sm)] text-text-400 hover:text-text-200 transition-colors"
           aria-expanded={expanded}
         >
           {expanded ? t('showLess') : t('showMore')}
@@ -300,7 +300,7 @@ const UserMessageView = memo(function UserMessageView({
           <div className="flex flex-col items-end mt-1 w-full">
             <button
               onClick={() => setShowSystemContext(!showSystemContext)}
-              className="flex items-center gap-1 text-xs text-text-400 hover:text-text-300 transition-colors py-1 px-2 rounded hover:bg-bg-200"
+              className="flex items-center gap-1 text-[length:var(--fs-sm)] text-text-400 hover:text-text-300 transition-colors py-1 px-2 rounded hover:bg-bg-200"
             >
               <span>
                 {showSystemContext ? t('hideSystemContext') : t('showSystemContext', { count: syntheticParts.length })}
@@ -500,7 +500,7 @@ const AssistantMessageView = memo(function AssistantMessageView({
       {messageError && <MessageErrorView error={messageError} />}
 
       {showTurnDurationFooter && (
-        <div className="flex items-center gap-3 text-[10px] text-text-500 pl-5 py-0.5">
+        <div className="flex items-center gap-3 text-[length:var(--fs-xxs)] text-text-500 pl-5 py-0.5">
           <span>total {formatDuration(turnDuration!)}</span>
         </div>
       )}
@@ -627,7 +627,7 @@ const ToolGroup = memo(function ToolGroup({ parts, stepFinish, duration, turnDur
               onClick={() => setExpanded(!expanded)}
               className="flex w-full items-baseline rounded-md py-1 text-left hover:bg-bg-200/30 transition-colors"
             >
-              <span className="text-[12px] leading-5">
+              <span className="text-[length:var(--fs-sm)] leading-5">
                 {stepsSummary?.map((seg, i) => (
                   <span
                     key={i}
@@ -644,7 +644,7 @@ const ToolGroup = memo(function ToolGroup({ parts, stepFinish, duration, turnDur
                 ))}
               </span>
               {totalDiffStats && !hasActiveTools && (
-                <span className="ml-1.5 inline-flex items-center gap-1 text-[10px] font-mono font-medium tabular-nums">
+                <span className="ml-1.5 inline-flex items-center gap-1 text-[length:var(--fs-xxs)] font-mono font-medium tabular-nums">
                   {totalDiffStats.additions > 0 && (
                     <span className="text-success-100">+{totalDiffStats.additions}</span>
                   )}
@@ -655,19 +655,19 @@ const ToolGroup = memo(function ToolGroup({ parts, stepFinish, duration, turnDur
           ) : (
             <button
               onClick={() => setExpanded(!expanded)}
-              className="flex items-center gap-1.5 py-1.5 text-text-400 text-sm hover:text-text-200 hover:bg-bg-200/30 rounded-md transition-colors"
+              className="flex items-center gap-1.5 py-1.5 text-text-400 text-[length:var(--fs-base)] hover:text-text-200 hover:bg-bg-200/30 rounded-md transition-colors"
             >
               <span className="inline-flex w-[14px] items-center justify-center shrink-0">
                 {effectiveExpanded ? <ChevronDownIcon size={14} /> : <ChevronRightIcon size={14} />}
               </span>
               <span className="inline-flex items-baseline gap-2 whitespace-nowrap">
-                <span className="text-[13px] font-medium leading-tight">
+                <span className="text-[length:var(--fs-md)] font-medium leading-tight">
                   {isAllDone
                     ? t('stepsCount', { done: totalCount, total: totalCount })
                     : t('stepsCount', { done: doneCount, total: totalCount })}
                 </span>
                 {!effectiveExpanded && stepFinish && (
-                  <span className="text-xs text-text-500 font-mono opacity-70">
+                  <span className="text-[length:var(--fs-sm)] text-text-500 font-mono opacity-70">
                     {formatTokens(stepFinish.tokens, t)}
                   </span>
                 )}

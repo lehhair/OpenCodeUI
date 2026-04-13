@@ -176,7 +176,7 @@ const ModelListPanel = memo(function ModelListPanel({
             }}
             onKeyDown={handleKeyDown}
             placeholder={searchPlaceholder}
-            className="flex-1 bg-transparent border-none outline-none text-sm text-text-100 placeholder:text-text-400"
+            className="flex-1 bg-transparent border-none outline-none text-[length:var(--fs-base)] text-text-100 placeholder:text-text-400"
           />
         </div>
       </div>
@@ -185,8 +185,8 @@ const ModelListPanel = memo(function ModelListPanel({
       <div ref={listRef} className={`overflow-y-auto custom-scrollbar flex-1 min-h-0 pl-2 pr-1 ${maxListHeight}`}>
         {flatList.length === 0 ? (
           <div className="px-4 py-10 text-center">
-            <div className="text-sm text-text-400">{noResultsText}</div>
-            <div className="text-xs text-text-500 mt-1">{noResultsHint}</div>
+            <div className="text-[length:var(--fs-base)] text-text-400">{noResultsText}</div>
+            <div className="text-[length:var(--fs-sm)] text-text-500 mt-1">{noResultsHint}</div>
           </div>
         ) : (
           <div className="pb-1 pr-1">
@@ -195,7 +195,7 @@ const ModelListPanel = memo(function ModelListPanel({
                 return (
                   <div
                     key={item.key}
-                    className="px-2.5 pt-3 pb-1 first:pt-0.5 text-[10px] font-semibold text-text-400/60 uppercase tracking-wider select-none"
+                    className="px-2.5 pt-3 pb-1 first:pt-0.5 text-[length:var(--fs-xxs)] font-semibold text-text-400/60 uppercase tracking-wider select-none"
                   >
                     {item.data.name}
                   </div>
@@ -225,7 +225,7 @@ const ModelListPanel = memo(function ModelListPanel({
                     if (hIndex !== -1 && hIndex !== highlightedIndex) setHighlightedIndex(hIndex)
                   }}
                   className={`
-                    group flex items-center justify-between gap-2 px-2.5 py-2 rounded-lg cursor-pointer text-sm font-sans transition-colors duration-100 select-none
+                    group flex items-center justify-between gap-2 px-2.5 py-2 rounded-lg cursor-pointer text-[length:var(--fs-base)] font-sans transition-colors duration-100 select-none
                     ${isSelected ? 'bg-accent-main-100/10 text-accent-main-100' : 'text-text-200'}
                     ${isHL && !isSelected ? 'bg-bg-200/40 text-text-100' : ''}
                   `}
@@ -244,7 +244,7 @@ const ModelListPanel = memo(function ModelListPanel({
                   </div>
 
                   {/* Right: provider + context + trailing icon (check / pin, mutually exclusive) */}
-                  <div className="flex items-center gap-2 text-xs font-mono flex-shrink-0">
+                  <div className="flex items-center gap-2 text-[length:var(--fs-sm)] font-mono flex-shrink-0">
                     <span className="text-text-500 max-w-[100px] truncate text-right">{model.providerName}</span>
                     {model.contextLimit > 0 && (
                       <span className="text-text-500 w-[4ch] text-right hidden sm:inline">
@@ -536,7 +536,7 @@ export const ModelSelector = memo(
           ref={triggerRef}
           onClick={() => (isOpen ? closeMenu() : openMenu())}
           disabled={disabled || isLoading}
-          className="group flex items-center gap-2 px-2 py-1.5 text-text-200 rounded-lg hover:bg-bg-200 hover:text-text-100 transition-all duration-150 active:scale-95 cursor-pointer text-sm"
+          className="group flex items-center gap-2 px-2 py-1.5 text-text-200 rounded-lg hover:bg-bg-200 hover:text-text-100 transition-all duration-150 active:scale-95 cursor-pointer text-[length:var(--fs-base)]"
           title={displayName}
         >
           <span className="font-medium truncate max-w-[240px]">{displayName}</span>
@@ -549,10 +549,10 @@ export const ModelSelector = memo(
           ref={triggerRef}
           onClick={() => (isOpen ? closeMenu() : openMenu())}
           disabled={disabled || isLoading}
-          className="flex items-center px-2 py-1.5 text-sm rounded-lg transition-all duration-150 hover:bg-bg-200 active:scale-95 cursor-pointer min-w-0 overflow-hidden w-full"
+          className="flex items-center px-2 py-1.5 text-[length:var(--fs-base)] rounded-lg transition-all duration-150 hover:bg-bg-200 active:scale-95 cursor-pointer min-w-0 overflow-hidden w-full"
           title={selectedModel?.name || t('modelSelector.selectModel')}
         >
-          <span className="text-xs text-text-300 truncate">{displayName}</span>
+          <span className="text-[length:var(--fs-sm)] text-text-300 truncate">{displayName}</span>
         </button>
       )
 

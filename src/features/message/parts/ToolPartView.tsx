@@ -193,7 +193,7 @@ export const ToolPartView = memo(function ToolPartView({
         >
           <div className="flex min-w-0 flex-1 items-baseline gap-2 overflow-hidden">
             <span
-              className={`shrink-0 font-medium text-[13px] leading-tight ${
+              className={`shrink-0 font-medium text-[length:var(--fs-md)] leading-tight ${
                 isActive
                   ? 'reasoning-shimmer-text'
                   : isError
@@ -206,7 +206,7 @@ export const ToolPartView = memo(function ToolPartView({
 
             {title && (
               <span
-                className={`min-w-0 truncate font-mono text-xs ${
+                className={`min-w-0 truncate font-mono text-[length:var(--fs-code)] ${
                   isActive ? 'reasoning-shimmer-text' : isError ? 'text-danger-100/80' : 'text-text-400'
                 }`}
               >
@@ -216,7 +216,7 @@ export const ToolPartView = memo(function ToolPartView({
 
             {/* Diff stats — 紧跟 title，收起时且非失败时显示 */}
             {!effectiveExpanded && !isActive && !isError && (diffStats || hasDiffFiles) && (
-              <span className="shrink-0 flex items-center gap-1 text-[10px] font-mono font-medium tabular-nums">
+              <span className="shrink-0 flex items-center gap-1 text-[length:var(--fs-xxs)] font-mono font-medium tabular-nums">
                 {(diffStats?.additions ?? 0) > 0 && <span className="text-success-100">+{diffStats!.additions}</span>}
                 {(diffStats?.deletions ?? 0) > 0 && <span className="text-danger-100">-{diffStats!.deletions}</span>}
               </span>
@@ -226,7 +226,7 @@ export const ToolPartView = memo(function ToolPartView({
           <div className="ml-auto flex shrink-0 items-center gap-2">
             {duration !== undefined && state.status === 'completed' && (
               <span
-                className={`text-[10px] font-mono tabular-nums ${isError ? 'text-danger-100/70' : 'text-text-500'}`}
+                className={`text-[length:var(--fs-xxs)] font-mono tabular-nums ${isError ? 'text-danger-100/70' : 'text-text-500'}`}
               >
                 {formatDuration(duration)}
               </span>
@@ -261,7 +261,7 @@ export const ToolPartView = memo(function ToolPartView({
           >
             <div className="flex items-baseline gap-2 overflow-hidden flex-1 min-w-0">
               <span
-                className={`font-medium text-[13px] leading-tight transition-colors duration-300 shrink-0 ${
+                className={`font-medium text-[length:var(--fs-md)] leading-tight transition-colors duration-300 shrink-0 ${
                   isActive
                     ? 'text-accent-main-100'
                     : isError
@@ -272,22 +272,26 @@ export const ToolPartView = memo(function ToolPartView({
                 {formatToolName(toolName)}
               </span>
               {title && (
-                <span className="text-xs text-text-400 truncate min-w-0 flex-1 font-mono opacity-70">{title}</span>
+                <span className="text-[length:var(--fs-sm)] text-text-400 truncate min-w-0 flex-1 font-mono opacity-70">
+                  {title}
+                </span>
               )}
             </div>
             <div className="flex items-center gap-2 ml-auto shrink-0">
               {duration !== undefined && state.status === 'completed' && (
-                <span className="text-[10px] font-mono text-text-500 tabular-nums">{formatDuration(duration)}</span>
+                <span className="text-[length:var(--fs-xxs)] font-mono text-text-500 tabular-nums">
+                  {formatDuration(duration)}
+                </span>
               )}
               <span
-                className={`text-[10px] font-medium transition-all duration-300 ${
+                className={`text-[length:var(--fs-xxs)] font-medium transition-all duration-300 ${
                   isActive ? 'opacity-100 text-accent-main-100' : 'opacity-0 w-0 overflow-hidden'
                 }`}
               >
                 {t('toolPart.running')}
               </span>
               <span
-                className={`text-[10px] font-medium transition-all duration-300 ${
+                className={`text-[length:var(--fs-xxs)] font-medium transition-all duration-300 ${
                   isError ? 'opacity-100 text-danger-100' : 'opacity-0 w-0 overflow-hidden'
                 }`}
               >
@@ -338,7 +342,7 @@ export const ToolPartView = memo(function ToolPartView({
         >
           <div className="flex items-baseline gap-2 overflow-hidden flex-1 min-w-0">
             <span
-              className={`font-medium text-[13px] leading-tight transition-colors duration-300 shrink-0 ${
+              className={`font-medium text-[length:var(--fs-md)] leading-tight transition-colors duration-300 shrink-0 ${
                 isActive
                   ? 'text-accent-main-100'
                   : isError
@@ -350,25 +354,27 @@ export const ToolPartView = memo(function ToolPartView({
             </span>
 
             {title && (
-              <span className="text-xs text-text-400 truncate min-w-0 flex-1 font-mono opacity-70">{title}</span>
+              <span className="text-[length:var(--fs-sm)] text-text-400 truncate min-w-0 flex-1 font-mono opacity-70">
+                {title}
+              </span>
             )}
           </div>
 
           <div className="flex items-center gap-2 ml-auto shrink-0">
             {duration !== undefined && state.status === 'completed' && (
-              <span className="text-[10px] font-mono text-text-500 tabular-nums transition-opacity duration-300">
+              <span className="text-[length:var(--fs-xxs)] font-mono text-text-500 tabular-nums transition-opacity duration-300">
                 {formatDuration(duration)}
               </span>
             )}
             <span
-              className={`text-[10px] font-medium transition-all duration-300 ${
+              className={`text-[length:var(--fs-xxs)] font-medium transition-all duration-300 ${
                 isActive ? 'opacity-100 text-accent-main-100' : 'opacity-0 w-0 overflow-hidden'
               }`}
             >
               {t('toolPart.running')}
             </span>
             <span
-              className={`text-[10px] font-medium transition-all duration-300 ${
+              className={`text-[length:var(--fs-xxs)] font-medium transition-all duration-300 ${
                 isError ? 'opacity-100 text-danger-100' : 'opacity-0 w-0 overflow-hidden'
               }`}
             >

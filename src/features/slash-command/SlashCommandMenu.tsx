@@ -197,10 +197,10 @@ export const SlashCommandMenu = forwardRef<SlashCommandMenuHandle, SlashCommandM
     >
       {/* Items List */}
       <div ref={listRef} className="flex-1 overflow-y-auto custom-scrollbar p-1.5">
-        {loading && <div className="px-2 py-4 text-center text-sm text-text-400">{t('common:loading')}</div>}
+        {loading && <div className="px-2 py-4 text-center text-[length:var(--fs-base)] text-text-400">{t('common:loading')}</div>}
 
         {!loading && filteredCommands.length === 0 && (
-          <div className="px-2 py-4 text-center text-sm text-text-400">
+          <div className="px-2 py-4 text-center text-[length:var(--fs-base)] text-text-400">
             {query ? t('slashCommand.noMatchingCommands') : t('slashCommand.noCommandsAvailable')}
           </div>
         )}
@@ -216,7 +216,7 @@ export const SlashCommandMenu = forwardRef<SlashCommandMenuHandle, SlashCommandM
             onPointerEnter={() => setSelectedIndex(index)}
           >
             <span
-              className={`font-mono text-sm flex-shrink-0 truncate leading-5 ${
+              className={`font-mono text-[length:var(--fs-base)] flex-shrink-0 truncate leading-5 ${
                 index === activeIndex ? 'text-accent-main-100' : 'text-text-300'
               }`}
               style={{ width: commandColumnWidth }}
@@ -224,15 +224,15 @@ export const SlashCommandMenu = forwardRef<SlashCommandMenuHandle, SlashCommandM
               /{cmd.name}
             </span>
             <div className="flex-1 min-w-0">
-              {cmd.description && <div className="text-xs text-text-400 truncate">{cmd.description}</div>}
+              {cmd.description && <div className="text-[length:var(--fs-sm)] text-text-400 truncate">{cmd.description}</div>}
             </div>
-            {cmd.keybind && <span className="text-xs text-text-500 font-mono flex-shrink-0">{cmd.keybind}</span>}
+            {cmd.keybind && <span className="text-[length:var(--fs-sm)] text-text-500 font-mono flex-shrink-0">{cmd.keybind}</span>}
           </button>
         ))}
       </div>
 
       {/* Footer Hints - 只在桌面端显示 */}
-      <div className="hidden md:flex px-3 py-1.5 text-[11px] text-text-500/70 gap-3">
+      <div className="hidden md:flex px-3 py-1.5 text-[length:var(--fs-xs)] text-text-500/70 gap-3">
         <span>{t('common:upDownSelect')}</span>
         <span>{t('common:enterRun')}</span>
         <span>{t('common:escCancel')}</span>

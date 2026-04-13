@@ -79,7 +79,7 @@ export function SegmentedControl<T extends string>({ value, options, onChange }:
           aria-selected={opt.value === value}
           tabIndex={opt.value === value ? 0 : -1}
           onClick={e => onChange(opt.value, e)}
-          className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-md text-[13px] font-medium transition-colors duration-200
+          className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-md text-[length:var(--fs-md)] font-medium transition-colors duration-200
             ${opt.value === value ? 'text-text-100' : 'text-text-400 hover:text-text-200'}`}
         >
           {opt.icon}
@@ -114,8 +114,8 @@ export function SettingRow({ label, description, icon, children, onClick, classN
       <div className="flex items-center gap-3 min-w-0 flex-1">
         {icon && <span className="text-text-400 shrink-0">{icon}</span>}
         <div className="flex flex-col gap-0.5 min-w-0">
-          <p className="text-[13px] font-medium text-text-100">{label}</p>
-          {description && <p className="text-[12px] text-text-400 leading-relaxed">{description}</p>}
+          <p className="text-[length:var(--fs-md)] font-medium text-text-100">{label}</p>
+          {description && <p className="text-[length:var(--fs-sm)] text-text-400 leading-relaxed">{description}</p>}
         </div>
       </div>
       <div className="shrink-0">{children}</div>
@@ -130,7 +130,7 @@ export function SettingRow({ label, description, icon, children, onClick, classN
 export function SettingsSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="flex flex-col gap-5 border-b border-border-200/50 last:!border-b-0 mb-7 pb-7 last:mb-0 last:pb-0">
-      <h2 className="text-[14px] font-semibold text-text-100">{title}</h2>
+      <h2 className="text-[length:var(--fs-base)] font-semibold text-text-100">{title}</h2>
       {children}
     </section>
   )
@@ -156,8 +156,10 @@ export function SettingsCard({
     <section className={`rounded-xl border border-border-200/55 bg-bg-050/55 p-3.5 ${className || ''}`}>
       <div className="flex items-start justify-between gap-3 mb-3">
         <div className="min-w-0">
-          <div className="text-[13px] font-semibold text-text-100">{title}</div>
-          {description && <div className="text-[11px] text-text-400 mt-0.5 leading-relaxed">{description}</div>}
+          <div className="text-[length:var(--fs-md)] font-semibold text-text-100">{title}</div>
+          {description && (
+            <div className="text-[length:var(--fs-xs)] text-text-400 mt-0.5 leading-relaxed">{description}</div>
+          )}
         </div>
         {actions && <div className="shrink-0">{actions}</div>}
       </div>

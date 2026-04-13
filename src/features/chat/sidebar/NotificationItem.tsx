@@ -63,10 +63,10 @@ export function NotificationItem({ entry, resolvedSession, onSelect }: Notificat
 
       {/* Content */}
       <div className="flex-1 min-w-0">
-        <p className="text-[13px] truncate font-medium text-text-200 group-hover:text-text-100" title={displayTitle}>
+        <p className="text-[length:var(--fs-md)] truncate font-medium text-text-200 group-hover:text-text-100" title={displayTitle}>
           {displayTitle}
         </p>
-        <div className="flex items-center mt-0.5 min-w-0 overflow-hidden text-[10px] text-text-400 gap-1">
+        <div className="flex items-center mt-0.5 min-w-0 overflow-hidden text-[length:var(--fs-xxs)] text-text-400 gap-1">
           <span className={`shrink-0 ${config.color}`}>{t(config.labelKey)}</span>
           {entry.body && (
             <>

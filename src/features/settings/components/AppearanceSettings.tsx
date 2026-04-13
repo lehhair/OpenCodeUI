@@ -5,6 +5,7 @@ import { SunIcon, MoonIcon, SystemIcon, CheckIcon } from '../../../components/Ic
 import { Toggle, SegmentedControl, SettingRow, SettingsSection } from './SettingsUI'
 import { useTheme } from '../../../hooks'
 import { layoutStore, useLayoutStore } from '../../../store'
+import { FONT_SCALE_MIN, FONT_SCALE_MAX } from '../../../store/themeStore'
 
 // ============================================
 // Theme Preset Card
@@ -57,12 +58,73 @@ function PresetCard({
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
-          <span className="text-[13px] font-medium text-text-100">{name}</span>
+          <span className="text-[length:var(--fs-md)] font-medium text-text-100">{name}</span>
           {isActive && <CheckIcon size={12} className="text-accent-main-100 shrink-0" />}
         </div>
-        <div className="text-[11px] text-text-400 mt-0.5">{description}</div>
+        <div className="text-[length:var(--fs-xs)] text-text-400 mt-0.5">{description}</div>
       </div>
     </button>
+  )
+}
+
+// ============================================
+// Font Scale Slider
+// ============================================
+
+const sliderCls = `flex-1 h-1.5 rounded-full appearance-none cursor-pointer
+  bg-bg-200
+  [&::-webkit-slider-thumb]:appearance-none
+  [&::-webkit-slider-thumb]:w-3.5
+  [&::-webkit-slider-thumb]:h-3.5
+  [&::-webkit-slider-thumb]:rounded-full
+  [&::-webkit-slider-thumb]:bg-accent-main-100
+  [&::-webkit-slider-thumb]:shadow-sm
+  [&::-webkit-slider-thumb]:border-2
+  [&::-webkit-slider-thumb]:border-bg-000
+  [&::-webkit-slider-thumb]:cursor-pointer
+  [&::-moz-range-thumb]:w-3.5
+  [&::-moz-range-thumb]:h-3.5
+  [&::-moz-range-thumb]:rounded-full
+  [&::-moz-range-thumb]:bg-accent-main-100
+  [&::-moz-range-thumb]:border-2
+  [&::-moz-range-thumb]:border-bg-000
+  [&::-moz-range-thumb]:cursor-pointer
+  [&::-moz-range-track]:bg-bg-200
+  [&::-moz-range-track]:rounded-full
+  [&::-moz-range-track]:h-1.5`
+
+function FontScaleSlider({
+  value,
+  onChange,
+  baseSize,
+}: {
+  value: number
+  onChange: (v: number) => void
+  /** 偏移 0 对应的基准像素值，用于显示 */
+  baseSize: number
+}) {
+  const displayPx = baseSize + value
+  return (
+    <div className="flex items-center gap-3 w-full">
+      <span className="text-text-400 text-[length:var(--fs-xs)] select-none shrink-0" style={{ fontSize: 11 }}>
+        A
+      </span>
+      <input
+        type="range"
+        min={FONT_SCALE_MIN}
+        max={FONT_SCALE_MAX}
+        step={1}
+        value={value}
+        onChange={e => onChange(Number(e.target.value))}
+        className={sliderCls}
+      />
+      <span className="text-text-400 select-none shrink-0" style={{ fontSize: 16 }}>
+        A
+      </span>
+      <span className="text-[length:var(--fs-sm)] text-text-300 w-12 text-right tabular-nums shrink-0">
+        {displayPx}px
+      </span>
+    </div>
   )
 }
 
@@ -261,18 +323,18 @@ function CustomCSSEditor({
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <div className="text-[11px] text-text-400">
+        <div className="text-[length:var(--fs-xs)] text-text-400">
           <Trans
             i18nKey="settings:appearance.customCssSpecificityHelp"
             components={{
-              1: <code className="text-[10px] px-1 py-0.5 bg-bg-200 rounded font-mono" />,
+              1: <code className="text-[length:var(--fs-xxs)] px-1 py-0.5 bg-bg-200 rounded font-mono" />,
             }}
           />
         </div>
         {!localValue.trim() && (
           <button
             onClick={() => handleChange(template)}
-            className="text-[10px] text-accent-main-100 hover:text-accent-main-200 transition-colors px-1.5 py-0.5 rounded hover:bg-bg-200/50 shrink-0"
+            className="text-[length:var(--fs-xxs)] text-accent-main-100 hover:text-accent-main-200 transition-colors px-1.5 py-0.5 rounded hover:bg-bg-200/50 shrink-0"
           >
             {t('appearance.loadTemplate')}
           </button>
@@ -283,7 +345,7 @@ function CustomCSSEditor({
         onChange={e => handleChange(e.target.value)}
         placeholder={template}
         spellCheck={false}
-        className="w-full h-48 px-3 py-2 text-[12px] font-mono bg-bg-200/50 border border-border-200 rounded-lg 
+        className="w-full h-48 px-3 py-2 text-[length:var(--fs-sm)] font-mono bg-bg-200/50 border border-border-200 rounded-lg 
           focus:outline-none focus:border-accent-main-100/50 text-text-100 placeholder:text-text-500 
           resize-y custom-scrollbar leading-relaxed"
       />
@@ -327,6 +389,10 @@ export function AppearanceSettings() {
     setCodeWordWrap,
     glassEffect,
     setGlassEffect,
+    uiFontScale,
+    setUIFontScale,
+    codeFontScale,
+    setCodeFontScale,
   } = useTheme()
   const { sidebarFolderRecents, sidebarFolderRecentsShowDiff, sidebarShowChildSessions, wakeLock } = useLayoutStore()
 
@@ -334,7 +400,7 @@ export function AppearanceSettings() {
     <div>
       {availablePresets.length > 0 && (
         <SettingsSection title={t('appearance.themePresets')}>
-          <p className="text-[12px] text-text-400">{t('appearance.themePresetsDesc')}</p>
+          <p className="text-[length:var(--fs-sm)] text-text-400">{t('appearance.themePresetsDesc')}</p>
           <div className="grid gap-2 sm:grid-cols-2">
             {availablePresets.map(p => (
               <PresetCard
@@ -351,13 +417,13 @@ export function AppearanceSettings() {
       )}
 
       <SettingsSection title={t('appearance.customCss')}>
-        <p className="text-[12px] text-text-400">{t('appearance.customCssDesc')}</p>
+        <p className="text-[length:var(--fs-sm)] text-text-400">{t('appearance.customCssDesc')}</p>
         <CustomCSSEditor value={customCSS} onChange={setCustomCSS} t={t} />
       </SettingsSection>
 
       <SettingsSection title={t('appearance.display')}>
         <div>
-          <p className="text-[13px] text-text-100 mb-1.5">{t('appearance.colorMode')}</p>
+          <p className="text-[length:var(--fs-md)] text-text-100 mb-1.5">{t('appearance.colorMode')}</p>
           <SegmentedControl
             value={themeMode}
             options={[
@@ -402,7 +468,7 @@ export function AppearanceSettings() {
         </SettingRow>
 
         <div>
-          <p className="text-[13px] text-text-100 mb-1.5">{t('appearance.diffStyle')}</p>
+          <p className="text-[length:var(--fs-md)] text-text-100 mb-1.5">{t('appearance.diffStyle')}</p>
           <SegmentedControl
             value={diffStyle}
             options={[
@@ -411,14 +477,26 @@ export function AppearanceSettings() {
             ]}
             onChange={v => setDiffStyle(v as 'markers' | 'changeBars')}
           />
-          <p className="text-[11px] text-text-500 mt-1">{t('appearance.diffStyleDesc')}</p>
+          <p className="text-[length:var(--fs-xs)] text-text-500 mt-1">{t('appearance.diffStyleDesc')}</p>
+        </div>
+
+        <div>
+          <p className="text-[length:var(--fs-md)] text-text-100 mb-2">{t('appearance.uiFontScale')}</p>
+          <FontScaleSlider value={uiFontScale} onChange={setUIFontScale} baseSize={14} />
+          <p className="text-[length:var(--fs-xs)] text-text-500 mt-1">{t('appearance.uiFontScaleDesc')}</p>
+        </div>
+
+        <div>
+          <p className="text-[length:var(--fs-md)] text-text-100 mb-2">{t('appearance.codeFontScale')}</p>
+          <FontScaleSlider value={codeFontScale} onChange={setCodeFontScale} baseSize={11} />
+          <p className="text-[length:var(--fs-xs)] text-text-500 mt-1">{t('appearance.codeFontScaleDesc')}</p>
         </div>
 
         <SettingRow label={t('appearance.language')} description={t('appearance.languageDesc')}>
           <select
             value={i18n.language}
             onChange={e => i18n.changeLanguage(e.target.value)}
-            className="px-2 py-1 text-[12px] bg-bg-200/50 border border-border-200 rounded-md text-text-100 focus:outline-none focus:border-accent-main-100/50 cursor-pointer"
+            className="px-2 py-1 text-[length:var(--fs-sm)] bg-bg-200/50 border border-border-200 rounded-md text-text-100 focus:outline-none focus:border-accent-main-100/50 cursor-pointer"
           >
             <option value="en">{t('appearance.languages.en')}</option>
             <option value="zh-CN">{t('appearance.languages.zh-CN')}</option>

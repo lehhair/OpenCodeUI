@@ -99,7 +99,7 @@ function VolumeSlider({ value, onChange }: { value: number; onChange: (v: number
           [&::-moz-range-track]:h-1.5"
       />
       <VolumeIcon size={13} className="text-text-400 shrink-0" />
-      <span className="text-[12px] text-text-300 w-8 text-right tabular-nums">{value}</span>
+      <span className="text-[length:var(--fs-sm)] text-text-300 w-8 text-right tabular-nums">{value}</span>
     </div>
   )
 }
@@ -181,8 +181,8 @@ function EventSoundCard({
         <div className="flex items-center gap-2.5">
           <span className={color}>{icon}</span>
           <div>
-            <div className="text-[13px] font-medium text-text-100">{t(labelKey as `notifications.${string}`)}</div>
-            <div className="text-[11px] text-text-400">{t(descKey as `notifications.${string}`)}</div>
+            <div className="text-[length:var(--fs-md)] font-medium text-text-100">{t(labelKey as `notifications.${string}`)}</div>
+            <div className="text-[length:var(--fs-xs)] text-text-400">{t(descKey as `notifications.${string}`)}</div>
           </div>
         </div>
         <Button
@@ -190,7 +190,7 @@ function EventSoundCard({
           variant="ghost"
           onClick={handlePreview}
           disabled={eventConfig.soundId === 'none'}
-          className="gap-1.5 text-[12px]"
+          className="gap-1.5 text-[length:var(--fs-sm)]"
         >
           <PlayIcon size={12} />
           {t('notifications.preview')}
@@ -203,7 +203,7 @@ function EventSoundCard({
         <button
           type="button"
           onClick={() => handleSoundChange('none')}
-          className={`px-2.5 py-1 rounded-md text-[12px] font-medium transition-colors border
+          className={`px-2.5 py-1 rounded-md text-[length:var(--fs-sm)] font-medium transition-colors border
             ${
               eventConfig.soundId === 'none'
                 ? 'bg-accent-main-100/10 text-accent-main-100 border-accent-main-100/30'
@@ -219,7 +219,7 @@ function EventSoundCard({
             key={sid}
             type="button"
             onClick={() => handleSoundChange(sid)}
-            className={`px-2.5 py-1 rounded-md text-[12px] font-medium transition-colors border
+            className={`px-2.5 py-1 rounded-md text-[length:var(--fs-sm)] font-medium transition-colors border
               ${
                 eventConfig.soundId === sid
                   ? 'bg-accent-main-100/10 text-accent-main-100 border-accent-main-100/30'
@@ -235,7 +235,7 @@ function EventSoundCard({
           <button
             type="button"
             onClick={() => handleSoundChange('custom')}
-            className={`px-2.5 py-1 rounded-md text-[12px] font-medium transition-colors border
+            className={`px-2.5 py-1 rounded-md text-[length:var(--fs-sm)] font-medium transition-colors border
               ${
                 eventConfig.soundId === 'custom'
                   ? 'bg-accent-main-100/10 text-accent-main-100 border-accent-main-100/30'
@@ -250,10 +250,10 @@ function EventSoundCard({
       {/* Custom audio info + actions */}
       {hasCustom && eventConfig.customFileName && (
         <div className="flex items-center gap-2 mb-1.5 px-0.5">
-          <span className="text-[11px] text-text-300 truncate max-w-[200px]" title={eventConfig.customFileName}>
+          <span className="text-[length:var(--fs-xs)] text-text-300 truncate max-w-[200px]" title={eventConfig.customFileName}>
             {eventConfig.customFileName}
           </span>
-          <Button size="sm" variant="ghost" onClick={handleExportCustom} className="gap-1 text-[11px] h-6 px-1.5">
+          <Button size="sm" variant="ghost" onClick={handleExportCustom} className="gap-1 text-[length:var(--fs-xs)] h-6 px-1.5">
             <DownloadIcon size={10} />
             {t('notifications.exportAudio')}
           </Button>
@@ -261,7 +261,7 @@ function EventSoundCard({
             size="sm"
             variant="ghost"
             onClick={handleRemoveCustom}
-            className="gap-1 text-[11px] h-6 px-1.5 text-red-400 hover:text-red-300"
+            className="gap-1 text-[length:var(--fs-xs)] h-6 px-1.5 text-red-400 hover:text-red-300"
           >
             <TrashIcon size={10} />
             {t('notifications.removeCustom')}
@@ -276,17 +276,17 @@ function EventSoundCard({
           size="sm"
           variant="ghost"
           onClick={() => fileInputRef.current?.click()}
-          className="gap-1.5 text-[11px] h-7"
+          className="gap-1.5 text-[length:var(--fs-xs)] h-7"
         >
           <UploadIcon size={11} />
           {hasCustom ? t('notifications.replaceAudio') : t('notifications.uploadAudio')}
         </Button>
-        <span className="text-[11px] text-text-500 ml-auto">{t('notifications.supportedFormats')}</span>
+        <span className="text-[length:var(--fs-xs)] text-text-500 ml-auto">{t('notifications.supportedFormats')}</span>
       </div>
 
       {/* Upload Error */}
       {uploadError && (
-        <div className="mt-1.5 text-[11px] text-red-400 flex items-center gap-1.5">
+        <div className="mt-1.5 text-[length:var(--fs-xs)] text-red-400 flex items-center gap-1.5">
           <AlertCircleIcon size={11} />
           {uploadError}
         </div>
@@ -362,7 +362,7 @@ export function NotificationSettings() {
               </SettingRow>
             </div>
           ) : (
-            <div className="text-[12px] text-text-400 leading-relaxed">{t('notifications.notAvailable')}</div>
+            <div className="text-[length:var(--fs-sm)] text-text-400 leading-relaxed">{t('notifications.notAvailable')}</div>
           )}
         </SettingsCard>
 
@@ -409,8 +409,8 @@ export function NotificationSettings() {
 
               {/* Volume Slider */}
               <div className="px-2.5 py-2.5">
-                <div className="text-[13px] font-medium text-text-100 mb-1">{t('notifications.volume')}</div>
-                <div className="text-[11px] text-text-400 mb-2.5">{t('notifications.volumeDesc')}</div>
+                <div className="text-[length:var(--fs-md)] font-medium text-text-100 mb-1">{t('notifications.volume')}</div>
+                <div className="text-[length:var(--fs-xs)] text-text-400 mb-2.5">{t('notifications.volumeDesc')}</div>
                 <VolumeSlider value={soundSettings.volume} onChange={v => soundStore.setVolume(v)} />
               </div>
             </div>
@@ -418,10 +418,10 @@ export function NotificationSettings() {
             {/* Event Sound Cards */}
             {soundSettings.enabled && (
               <div>
-                <div className="text-[13px] font-semibold text-text-100 mb-1.5 px-1">
+                <div className="text-[length:var(--fs-md)] font-semibold text-text-100 mb-1.5 px-1">
                   {t('notifications.eventSounds')}
                 </div>
-                <div className="text-[11px] text-text-400 mb-3 px-1">{t('notifications.eventSoundsDesc')}</div>
+                <div className="text-[length:var(--fs-xs)] text-text-400 mb-3 px-1">{t('notifications.eventSoundsDesc')}</div>
                 <div className="grid gap-3 xl:grid-cols-2">
                   {EVENT_TYPES.map(evt => (
                     <EventSoundCard
@@ -438,7 +438,7 @@ export function NotificationSettings() {
             )}
           </div>
         ) : (
-          <div className="text-[12px] text-text-400 leading-relaxed">{t('notifications.soundNotSupported')}</div>
+          <div className="text-[length:var(--fs-sm)] text-text-400 leading-relaxed">{t('notifications.soundNotSupported')}</div>
         )}
       </SettingsCard>
     </div>

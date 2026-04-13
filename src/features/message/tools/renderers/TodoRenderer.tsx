@@ -42,7 +42,7 @@ function TodoList({ todos }: { todos: TodoItem[] }) {
   const total = todos.length
 
   return (
-    <div className="border border-border-200/50 rounded-md overflow-hidden bg-bg-100 text-xs">
+    <div className="border border-border-200/50 rounded-md overflow-hidden bg-bg-100 text-[length:var(--fs-sm)]">
       {/* Header */}
       <div
         className="flex items-center justify-between px-3 h-8 bg-bg-200/50 hover:bg-bg-200 cursor-pointer select-none transition-colors"
@@ -76,7 +76,7 @@ function TodoList({ todos }: { todos: TodoItem[] }) {
                   <span className="shrink-0 flex items-center">{getTodoIcon(todo.status)}</span>
                   <span className={todo.status === 'completed' ? 'line-through' : ''}>{todo.content}</span>
                   {todo.priority === 'high' && todo.status !== 'completed' && (
-                    <span className="text-[10px] text-warning-100 bg-warning-100/10 px-1 rounded ml-auto shrink-0">
+                    <span className="text-[length:var(--fs-xxs)] text-warning-100 bg-warning-100/10 px-1 rounded ml-auto shrink-0">
                       !
                     </span>
                   )}

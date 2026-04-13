@@ -7,9 +7,9 @@ import type { FileCapabilities } from '../../../api'
 
 export const TEXT_STYLE: React.CSSProperties = {
   fontFamily: 'var(--font-ui-sans)',
-  fontSize: '14px',
+  fontSize: 'var(--fs-base)',
   fontWeight: 400,
-  lineHeight: '20px',
+  lineHeight: '1.43',
   letterSpacing: 'normal',
   whiteSpace: 'pre-wrap',
   wordBreak: 'break-word',

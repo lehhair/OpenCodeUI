@@ -316,7 +316,7 @@ export function ProjectDialog({ isOpen, onClose, onSelect, initialPath = '' }: P
             }}
             onKeyDown={handleKeyDown}
             placeholder={t('projectDialog.typePath')}
-            className="flex-1 bg-transparent border-none outline-none text-sm text-text-100 placeholder:text-text-400 font-mono"
+            className="flex-1 bg-transparent border-none outline-none text-[length:var(--fs-base)] text-text-100 placeholder:text-text-400 font-mono"
             autoComplete="off"
             spellCheck={false}
           />
@@ -327,7 +327,7 @@ export function ProjectDialog({ isOpen, onClose, onSelect, initialPath = '' }: P
       {/* List */}
       <div className="flex-1 overflow-y-auto px-2 py-1 custom-scrollbar">
         {error ? (
-          <div className="flex items-center justify-center h-full text-danger-100 text-xs px-4 text-center">
+          <div className="flex items-center justify-center h-full text-danger-100 text-[length:var(--fs-sm)] px-4 text-center">
             {error}
           </div>
         ) : (
@@ -349,7 +349,7 @@ export function ProjectDialog({ isOpen, onClose, onSelect, initialPath = '' }: P
 
             {/* Empty State */}
             {filteredItems.length === 0 && !isLoading && (
-              <div className="flex flex-col items-center justify-center h-28 text-text-400/60 text-xs gap-2">
+              <div className="flex flex-col items-center justify-center h-28 text-text-400/60 text-[length:var(--fs-sm)] gap-2">
                 <FolderIcon className="w-6 h-6 opacity-30" />
                 <span>{filterText ? t('projectDialog.noMatchingFolders') : t('common:emptyFolder')}</span>
               </div>
@@ -372,7 +372,7 @@ export function ProjectDialog({ isOpen, onClose, onSelect, initialPath = '' }: P
                         e.stopPropagation()
                         handleSelectFolder(item.path)
                       }}
-                      className="flex items-center gap-1 text-[10px] bg-accent-main-100 hover:bg-accent-main-200 px-2 py-0.5 rounded text-oncolor-100 font-medium transition-colors"
+                      className="flex items-center gap-1 text-[length:var(--fs-xxs)] bg-accent-main-100 hover:bg-accent-main-200 px-2 py-0.5 rounded text-oncolor-100 font-medium transition-colors"
                     >
                       <PlusIcon className="w-2.5 h-2.5" />
                       {t('common:add')}
@@ -387,12 +387,12 @@ export function ProjectDialog({ isOpen, onClose, onSelect, initialPath = '' }: P
 
       {/* Footer */}
       <div className="p-3 border-t border-border-200/50 flex items-center gap-3 shrink-0">
-        <div className="text-[10px] text-text-400 flex-1 min-w-0 font-mono whitespace-normal break-all leading-4">
+        <div className="text-[length:var(--fs-xxs)] text-text-400 flex-1 min-w-0 font-mono whitespace-normal break-all leading-4">
           {inputValue}
         </div>
         <button
           onClick={handleConfirmCurrent}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-bg-000/40 hover:bg-accent-main-100/10 border border-border-200 hover:border-accent-main-100/30 text-text-200 hover:text-accent-main-100 rounded-lg transition-colors text-xs font-medium shrink-0 whitespace-nowrap"
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-bg-000/40 hover:bg-accent-main-100/10 border border-border-200 hover:border-accent-main-100/30 text-text-200 hover:text-accent-main-100 rounded-lg transition-colors text-[length:var(--fs-sm)] font-medium shrink-0 whitespace-nowrap"
         >
           <PlusIcon className="w-3 h-3" />
           {t('projectDialog.addCurrent')}
@@ -433,7 +433,7 @@ function ListItem({ id, icon, label, isSelected, onClick, onMouseEnter, action }
     >
       <div className="flex items-center gap-2.5 min-w-0">
         <span className={isSelected ? 'text-accent-main-100' : 'text-text-400'}>{icon}</span>
-        <span className="text-sm truncate">{label}</span>
+        <span className="text-[length:var(--fs-base)] truncate">{label}</span>
       </div>
       {action}
     </div>

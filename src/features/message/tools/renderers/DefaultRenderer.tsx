@@ -164,11 +164,11 @@ function DiagnosticsBlock({ diagnostics }: DiagnosticsBlockProps) {
   if (errors.length === 0 && warnings.length === 0) return null
 
   return (
-    <div className="rounded-md border border-border-200/40 bg-bg-100/80 overflow-hidden text-xs">
+    <div className="rounded-md border border-border-200/40 bg-bg-100/80 overflow-hidden text-[length:var(--fs-sm)]">
       <div className="px-3 h-8 bg-bg-200/40 flex items-center gap-2">
         <AlertCircleIcon className="w-3.5 h-3.5 text-text-400" />
         <span className="font-medium text-text-300">{t('defaultRenderer.diagnostics')}</span>
-        <div className="flex items-center gap-2 ml-auto font-mono text-[10px]">
+        <div className="flex items-center gap-2 ml-auto font-mono text-[length:var(--fs-xxs)]">
           {errors.length > 0 && (
             <span className="text-danger-100">{t('defaultRenderer.errorsCount', { count: errors.length })}</span>
           )}
@@ -179,7 +179,7 @@ function DiagnosticsBlock({ diagnostics }: DiagnosticsBlockProps) {
       </div>
       <div className="px-3 py-2 space-y-1.5 max-h-40 overflow-auto custom-scrollbar">
         {diagnostics.map((d, idx) => (
-          <div key={idx} className="flex items-start gap-2 text-[11px]">
+          <div key={idx} className="flex items-start gap-2 text-[length:var(--fs-code)]">
             <span
               className={`flex-shrink-0 mt-1 w-1.5 h-1.5 rounded-full ${
                 d.severity === 'error' ? 'bg-danger-100' : 'bg-warning-100'

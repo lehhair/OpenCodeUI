@@ -99,14 +99,14 @@ function ServerItem({
         <GlobeIcon size={14} className={isActive ? 'text-accent-main-100' : 'text-text-400'} />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5">
-            <span className="text-[13px] font-medium text-text-100 truncate">{server.name}</span>
+            <span className="text-[length:var(--fs-md)] font-medium text-text-100 truncate">{server.name}</span>
             {isActive && (
-              <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium text-accent-main-100 bg-accent-main-100/10 shrink-0">
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[length:var(--fs-xxs)] font-medium text-accent-main-100 bg-accent-main-100/10 shrink-0">
                 {t('servers.current')}
               </span>
             )}
           </div>
-          <div className="text-[11px] text-text-400 truncate font-mono flex items-center gap-1">
+          <div className="text-[length:var(--fs-xs)] text-text-400 truncate font-mono flex items-center gap-1">
             {server.url}
             {server.auth?.password && <KeyIcon size={10} className="shrink-0 text-text-400" />}
           </div>
@@ -210,7 +210,7 @@ function EditServerForm({
   }
 
   const inputCls =
-    'w-full h-8 px-3 text-[13px] bg-bg-000 border border-border-200 rounded-md focus:outline-none focus:border-accent-main-100/50 text-text-100 placeholder:text-text-400'
+    'w-full h-8 px-3 text-[length:var(--fs-md)] bg-bg-000 border border-border-200 rounded-md focus:outline-none focus:border-accent-main-100/50 text-text-100 placeholder:text-text-400'
 
   return (
     <form
@@ -218,7 +218,7 @@ function EditServerForm({
       className="p-3 rounded-lg border border-accent-main-100/30 bg-accent-main-100/[0.02] space-y-2.5"
     >
       <div>
-        <label className="block text-[11px] font-medium text-text-300 mb-1">{t('servers.name')}</label>
+        <label className="block text-[length:var(--fs-xs)] font-medium text-text-300 mb-1">{t('servers.name')}</label>
         <input
           type="text"
           value={name}
@@ -232,7 +232,7 @@ function EditServerForm({
         />
       </div>
       <div>
-        <label className="block text-[11px] font-medium text-text-300 mb-1">{t('servers.url')}</label>
+        <label className="block text-[length:var(--fs-xs)] font-medium text-text-300 mb-1">{t('servers.url')}</label>
         <input
           type="text"
           value={url}
@@ -248,7 +248,7 @@ function EditServerForm({
       <button
         type="button"
         onClick={() => setShowAuth(!showAuth)}
-        className="flex items-center gap-1.5 text-[11px] text-accent-main-100 hover:text-accent-main-200 transition-colors"
+        className="flex items-center gap-1.5 text-[length:var(--fs-xs)] text-accent-main-100 hover:text-accent-main-200 transition-colors"
       >
         <KeyIcon size={10} />
         {showAuth ? t('servers.hideAuth') : t('servers.addAuth')}
@@ -257,7 +257,7 @@ function EditServerForm({
       {showAuth && (
         <>
           <div>
-            <label className="block text-[11px] font-medium text-text-300 mb-1">{t('servers.username')}</label>
+            <label className="block text-[length:var(--fs-xs)] font-medium text-text-300 mb-1">{t('servers.username')}</label>
             <input
               type="text"
               value={username}
@@ -270,7 +270,7 @@ function EditServerForm({
             />
           </div>
           <div>
-            <label className="block text-[11px] font-medium text-text-300 mb-1">{t('servers.password')}</label>
+            <label className="block text-[length:var(--fs-xs)] font-medium text-text-300 mb-1">{t('servers.password')}</label>
             <input
               type="password"
               value={password}
@@ -285,7 +285,7 @@ function EditServerForm({
         </>
       )}
 
-      {error && <p className="text-[11px] text-danger-100">{error}</p>}
+      {error && <p className="text-[length:var(--fs-xs)] text-danger-100">{error}</p>}
       <div className="flex justify-end gap-2 pt-1">
         <Button type="button" variant="ghost" size="sm" onClick={onCancel}>
           {t('common:cancel')}
@@ -353,12 +353,12 @@ function AddServerForm({
   })()
 
   const inputCls =
-    'w-full h-8 px-3 text-[13px] bg-bg-000 border border-border-200 rounded-md focus:outline-none focus:border-accent-main-100/50 text-text-100 placeholder:text-text-400'
+    'w-full h-8 px-3 text-[length:var(--fs-md)] bg-bg-000 border border-border-200 rounded-md focus:outline-none focus:border-accent-main-100/50 text-text-100 placeholder:text-text-400'
 
   return (
     <form onSubmit={handleSubmit} className="p-3 rounded-lg border border-border-200 bg-bg-050 space-y-2.5">
       <div>
-        <label className="block text-[11px] font-medium text-text-300 mb-1">{t('servers.name')}</label>
+        <label className="block text-[length:var(--fs-xs)] font-medium text-text-300 mb-1">{t('servers.name')}</label>
         <input
           type="text"
           value={name}
@@ -372,7 +372,7 @@ function AddServerForm({
         />
       </div>
       <div>
-        <label className="block text-[11px] font-medium text-text-300 mb-1">{t('servers.url')}</label>
+        <label className="block text-[length:var(--fs-xs)] font-medium text-text-300 mb-1">{t('servers.url')}</label>
         <input
           type="text"
           value={url}
@@ -388,7 +388,7 @@ function AddServerForm({
       <button
         type="button"
         onClick={() => setShowAuth(!showAuth)}
-        className="flex items-center gap-1.5 text-[11px] text-accent-main-100 hover:text-accent-main-200 transition-colors"
+        className="flex items-center gap-1.5 text-[length:var(--fs-xs)] text-accent-main-100 hover:text-accent-main-200 transition-colors"
       >
         <KeyIcon size={10} />
         {showAuth ? t('servers.hideAuth') : t('servers.addAuth')}
@@ -397,7 +397,7 @@ function AddServerForm({
       {showAuth && (
         <>
           <div>
-            <label className="block text-[11px] font-medium text-text-300 mb-1">{t('servers.username')}</label>
+            <label className="block text-[length:var(--fs-xs)] font-medium text-text-300 mb-1">{t('servers.username')}</label>
             <input
               type="text"
               value={username}
@@ -410,7 +410,7 @@ function AddServerForm({
             />
           </div>
           <div>
-            <label className="block text-[11px] font-medium text-text-300 mb-1">{t('servers.password')}</label>
+            <label className="block text-[length:var(--fs-xs)] font-medium text-text-300 mb-1">{t('servers.password')}</label>
             <input
               type="password"
               value={password}
@@ -424,7 +424,7 @@ function AddServerForm({
           </div>
 
           {isCrossOrigin && password.trim() && (
-            <div className="text-[11px] text-warning-100 bg-warning-bg border border-warning-100/20 rounded-md px-2.5 py-2 leading-relaxed">
+            <div className="text-[length:var(--fs-xs)] text-warning-100 bg-warning-bg border border-warning-100/20 rounded-md px-2.5 py-2 leading-relaxed">
               {t('servers.crossOriginWarning')}{' '}
               <a
                 href="https://github.com/anomalyco/opencode/issues/10047"
@@ -437,11 +437,11 @@ function AddServerForm({
             </div>
           )}
 
-          <div className="text-[11px] text-text-400 leading-relaxed">{t('servers.credentialsStorage')}</div>
+          <div className="text-[length:var(--fs-xs)] text-text-400 leading-relaxed">{t('servers.credentialsStorage')}</div>
         </>
       )}
 
-      {error && <p className="text-[11px] text-danger-100">{error}</p>}
+      {error && <p className="text-[length:var(--fs-xs)] text-danger-100">{error}</p>}
       <div className="flex justify-end gap-2 pt-1">
         <Button type="button" variant="ghost" size="sm" onClick={onCancel}>
           {t('common:cancel')}
@@ -509,14 +509,14 @@ export function ServersSettings() {
           <div className="flex items-center gap-2">
             <button
               onClick={checkAllHealth}
-              className="text-[11px] px-2 py-1 rounded-md border border-border-200/60 text-text-300 hover:text-text-100 hover:border-border-300/70 hover:bg-bg-100/60 transition-colors"
+              className="text-[length:var(--fs-xs)] px-2 py-1 rounded-md border border-border-200/60 text-text-300 hover:text-text-100 hover:border-border-300/70 hover:bg-bg-100/60 transition-colors"
             >
               {t('common:refresh')}
             </button>
             {!addingServer && (
               <button
                 onClick={() => setAddingServer(true)}
-                className="flex items-center gap-1 text-[11px] px-2 py-1 rounded-md border border-accent-main-100/40 text-accent-main-100 hover:text-accent-main-200 hover:border-accent-main-100/60 hover:bg-accent-main-100/5 transition-colors"
+                className="flex items-center gap-1 text-[length:var(--fs-xs)] px-2 py-1 rounded-md border border-accent-main-100/40 text-accent-main-100 hover:text-accent-main-200 hover:border-accent-main-100/60 hover:bg-accent-main-100/5 transition-colors"
               >
                 <PlusIcon size={10} /> {t('common:add')}
               </button>
@@ -557,7 +557,7 @@ export function ServersSettings() {
           )}
 
           {servers.length === 0 && !addingServer && (
-            <div className="text-[13px] text-text-400 text-center py-8">{t('servers.noServersConfigured')}</div>
+            <div className="text-[length:var(--fs-md)] text-text-400 text-center py-8">{t('servers.noServersConfigured')}</div>
           )}
         </div>
       </SettingsCard>

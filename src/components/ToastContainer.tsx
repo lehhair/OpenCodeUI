@@ -86,9 +86,9 @@ function Toast({ item, onDismiss, onClick }: { item: ToastItem; onDismiss: () =>
 
       {/* Content */}
       <div className="min-w-0 flex-1">
-        <div className="text-xs font-medium text-text-100 truncate leading-tight">{notification.title}</div>
+        <div className="text-[length:var(--fs-sm)] font-medium text-text-100 truncate leading-tight">{notification.title}</div>
         {notification.body && (
-          <div className="text-[11px] text-text-300 truncate mt-0.5 leading-tight">{notification.body}</div>
+          <div className="text-[length:var(--fs-xs)] text-text-300 truncate mt-0.5 leading-tight">{notification.body}</div>
         )}
       </div>
 
@@ -146,7 +146,7 @@ export function ToastContainer() {
       {toasts.length >= 2 && (
         <div className="flex justify-end">
           <button
-            className="text-[11px] text-text-300 hover:text-text-100 px-2 py-1 rounded-md hover:bg-bg-200/60 transition-all duration-150 active:scale-95"
+            className="text-[length:var(--fs-xs)] text-text-300 hover:text-text-100 px-2 py-1 rounded-md hover:bg-bg-200/60 transition-all duration-150 active:scale-95"
             onClick={() => notificationStore.dismissAllToasts()}
           >
             {t('toast.clearAll')}

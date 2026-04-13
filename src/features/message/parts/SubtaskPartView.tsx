@@ -61,24 +61,24 @@ export const SubtaskPartView = memo(function SubtaskPartView({ part }: SubtaskPa
           <UsersIcon size={16} className="text-text-400 flex-shrink-0" />
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-text-200 truncate">{part.agent}</span>
+              <span className="text-[length:var(--fs-base)] font-medium text-text-200 truncate">{part.agent}</span>
               {isRunning && (
-                <span className="text-[10px] text-info-100 bg-info-100/10 px-1.5 py-0.5 rounded">
+                <span className="text-[length:var(--fs-xxs)] text-info-100 bg-info-100/10 px-1.5 py-0.5 rounded">
                   {t('subtask.running')}
                 </span>
               )}
               {status === 'idle' && (
-                <span className="text-[10px] text-success-100 bg-success-100/10 px-1.5 py-0.5 rounded">
+                <span className="text-[length:var(--fs-xxs)] text-success-100 bg-success-100/10 px-1.5 py-0.5 rounded">
                   {t('subtask.done')}
                 </span>
               )}
               {status === 'error' && (
-                <span className="text-[10px] text-danger-100 bg-danger-100/10 px-1.5 py-0.5 rounded">
+                <span className="text-[length:var(--fs-xxs)] text-danger-100 bg-danger-100/10 px-1.5 py-0.5 rounded">
                   {t('subtask.error')}
                 </span>
               )}
             </div>
-            <p className="text-xs text-text-400 truncate mt-0.5">{part.description}</p>
+            <p className="text-[length:var(--fs-sm)] text-text-400 truncate mt-0.5">{part.description}</p>
           </div>
         </div>
 
@@ -90,7 +90,7 @@ export const SubtaskPartView = memo(function SubtaskPartView({ part }: SubtaskPa
                 e.stopPropagation()
                 handleEnter()
               }}
-              className="px-2.5 py-1 text-xs font-medium text-text-300 hover:text-text-100 hover:bg-bg-200 rounded-sm transition-colors"
+              className="px-2.5 py-1 text-[length:var(--fs-sm)] font-medium text-text-300 hover:text-text-100 hover:bg-bg-200 rounded-sm transition-colors"
             >
               {t('subtask.enter')}
             </button>
@@ -112,13 +112,13 @@ export const SubtaskPartView = memo(function SubtaskPartView({ part }: SubtaskPa
             <div className="px-4 py-3 border-t border-border-200/40 space-y-3">
               {/* Prompt preview */}
               <div>
-                <p className="text-[10px] text-text-500 uppercase tracking-wider mb-1">{t('subtask.task')}</p>
-                <p className="text-xs text-text-300 whitespace-pre-wrap line-clamp-4">{part.prompt}</p>
+                <p className="text-[length:var(--fs-xxs)] text-text-500 uppercase tracking-wider mb-1">{t('subtask.task')}</p>
+                <p className="text-[length:var(--fs-sm)] text-text-300 whitespace-pre-wrap line-clamp-4">{part.prompt}</p>
               </div>
 
               {/* Model info */}
               {part.model && (
-                <div className="flex items-center gap-2 text-[10px] text-text-500">
+                <div className="flex items-center gap-2 text-[length:var(--fs-xxs)] text-text-500">
                   <LayersIcon size={12} />
                   <span>
                     {part.model.providerID}/{part.model.modelID}
@@ -128,7 +128,7 @@ export const SubtaskPartView = memo(function SubtaskPartView({ part }: SubtaskPa
 
               {/* Command (if slash command) */}
               {part.command && (
-                <div className="flex items-center gap-2 text-[10px] text-text-500">
+                <div className="flex items-center gap-2 text-[length:var(--fs-xxs)] text-text-500">
                   <TerminalIcon size={12} />
                   <span className="font-mono">{part.command}</span>
                 </div>
@@ -139,7 +139,7 @@ export const SubtaskPartView = memo(function SubtaskPartView({ part }: SubtaskPa
                 <div className="pt-2 border-t border-border-200/30">
                   <button
                     onClick={handleEnter}
-                    className="w-full flex items-center justify-center gap-2 py-2 text-xs font-medium text-accent-main-100 hover:bg-accent-main-100/10 rounded-sm transition-colors"
+                    className="w-full flex items-center justify-center gap-2 py-2 text-[length:var(--fs-sm)] font-medium text-accent-main-100 hover:bg-accent-main-100/10 rounded-sm transition-colors"
                   >
                     <ReturnIcon size={14} />
                     {t('subtask.viewFullSession')}

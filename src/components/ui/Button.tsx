@@ -18,9 +18,9 @@ const variantStyles: Record<ButtonVariant, string> = {
 }
 
 const sizeStyles: Record<ButtonSize, string> = {
-  sm: 'h-7 px-2 text-xs',
-  md: 'h-8 px-3 text-sm',
-  lg: 'h-10 px-4 text-base',
+  sm: 'h-7 px-2 text-[length:var(--fs-btn-sm)]',
+  md: 'h-8 px-3 text-[length:var(--fs-btn-md)]',
+  lg: 'h-10 px-4 text-[length:var(--fs-btn-lg)]',
 }
 
 import { SpinnerIcon } from '../Icons'

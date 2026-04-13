@@ -26,11 +26,11 @@ export const RetryPartView = memo(function RetryPartView({ part }: RetryPartView
       <div className="flex items-center gap-2 cursor-pointer" onClick={() => setExpanded(!expanded)}>
         <RetryIcon className="w-4 h-4 text-warning-100 flex-shrink-0" />
         <div className="flex-1 min-w-0">
-          <span className="text-sm text-warning-100">{t('system.retryAttempt', { attempt })}</span>
-          <span className="text-xs text-text-500 ml-2">{timeStr}</span>
+          <span className="text-[length:var(--fs-base)] text-warning-100">{t('system.retryAttempt', { attempt })}</span>
+          <span className="text-[length:var(--fs-sm)] text-text-500 ml-2">{timeStr}</span>
         </div>
         {isRetryable && (
-          <span className="text-[10px] text-warning-100/70 bg-warning-100/10 px-1.5 py-0.5 rounded">
+          <span className="text-[length:var(--fs-xxs)] text-warning-100/70 bg-warning-100/10 px-1.5 py-0.5 rounded">
             {t('system.retryable')}
           </span>
         )}
@@ -47,11 +47,11 @@ export const RetryPartView = memo(function RetryPartView({ part }: RetryPartView
         <div className="overflow-hidden">
           {shouldRenderBody && (
             <div className="mt-2 pt-2 border-t border-warning-100/20">
-              <p className="text-xs text-text-300 font-mono whitespace-pre-wrap break-words overflow-x-hidden">
+              <p className="text-[length:var(--fs-sm)] text-text-300 font-mono whitespace-pre-wrap break-words overflow-x-hidden">
                 {error.data.message}
               </p>
               {error.data.statusCode && (
-                <p className="text-[10px] text-text-500 mt-1">
+                <p className="text-[length:var(--fs-xxs)] text-text-500 mt-1">
                   {t('system.statusCode', { code: error.data.statusCode })}
                 </p>
               )}
@@ -76,9 +76,9 @@ export const CompactionPartView = memo(function CompactionPartView({ part }: Com
   void part
 
   return (
-    <div className="flex items-center gap-2 px-3 py-1.5 text-xs text-text-500">
+    <div className="flex items-center gap-2 px-3 py-1.5 text-[length:var(--fs-sm)] text-text-500">
       <span className="flex-1 h-px bg-border-200/70" />
-      <span className="shrink-0 text-[11px] leading-none text-text-400">{t('system.contextCompacted')}</span>
+      <span className="shrink-0 text-[length:var(--fs-xs)] leading-none text-text-400">{t('system.contextCompacted')}</span>
       <span className="flex-1 h-px bg-border-200/70" />
     </div>
   )
@@ -107,8 +107,8 @@ export const PatchPartView = memo(function PatchPartView({ part }: PatchPartView
       >
         <PatchIcon className="w-4 h-4 text-text-400 flex-shrink-0" />
         <div className="flex-1 min-w-0">
-          <span className="text-sm text-text-200">{t('system.filesChanged', { count: fileCount })}</span>
-          <span className="text-xs text-text-500 ml-2 font-mono">{hash.slice(0, 7)}</span>
+          <span className="text-[length:var(--fs-base)] text-text-200">{t('system.filesChanged', { count: fileCount })}</span>
+          <span className="text-[length:var(--fs-sm)] text-text-500 ml-2 font-mono">{hash.slice(0, 7)}</span>
         </div>
         <ChevronDownIcon
           className={`w-4 h-4 text-text-400 transition-transform duration-300 ${expanded ? '' : '-rotate-90'}`}
@@ -124,7 +124,7 @@ export const PatchPartView = memo(function PatchPartView({ part }: PatchPartView
           {shouldRenderBody && (
             <div className="px-3 py-2 border-t border-border-200/40 space-y-1">
               {files.map((file, idx) => (
-                <div key={idx} className="flex items-center gap-2 text-xs">
+                <div key={idx} className="flex items-center gap-2 text-[length:var(--fs-sm)]">
                   <FileIcon className="w-3 h-3 text-text-500" />
                   <span className="text-text-300 font-mono truncate">{file}</span>
                 </div>

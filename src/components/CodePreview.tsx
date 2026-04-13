@@ -3,7 +3,11 @@ import { useSyntaxHighlightRef } from '../hooks/useSyntaxHighlight'
 import { useDynamicVirtualScroll } from '../hooks/useDynamicVirtualScroll'
 import { themeStore } from '../store/themeStore'
 
-const LINE_HEIGHT = 20
+/** codeFontScale 偏移 → 代码行高 (px)。基准 20px，每 1px 字号偏移对应 2px 行高增量 */
+function codeLineHeight(offset: number): number {
+  return 20 + offset * 2
+}
+
 const OVERSCAN = 5
 
 interface CodePreviewProps {
@@ -21,19 +25,26 @@ interface CodePreviewProps {
  * 避免固定行高虚拟列表和可变行高互相打架。
  */
 export function CodePreview(props: CodePreviewProps) {
-  const { codeWordWrap } = useSyncExternalStore(themeStore.subscribe, themeStore.getSnapshot)
+  const { codeWordWrap, codeFontScale } = useSyncExternalStore(themeStore.subscribe, themeStore.getSnapshot)
   const resolvedWordWrap = props.wordWrap ?? codeWordWrap
+  const lineHeight = codeLineHeight(codeFontScale)
 
   if (resolvedWordWrap) {
-    return <WrappedCodePreview {...props} />
+    return <WrappedCodePreview {...props} lineHeight={lineHeight} />
   }
 
-  return <VirtualizedCodePreview {...props} />
+  return <VirtualizedCodePreview {...props} lineHeight={lineHeight} />
 }
 
-function VirtualizedCodePreview({ code, language, maxHeight, isResizing = false }: CodePreviewProps) {
+function VirtualizedCodePreview({
+  code,
+  language,
+  maxHeight,
+  isResizing = false,
+  lineHeight,
+}: CodePreviewProps & { lineHeight: number }) {
   const lines = useMemo(() => splitCodeLines(code), [code])
-  const totalHeight = lines.length * LINE_HEIGHT
+  const totalHeight = lines.length * lineHeight
   const gutterCh = Math.max(2, String(lines.length).length)
   const gutterWidth = `calc(${gutterCh}ch + 1.75rem)`
 
@@ -54,15 +65,15 @@ function VirtualizedCodePreview({ code, language, maxHeight, isResizing = false 
   const [contentClientWidth, setContentClientWidth] = useState(0)
 
   const { startIndex, endIndex, offsetY } = useMemo(() => {
-    const start = Math.max(0, Math.floor(scrollTop / LINE_HEIGHT) - OVERSCAN)
-    const visibleCount = Math.ceil(containerHeight / LINE_HEIGHT)
+    const start = Math.max(0, Math.floor(scrollTop / lineHeight) - OVERSCAN)
+    const visibleCount = Math.ceil(containerHeight / lineHeight)
     const end = Math.min(lines.length, start + visibleCount + OVERSCAN * 2)
     return {
       startIndex: start,
       endIndex: end,
-      offsetY: start * LINE_HEIGHT,
+      offsetY: start * lineHeight,
     }
-  }, [scrollTop, containerHeight, lines.length])
+  }, [scrollTop, containerHeight, lines.length, lineHeight])
 
   useEffect(() => {
     const container = containerRef.current
@@ -170,15 +181,19 @@ function VirtualizedCodePreview({ code, language, maxHeight, isResizing = false 
       gutters.push(
         <div
           key={i}
-          className="text-text-500 text-right pr-3 pl-4 leading-5 select-none"
-          style={{ height: LINE_HEIGHT }}
+          className="text-text-500 text-right pr-3 pl-4 leading-[var(--fs-code-line-height)] select-none"
+          style={{ height: lineHeight }}
         >
           {i + 1}
         </div>,
       )
 
       contents.push(
-        <div key={i} className="leading-5 pl-3 pr-4 whitespace-pre" style={{ height: LINE_HEIGHT }}>
+        <div
+          key={i}
+          className="leading-[var(--fs-code-line-height)] pl-3 pr-4 whitespace-pre"
+          style={{ height: lineHeight }}
+        >
           {displayContent}
         </div>,
       )
@@ -191,7 +206,7 @@ function VirtualizedCodePreview({ code, language, maxHeight, isResizing = false 
   return (
     <div
       ref={containerRef}
-      className="overflow-y-auto overflow-x-hidden code-scrollbar h-full font-mono text-[11px] leading-relaxed"
+      className="overflow-y-auto overflow-x-hidden code-scrollbar h-full font-mono text-[length:var(--fs-code)] leading-relaxed"
       onScroll={handleScroll}
       style={maxHeight !== undefined ? { maxHeight } : undefined}
     >
@@ -223,7 +238,13 @@ function VirtualizedCodePreview({ code, language, maxHeight, isResizing = false 
   )
 }
 
-function WrappedCodePreview({ code, language, maxHeight, isResizing = false }: CodePreviewProps) {
+function WrappedCodePreview({
+  code,
+  language,
+  maxHeight,
+  isResizing = false,
+  lineHeight,
+}: CodePreviewProps & { lineHeight: number }) {
   const lines = useMemo(() => splitCodeLines(code), [code])
   const gutterCh = Math.max(2, String(lines.length).length)
   const gutterWidth = `calc(${gutterCh}ch + 1.75rem)`
@@ -235,7 +256,7 @@ function WrappedCodePreview({ code, language, maxHeight, isResizing = false }: C
   })
 
   const { containerRef, totalHeight, startIndex, endIndex, offsetY, handleScroll, measureRef } =
-    useDynamicVirtualScroll({ lineCount: lines.length, isResizing })
+    useDynamicVirtualScroll({ lineCount: lines.length, isResizing, estimateLineHeight: lineHeight })
 
   const visibleRows = useMemo(() => {
     const tokens = tokensRef.current
@@ -259,14 +280,14 @@ function WrappedCodePreview({ code, language, maxHeight, isResizing = false }: C
       rows.push(
         <div key={i} ref={el => measureRef(i, el)} className="flex">
           <div
-            className="shrink-0 text-text-500 text-right pr-3 pl-4 leading-5 select-none"
-            style={{ width: gutterWidth, minHeight: LINE_HEIGHT }}
+            className="shrink-0 text-text-500 text-right pr-3 pl-4 leading-[var(--fs-code-line-height)] select-none"
+            style={{ width: gutterWidth, minHeight: lineHeight }}
           >
             {i + 1}
           </div>
           <div
-            className="min-w-0 flex-1 pl-3 pr-4 leading-5 whitespace-pre-wrap break-words [overflow-wrap:anywhere]"
-            style={{ minHeight: LINE_HEIGHT }}
+            className="min-w-0 flex-1 pl-3 pr-4 leading-[var(--fs-code-line-height)] whitespace-pre-wrap break-words [overflow-wrap:anywhere]"
+            style={{ minHeight: lineHeight }}
           >
             {displayContent}
           </div>
@@ -280,7 +301,7 @@ function WrappedCodePreview({ code, language, maxHeight, isResizing = false }: C
   return (
     <div
       ref={containerRef}
-      className="overflow-y-auto overflow-x-hidden code-scrollbar h-full font-mono text-[11px] leading-relaxed"
+      className="overflow-y-auto overflow-x-hidden code-scrollbar h-full font-mono text-[length:var(--fs-code)] leading-relaxed"
       onScroll={handleScroll}
       style={maxHeight !== undefined ? { maxHeight } : undefined}
     >

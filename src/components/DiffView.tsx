@@ -86,7 +86,7 @@ export const DiffView = memo(function DiffView({
   // Fallback for unified diff string only
   if (!hasContent && diff) {
     return (
-      <div className="border border-border-200/50 rounded-md bg-bg-100 overflow-auto p-2 text-xs font-mono whitespace-pre text-text-200">
+      <div className="border border-border-200/50 rounded-md bg-bg-100 overflow-auto p-2 text-[length:var(--fs-sm)] font-mono whitespace-pre text-text-200">
         {diff}
       </div>
     )
@@ -97,7 +97,7 @@ export const DiffView = memo(function DiffView({
   const fileName = filePath ? filePath.split(/[/\\]/).pop() : undefined
 
   return (
-    <div className="border border-border-200/50 rounded-md overflow-hidden bg-bg-100 font-mono text-xs">
+    <div className="border border-border-200/50 rounded-md overflow-hidden bg-bg-100 font-mono text-[length:var(--fs-code)]">
       {/* Header */}
       <div
         className="flex items-center gap-3 px-3 h-8 bg-bg-200/50 cursor-pointer hover:bg-bg-200 transition-colors select-none"
@@ -155,7 +155,7 @@ export const DiffView = memo(function DiffView({
           onClose={() => setModalOpen(false)}
           title={fileName}
           titleExtra={
-            <div className="flex items-center gap-1.5 text-[11px] font-mono tabular-nums shrink-0">
+            <div className="flex items-center gap-1.5 text-[length:var(--fs-xs)] font-mono tabular-nums shrink-0">
               {stats.additions > 0 && <span className="text-success-100">+{stats.additions}</span>}
               {stats.deletions > 0 && <span className="text-danger-100">-{stats.deletions}</span>}
             </div>

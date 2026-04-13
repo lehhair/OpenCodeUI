@@ -60,7 +60,7 @@ function AttachmentItemComponent({
           flex items-center gap-1.5 w-full
           px-2.5 py-1.5 rounded-lg border
           bg-bg-100/50 border-border-300/50
-          ${size === 'sm' ? 'text-xs' : 'text-sm'}
+          ${size === 'sm' ? 'text-[length:var(--fs-sm)]' : 'text-[length:var(--fs-base)]'}
           ${canExpand ? 'cursor-pointer hover:bg-bg-200 transition-colors' : ''}
         `}
         onClick={canExpand ? () => setIsExpanded(!isExpanded) : undefined}
@@ -187,7 +187,7 @@ function ExpandedContent({ attachment, imageError, onImageError, onOpenDetail }:
   } else if (content) {
     contentNode = (
       <div className="max-h-64 overflow-auto custom-scrollbar">
-        <pre className="p-2 text-xs font-mono text-text-300 whitespace-pre-wrap break-all">
+        <pre className="p-2 text-[length:var(--fs-sm)] font-mono text-text-300 whitespace-pre-wrap break-all">
           {content.length > 5000 ? content.slice(0, 5000) + '\n\n' + t('common:truncated') : content}
         </pre>
       </div>
@@ -209,7 +209,7 @@ function ExpandedContent({ attachment, imageError, onImageError, onOpenDetail }:
 
       {/* 元信息 */}
       <div
-        className={`p-2 text-xs space-y-1 text-text-300 bg-bg-100/50 ${contentNode || hasContent || hasDownloadable ? 'border-t border-border-300' : ''}`}
+        className={`p-2 text-[length:var(--fs-sm)] space-y-1 text-text-300 bg-bg-100/50 ${contentNode || hasContent || hasDownloadable ? 'border-t border-border-300' : ''}`}
       >
         {type === 'text' && <MetaRow label={t('attachment.category')} value={t('attachment.context')} />}
 
@@ -337,7 +337,7 @@ function ActionBar({ attachment, hasContent, hasDownloadable, onOpenDetail, show
 
   if (!hasContent && !hasDownloadable) return null
 
-  const btnBase = 'inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] transition-colors duration-150'
+  const btnBase = 'inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[length:var(--fs-xxs)] transition-colors duration-150'
 
   return (
     <div

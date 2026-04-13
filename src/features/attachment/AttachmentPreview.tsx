@@ -30,7 +30,7 @@ export function AttachmentPreview({
   // Backward compatibility
   const mode = variant || (direction === 'column' ? 'list' : 'wrap')
 
-  const sizeClasses = size === 'sm' ? 'text-xs gap-1.5' : 'text-sm gap-2'
+  const sizeClasses = size === 'sm' ? 'text-[length:var(--fs-sm)] gap-1.5' : 'text-[length:var(--fs-base)] gap-2'
 
   const containerClasses = {
     wrap: 'flex flex-wrap',

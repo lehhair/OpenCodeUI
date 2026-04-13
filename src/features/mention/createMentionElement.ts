@@ -7,7 +7,7 @@ export function createMentionElement(item: MentionItem): { element: HTMLSpanElem
   const label = formatMentionLabel(item.type, item.displayName)
 
   span.className =
-    'mention-tag inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium border cursor-pointer select-none'
+    'mention-tag inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[length:var(--fs-sm)] font-medium border cursor-pointer select-none'
   span.contentEditable = 'false'
   span.dataset.mentionType = item.type
   span.dataset.mentionValue = item.value
