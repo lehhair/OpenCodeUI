@@ -149,7 +149,7 @@ export function SessionList({
                 value={search}
                 onChange={e => onSearchChange(e.target.value)}
                 placeholder={t('sessions.searchChats')}
-                className="w-full bg-bg-200/40 hover:bg-bg-200/80 focus:bg-bg-000 border border-transparent focus:border-border-200 rounded-lg py-2 pl-9 pr-3 text-xs text-text-100 placeholder:text-text-400/70 focus:outline-none focus:shadow-sm transition-all duration-200"
+                className="w-full bg-bg-200/40 hover:bg-bg-200/80 focus:bg-bg-000 border border-transparent focus:border-border-200 rounded-lg py-2 pl-9 pr-3 text-[length:var(--fs-sm)] text-text-100 placeholder:text-text-400/70 focus:outline-none focus:shadow-sm transition-all duration-200"
               />
             </div>
             <button
@@ -174,7 +174,7 @@ export function SessionList({
           </div>
         ) : sessions.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-text-400 opacity-60">
-            <p className="text-xs">{search ? t('common:noMatchesFound') : t('sessions.noChatsYet')}</p>
+            <p className="text-[length:var(--fs-sm)]">{search ? t('common:noMatchesFound') : t('sessions.noChatsYet')}</p>
           </div>
         ) : showGroups ? (
           // Grouped View
@@ -183,7 +183,7 @@ export function SessionList({
             if (groupSessions.length === 0) return null
             return (
               <div key={group}>
-                <h3 className="px-3 mb-1.5 mt-2 text-[10px] font-bold text-text-400/60 uppercase tracking-widest select-none">
+                <h3 className="px-3 mb-1.5 mt-2 text-[length:var(--fs-xxs)] font-bold text-text-400/60 uppercase tracking-widest select-none">
                   {t(`sessions.groups.${group}`)}
                 </h3>
                 <div className="space-y-0.5">
@@ -481,7 +481,7 @@ export function SessionListItem({
           onKeyDown={handleKeyDown}
           onClick={e => e.stopPropagation()}
           className={`w-full bg-bg-000 border border-accent-main-100/50 rounded px-2 text-text-100 focus:outline-none focus:ring-1 focus:ring-accent-main-100/30 ${
-            isMinimal ? 'py-0.5 text-[12px] leading-normal' : 'py-1.5 text-sm leading-relaxed'
+            isMinimal ? 'py-0.5 text-[length:var(--fs-sm)] leading-normal' : 'py-1.5 text-[length:var(--fs-base)] leading-relaxed'
           }`}
         />
       </div>
@@ -556,13 +556,13 @@ export function SessionListItem({
           }`}
         >
           {/* 标题 */}
-          <span className="min-w-0 flex-1 truncate text-[12px]" title={session.title || t('sessions.untitledChat')}>
+          <span className="min-w-0 flex-1 truncate text-[length:var(--fs-sm)]" title={session.title || t('sessions.untitledChat')}>
             {session.title || t('sessions.untitledChat')}
           </span>
 
           {((hasSummaryStats && session.summary) || session.time?.updated) && (
             <div
-              className={`${actionsVisible ? 'hidden' : 'flex group-hover:hidden'} shrink-0 items-center gap-1.5 text-[10px] text-text-500`}
+              className={`${actionsVisible ? 'hidden' : 'flex group-hover:hidden'} shrink-0 items-center gap-1.5 text-[length:var(--fs-xxs)] text-text-500`}
             >
               {hasSummaryStats && session.summary && (
                 <span className="flex shrink-0 items-center gap-1 font-mono">
@@ -651,7 +651,7 @@ export function SessionListItem({
       >
         {/* Row 1: Title */}
         <p
-          className={`${isCompact ? 'text-[13px]' : 'text-sm'} truncate font-medium ${isSelected ? 'text-text-100' : 'text-text-200 group-hover:text-text-100'}`}
+          className={`${isCompact ? 'text-[length:var(--fs-md)]' : 'text-[length:var(--fs-base)]'} truncate font-medium ${isSelected ? 'text-text-100' : 'text-text-200 group-hover:text-text-100'}`}
           title={session.title || t('sessions.untitledChat')}
         >
           {session.title || t('sessions.untitledChat')}
@@ -659,7 +659,7 @@ export function SessionListItem({
 
         {/* Row 2: Meta line — 始终存在，保持高度一致 */}
         <div
-          className={`flex items-center ${isCompact ? 'mt-1' : 'mt-1.5'} h-4 text-[10px] text-text-400 gap-1 overflow-hidden`}
+          className={`flex items-center ${isCompact ? 'mt-1' : 'mt-1.5'} h-4 text-[length:var(--fs-xxs)] text-text-400 gap-1 overflow-hidden`}
         >
           {/* 活跃状态标记 / 已完成未读圆点 */}
           {activeStatus ? (

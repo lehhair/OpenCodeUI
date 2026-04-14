@@ -26,7 +26,7 @@ interface BottomPanelProps {
 function PanelFallback() {
   const { t } = useTranslation(['components', 'common'])
   return (
-    <div className="flex items-center justify-center h-full text-text-400 text-xs">{t('bottomPanel.loadingPanel')}</div>
+    <div className="flex items-center justify-center h-full text-text-400 text-[length:var(--fs-sm)]">{t('bottomPanel.loadingPanel')}</div>
   )
 }
 
@@ -129,7 +129,7 @@ export const BottomPanel = memo(function BottomPanel({ directory }: BottomPanelP
     (activeTab: PanelTab | null) => {
       if (isRestoring) {
         return (
-          <div className="flex flex-col items-center justify-center h-full text-text-400 text-sm gap-2">
+          <div className="flex flex-col items-center justify-center h-full text-text-400 text-[length:var(--fs-base)] gap-2">
             <TerminalIcon size={24} className="opacity-30 animate-pulse" />
             <span>{t('terminal.restoringSessions')}</span>
           </div>
@@ -138,12 +138,12 @@ export const BottomPanel = memo(function BottomPanel({ directory }: BottomPanelP
 
       if (!activeTab) {
         return (
-          <div className="flex flex-col items-center justify-center h-full text-text-400 text-sm gap-2">
+          <div className="flex flex-col items-center justify-center h-full text-text-400 text-[length:var(--fs-base)] gap-2">
             <TerminalIcon size={24} className="opacity-30" />
             <span>{t('common:noContent')}</span>
             <button
               onClick={handleNewTerminal}
-              className="px-3 py-1.5 text-xs bg-bg-200/50 hover:bg-bg-200 text-text-200 rounded-md transition-colors"
+              className="px-3 py-1.5 text-[length:var(--fs-sm)] bg-bg-200/50 hover:bg-bg-200 text-text-200 rounded-md transition-colors"
             >
               {t('terminal.createTerminal')}
             </button>
@@ -172,7 +172,7 @@ export const BottomPanel = memo(function BottomPanel({ directory }: BottomPanelP
         case 'changes':
           if (!sessionId) {
             return (
-              <div className="flex items-center justify-center h-full text-text-400 text-xs">
+              <div className="flex items-center justify-center h-full text-text-400 text-[length:var(--fs-sm)]">
                 {t('rightPanel.noActiveSession')}
               </div>
             )

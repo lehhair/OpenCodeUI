@@ -21,7 +21,10 @@ import type { DiffStyle } from '../store/themeStore'
 // 常量
 // ============================================
 
-const LINE_HEIGHT = 20 // 和 CodePreview 保持一致
+/** codeFontScale 偏移 → 代码行高 (px)。基准 24px，每 1px 字号偏移对应 2px 行高增量 */
+function codeLineHeight(offset: number): number {
+  return 24 + offset * 2
+}
 const OVERSCAN = 5
 
 // ============================================
@@ -47,7 +50,15 @@ interface DiffLine {
   type: LineType
   content: string
   lineNo?: number
-  highlightedContent?: string
+  /** 词级别 diff 标记（结构化），与 syntax token 共存 */
+  wordDiffSegments?: WordDiffSegment[]
+}
+
+/** 词级别 diff 的单个片段 */
+interface WordDiffSegment {
+  text: string
+  /** 'add' | 'delete' 表示增删标记，undefined 表示无变化 */
+  diffType?: 'add' | 'delete'
 }
 
 interface PairedLine {
@@ -198,16 +209,12 @@ function getChangeBarProps(type: LineType): { className: string; style?: React.C
   }
 }
 
-function escapeHtml(str: string): string {
-  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-}
-
 /** 折叠占位条 — "N lines unchanged"，点击可展开 */
 function CollapsedBar({
   count,
   t,
   onExpand,
-  height = LINE_HEIGHT + 4,
+  height = 24,
 }: {
   count: number
   t: (key: string, opts?: Record<string, unknown>) => string
@@ -216,7 +223,7 @@ function CollapsedBar({
 }) {
   return (
     <div
-      className="box-border flex items-center justify-center text-[11px] text-text-500 select-none bg-bg-200/40 border-y border-border-100/30 cursor-pointer hover:bg-bg-200/60 transition-colors"
+      className="box-border flex items-center justify-center text-[length:var(--fs-code)] text-text-500 select-none bg-bg-200/40 border-y border-border-100/30 cursor-pointer hover:bg-bg-200/60 transition-colors"
       style={{ height }}
       onClick={onExpand}
     >
@@ -240,8 +247,9 @@ export const DiffViewer = memo(function DiffViewer({
   isResizing = false,
   wordWrap,
 }: DiffViewerProps) {
-  const { diffStyle, codeWordWrap } = useSyncExternalStore(themeStore.subscribe, themeStore.getSnapshot)
+  const { diffStyle, codeWordWrap, codeFontScale } = useSyncExternalStore(themeStore.subscribe, themeStore.getSnapshot)
   const resolvedWordWrap = wordWrap ?? codeWordWrap
+  const lineHeight = codeLineHeight(codeFontScale)
 
   // 纯增加或纯删除时，split 模式另一边是空的没意义，自动降级为 unified
   const isAddOnly = !before.trim()
@@ -258,6 +266,7 @@ export const DiffViewer = memo(function DiffViewer({
           isResizing={isResizing}
           maxHeight={maxHeight}
           diffStyle={diffStyle}
+          lineHeight={lineHeight}
         />
       )
     }
@@ -270,6 +279,7 @@ export const DiffViewer = memo(function DiffViewer({
         isResizing={isResizing}
         maxHeight={maxHeight}
         diffStyle={diffStyle}
+        lineHeight={lineHeight}
       />
     )
   }
@@ -283,6 +293,7 @@ export const DiffViewer = memo(function DiffViewer({
         isResizing={isResizing}
         maxHeight={maxHeight}
         diffStyle={diffStyle}
+        lineHeight={lineHeight}
       />
     )
   }
@@ -295,6 +306,7 @@ export const DiffViewer = memo(function DiffViewer({
       isResizing={isResizing}
       maxHeight={maxHeight}
       diffStyle={diffStyle}
+      lineHeight={lineHeight}
     />
   )
 })
@@ -306,6 +318,7 @@ const WrappedSplitDiffView = memo(function WrappedSplitDiffView({
   isResizing,
   maxHeight,
   diffStyle,
+  lineHeight,
 }: {
   before: string
   after: string
@@ -313,6 +326,7 @@ const WrappedSplitDiffView = memo(function WrappedSplitDiffView({
   isResizing: boolean
   maxHeight?: number
   diffStyle: DiffStyle
+  lineHeight: number
 }) {
   const { t } = useTranslation(['components', 'common'])
 
@@ -341,11 +355,13 @@ const WrappedSplitDiffView = memo(function WrappedSplitDiffView({
   }, [])
 
   const { containerRef, totalHeight, startIndex, endIndex, offsetY, handleScroll, measureRef } =
-    useDynamicVirtualScroll({ lineCount: displayLines.length, isResizing })
+    useDynamicVirtualScroll({ lineCount: displayLines.length, isResizing, estimateLineHeight: lineHeight })
 
   if (pairedLines.length === 0) {
     return (
-      <div className="h-full flex items-center justify-center text-text-400 text-sm">{t('diffViewer.noChanges')}</div>
+      <div className="h-full flex items-center justify-center text-text-400 text-[length:var(--fs-base)]">
+        {t('diffViewer.noChanges')}
+      </div>
     )
   }
 
@@ -376,16 +392,16 @@ const WrappedSplitDiffView = memo(function WrappedSplitDiffView({
             {useChangeBars ? (
               <div className="flex items-stretch h-full">
                 <div {...getChangeBarProps(pair.left.type)} />
-                <div className="w-8 shrink-0 px-1 text-right text-text-500 text-[11px] leading-5 select-none opacity-60">
+                <div className="w-8 shrink-0 px-1 text-right text-text-500 text-[length:var(--fs-code)] leading-[var(--fs-code-line-height)] select-none opacity-60">
                   {pair.left.lineNo}
                 </div>
               </div>
             ) : (
               <div className="flex h-full">
-                <div className="w-8 shrink-0 px-1 text-right text-text-500 text-[11px] leading-5 select-none opacity-60">
+                <div className="w-8 shrink-0 px-1 text-right text-text-500 text-[length:var(--fs-code)] leading-[var(--fs-code-line-height)] select-none opacity-60">
                   {pair.left.lineNo}
                 </div>
-                <div className="w-5 shrink-0 text-center text-[11px] leading-5 select-none">
+                <div className="w-5 shrink-0 text-center text-[length:var(--fs-code)] leading-[var(--fs-code-line-height)] select-none">
                   {pair.left.type === 'delete' && <span className="text-danger-100">−</span>}
                 </div>
               </div>
@@ -393,8 +409,8 @@ const WrappedSplitDiffView = memo(function WrappedSplitDiffView({
           </div>
 
           <div
-            className="min-w-0 flex-1 px-2 leading-5 text-[11px] whitespace-pre-wrap break-words [overflow-wrap:anywhere]"
-            style={{ minHeight: LINE_HEIGHT }}
+            className="min-w-0 flex-1 px-2 leading-[var(--fs-code-line-height)] text-[length:var(--fs-code)] whitespace-pre-wrap break-words [overflow-wrap:anywhere]"
+            style={{ minHeight: lineHeight }}
           >
             {pair.left.type !== 'empty' && <LineContent line={pair.left} tokens={beforeTokens} />}
           </div>
@@ -406,16 +422,16 @@ const WrappedSplitDiffView = memo(function WrappedSplitDiffView({
             {useChangeBars ? (
               <div className="flex items-stretch h-full">
                 <div {...getChangeBarProps(pair.right.type)} />
-                <div className="w-8 shrink-0 px-1 text-right text-text-500 text-[11px] leading-5 select-none opacity-60">
+                <div className="w-8 shrink-0 px-1 text-right text-text-500 text-[length:var(--fs-code)] leading-[var(--fs-code-line-height)] select-none opacity-60">
                   {pair.right.lineNo}
                 </div>
               </div>
             ) : (
               <div className="flex h-full">
-                <div className="w-8 shrink-0 px-1 text-right text-text-500 text-[11px] leading-5 select-none opacity-60">
+                <div className="w-8 shrink-0 px-1 text-right text-text-500 text-[length:var(--fs-code)] leading-[var(--fs-code-line-height)] select-none opacity-60">
                   {pair.right.lineNo}
                 </div>
-                <div className="w-5 shrink-0 text-center text-[11px] leading-5 select-none">
+                <div className="w-5 shrink-0 text-center text-[length:var(--fs-code)] leading-[var(--fs-code-line-height)] select-none">
                   {pair.right.type === 'add' && <span className="text-success-100">+</span>}
                 </div>
               </div>
@@ -423,8 +439,8 @@ const WrappedSplitDiffView = memo(function WrappedSplitDiffView({
           </div>
 
           <div
-            className="min-w-0 flex-1 px-2 leading-5 text-[11px] whitespace-pre-wrap break-words [overflow-wrap:anywhere]"
-            style={{ minHeight: LINE_HEIGHT }}
+            className="min-w-0 flex-1 px-2 leading-[var(--fs-code-line-height)] text-[length:var(--fs-code)] whitespace-pre-wrap break-words [overflow-wrap:anywhere]"
+            style={{ minHeight: lineHeight }}
           >
             {pair.right.type !== 'empty' && <LineContent line={pair.right} tokens={afterTokens} />}
           </div>
@@ -436,7 +452,7 @@ const WrappedSplitDiffView = memo(function WrappedSplitDiffView({
   return (
     <div
       ref={containerRef}
-      className="overflow-y-auto overflow-x-hidden custom-scrollbar font-mono h-full"
+      className="overflow-y-auto overflow-x-hidden custom-scrollbar font-mono text-[length:var(--fs-code)] h-full"
       onScroll={handleScroll}
       style={maxHeight !== undefined ? { maxHeight } : undefined}
     >
@@ -472,6 +488,7 @@ const SplitDiffView = memo(function SplitDiffView({
   isResizing,
   maxHeight,
   diffStyle,
+  lineHeight,
 }: {
   before: string
   after: string
@@ -479,6 +496,7 @@ const SplitDiffView = memo(function SplitDiffView({
   isResizing: boolean
   maxHeight?: number
   diffStyle: DiffStyle
+  lineHeight: number
 }) {
   const { t } = useTranslation(['components', 'common'])
   const containerRef = useRef<HTMLDivElement>(null)
@@ -521,14 +539,14 @@ const SplitDiffView = memo(function SplitDiffView({
     })
   }, [])
 
-  const totalHeight = displayLines.length * LINE_HEIGHT
+  const totalHeight = displayLines.length * lineHeight
 
   const { startIndex, endIndex, offsetY } = useMemo(() => {
-    const start = Math.max(0, Math.floor(scrollTop / LINE_HEIGHT) - OVERSCAN)
-    const visibleCount = Math.ceil(containerHeight / LINE_HEIGHT)
+    const start = Math.max(0, Math.floor(scrollTop / lineHeight) - OVERSCAN)
+    const visibleCount = Math.ceil(containerHeight / lineHeight)
     const end = Math.min(displayLines.length, start + visibleCount + OVERSCAN * 2)
-    return { startIndex: start, endIndex: end, offsetY: start * LINE_HEIGHT }
-  }, [scrollTop, containerHeight, displayLines.length])
+    return { startIndex: start, endIndex: end, offsetY: start * lineHeight }
+  }, [scrollTop, containerHeight, displayLines.length, lineHeight])
 
   // 监听容器大小
   useEffect(() => {
@@ -629,7 +647,9 @@ const SplitDiffView = memo(function SplitDiffView({
 
   if (pairedLines.length === 0) {
     return (
-      <div className="h-full flex items-center justify-center text-text-400 text-sm">{t('diffViewer.noChanges')}</div>
+      <div className="h-full flex items-center justify-center text-text-400 text-[length:var(--fs-base)]">
+        {t('diffViewer.noChanges')}
+      </div>
     )
   }
 
@@ -648,13 +668,13 @@ const SplitDiffView = memo(function SplitDiffView({
 
     if (isCollapsed(item)) {
       const barNode = (
-        <CollapsedBar key={i} count={item.count} t={t} onExpand={() => handleExpand(item.id)} height={LINE_HEIGHT} />
+        <CollapsedBar key={i} count={item.count} t={t} onExpand={() => handleExpand(item.id)} height={lineHeight} />
       )
       leftGutterRows.push(
         <div
           key={i}
           className="box-border bg-bg-200/40 border-y border-border-100/30"
-          style={{ height: LINE_HEIGHT }}
+          style={{ height: lineHeight }}
         />,
       )
       leftContentRows.push(barNode)
@@ -662,14 +682,14 @@ const SplitDiffView = memo(function SplitDiffView({
         <div
           key={i}
           className="box-border bg-bg-200/40 border-y border-border-100/30"
-          style={{ height: LINE_HEIGHT }}
+          style={{ height: lineHeight }}
         />,
       )
       rightContentRows.push(
         <div
           key={i}
           className="box-border bg-bg-200/40 border-y border-border-100/30"
-          style={{ height: LINE_HEIGHT }}
+          style={{ height: lineHeight }}
         />,
       )
       continue
@@ -683,19 +703,19 @@ const SplitDiffView = memo(function SplitDiffView({
         <div
           key={i}
           className={`flex items-stretch ${getGutterBgClass(pair.left.type)}`}
-          style={{ height: LINE_HEIGHT }}
+          style={{ height: lineHeight }}
         >
           <div {...getChangeBarProps(pair.left.type)} />
-          <div className="w-8 shrink-0 px-1 text-right text-text-500 text-[11px] leading-5 select-none opacity-60">
+          <div className="w-8 shrink-0 px-1 text-right text-text-500 text-[length:var(--fs-code)] leading-[var(--fs-code-line-height)] select-none opacity-60">
             {pair.left.lineNo}
           </div>
         </div>
       ) : (
-        <div key={i} className={`flex ${getGutterBgClass(pair.left.type)}`} style={{ height: LINE_HEIGHT }}>
-          <div className="w-8 shrink-0 px-1 text-right text-text-500 text-[11px] leading-5 select-none opacity-60">
+        <div key={i} className={`flex ${getGutterBgClass(pair.left.type)}`} style={{ height: lineHeight }}>
+          <div className="w-8 shrink-0 px-1 text-right text-text-500 text-[length:var(--fs-code)] leading-[var(--fs-code-line-height)] select-none opacity-60">
             {pair.left.lineNo}
           </div>
-          <div className="w-5 shrink-0 text-center text-[11px] leading-5 select-none">
+          <div className="w-5 shrink-0 text-center text-[length:var(--fs-code)] leading-[var(--fs-code-line-height)] select-none">
             {pair.left.type === 'delete' && <span className="text-danger-100">−</span>}
           </div>
         </div>
@@ -706,8 +726,8 @@ const SplitDiffView = memo(function SplitDiffView({
     leftContentRows.push(
       <div
         key={i}
-        className={`pr-2 leading-5 text-[11px] whitespace-pre ${getLineBgClass(pair.left.type)}`}
-        style={{ height: LINE_HEIGHT }}
+        className={`pr-2 leading-[var(--fs-code-line-height)] text-[length:var(--fs-code)] whitespace-pre ${getLineBgClass(pair.left.type)}`}
+        style={{ height: lineHeight }}
       >
         {pair.left.type !== 'empty' && <LineContent line={pair.left} tokens={beforeTokens} />}
       </div>,
@@ -719,19 +739,19 @@ const SplitDiffView = memo(function SplitDiffView({
         <div
           key={i}
           className={`flex items-stretch ${getGutterBgClass(pair.right.type)}`}
-          style={{ height: LINE_HEIGHT }}
+          style={{ height: lineHeight }}
         >
           <div {...getChangeBarProps(pair.right.type)} />
-          <div className="w-8 shrink-0 px-1 text-right text-text-500 text-[11px] leading-5 select-none opacity-60">
+          <div className="w-8 shrink-0 px-1 text-right text-text-500 text-[length:var(--fs-code)] leading-[var(--fs-code-line-height)] select-none opacity-60">
             {pair.right.lineNo}
           </div>
         </div>
       ) : (
-        <div key={i} className={`flex ${getGutterBgClass(pair.right.type)}`} style={{ height: LINE_HEIGHT }}>
-          <div className="w-8 shrink-0 px-1 text-right text-text-500 text-[11px] leading-5 select-none opacity-60">
+        <div key={i} className={`flex ${getGutterBgClass(pair.right.type)}`} style={{ height: lineHeight }}>
+          <div className="w-8 shrink-0 px-1 text-right text-text-500 text-[length:var(--fs-code)] leading-[var(--fs-code-line-height)] select-none opacity-60">
             {pair.right.lineNo}
           </div>
-          <div className="w-5 shrink-0 text-center text-[11px] leading-5 select-none">
+          <div className="w-5 shrink-0 text-center text-[length:var(--fs-code)] leading-[var(--fs-code-line-height)] select-none">
             {pair.right.type === 'add' && <span className="text-success-100">+</span>}
           </div>
         </div>
@@ -742,8 +762,8 @@ const SplitDiffView = memo(function SplitDiffView({
     rightContentRows.push(
       <div
         key={i}
-        className={`pr-2 leading-5 text-[11px] whitespace-pre ${getLineBgClass(pair.right.type)}`}
-        style={{ height: LINE_HEIGHT }}
+        className={`pr-2 leading-[var(--fs-code-line-height)] text-[length:var(--fs-code)] whitespace-pre ${getLineBgClass(pair.right.type)}`}
+        style={{ height: lineHeight }}
       >
         {pair.right.type !== 'empty' && <LineContent line={pair.right} tokens={afterTokens} />}
       </div>,
@@ -752,7 +772,7 @@ const SplitDiffView = memo(function SplitDiffView({
   return (
     <div
       ref={containerRef}
-      className="overflow-y-auto overflow-x-hidden custom-scrollbar font-mono h-full"
+      className="overflow-y-auto overflow-x-hidden custom-scrollbar font-mono text-[length:var(--fs-code)] h-full"
       style={maxHeight !== undefined ? { maxHeight } : undefined}
       onScroll={handleScroll}
     >
@@ -847,6 +867,7 @@ const UnifiedDiffView = memo(function UnifiedDiffView({
   isResizing,
   maxHeight,
   diffStyle,
+  lineHeight,
 }: {
   before: string
   after: string
@@ -854,6 +875,7 @@ const UnifiedDiffView = memo(function UnifiedDiffView({
   isResizing: boolean
   maxHeight?: number
   diffStyle: DiffStyle
+  lineHeight: number
 }) {
   const { t } = useTranslation(['components', 'common'])
   const containerRef = useRef<HTMLDivElement>(null)
@@ -889,14 +911,14 @@ const UnifiedDiffView = memo(function UnifiedDiffView({
     })
   }, [])
 
-  const totalHeight = displayLines.length * LINE_HEIGHT
+  const totalHeight = displayLines.length * lineHeight
 
   const { startIndex, endIndex, offsetY } = useMemo(() => {
-    const start = Math.max(0, Math.floor(scrollTop / LINE_HEIGHT) - OVERSCAN)
-    const visibleCount = Math.ceil(containerHeight / LINE_HEIGHT)
+    const start = Math.max(0, Math.floor(scrollTop / lineHeight) - OVERSCAN)
+    const visibleCount = Math.ceil(containerHeight / lineHeight)
     const end = Math.min(displayLines.length, start + visibleCount + OVERSCAN * 2)
-    return { startIndex: start, endIndex: end, offsetY: start * LINE_HEIGHT }
-  }, [scrollTop, containerHeight, displayLines.length])
+    return { startIndex: start, endIndex: end, offsetY: start * lineHeight }
+  }, [scrollTop, containerHeight, displayLines.length, lineHeight])
 
   useEffect(() => {
     const container = containerRef.current
@@ -965,7 +987,9 @@ const UnifiedDiffView = memo(function UnifiedDiffView({
 
   if (lines.length === 0) {
     return (
-      <div className="h-full flex items-center justify-center text-text-400 text-sm">{t('diffViewer.noChanges')}</div>
+      <div className="h-full flex items-center justify-center text-text-400 text-[length:var(--fs-base)]">
+        {t('diffViewer.noChanges')}
+      </div>
     )
   }
 
@@ -985,11 +1009,11 @@ const UnifiedDiffView = memo(function UnifiedDiffView({
         <div
           key={i}
           className="box-border bg-bg-200/40 border-y border-border-100/30"
-          style={{ height: LINE_HEIGHT }}
+          style={{ height: lineHeight }}
         />,
       )
       contentRows.push(
-        <CollapsedBar key={i} count={item.count} t={t} onExpand={() => handleExpand(item.id)} height={LINE_HEIGHT} />,
+        <CollapsedBar key={i} count={item.count} t={t} onExpand={() => handleExpand(item.id)} height={lineHeight} />,
       )
       continue
     }
@@ -1008,24 +1032,24 @@ const UnifiedDiffView = memo(function UnifiedDiffView({
     // Gutter 行
     gutterRows.push(
       useChangeBars ? (
-        <div key={i} className={`flex items-stretch ${getGutterBgClass(line.type)}`} style={{ height: LINE_HEIGHT }}>
+        <div key={i} className={`flex items-stretch ${getGutterBgClass(line.type)}`} style={{ height: lineHeight }}>
           <div {...getChangeBarProps(line.type)} />
-          <div className="w-8 shrink-0 px-1 text-right text-text-500 text-[11px] leading-5 select-none opacity-60">
+          <div className="w-8 shrink-0 px-1 text-right text-text-500 text-[length:var(--fs-code)] leading-[var(--fs-code-line-height)] select-none opacity-60">
             {line.oldLineNo}
           </div>
-          <div className="w-8 shrink-0 px-1 text-right text-text-500 text-[11px] leading-5 select-none opacity-60">
+          <div className="w-8 shrink-0 px-1 text-right text-text-500 text-[length:var(--fs-code)] leading-[var(--fs-code-line-height)] select-none opacity-60">
             {line.newLineNo}
           </div>
         </div>
       ) : (
-        <div key={i} className={`flex ${getGutterBgClass(line.type)}`} style={{ height: LINE_HEIGHT }}>
-          <div className="w-8 shrink-0 px-1 text-right text-text-500 text-[11px] leading-5 select-none opacity-60">
+        <div key={i} className={`flex ${getGutterBgClass(line.type)}`} style={{ height: lineHeight }}>
+          <div className="w-8 shrink-0 px-1 text-right text-text-500 text-[length:var(--fs-code)] leading-[var(--fs-code-line-height)] select-none opacity-60">
             {line.oldLineNo}
           </div>
-          <div className="w-8 shrink-0 px-1 text-right text-text-500 text-[11px] leading-5 select-none opacity-60">
+          <div className="w-8 shrink-0 px-1 text-right text-text-500 text-[length:var(--fs-code)] leading-[var(--fs-code-line-height)] select-none opacity-60">
             {line.newLineNo}
           </div>
-          <div className="w-5 shrink-0 text-center text-[11px] leading-5 select-none">
+          <div className="w-5 shrink-0 text-center text-[length:var(--fs-code)] leading-[var(--fs-code-line-height)] select-none">
             {line.type === 'add' && <span className="text-success-100">+</span>}
             {line.type === 'delete' && <span className="text-danger-100">−</span>}
           </div>
@@ -1037,8 +1061,8 @@ const UnifiedDiffView = memo(function UnifiedDiffView({
     contentRows.push(
       <div
         key={i}
-        className={`pr-2 pl-2 leading-5 text-[11px] whitespace-pre ${getLineBgClass(line.type)}`}
-        style={{ height: LINE_HEIGHT }}
+        className={`pr-2 pl-2 leading-[var(--fs-code-line-height)] text-[length:var(--fs-code)] whitespace-pre ${getLineBgClass(line.type)}`}
+        style={{ height: lineHeight }}
       >
         <LineContent line={{ ...line, lineNo }} tokens={tokens} />
       </div>,
@@ -1048,7 +1072,7 @@ const UnifiedDiffView = memo(function UnifiedDiffView({
   return (
     <div
       ref={containerRef}
-      className="overflow-y-auto overflow-x-hidden custom-scrollbar font-mono h-full"
+      className="overflow-y-auto overflow-x-hidden custom-scrollbar font-mono text-[length:var(--fs-code)] h-full"
       style={maxHeight !== undefined ? { maxHeight } : undefined}
       onScroll={handleScroll}
     >
@@ -1091,6 +1115,7 @@ const WrappedUnifiedDiffView = memo(function WrappedUnifiedDiffView({
   isResizing,
   maxHeight,
   diffStyle,
+  lineHeight,
 }: {
   before: string
   after: string
@@ -1098,6 +1123,7 @@ const WrappedUnifiedDiffView = memo(function WrappedUnifiedDiffView({
   isResizing: boolean
   maxHeight?: number
   diffStyle: DiffStyle
+  lineHeight: number
 }) {
   const { t } = useTranslation(['components', 'common'])
 
@@ -1125,11 +1151,13 @@ const WrappedUnifiedDiffView = memo(function WrappedUnifiedDiffView({
   }, [])
 
   const { containerRef, totalHeight, startIndex, endIndex, offsetY, handleScroll, measureRef } =
-    useDynamicVirtualScroll({ lineCount: displayLines.length, isResizing })
+    useDynamicVirtualScroll({ lineCount: displayLines.length, isResizing, estimateLineHeight: lineHeight })
 
   if (lines.length === 0) {
     return (
-      <div className="h-full flex items-center justify-center text-text-400 text-sm">{t('diffViewer.noChanges')}</div>
+      <div className="h-full flex items-center justify-center text-text-400 text-[length:var(--fs-base)]">
+        {t('diffViewer.noChanges')}
+      </div>
     )
   }
 
@@ -1167,22 +1195,22 @@ const WrappedUnifiedDiffView = memo(function WrappedUnifiedDiffView({
           {useChangeBars ? (
             <div className="flex items-stretch h-full">
               <div {...getChangeBarProps(line.type)} />
-              <div className="w-8 shrink-0 px-1 text-right text-text-500 text-[11px] leading-5 select-none opacity-60">
+              <div className="w-8 shrink-0 px-1 text-right text-text-500 text-[length:var(--fs-code)] leading-[var(--fs-code-line-height)] select-none opacity-60">
                 {line.oldLineNo}
               </div>
-              <div className="w-8 shrink-0 px-1 text-right text-text-500 text-[11px] leading-5 select-none opacity-60">
+              <div className="w-8 shrink-0 px-1 text-right text-text-500 text-[length:var(--fs-code)] leading-[var(--fs-code-line-height)] select-none opacity-60">
                 {line.newLineNo}
               </div>
             </div>
           ) : (
             <div className="flex h-full">
-              <div className="w-8 shrink-0 px-1 text-right text-text-500 text-[11px] leading-5 select-none opacity-60">
+              <div className="w-8 shrink-0 px-1 text-right text-text-500 text-[length:var(--fs-code)] leading-[var(--fs-code-line-height)] select-none opacity-60">
                 {line.oldLineNo}
               </div>
-              <div className="w-8 shrink-0 px-1 text-right text-text-500 text-[11px] leading-5 select-none opacity-60">
+              <div className="w-8 shrink-0 px-1 text-right text-text-500 text-[length:var(--fs-code)] leading-[var(--fs-code-line-height)] select-none opacity-60">
                 {line.newLineNo}
               </div>
-              <div className="w-5 shrink-0 text-center text-[11px] leading-5 select-none">
+              <div className="w-5 shrink-0 text-center text-[length:var(--fs-code)] leading-[var(--fs-code-line-height)] select-none">
                 {line.type === 'add' && <span className="text-success-100">+</span>}
                 {line.type === 'delete' && <span className="text-danger-100">−</span>}
               </div>
@@ -1191,8 +1219,8 @@ const WrappedUnifiedDiffView = memo(function WrappedUnifiedDiffView({
         </div>
 
         <div
-          className="min-w-0 flex-1 px-2 leading-5 text-[11px] whitespace-pre-wrap break-words [overflow-wrap:anywhere]"
-          style={{ minHeight: LINE_HEIGHT }}
+          className="min-w-0 flex-1 px-2 leading-[var(--fs-code-line-height)] text-[length:var(--fs-code)] whitespace-pre-wrap break-words [overflow-wrap:anywhere]"
+          style={{ minHeight: lineHeight }}
         >
           <LineContent line={{ ...line, lineNo }} tokens={tokens} />
         </div>
@@ -1203,7 +1231,7 @@ const WrappedUnifiedDiffView = memo(function WrappedUnifiedDiffView({
   return (
     <div
       ref={containerRef}
-      className="overflow-y-auto overflow-x-hidden custom-scrollbar font-mono h-full"
+      className="overflow-y-auto overflow-x-hidden custom-scrollbar font-mono text-[length:var(--fs-code)] h-full"
       onScroll={handleScroll}
       style={maxHeight !== undefined ? { maxHeight } : undefined}
     >
@@ -1224,14 +1252,34 @@ type HighlightToken = HighlightTokens[number][number]
 type WordDiffChange = ReturnType<typeof diffWords>[number]
 
 const LineContent = memo(function LineContent({ line, tokens }: { line: DiffLine; tokens: HighlightTokens | null }) {
-  // 词级别diff高亮
-  if (line.highlightedContent) {
-    return <span className="text-text-100" dangerouslySetInnerHTML={{ __html: line.highlightedContent }} />
+  const lineTokens = tokens && line.lineNo ? tokens[line.lineNo - 1] : null
+
+  // 有 word diff 标记时：在语法着色基础上叠加增删背景
+  if (line.wordDiffSegments) {
+    // 有语法 token → 合并渲染（token 提供颜色，word diff segment 提供背景）
+    if (lineTokens) {
+      return <MergedWordDiffLine segments={line.wordDiffSegments} lineTokens={lineTokens} />
+    }
+    // 无语法 token → 纯 word diff（文字用默认色 + 增删背景）
+    return (
+      <>
+        {line.wordDiffSegments.map((seg, i) =>
+          seg.diffType ? (
+            <span key={i} className={seg.diffType === 'delete' ? 'bg-danger-100/30' : 'bg-success-100/30'}>
+              {seg.text}
+            </span>
+          ) : (
+            <span key={i} className="text-text-100">
+              {seg.text}
+            </span>
+          ),
+        )}
+      </>
+    )
   }
 
-  // 语法高亮
-  if (tokens && line.lineNo && tokens[line.lineNo - 1]) {
-    const lineTokens = tokens[line.lineNo - 1]
+  // 无 word diff，有语法高亮
+  if (lineTokens) {
     return (
       <>
         {lineTokens.map((token: HighlightToken, i: number) => (
@@ -1246,6 +1294,63 @@ const LineContent = memo(function LineContent({ line, tokens }: { line: DiffLine
   // 纯文本
   return <span className="text-text-100">{line.content}</span>
 })
+
+/**
+ * 合并渲染：syntax token 提供文字颜色，word diff segment 提供背景色。
+ *
+ * 两者的切分边界不同，需要对齐遍历——
+ * 遍历 word diff segment，在每个 segment 内部按 syntax token 切分渲染。
+ */
+function MergedWordDiffLine({ segments, lineTokens }: { segments: WordDiffSegment[]; lineTokens: HighlightToken[] }) {
+  const result: React.ReactNode[] = []
+  let tokenIdx = 0
+  let tokenOffset = 0 // 当前 token 内已消费的字符数
+
+  for (let si = 0; si < segments.length; si++) {
+    const seg = segments[si]
+    let remaining = seg.text.length
+    const bgClass = seg.diffType === 'delete' ? 'bg-danger-100/30' : seg.diffType === 'add' ? 'bg-success-100/30' : ''
+    const children: React.ReactNode[] = []
+
+    while (remaining > 0 && tokenIdx < lineTokens.length) {
+      const token = lineTokens[tokenIdx]
+      const available = token.content.length - tokenOffset
+      const take = Math.min(remaining, available)
+      const slice = token.content.substring(tokenOffset, tokenOffset + take)
+
+      children.push(
+        <span key={`${si}-${tokenIdx}-${tokenOffset}`} style={token.color ? { color: token.color } : undefined}>
+          {slice}
+        </span>,
+      )
+
+      remaining -= take
+      tokenOffset += take
+      if (tokenOffset >= token.content.length) {
+        tokenIdx++
+        tokenOffset = 0
+      }
+    }
+
+    // 如果 token 用完了但 segment 还有剩余（不应该发生，但防御性处理）
+    if (remaining > 0) {
+      const extraStart = seg.text.length - remaining
+      children.push(<span key={`${si}-extra`}>{seg.text.substring(extraStart)}</span>)
+    }
+
+    if (bgClass) {
+      result.push(
+        <span key={si} className={bgClass}>
+          {children}
+        </span>,
+      )
+    } else {
+      result.push(...children)
+    }
+  }
+
+  return <>{result}</>
+}
 
 // ============================================
 // Diff Computation
@@ -1275,25 +1380,25 @@ function computePairedLines(before: string, after: string, skipWordDiff: boolean
           const oldLine = j < count ? beforeLines[oldIdx + j] : undefined
           const newLine = j < addCount ? afterLines[newIdx + j] : undefined
 
-          let leftHighlight: string | undefined
-          let rightHighlight: string | undefined
+          let leftSegments: WordDiffSegment[] | undefined
+          let rightSegments: WordDiffSegment[] | undefined
 
           if (!skipWordDiff && oldLine !== undefined && newLine !== undefined) {
             const wordDiff = computeWordDiff(oldLine, newLine)
             if (!isTooFragmented(wordDiff.changes)) {
-              leftHighlight = wordDiff.left
-              rightHighlight = wordDiff.right
+              leftSegments = wordDiff.left
+              rightSegments = wordDiff.right
             }
           }
 
           result.push({
             left:
               oldLine !== undefined
-                ? { type: 'delete', content: oldLine, lineNo: oldIdx + j + 1, highlightedContent: leftHighlight }
+                ? { type: 'delete', content: oldLine, lineNo: oldIdx + j + 1, wordDiffSegments: leftSegments }
                 : { type: 'empty', content: '' },
             right:
               newLine !== undefined
-                ? { type: 'add', content: newLine, lineNo: newIdx + j + 1, highlightedContent: rightHighlight }
+                ? { type: 'add', content: newLine, lineNo: newIdx + j + 1, wordDiffSegments: rightSegments }
                 : { type: 'empty', content: '' },
           })
         }
@@ -1384,7 +1489,10 @@ function isTooFragmented(changes: WordDiffChange[]): boolean {
   return totalLength > 10 && commonLength / totalLength < 0.4
 }
 
-function computeWordDiff(oldLine: string, newLine: string): { left: string; right: string; changes: WordDiffChange[] } {
+function computeWordDiff(
+  oldLine: string,
+  newLine: string,
+): { left: WordDiffSegment[]; right: WordDiffSegment[]; changes: WordDiffChange[] } {
   const changes = diffWords(oldLine, newLine)
 
   const mergedChanges: WordDiffChange[] = []
@@ -1407,15 +1515,14 @@ function computeWordDiff(oldLine: string, newLine: string): { left: string; righ
     }
   }
 
-  let left = '',
-    right = ''
+  const left: WordDiffSegment[] = []
+  const right: WordDiffSegment[] = []
   for (const change of mergedChanges) {
-    const escaped = escapeHtml(change.value)
-    if (change.removed) left += `<span class="bg-danger-100/30">${escaped}</span>`
-    else if (change.added) right += `<span class="bg-success-100/30">${escaped}</span>`
+    if (change.removed) left.push({ text: change.value, diffType: 'delete' })
+    else if (change.added) right.push({ text: change.value, diffType: 'add' })
     else {
-      left += escaped
-      right += escaped
+      left.push({ text: change.value })
+      right.push({ text: change.value })
     }
   }
 

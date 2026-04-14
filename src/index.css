@@ -272,12 +272,46 @@ body,
   --always-black: 0 0% 0%;
   --always-white: 0 0% 100%;
   --oncolor-100: 0 0% 100%;
+
+  /* ============================================
+   * Typography Scale — 字号系统
+   * ============================================
+   * 所有 UI 字号都通过这些变量控制。
+   * themeStore 的 fontScale 设置会覆盖这些值。
+   *
+   * 使用方式：在 Tailwind class 中写 text-[length:var(--fs-xxs)] 等。
+   * 代码区行高必须用绝对值 (px)，保证虚拟滚动和行号对齐。
+   *
+   * 参考：opencode 官方 UI 只用 4 档（13/14/16/20），
+   *       代码区 13px + 24px 行高。
+   */
+  --fs-xxs: 11px;
+  --fs-xs: 12px;
+  --fs-sm: 13px;
+  --fs-md: 13px;
+  --fs-base: 14px;
+  --fs-lg: 16px;
+
+  /* 代码 / Diff / 终端专用 */
+  --fs-code: 13px;
+  --fs-code-line-height: 24px;
+  --fs-terminal: 13px;
+  --fs-terminal-line-height: 1.4;
+
+  /* 固定字号 — 不受 fontScale 滑块影响，但统一管理 */
+  --fs-btn-sm: 12px;
+  --fs-btn-md: 14px;
+  --fs-btn-lg: 16px;
+  --fs-heading-3: 16px;
+  --fs-heading-2: 18px;
+  --fs-heading-1: 20px;
 }
 
 /* Base styles */
 body {
   margin: 0;
   font-family: var(--font-ui-sans);
+  line-height: 1.5;
 }
 
 /* ============================================

@@ -204,7 +204,7 @@ export function InputToolbar({
               ref={agentTriggerRef}
               onClick={() => setAgentMenuOpen(!agentMenuOpen)}
               disabled={controlsDisabled}
-              className="flex items-center gap-1.5 px-2 py-1.5 text-sm rounded-lg transition-all duration-150 hover:bg-bg-200 active:scale-95 cursor-pointer min-w-0 overflow-hidden w-full"
+              className="flex items-center gap-1.5 px-2 py-1.5 text-[length:var(--fs-base)] rounded-lg transition-all duration-150 hover:bg-bg-200 active:scale-95 cursor-pointer min-w-0 overflow-hidden w-full"
               title={
                 currentAgent
                   ? `${currentAgent.name}${currentAgent.description ? ': ' + currentAgent.description : ''}`
@@ -218,7 +218,7 @@ export function InputToolbar({
               >
                 <AgentIcon />
               </span>
-              <span className="text-xs text-text-300 capitalize truncate">{selectedAgent || 'build'}</span>
+              <span className="text-[length:var(--fs-sm)] text-text-300 capitalize truncate">{selectedAgent || 'build'}</span>
               <span className={`text-text-400 shrink-0 ${isCompact ? 'hidden' : ''}`}>
                 <ChevronDownIcon />
               </span>
@@ -261,7 +261,7 @@ export function InputToolbar({
               ref={variantTriggerRef}
               onClick={() => setVariantMenuOpen(!variantMenuOpen)}
               disabled={controlsDisabled}
-              className="flex items-center gap-1.5 px-2 py-1.5 text-sm rounded-lg transition-all duration-150 hover:bg-bg-200 active:scale-95 cursor-pointer min-w-0 overflow-hidden w-full"
+              className="flex items-center gap-1.5 px-2 py-1.5 text-[length:var(--fs-base)] rounded-lg transition-all duration-150 hover:bg-bg-200 active:scale-95 cursor-pointer min-w-0 overflow-hidden w-full"
               title={
                 selectedVariant
                   ? selectedVariant.charAt(0).toUpperCase() + selectedVariant.slice(1)
@@ -272,7 +272,7 @@ export function InputToolbar({
               <span className={`text-text-400 shrink-0 ${isCompact ? 'hidden' : ''}`}>
                 <ThinkingIcon />
               </span>
-              <span className="text-xs text-text-300 truncate">
+              <span className="text-[length:var(--fs-sm)] text-text-300 truncate">
                 {selectedVariant
                   ? selectedVariant.charAt(0).toUpperCase() + selectedVariant.slice(1)
                   : t('inputToolbar.default')}

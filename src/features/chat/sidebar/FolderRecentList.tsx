@@ -515,8 +515,8 @@ export function FolderRecentList({
       <div className="h-full overflow-y-auto custom-scrollbar px-1.5 py-1 select-none">
         {projects.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center px-6 text-center text-text-400 opacity-70">
-            <p className="text-xs font-medium text-text-300">{t('sidebar.noProjectFoldersYet')}</p>
-            <p className="mt-1 text-[11px] text-text-400/70">{t('sidebar.addProjectDesc')}</p>
+            <p className="text-[length:var(--fs-sm)] font-medium text-text-300">{t('sidebar.noProjectFoldersYet')}</p>
+            <p className="mt-1 text-[length:var(--fs-xs)] text-text-400/70">{t('sidebar.addProjectDesc')}</p>
           </div>
         ) : (
           <div onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>
@@ -762,7 +762,7 @@ function FolderRecentSection({
             title={project.worktree}
           >
             <FolderDisplayIcon size={15} className="shrink-0 text-text-400" />
-            <span className="min-w-0 flex-1 truncate text-[12px] font-medium text-text-300">{projectName}</span>
+            <span className="min-w-0 flex-1 truncate text-[length:var(--fs-sm)] font-medium text-text-300">{projectName}</span>
             {folderStatus && (
               <span
                 className="relative shrink-0 flex items-center justify-center w-3 h-3"
@@ -792,7 +792,7 @@ function FolderRecentSection({
           {shouldRenderBody && (
             <div onTouchStart={e => e.stopPropagation()}>
               {!hasActivated || (!hasWorkspaceTree && isLoading) ? (
-                <div className="flex items-center px-2 py-1 text-[11px] text-text-400/70">
+                <div className="flex items-center px-2 py-1 text-[length:var(--fs-xs)] text-text-400/70">
                   <SpinnerIcon size={12} className="animate-spin" />
                 </div>
               ) : hasWorkspaceTree ? (
@@ -817,7 +817,7 @@ function FolderRecentSection({
                   onReorderWorkspace={onReorderWorkspace}
                 />
               ) : sessions.length === 0 ? (
-                <div className="px-2 py-1 text-[11px] text-text-400/50">{t('sidebar.noChatsInFolder')}</div>
+                <div className="px-2 py-1 text-[length:var(--fs-xs)] text-text-400/50">{t('sidebar.noChatsInFolder')}</div>
               ) : (
                 <>
                   {sessions.map(session => (
@@ -862,7 +862,7 @@ function FolderRecentSection({
                       disabled={isLoadingMore}
                       aria-busy={isLoadingMore}
                       aria-label={isLoadingMore ? t('common:loadingMore') : t('sidebar.showMoreChats')}
-                      className="group w-full rounded-md px-2 py-1.5 text-[11px] text-text-400/85 transition-colors hover:text-text-200 disabled:cursor-default disabled:opacity-70"
+                      className="group w-full rounded-md px-2 py-1.5 text-[length:var(--fs-xs)] text-text-400/85 transition-colors hover:text-text-200 disabled:cursor-default disabled:opacity-70"
                     >
                       <span className="flex items-center justify-center">
                         <span className="relative inline-flex shrink-0 items-center gap-1.5 font-medium">

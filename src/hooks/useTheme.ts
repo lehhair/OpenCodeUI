@@ -164,6 +164,16 @@ export function useTheme() {
     themeStore.setCodeWordWrap(enabled)
   }, [])
 
+  // ---- Font Scale ----
+
+  const setUIFontScale = useCallback((scale: number) => {
+    themeStore.setUIFontScale(scale)
+  }, [])
+
+  const setCodeFontScale = useCallback((scale: number) => {
+    themeStore.setCodeFontScale(scale)
+  }, [])
+
   // ---- Tool Card Style ----
 
   const setToolCardStyle = useCallback((style: ToolCardStyle) => {
@@ -227,6 +237,14 @@ export function useTheme() {
     // 代码块 / diff 自动换行
     codeWordWrap: state.codeWordWrap,
     setCodeWordWrap,
+
+    // 界面字号偏移
+    uiFontScale: state.uiFontScale,
+    setUIFontScale,
+
+    // 代码 / diff / 终端字号偏移
+    codeFontScale: state.codeFontScale,
+    setCodeFontScale,
 
     // 工具输出渲染风格
     toolCardStyle: state.toolCardStyle,

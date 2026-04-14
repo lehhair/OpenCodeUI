@@ -1,5 +1,13 @@
 # Changelog
 
+## [v0.5.1] - 2026-04-13
+
+- feat: show agent and model name in step finish info (closes #61) (7299319)
+- fix: restore line-height lost during font system migration (3d83f3b)
+- fix: split diff view losing syntax highlighting when word diff is active (9f281ec)
+- feat: tune default font sizes to match opencode official UI proportions (29c6f76)
+- feat: unified typography system with CSS variables and per-axis font scale sliders (4533b15)
+
 ## [v0.5.0] - 2026-04-13
 
 - feat: add keep-screen-awake toggle in appearance settings (Wake Lock API) (3a6a13c)

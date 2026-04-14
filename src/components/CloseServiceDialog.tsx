@@ -33,14 +33,18 @@ export function CloseServiceDialog({ isOpen, onConfirm, onCancel }: CloseService
         </div>
 
         {/* Title */}
-        <h3 className="text-[15px] font-semibold text-text-100 mb-2">{t('closeService.title')}</h3>
+        <h3 className="text-[length:var(--fs-heading-3)] font-semibold text-text-100 mb-2">
+          {t('closeService.title')}
+        </h3>
 
         {/* Description */}
-        <p className="text-[13px] text-text-300 leading-relaxed mb-6 max-w-[320px]">{t('closeService.description')}</p>
+        <p className="text-[length:var(--fs-md)] text-text-300 leading-relaxed mb-6 max-w-[320px]">
+          {t('closeService.description')}
+        </p>
 
         {/* Actions */}
         {closing ? (
-          <div className="flex items-center gap-2 text-[13px] text-text-400">
+          <div className="flex items-center gap-2 text-[length:var(--fs-md)] text-text-400">
             <SpinnerIcon size={14} className="animate-spin" />
             {t('common:closing')}
           </div>

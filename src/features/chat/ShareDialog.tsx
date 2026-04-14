@@ -78,16 +78,16 @@ export function ShareDialog({ isOpen, onClose }: ShareDialogProps) {
           </div>
           <div>
             <h3 className="font-medium text-text-100">{t('shareDialog.publicLink')}</h3>
-            <p className="text-sm text-text-400 mt-1">{t('shareDialog.publicLinkDesc')}</p>
+            <p className="text-[length:var(--fs-base)] text-text-400 mt-1">{t('shareDialog.publicLinkDesc')}</p>
           </div>
         </div>
 
-        {error && <div className="text-danger-100 text-sm px-1">{error}</div>}
+        {error && <div className="text-danger-100 text-[length:var(--fs-base)] px-1">{error}</div>}
 
         {shareUrl ? (
           <div className="flex flex-col gap-3">
             <div className="flex items-center gap-2 p-2 bg-bg-100 border border-border-300 rounded-md">
-              <div className="flex-1 overflow-x-auto text-sm font-mono text-text-200 select-all whitespace-nowrap">
+              <div className="flex-1 overflow-x-auto text-[length:var(--fs-base)] font-mono text-text-200 select-all whitespace-nowrap">
                 {shareUrl}
               </div>
               <IconButton

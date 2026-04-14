@@ -104,7 +104,7 @@ export function ServiceSettings() {
   if (!isTauriDesktop) {
     return (
       <SettingsCard title={t('service.localService')} description={t('service.desktopOnlyDesc')}>
-        <div className="text-[12px] text-text-400 leading-relaxed">{t('service.webModeDesc')}</div>
+        <div className="text-[length:var(--fs-sm)] text-text-400 leading-relaxed">{t('service.webModeDesc')}</div>
       </SettingsCard>
     )
   }
@@ -113,16 +113,16 @@ export function ServiceSettings() {
     <SettingsCard title={t('service.localService')} description={t('service.localServiceDesc')}>
       <div className="space-y-3">
         <div>
-          <div className="text-[11px] font-medium text-text-300 mb-1">{t('service.binaryPath')}</div>
+          <div className="text-[length:var(--fs-xs)] font-medium text-text-300 mb-1">{t('service.binaryPath')}</div>
           <input
             type="text"
             value={localBinaryPath}
             onChange={e => handleBinaryPathChange(e.target.value)}
             placeholder={t('service.binaryPathPlaceholder')}
-            className="w-full h-8 px-3 text-[13px] font-mono bg-bg-200/50 border border-border-200 rounded-md
+            className="w-full h-8 px-3 text-[length:var(--fs-md)] font-mono bg-bg-200/50 border border-border-200 rounded-md
               focus:outline-none focus:border-accent-main-100/50 text-text-100 placeholder:text-text-400"
           />
-          <div className="text-[11px] text-text-400 mt-1">{t('service.binaryPathHelp')}</div>
+          <div className="text-[length:var(--fs-xs)] text-text-400 mt-1">{t('service.binaryPathHelp')}</div>
         </div>
 
         <div className="grid gap-2 md:grid-cols-2">
@@ -178,15 +178,15 @@ export function ServiceSettings() {
 
         <div>
           <div className="flex items-center justify-between mb-1">
-            <div className="text-[11px] font-medium text-text-300">{t('service.envVars')}</div>
+            <div className="text-[length:var(--fs-xs)] font-medium text-text-300">{t('service.envVars')}</div>
             <button
-              className="text-[11px] text-accent-main-100 hover:text-accent-main-100/80 transition-colors"
+              className="text-[length:var(--fs-xs)] text-accent-main-100 hover:text-accent-main-100/80 transition-colors"
               onClick={() => serviceStore.setEnvVars([...envVars, { key: '', value: '' }])}
             >
               + {t('common:add')}
             </button>
           </div>
-          <div className="text-[11px] text-text-400 mb-2">{t('service.envVarsDesc')}</div>
+          <div className="text-[length:var(--fs-xs)] text-text-400 mb-2">{t('service.envVarsDesc')}</div>
           {envVars.length > 0 && (
             <div className="flex flex-col gap-1.5">
               {envVars.map((env, idx) => (
@@ -200,10 +200,10 @@ export function ServiceSettings() {
                       serviceStore.setEnvVars(updated)
                     }}
                     placeholder={t('service.keyPlaceholder')}
-                    className="w-[120px] shrink-0 h-7 px-2 text-[11px] font-mono bg-bg-200/50 border border-border-200 rounded
+                    className="w-[120px] shrink-0 h-7 px-2 text-[length:var(--fs-xs)] font-mono bg-bg-200/50 border border-border-200 rounded
                       focus:outline-none focus:border-accent-main-100/50 text-text-100 placeholder:text-text-500"
                   />
-                  <span className="text-text-500 text-[11px] shrink-0">=</span>
+                  <span className="text-text-500 text-[length:var(--fs-xs)] shrink-0">=</span>
                   <input
                     type="text"
                     value={env.value}
@@ -213,7 +213,7 @@ export function ServiceSettings() {
                       serviceStore.setEnvVars(updated)
                     }}
                     placeholder={t('service.valuePlaceholder')}
-                    className="flex-1 min-w-0 h-7 px-2 text-[11px] font-mono bg-bg-200/50 border border-border-200 rounded
+                    className="flex-1 min-w-0 h-7 px-2 text-[length:var(--fs-xs)] font-mono bg-bg-200/50 border border-border-200 rounded
                       focus:outline-none focus:border-accent-main-100/50 text-text-100 placeholder:text-text-500"
                   />
                   <button
@@ -234,7 +234,7 @@ export function ServiceSettings() {
         </div>
 
         {serviceError && (
-          <div className="text-[11px] text-danger-100 bg-danger-100/10 border border-danger-100/20 rounded-md px-2.5 py-2 leading-relaxed break-all">
+          <div className="text-[length:var(--fs-xs)] text-danger-100 bg-danger-100/10 border border-danger-100/20 rounded-md px-2.5 py-2 leading-relaxed break-all">
             {serviceError}
           </div>
         )}

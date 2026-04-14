@@ -65,10 +65,10 @@ export const SkillPanel = memo(function SkillPanel({ isResizing: _isResizing }: 
       {/* Header */}
       <div className="flex flex-col border-b border-border-100">
         <div className="flex items-center justify-between px-3 py-2">
-          <div className="flex items-center gap-2 text-text-100 text-sm font-medium">
+          <div className="flex items-center gap-2 text-text-100 text-[length:var(--fs-base)] font-medium">
             <TeachIcon size={14} />
             <span>{t('skillPanel.title')}</span>
-            {!loading && <span className="text-text-400 text-xs">({skills.length})</span>}
+            {!loading && <span className="text-text-400 text-[length:var(--fs-sm)]">({skills.length})</span>}
           </div>
           <button
             onClick={loadSkills}
@@ -88,7 +88,7 @@ export const SkillPanel = memo(function SkillPanel({ isResizing: _isResizing }: 
               value={filter}
               onChange={e => setFilter(e.target.value)}
               placeholder={t('skillPanel.filterPlaceholder')}
-              className="w-full pl-8 pr-2 py-1 text-xs bg-bg-200/50 border border-transparent focus:border-border-200 rounded text-text-100 placeholder-text-400 focus:outline-none transition-colors"
+              className="w-full pl-8 pr-2 py-1 text-[length:var(--fs-sm)] bg-bg-200/50 border border-transparent focus:border-border-200 rounded text-text-100 placeholder-text-400 focus:outline-none transition-colors"
             />
             <SearchIcon size={12} className="absolute left-2.5 top-1.5 text-text-400" />
           </div>
@@ -98,23 +98,23 @@ export const SkillPanel = memo(function SkillPanel({ isResizing: _isResizing }: 
       {/* Content */}
       <div className="flex-1 overflow-auto">
         {loading && skills.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-text-400 text-sm gap-2">
+          <div className="flex flex-col items-center justify-center h-full text-text-400 text-[length:var(--fs-base)] gap-2">
             <SpinnerIcon size={20} className="animate-spin opacity-50" />
             <span>{t('skillPanel.loadingSkills')}</span>
           </div>
         ) : error ? (
-          <div className="flex flex-col items-center justify-center h-full text-text-400 text-sm gap-2">
+          <div className="flex flex-col items-center justify-center h-full text-text-400 text-[length:var(--fs-base)] gap-2">
             <AlertCircleIcon size={20} className="text-danger-100" />
             <span>{error}</span>
             <button
               onClick={loadSkills}
-              className="px-3 py-1.5 text-xs bg-bg-200/50 hover:bg-bg-200 text-text-200 rounded-md transition-colors"
+              className="px-3 py-1.5 text-[length:var(--fs-sm)] bg-bg-200/50 hover:bg-bg-200 text-text-200 rounded-md transition-colors"
             >
               {t('common:retry')}
             </button>
           </div>
         ) : filteredSkills.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-text-400 text-sm gap-2 px-4 text-center">
+          <div className="flex flex-col items-center justify-center h-full text-text-400 text-[length:var(--fs-base)] gap-2 px-4 text-center">
             <TeachIcon size={24} className="opacity-30" />
             <span>{t('skillPanel.noSkills')}</span>
           </div>
@@ -148,16 +148,16 @@ const SkillItem = memo(function SkillItem({ skill }: { skill: Skill }) {
         </span>
 
         <div className="flex-1 min-w-0">
-          <div className="text-sm text-text-100 font-medium">{skill.name}</div>
-          <div className="text-xs text-text-400 truncate">{skill.description}</div>
+          <div className="text-[length:var(--fs-base)] text-text-100 font-medium">{skill.name}</div>
+          <div className="text-[length:var(--fs-sm)] text-text-400 truncate">{skill.description}</div>
         </div>
       </div>
 
       {expanded && (
         <div className="px-3 pb-3 pt-0 ml-5 border-l-2 border-border-200/30 pl-3">
-          <div className="text-xs text-text-500 mb-2 font-mono break-all">{skill.location}</div>
+          <div className="text-[length:var(--fs-sm)] text-text-500 mb-2 font-mono break-all">{skill.location}</div>
           <div className="bg-bg-200/50 rounded p-2 overflow-x-auto">
-            <pre className="text-xs text-text-200 font-mono whitespace-pre-wrap break-words">{skill.content}</pre>
+            <pre className="text-[length:var(--fs-sm)] text-text-200 font-mono whitespace-pre-wrap break-words">{skill.content}</pre>
           </div>
         </div>
       )}

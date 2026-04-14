@@ -201,7 +201,7 @@ const MarkdownTable = memo(function MarkdownTable({
   if (isReasoning) {
     return (
       <div className="overflow-x-auto my-2 first:mt-0 last:mb-0 w-full">
-        <table className="min-w-full border-collapse text-xs">{children}</table>
+        <table className="min-w-full border-collapse text-[length:var(--fs-sm)]">{children}</table>
       </div>
     )
   }
@@ -210,7 +210,7 @@ const MarkdownTable = memo(function MarkdownTable({
     <div className="group/table relative my-5 first:mt-0 last:mb-0 rounded-md border border-border-200/35 w-full">
       {/* Scrollable table area */}
       <div className="overflow-x-auto">
-        <table className="w-full text-[13px] border-collapse">{tableChildren}</table>
+        <table className="w-full text-[length:var(--fs-md)] border-collapse">{tableChildren}</table>
       </div>
       {/* Copy button — outside scroll, pinned to visible top-right */}
       {copyText && !hasInlineCopyButton && (
@@ -263,8 +263,8 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
         <h1
           className={
             isReasoning
-              ? 'text-xs font-semibold text-text-300 mt-2 mb-1 first:mt-0 last:mb-0'
-              : 'text-xl font-bold text-text-100 mt-8 mb-4 first:mt-0 last:mb-0 tracking-tight'
+              ? 'text-[length:var(--fs-sm)] font-semibold text-text-300 mt-2 mb-1 first:mt-0 last:mb-0'
+              : 'text-[length:var(--fs-heading-1)] font-bold text-text-100 mt-8 mb-4 first:mt-0 last:mb-0 tracking-tight'
           }
         >
           {children}
@@ -274,8 +274,8 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
         <h2
           className={
             isReasoning
-              ? 'text-xs font-semibold text-text-300 mt-2 mb-1 first:mt-0 last:mb-0'
-              : 'text-lg font-bold text-text-100 mt-6 mb-3 first:mt-0 last:mb-0 tracking-tight pb-1.5 border-b border-border-100/40'
+              ? 'text-[length:var(--fs-sm)] font-semibold text-text-300 mt-2 mb-1 first:mt-0 last:mb-0'
+              : 'text-[length:var(--fs-heading-2)] font-bold text-text-100 mt-6 mb-3 first:mt-0 last:mb-0 tracking-tight pb-1.5 border-b border-border-100/40'
           }
         >
           {children}
@@ -285,8 +285,8 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
         <h3
           className={
             isReasoning
-              ? 'text-xs font-semibold text-text-300 mt-2 mb-1 first:mt-0 last:mb-0'
-              : 'text-base font-semibold text-text-100 mt-5 mb-2 first:mt-0 last:mb-0 tracking-tight'
+              ? 'text-[length:var(--fs-sm)] font-semibold text-text-300 mt-2 mb-1 first:mt-0 last:mb-0'
+              : 'text-[length:var(--fs-heading-3)] font-semibold text-text-100 mt-5 mb-2 first:mt-0 last:mb-0 tracking-tight'
           }
         >
           {children}
@@ -296,8 +296,8 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
         <h4
           className={
             isReasoning
-              ? 'text-xs font-semibold text-text-300 mt-2 mb-1 first:mt-0 last:mb-0'
-              : 'text-sm font-semibold text-text-100 mt-4 mb-2 first:mt-0 last:mb-0 tracking-tight'
+              ? 'text-[length:var(--fs-sm)] font-semibold text-text-300 mt-2 mb-1 first:mt-0 last:mb-0'
+              : 'text-[length:var(--fs-base)] font-semibold text-text-100 mt-4 mb-2 first:mt-0 last:mb-0 tracking-tight'
           }
         >
           {children}
@@ -308,7 +308,9 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
       p: ({ children }) => (
         <p
           className={
-            isReasoning ? 'text-xs mb-2 last:mb-0 leading-5 text-text-400' : 'mb-4 last:mb-0 leading-7 text-text-200'
+            isReasoning
+              ? 'text-[length:var(--fs-sm)] mb-2 last:mb-0 leading-5 text-text-400'
+              : 'mb-4 last:mb-0 leading-7 text-text-200'
           }
         >
           {children}
@@ -320,7 +322,7 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
         <ul
           className={
             isReasoning
-              ? 'text-xs list-disc list-outside ml-4 mb-2 last:mb-0 space-y-0.5 marker:text-text-500/60'
+              ? 'text-[length:var(--fs-sm)] list-disc list-outside ml-4 mb-2 last:mb-0 space-y-0.5 marker:text-text-500/60'
               : 'list-disc list-outside ml-5 mb-4 last:mb-0 space-y-1 marker:text-text-400/80'
           }
         >
@@ -331,7 +333,7 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
         <ol
           className={
             isReasoning
-              ? 'text-xs list-decimal list-outside ml-4 mb-2 last:mb-0 space-y-0.5 marker:text-text-500/60'
+              ? 'text-[length:var(--fs-sm)] list-decimal list-outside ml-4 mb-2 last:mb-0 space-y-0.5 marker:text-text-500/60'
               : 'list-decimal list-outside ml-5 mb-4 last:mb-0 space-y-1 marker:text-text-400/80'
           }
         >
@@ -339,7 +341,11 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
         </ol>
       ),
       li: ({ children }) => (
-        <li className={isReasoning ? 'text-xs text-text-400 pl-1 leading-5' : 'text-text-200 pl-1 leading-7'}>
+        <li
+          className={
+            isReasoning ? 'text-[length:var(--fs-sm)] text-text-400 pl-1 leading-5' : 'text-text-200 pl-1 leading-7'
+          }
+        >
           {children}
         </li>
       ),
@@ -352,7 +358,7 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
           rel="noopener noreferrer"
           className={
             isReasoning
-              ? 'text-xs font-medium text-accent-main-200/80 hover:text-accent-main-200 underline underline-offset-2 transition-colors'
+              ? 'text-[length:var(--fs-sm)] font-medium text-accent-main-200/80 hover:text-accent-main-200 underline underline-offset-2 transition-colors'
               : 'font-medium text-accent-main-100 hover:text-accent-main-200 underline underline-offset-2 transition-colors'
           }
         >
@@ -384,8 +390,8 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
         <th
           className={
             isReasoning
-              ? 'px-3 py-1.5 text-left text-xs font-medium whitespace-nowrap border-b border-border-200/32'
-              : 'relative px-3 py-2.5 text-left text-[13px] font-semibold whitespace-nowrap border-b border-border-200/38'
+              ? 'px-3 py-1.5 text-left text-[length:var(--fs-sm)] font-medium whitespace-nowrap border-b border-border-200/32'
+              : 'relative px-3 py-2.5 text-left text-[length:var(--fs-md)] font-semibold whitespace-nowrap border-b border-border-200/38'
           }
         >
           {children}
@@ -401,8 +407,8 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
         <td
           className={
             isReasoning
-              ? 'px-3 py-1.5 text-xs text-text-300 w-max border-b border-border-200/18'
-              : 'px-3 py-2 text-[13px] text-text-300 leading-[1.55] w-max border-b border-border-200/14'
+              ? 'px-3 py-1.5 text-[length:var(--fs-sm)] text-text-300 w-max border-b border-border-200/18'
+              : 'px-3 py-2 text-[length:var(--fs-md)] text-text-300 leading-[1.55] w-max border-b border-border-200/14'
           }
         >
           {children}
@@ -435,7 +441,7 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
         <del
           className={
             isReasoning
-              ? 'text-xs text-text-500 line-through decoration-text-500/50'
+              ? 'text-[length:var(--fs-sm)] text-text-500 line-through decoration-text-500/50'
               : 'text-text-400 line-through decoration-text-400/50'
           }
         >
@@ -448,7 +454,7 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
 
   return (
     <div
-      className={`markdown-content ${isReasoning ? 'text-xs leading-5 text-text-400' : 'text-sm leading-relaxed text-text-100'} break-words min-w-0 overflow-hidden ${className}`}
+      className={`markdown-content ${isReasoning ? 'text-[length:var(--fs-sm)] leading-5 text-text-400' : 'text-[length:var(--fs-base)] leading-relaxed text-text-100'} break-words min-w-0 overflow-hidden ${className}`}
     >
       <Streamdown components={components} isAnimating={isStreaming} controls={false} plugins={{ math }}>
         {content}

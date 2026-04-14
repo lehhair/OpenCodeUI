@@ -84,7 +84,7 @@ export function ChatSettings() {
     <div>
       {/* 路径格式 */}
       <SettingsSection title={t('chat.pathsFormatting')}>
-        <p className="text-[12px] text-text-400">{t('chat.pathsFormattingDesc')}</p>
+        <p className="text-[length:var(--fs-sm)] text-text-400">{t('chat.pathsFormattingDesc')}</p>
         <SegmentedControl
           value={pathMode}
           options={[
@@ -95,7 +95,7 @@ export function ChatSettings() {
           onChange={v => setPathMode(v as PathMode)}
         />
         {isAutoMode && (
-          <p className="text-[11px] text-text-400">
+          <p className="text-[length:var(--fs-xs)] text-text-400">
             {t('chat.usingStyle', { style: effectiveStyle === 'windows' ? '\\' : '/' })}
             {detectedStyle &&
               t('chat.detectedStyle', {
@@ -161,8 +161,8 @@ export function ChatSettings() {
       {/* 显示 */}
       <SettingsSection title={t('chat.thinkingDisplay')}>
         <div>
-          <p className="text-[13px] text-text-100 mb-1.5">{t('chat.thinkingDisplay')}</p>
-          <p className="text-[12px] text-text-400 mb-3">{t('chat.thinkingDisplayDesc')}</p>
+          <p className="text-[length:var(--fs-md)] text-text-100 mb-1.5">{t('chat.thinkingDisplay')}</p>
+          <p className="text-[length:var(--fs-sm)] text-text-400 mb-3">{t('chat.thinkingDisplayDesc')}</p>
           <SegmentedControl
             value={reasoningDisplayMode}
             options={[
@@ -174,8 +174,8 @@ export function ChatSettings() {
           />
         </div>
         <div>
-          <p className="text-[13px] text-text-100 mb-1.5">{t('chat.toolCardStyle')}</p>
-          <p className="text-[12px] text-text-400 mb-3">{t('chat.toolCardStyleDesc')}</p>
+          <p className="text-[length:var(--fs-md)] text-text-100 mb-1.5">{t('chat.toolCardStyle')}</p>
+          <p className="text-[length:var(--fs-sm)] text-text-400 mb-3">{t('chat.toolCardStyleDesc')}</p>
           <SegmentedControl
             value={toolCardStyle}
             options={[
@@ -191,6 +191,8 @@ export function ChatSettings() {
       <SettingsSection title={t('chat.stepFinishInfo')}>
         {(
           [
+            { key: 'agent', label: t('chat.agent'), desc: t('chat.showAgent') },
+            { key: 'model', label: t('chat.model'), desc: t('chat.showModel') },
             { key: 'tokens', label: t('chat.tokens'), desc: t('chat.showTokenUsage') },
             { key: 'cache', label: t('chat.cache'), desc: t('chat.showCacheHit') },
             { key: 'cost', label: t('chat.cost'), desc: t('chat.showApiCost') },

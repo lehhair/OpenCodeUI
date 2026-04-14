@@ -191,7 +191,7 @@ export const InputFooter = memo(function InputFooter({
 
   return (
     <div
-      className="relative flex h-full w-full items-center justify-center gap-2 text-[11px] leading-none text-text-500"
+      className="relative flex h-full w-full items-center justify-center gap-2 text-[length:var(--fs-xs)] leading-none text-text-500"
       ref={popoverRef}
     >
       {/* Full Auto 三态切换: off -> session -> global -> off */}
@@ -263,7 +263,7 @@ export const InputFooter = memo(function InputFooter({
                   progressClassName={`transition-all duration-700 ease-out ${isAllDone ? 'text-accent-secondary-100' : 'text-accent-main-100'}`}
                 />
                 <span
-                  className={`absolute inset-0 flex items-center justify-center text-sm font-semibold ${
+                  className={`absolute inset-0 flex items-center justify-center text-[length:var(--fs-base)] font-semibold ${
                     isAllDone ? 'text-accent-secondary-100' : 'text-text-200'
                   }`}
                 >
@@ -271,12 +271,12 @@ export const InputFooter = memo(function InputFooter({
                 </span>
               </div>
               <div className="flex-1">
-                <div className="text-sm font-medium text-text-100">
+                <div className="text-[length:var(--fs-base)] font-medium text-text-100">
                   {isAllDone
                     ? t('inputFooter.allDone')
                     : t('inputFooter.tasksCount', { done: stats.completed, total: stats.total })}
                 </div>
-                <div className="mt-0.5 text-xs text-text-500">
+                <div className="mt-0.5 text-[length:var(--fs-sm)] text-text-500">
                   {isAllDone
                     ? t('inputFooter.greatWork')
                     : stats.inProgress > 0
@@ -348,7 +348,7 @@ function TodoSwapPanel({
       ref={ref}
       style={style}
       data-state={open ? 'open' : 'closed'}
-      className="todo-swap-panel absolute glass-alt border border-border-200/60 rounded-2xl shadow-lg overflow-hidden z-50"
+      className="todo-swap-panel absolute glass-alt border border-border-200/60 rounded-2xl shadow-lg overflow-hidden z-50 leading-normal"
     >
       {children}
     </div>
@@ -383,7 +383,7 @@ const TodoRow = memo(function TodoRow({ todo }: { todo: TodoItem }) {
 
   return (
     <div
-      className={`flex items-center gap-2 px-2 py-1.5 text-xs ${
+      className={`flex items-center gap-2 px-2 py-1.5 text-[length:var(--fs-sm)] ${
         isCompleted ? 'text-text-500' : isInProgress ? 'text-text-100' : 'text-text-300'
       }`}
     >
@@ -395,7 +395,7 @@ const TodoRow = memo(function TodoRow({ todo }: { todo: TodoItem }) {
       </span>
       <span className={`flex-1 ${isCompleted ? 'line-through' : ''}`}>{todo.content}</span>
       {todo.priority === 'high' && !isCompleted && (
-        <span className="shrink-0 rounded bg-warning-100/10 px-1 text-[10px] text-warning-100">!</span>
+        <span className="shrink-0 rounded bg-warning-100/10 px-1 text-[length:var(--fs-xxs)] text-warning-100">!</span>
       )}
     </div>
   )

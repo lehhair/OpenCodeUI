@@ -45,7 +45,7 @@ export function BashRenderer({ part, data }: ToolRendererProps) {
   const isDone = !isActive
 
   return (
-    <div className="rounded-md border border-border-200/40 bg-bg-100 overflow-hidden font-mono text-[11px] leading-[1.6]">
+    <div className="rounded-md border border-border-200/40 bg-bg-100 overflow-hidden font-mono text-[length:var(--fs-code)] leading-[1.6]">
       <div className="px-3 py-2 overflow-y-auto custom-scrollbar" style={{ maxHeight }}>
         {/* $ command — 点击复制 */}
         {command && <ClickToCopyCommand command={command} />}
@@ -71,7 +71,7 @@ export function BashRenderer({ part, data }: ToolRendererProps) {
         {/* Exit code */}
         {isDone && exitCode !== undefined && (
           <div
-            className={`mt-0.5 text-[10px] font-medium ${
+            className={`mt-0.5 text-[length:var(--fs-xxs)] font-medium ${
               exitCode === 0 ? 'text-accent-secondary-100' : 'text-warning-100'
             }`}
           >

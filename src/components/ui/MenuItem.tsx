@@ -24,11 +24,11 @@ export function MenuItem({ label, description, icon, disabled = false, selected 
         <span className="w-4 h-4 flex items-center justify-center flex-shrink-0 mt-0.5 text-text-400">{icon}</span>
       )}
       <div className="flex-1 min-w-0">
-        <div className={`text-sm ${disabled ? 'text-text-500' : selected ? 'text-text-100' : 'text-text-200'}`}>
+        <div className={`text-[length:var(--fs-base)] ${disabled ? 'text-text-500' : selected ? 'text-text-100' : 'text-text-200'}`}>
           {label}
         </div>
         {description && (
-          <div className="text-xs text-text-500 mt-0.5 line-clamp-2" title={description}>
+          <div className="text-[length:var(--fs-sm)] text-text-500 mt-0.5 line-clamp-2" title={description}>
             {description}
           </div>
         )}

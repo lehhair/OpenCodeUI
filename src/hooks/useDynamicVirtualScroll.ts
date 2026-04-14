@@ -12,7 +12,7 @@
 
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react'
 
-const LINE_HEIGHT = 20
+const DEFAULT_LINE_HEIGHT = 20
 const OVERSCAN = 5
 
 interface UseDynamicVirtualScrollOptions {
@@ -20,6 +20,8 @@ interface UseDynamicVirtualScrollOptions {
   lineCount: number
   /** 容器是否正在拖拽 resize（拖拽期间跳过测量） */
   isResizing?: boolean
+  /** 预估行高（用于未测量行），默认 20px */
+  estimateLineHeight?: number
 }
 
 interface UseDynamicVirtualScrollResult {
@@ -42,18 +44,19 @@ interface UseDynamicVirtualScrollResult {
 export function useDynamicVirtualScroll({
   lineCount,
   isResizing = false,
+  estimateLineHeight = DEFAULT_LINE_HEIGHT,
 }: UseDynamicVirtualScrollOptions): UseDynamicVirtualScrollResult {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const [scrollTop, setScrollTop] = useState(0)
   const [containerHeight, setContainerHeight] = useState(0)
 
-  // 每行的实测高度，未测量的用 LINE_HEIGHT
+  // 每行的实测高度，未测量的用 estimateLineHeight
   const measuredHeights = useRef<Float32Array>(new Float32Array(0))
 
   // 确保 measuredHeights 大小匹配 lineCount
   if (measuredHeights.current.length !== lineCount) {
     const old = measuredHeights.current
-    const next = new Float32Array(lineCount).fill(LINE_HEIGHT)
+    const next = new Float32Array(lineCount).fill(estimateLineHeight)
     // 复制旧数据
     const copyLen = Math.min(old.length, lineCount)
     for (let i = 0; i < copyLen; i++) next[i] = old[i]
@@ -69,7 +72,7 @@ export function useDynamicVirtualScroll({
     const arr = new Float64Array(lineCount + 1)
     const h = measuredHeights.current
     for (let i = 0; i < lineCount; i++) {
-      arr[i + 1] = arr[i] + (h[i] || LINE_HEIGHT)
+      arr[i + 1] = arr[i] + (h[i] || estimateLineHeight)
     }
     return arr
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -119,7 +122,7 @@ export function useDynamicVirtualScroll({
       const w = container.clientWidth
       if (Math.abs(w - lastWidthRef.current) > 20) {
         lastWidthRef.current = w
-        measuredHeights.current.fill(LINE_HEIGHT)
+        measuredHeights.current.fill(estimateLineHeight)
         setGeneration(g => g + 1)
       }
     })

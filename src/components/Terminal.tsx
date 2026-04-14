@@ -218,7 +218,7 @@ function MobileExtraKeys({ onSend, stickyModifiers, onToggleSticky, onFocusTermi
   )
 
   const btnBase =
-    'flex h-8 min-w-0 w-full items-center justify-center overflow-hidden whitespace-nowrap rounded-md border px-0 text-[10px] leading-none font-mono font-semibold tracking-[-0.02em] text-text-200 transition-[background-color,color,border-color,transform] duration-100 select-none active:scale-[0.98]'
+    'flex h-8 min-w-0 w-full items-center justify-center overflow-hidden whitespace-nowrap rounded-md border px-0 text-[length:var(--fs-xxs)] leading-none font-mono font-semibold tracking-[-0.02em] text-text-200 transition-[background-color,color,border-color,transform] duration-100 select-none active:scale-[0.98]'
   const btnNormal = `${btnBase} border-border-200/20 bg-bg-200/70 active:bg-bg-300/80`
   const btnActive = `${btnBase} border-accent-main-100/45 bg-accent-main-100/18 text-accent-main-100`
 
@@ -345,13 +345,18 @@ export const Terminal = memo(function Terminal({ ptyId, directory, isActive }: T
     const touchUi = preferTouchUi
     const theme = getTerminalTheme(isDarkMode())
 
+    // 从 CSS 变量读取终端字号（跟随 fontScale 设置）
+    const rootStyle = getComputedStyle(document.documentElement)
+    const termFontSize = parseInt(rootStyle.getPropertyValue('--fs-terminal').trim(), 10) || 13
+    const termLineHeight = parseFloat(rootStyle.getPropertyValue('--fs-terminal-line-height').trim()) || 1.2
+
     const terminal = new XTerm({
       theme,
       fontFamily:
-        getComputedStyle(document.documentElement).getPropertyValue('--font-mono').trim() ||
+        rootStyle.getPropertyValue('--font-mono').trim() ||
         "ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace",
-      fontSize: touchUi ? 14 : 13,
-      lineHeight: touchUi ? 1.3 : 1.2,
+      fontSize: touchUi ? Math.max(termFontSize, 14) : termFontSize,
+      lineHeight: touchUi ? Math.max(termLineHeight, 1.3) : termLineHeight,
       cursorBlink: true,
       cursorStyle: 'block',
       smoothScrollDuration: touchUi ? 100 : 0,

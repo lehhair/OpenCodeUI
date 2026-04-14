@@ -112,11 +112,11 @@ export const ReasoningPartView = memo(function ReasoningPartView({ part, isStrea
         : t('reasoning.thoughtProcess')
     const summaryClassName = expanded
       ? isPartStreaming
-        ? 'text-[12px] leading-5 text-text-200'
-        : 'text-[12px] leading-5 text-text-500/80'
+        ? 'text-[length:var(--fs-sm)] leading-5 text-text-200'
+        : 'text-[length:var(--fs-sm)] leading-5 text-text-500/80'
       : isPartStreaming
-        ? 'text-[12px] leading-5 text-text-200 whitespace-nowrap overflow-hidden text-ellipsis'
-        : 'text-[12px] leading-5 text-text-300 whitespace-nowrap overflow-hidden text-ellipsis'
+        ? 'text-[length:var(--fs-sm)] leading-5 text-text-200 whitespace-nowrap overflow-hidden text-ellipsis'
+        : 'text-[length:var(--fs-sm)] leading-5 text-text-300 whitespace-nowrap overflow-hidden text-ellipsis'
 
     const content = shouldUseToggle ? (
       <>
@@ -137,7 +137,7 @@ export const ReasoningPartView = memo(function ReasoningPartView({ part, isStrea
             <span
               ref={summaryMeasureRef}
               aria-hidden="true"
-              className={`pointer-events-none absolute inset-0 invisible whitespace-nowrap text-[12px] leading-5 ${
+              className={`pointer-events-none absolute inset-0 invisible whitespace-nowrap text-[length:var(--fs-sm)] leading-5 ${
                 isMarkdownMode ? '' : 'italic'
               }`}
             >
@@ -159,11 +159,11 @@ export const ReasoningPartView = memo(function ReasoningPartView({ part, isStrea
           <div className="min-h-0 min-w-0 overflow-hidden" style={{ clipPath: 'inset(0 -100% 0 -100%)' }}>
             {shouldRenderBody &&
               (isMarkdownMode ? (
-                <div className="text-[12px]">
+                <div className="text-[length:var(--fs-sm)]">
                   <MarkdownRenderer content={displayText} variant="reasoning" isStreaming={isPartStreaming} />
                 </div>
               ) : (
-                <div className="text-[12px] leading-6 italic whitespace-pre-wrap break-words overflow-x-hidden text-text-300">
+                <div className="text-[length:var(--fs-sm)] leading-6 italic whitespace-pre-wrap break-words overflow-x-hidden text-text-300">
                   {displayText}
                 </div>
               ))}
@@ -171,18 +171,18 @@ export const ReasoningPartView = memo(function ReasoningPartView({ part, isStrea
         </div>
       </>
     ) : (
-      <div ref={summaryContainerRef} className="relative min-w-0 overflow-hidden text-[12px]">
+      <div ref={summaryContainerRef} className="relative min-w-0 overflow-hidden text-[length:var(--fs-sm)]">
         {isMarkdownMode ? (
           <MarkdownRenderer content={displayText} variant="reasoning" isStreaming={isPartStreaming} />
         ) : (
-          <span className="block min-w-0 text-[12px] leading-5 italic whitespace-pre-wrap break-words text-text-300">
+          <span className="block min-w-0 text-[length:var(--fs-sm)] leading-5 italic whitespace-pre-wrap break-words text-text-300">
             {displayText}
           </span>
         )}
         <span
           ref={summaryMeasureRef}
           aria-hidden="true"
-          className={`pointer-events-none absolute inset-0 invisible whitespace-nowrap text-[12px] leading-5 ${
+          className={`pointer-events-none absolute inset-0 invisible whitespace-nowrap text-[length:var(--fs-sm)] leading-5 ${
             isMarkdownMode ? '' : 'italic'
           }`}
         >
@@ -231,7 +231,7 @@ export const ReasoningPartView = memo(function ReasoningPartView({ part, isStrea
             <LightbulbIcon className="shrink-0" size={14} />
           )}
         </span>
-        <span className="text-xs font-medium leading-5 whitespace-nowrap text-left">
+        <span className="text-[length:var(--fs-sm)] font-medium leading-5 whitespace-nowrap text-left">
           {isPartStreaming ? t('reasoning.thinking') : t('reasoning.thinkingLabel')}
         </span>
         <span
@@ -247,7 +247,7 @@ export const ReasoningPartView = memo(function ReasoningPartView({ part, isStrea
         <div className="min-h-0 min-w-0 overflow-hidden" style={{ clipPath: 'inset(0 -100% 0 -100%)' }}>
           {shouldRenderBody && (
             <ScrollArea ref={scrollAreaRef} maxHeight={192} className="border-t border-border-300/20 bg-bg-200/30">
-              <div className="px-2 py-2 text-text-300 text-xs font-mono whitespace-pre-wrap break-words overflow-x-hidden">
+              <div className="px-2 py-2 text-text-300 text-[length:var(--fs-sm)] font-mono whitespace-pre-wrap break-words overflow-x-hidden">
                 {displayText}
               </div>
             </ScrollArea>

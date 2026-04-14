@@ -101,7 +101,7 @@ export const TaskRenderer = memo(function TaskRenderer({ part }: ToolRendererPro
               <div className="pt-2 space-y-3">
                 {/* Prompt */}
                 {prompt && (
-                  <div className="text-[11px] text-text-500 leading-relaxed whitespace-nowrap overflow-hidden text-ellipsis">
+                  <div className="text-[length:var(--fs-xs)] text-text-500 leading-relaxed whitespace-nowrap overflow-hidden text-ellipsis">
                     {prompt}
                   </div>
                 )}
@@ -193,7 +193,7 @@ const TaskHeader = memo(function TaskHeader({
 
       {/* Agent type badge */}
       <span
-        className={`px-1.5 py-0.5 text-[10px] font-medium rounded-xs ${
+        className={`px-1.5 py-0.5 text-[length:var(--fs-xxs)] font-medium rounded-xs ${
           isRunning
             ? 'bg-accent-main-100/20 text-accent-main-100'
             : isError
@@ -207,7 +207,7 @@ const TaskHeader = memo(function TaskHeader({
       </span>
 
       {/* Description */}
-      <span className="text-xs text-text-300 truncate flex-1 min-w-0">{description}</span>
+      <span className="text-[length:var(--fs-sm)] text-text-300 truncate flex-1 min-w-0">{description}</span>
 
       {/* Stop button (running) */}
       {onStop && (
@@ -308,7 +308,7 @@ const SubSessionView = memo(function SubSessionView({ sessionId }: SubSessionVie
   }
 
   if (visibleMessages.length === 0) {
-    return <div className="text-xs text-text-500 italic py-2">{t('task.waitingForResponse')}</div>
+    return <div className="text-[length:var(--fs-sm)] text-text-500 italic py-2">{t('task.waitingForResponse')}</div>
   }
 
   return (
@@ -351,7 +351,7 @@ const MessageItem = memo(function MessageItem({ message, isLast }: MessageItemPr
   if (isUser) {
     return (
       <div className="flex justify-end">
-        <div className="max-w-[85%] px-2.5 py-1.5 rounded-md bg-bg-300 text-text-100 text-[11px] whitespace-pre-wrap break-words">
+        <div className="max-w-[85%] px-2.5 py-1.5 rounded-md bg-bg-300 text-text-100 text-[length:var(--fs-xs)] whitespace-pre-wrap break-words">
           {textContent}
         </div>
       </div>
@@ -363,7 +363,7 @@ const MessageItem = memo(function MessageItem({ message, isLast }: MessageItemPr
     <div className="space-y-1.5">
       {/* Text content */}
       {textContent && (
-        <div className="text-[11px] text-text-200 leading-relaxed whitespace-pre-wrap">
+        <div className="text-[length:var(--fs-xs)] text-text-200 leading-relaxed whitespace-pre-wrap">
           {textContent.length > 500 && !isLast ? textContent.slice(0, 500) + '...' : textContent}
         </div>
       )}
@@ -394,7 +394,7 @@ const ToolBadge = memo(function ToolBadge({ tool }: { tool: ToolPart }) {
 
   return (
     <span
-      className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-xs text-[10px] font-mono ${
+      className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-xs text-[length:var(--fs-xxs)] font-mono ${
         isRunning
           ? 'bg-accent-main-100/10 text-accent-main-100'
           : isError

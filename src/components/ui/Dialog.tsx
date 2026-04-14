@@ -207,7 +207,7 @@ export function Dialog({
             {/* Header */}
             {(title || showCloseButton) && (
               <div className="flex items-center justify-between px-5 py-4 border-b border-border-100/50">
-                <div className="text-lg font-semibold text-text-100">{title}</div>
+                <div className="text-[length:var(--fs-heading-2)] font-semibold text-text-100">{title}</div>
                 {showCloseButton && (
                   <button
                     onClick={onClose}

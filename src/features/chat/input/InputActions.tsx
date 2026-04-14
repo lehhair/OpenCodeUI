@@ -81,12 +81,12 @@ export const FloatingActions = memo(function FloatingActions({
           <button
             type="button"
             onClick={collapsedPermission.onExpand}
-            className="flex items-center gap-1.5 px-3 h-[32px] rounded-full bg-accent-main-100/10 backdrop-blur-md border border-accent-main-100/20 text-[12px] leading-[14px] text-accent-main-000 hover:bg-accent-main-100/20 transition-colors"
+            className="flex items-center gap-1.5 px-3 h-[32px] rounded-full bg-accent-main-100/10 backdrop-blur-md border border-accent-main-100/20 text-[length:var(--fs-sm)] leading-[14px] text-accent-main-000 hover:bg-accent-main-100/20 transition-colors"
           >
             <PermissionListIcon size={14} />
             <span className="whitespace-nowrap">{collapsedPermission.label}</span>
             {collapsedPermission.queueLength > 1 && (
-              <span className="text-[10px] opacity-70">+{collapsedPermission.queueLength - 1}</span>
+              <span className="text-[length:var(--fs-xxs)] opacity-70">+{collapsedPermission.queueLength - 1}</span>
             )}
           </button>
         )}
@@ -98,12 +98,12 @@ export const FloatingActions = memo(function FloatingActions({
           <button
             type="button"
             onClick={collapsedQuestion.onExpand}
-            className="flex items-center gap-1.5 px-3 h-[32px] rounded-full bg-accent-main-100/10 backdrop-blur-md border border-accent-main-100/20 text-[12px] leading-[14px] text-accent-main-000 hover:bg-accent-main-100/20 transition-colors"
+            className="flex items-center gap-1.5 px-3 h-[32px] rounded-full bg-accent-main-100/10 backdrop-blur-md border border-accent-main-100/20 text-[length:var(--fs-sm)] leading-[14px] text-accent-main-000 hover:bg-accent-main-100/20 transition-colors"
           >
             <QuestionIcon size={14} />
             <span className="whitespace-nowrap">{collapsedQuestion.label}</span>
             {collapsedQuestion.queueLength > 1 && (
-              <span className="text-[10px] opacity-70">+{collapsedQuestion.queueLength - 1}</span>
+              <span className="text-[length:var(--fs-xxs)] opacity-70">+{collapsedQuestion.queueLength - 1}</span>
             )}
           </button>
         )}
@@ -144,7 +144,7 @@ export const CollapsedCapsule = memo(function CollapsedCapsule({
         className="flex items-center gap-1.5 px-3 h-[32px] rounded-full glass border border-border-200/50 shadow-lg text-text-300 hover:text-text-200 hover:bg-bg-000 active:scale-95 transition-all"
       >
         <ArrowUpIcon size={14} />
-        <span className="text-[11px]">{t('inputActions.reply')}</span>
+        <span className="text-[length:var(--fs-xs)]">{t('inputActions.reply')}</span>
       </button>
       {showScrollToBottom && <ScrollToBottomButton onClick={onScrollToBottom} />}
     </div>

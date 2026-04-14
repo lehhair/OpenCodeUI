@@ -93,7 +93,7 @@ export const InlinePermission = memo(function InlinePermission({
 
       {/* 操作按钮 / 已批准状态 */}
       {resolved ? (
-        <div className="flex items-center gap-2 text-[12px] text-text-400">
+        <div className="flex items-center gap-2 text-[length:var(--fs-sm)] text-text-400">
           <span className="inline-block w-3 h-3 border-2 border-accent-main-100 border-t-transparent rounded-full animate-spin" />
           <span>{t('permissionDialog.applying', { defaultValue: 'Applying…' })}</span>
         </div>
@@ -102,21 +102,21 @@ export const InlinePermission = memo(function InlinePermission({
           <button
             onClick={() => onReply(request.id, 'once')}
             disabled={isReplying}
-            className="px-2.5 py-0.5 rounded text-[12px] font-medium bg-text-100 text-bg-000 hover:bg-text-200 transition-colors disabled:opacity-50"
+            className="px-2.5 py-0.5 rounded text-[length:var(--fs-sm)] font-medium bg-text-100 text-bg-000 hover:bg-text-200 transition-colors disabled:opacity-50"
           >
             {t('permissionDialog.allowOnce')}
           </button>
           <button
             onClick={handleAlways}
             disabled={isReplying}
-            className="px-2.5 py-0.5 rounded text-[12px] text-text-300 hover:text-text-100 transition-colors disabled:opacity-50"
+            className="px-2.5 py-0.5 rounded text-[length:var(--fs-sm)] text-text-300 hover:text-text-100 transition-colors disabled:opacity-50"
           >
             {t('permissionDialog.alwaysAllow')}
           </button>
           <button
             onClick={() => onReply(request.id, 'reject')}
             disabled={isReplying}
-            className="px-2.5 py-0.5 rounded text-[12px] text-text-400 hover:text-danger-100 transition-colors disabled:opacity-50"
+            className="px-2.5 py-0.5 rounded text-[length:var(--fs-sm)] text-text-400 hover:text-danger-100 transition-colors disabled:opacity-50"
           >
             {t('common:reject')}
           </button>

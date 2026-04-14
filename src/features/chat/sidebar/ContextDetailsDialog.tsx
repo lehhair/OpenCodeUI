@@ -27,8 +27,8 @@ function formatTimestamp(timestamp: number | undefined): string {
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex flex-col gap-1">
-      <div className="text-[11px] font-medium text-text-400">{label}</div>
-      <div className="text-sm text-text-200 font-mono truncate" title={value}>
+      <div className="text-[length:var(--fs-xs)] font-medium text-text-400">{label}</div>
+      <div className="text-[length:var(--fs-base)] text-text-200 font-mono truncate" title={value}>
         {value}
       </div>
     </div>
@@ -117,7 +117,7 @@ export function ContextDetailsDialog({ isOpen, onClose, contextLimit }: ContextD
         )}
 
         {contextMsg && (
-          <div className="flex items-center justify-between text-[11px] text-text-400">
+          <div className="flex items-center justify-between text-[length:var(--fs-xs)] text-text-400">
             <div className="flex items-center gap-2">
               <CpuIcon size={14} className="opacity-60" />
               <span className="font-mono">last: {contextMsg.info.id}</span>
@@ -128,7 +128,7 @@ export function ContextDetailsDialog({ isOpen, onClose, contextLimit }: ContextD
       </div>
 
       <div className="mt-6">
-        <div className="text-[11px] font-medium text-text-400 mb-2">{t('contextDetails.rawMessages')}</div>
+        <div className="text-[length:var(--fs-xs)] font-medium text-text-400 mb-2">{t('contextDetails.rawMessages')}</div>
         <div className="space-y-1">
           {messages.map(msg => {
             const isExpanded = expandedId === msg.info.id
@@ -147,10 +147,10 @@ export function ContextDetailsDialog({ isOpen, onClose, contextLimit }: ContextD
                   className="w-full flex items-center justify-between gap-3 px-3 py-2 text-left bg-bg-100 hover:bg-bg-200/40 transition-colors"
                 >
                   <div className="min-w-0">
-                    <div className="text-xs text-text-200 font-mono truncate" title={headerLabel}>
+                    <div className="text-[length:var(--fs-sm)] text-text-200 font-mono truncate" title={headerLabel}>
                       {headerLabel}
                     </div>
-                    <div className="flex items-center gap-2 mt-0.5 text-[10px] text-text-500 font-mono">
+                    <div className="flex items-center gap-2 mt-0.5 text-[length:var(--fs-xxs)] text-text-500 font-mono">
                       <span className="tabular-nums">{time}</span>
                       {assistantTokens !== null && (
                         <>

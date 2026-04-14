@@ -821,8 +821,7 @@ export function SidePanel({
             className="text-base font-semibold text-text-100 tracking-tight bg-transparent border-none cursor-pointer hover:opacity-80 transition-opacity"
           >
             {t('header.openCode')}
-          </button>
-        </div>
+          </button>        </div>
 
         {/* Toggle Button - 桌面端和移动端都显示 */}
         <div
@@ -856,13 +855,13 @@ export function SidePanel({
             <PlusIcon size={16} />
           </span>
           <span
-            className="ml-2 text-sm whitespace-nowrap transition-opacity duration-300"
+            className="ml-2 text-[length:var(--fs-base)] whitespace-nowrap transition-opacity duration-300"
             style={{ opacity: showLabels ? 1 : 0 }}
           >
             {t('sidebar.newChat')}
           </span>
           <span
-            className="ml-auto text-[10px] text-text-500 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap"
+            className="ml-auto text-[length:var(--fs-xxs)] text-text-500 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap"
             style={{ opacity: showLabels ? undefined : 0 }}
           >
             {newChatShortcut}
@@ -886,7 +885,7 @@ export function SidePanel({
                 <FolderIcon size={16} />
               )}
             </span>
-            <div className="ml-2 min-w-0 flex-1 text-left text-sm">
+            <div className="ml-2 min-w-0 flex-1 text-left text-[length:var(--fs-base)]">
               <div
                 className="block overflow-hidden whitespace-nowrap text-left"
                 style={{
@@ -943,7 +942,7 @@ export function SidePanel({
                       {isGlobal ? <GlobeIcon size={14} className="text-accent-main-100" /> : <FolderIcon size={14} />}
                     </span>
                     <div className="flex-1 min-w-0 text-left">
-                      <div className="text-left text-xs">
+                      <div className="text-left text-[length:var(--fs-sm)]">
                         <div
                           className="overflow-hidden whitespace-nowrap text-left"
                           style={{
@@ -955,7 +954,7 @@ export function SidePanel({
                         </div>
                       </div>
                       {!isGlobal && project.worktree && (
-                        <div className="text-[10px] text-text-400 truncate font-mono opacity-70">
+                        <div className="text-[length:var(--fs-xxs)] text-text-400 truncate font-mono opacity-70">
                           {getParentPath(project.worktree)}
                         </div>
                       )}
@@ -979,7 +978,7 @@ export function SidePanel({
             <div className="border-t border-border-200/50 p-1">
               <button
                 onClick={onAddProject}
-                className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs text-text-400 hover:text-text-100 hover:bg-bg-200/50 transition-colors"
+                className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-[length:var(--fs-sm)] text-text-400 hover:text-text-100 hover:bg-bg-200/50 transition-colors"
               >
                 <PlusIcon size={14} />
                 {t('sidebar.addProject')}
@@ -1006,12 +1005,12 @@ export function SidePanel({
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder={t('sidebar.searchChats')}
-              className="w-full bg-bg-200/40 hover:bg-bg-200/60 focus:bg-bg-000 border border-transparent focus:border-border-200 rounded-lg py-1.5 pl-8 pr-8 text-xs text-text-100 placeholder:text-text-400/70 focus:outline-none transition-all"
+              className="w-full bg-bg-200/40 hover:bg-bg-200/60 focus:bg-bg-000 border border-transparent focus:border-border-200 rounded-lg py-1.5 pl-8 pr-8 text-[length:var(--fs-sm)] text-text-100 placeholder:text-text-400/70 focus:outline-none transition-all"
             />
             {search && (
               <button
                 onClick={() => setSearch('')}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-text-400 hover:text-text-100 text-sm"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-text-400 hover:text-text-100 text-[length:var(--fs-base)]"
                 aria-label={t('sidebar.clearSearch')}
               >
                 ×
@@ -1028,7 +1027,7 @@ export function SidePanel({
                 setSidebarTab('recents')
                 if (sidebarTab !== 'recents') exitEditMode()
               }}
-              className={`px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wider transition-colors duration-150 ${
+              className={`px-2 py-1.5 text-[length:var(--fs-xxs)] font-semibold uppercase tracking-wider transition-colors duration-150 ${
                 sidebarTab === 'recents' ? 'text-text-100' : 'text-text-500 hover:text-text-300'
               }`}
             >
@@ -1039,14 +1038,14 @@ export function SidePanel({
                 setSidebarTab('active')
                 exitEditMode()
               }}
-              className={`px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wider transition-colors duration-150 flex items-center gap-1.5 ${
+              className={`px-2 py-1.5 text-[length:var(--fs-xxs)] font-semibold uppercase tracking-wider transition-colors duration-150 flex items-center gap-1.5 ${
                 sidebarTab === 'active' ? 'text-text-100' : 'text-text-500 hover:text-text-300'
               }`}
             >
               {t('sidebar.active')}
               {attentionCount > 0 && (
                 <span
-                  className={`inline-flex items-center justify-center min-w-[16px] h-4 px-1 text-[10px] font-bold rounded-full ${
+                  className={`inline-flex items-center justify-center min-w-[16px] h-4 px-1 text-[length:var(--fs-xxs)] font-bold rounded-full ${
                     attentionCount > busyCount
                       ? 'bg-accent-main-100/15 text-accent-main-100'
                       : 'bg-success-100/15 text-success-100'
@@ -1076,7 +1075,7 @@ export function SidePanel({
           {/* 编辑模式批量操作条 */}
           {isEditMode && sidebarTab === 'recents' && (
             <div className="shrink-0 px-3 py-1.5 flex items-center gap-1.5 border-b border-border-200/30">
-              <span className="text-[10px] text-text-400 flex-1 min-w-0 truncate">
+              <span className="text-[length:var(--fs-xxs)] text-text-400 flex-1 min-w-0 truncate">
                 {selectedSessionIds.size > 0 && t('sidebar.selectedSessions', { count: selectedSessionIds.size })}
                 {selectedSessionIds.size > 0 && selectedProjectIds.size > 0 && ' / '}
                 {selectedProjectIds.size > 0 && t('sidebar.selectedProjects', { count: selectedProjectIds.size })}
@@ -1085,7 +1084,7 @@ export function SidePanel({
               {selectedSessionIds.size > 0 && (
                 <button
                   onClick={() => setBatchDeleteSessionConfirm(true)}
-                  className="shrink-0 flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium text-danger-100 bg-danger-100/10 hover:bg-danger-100/20 transition-colors"
+                  className="shrink-0 flex items-center gap-1 px-2 py-1 rounded-md text-[length:var(--fs-xxs)] font-medium text-danger-100 bg-danger-100/10 hover:bg-danger-100/20 transition-colors"
                 >
                   <TrashIcon size={11} />
                   {t('sidebar.deleteSessions', { count: selectedSessionIds.size })}
@@ -1094,7 +1093,7 @@ export function SidePanel({
               {selectedProjectIds.size > 0 && (
                 <button
                   onClick={() => setBatchRemoveProjectConfirm(true)}
-                  className="shrink-0 flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium text-warning-100 bg-warning-100/10 hover:bg-warning-100/20 transition-colors"
+                  className="shrink-0 flex items-center gap-1 px-2 py-1 rounded-md text-[length:var(--fs-xxs)] font-medium text-warning-100 bg-warning-100/10 hover:bg-warning-100/20 transition-colors"
                 >
                   <CloseIcon size={11} />
                   {t('sidebar.removeProjects', { count: selectedProjectIds.size })}
@@ -1158,7 +1157,7 @@ export function SidePanel({
             <div className="flex-1 overflow-y-auto custom-scrollbar px-2 py-2">
               {busySessions.length === 0 && notifications.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 text-text-400 opacity-60">
-                  <p className="text-xs">{t('sidebar.noActiveSessions')}</p>
+                  <p className="text-[length:var(--fs-sm)]">{t('sidebar.noActiveSessions')}</p>
                 </div>
               ) : (
                 <div className="space-y-0.5">
@@ -1170,20 +1169,20 @@ export function SidePanel({
                     <div
                       className={`flex items-center justify-between gap-2 ${busySessions.length > 0 ? 'mt-2 pt-2 border-t border-border-200/30' : ''}`}
                     >
-                      <span className="text-[10px] font-medium text-text-400 uppercase tracking-wider pl-1">
+                      <span className="text-[length:var(--fs-xxs)] font-medium text-text-400 uppercase tracking-wider pl-1">
                         {t('sidebar.notifications')}
                       </span>
                       <div className="flex items-center gap-0.5">
                         {notifications.some((n: NotificationEntry) => !n.read) && (
                           <button
-                            className="text-[10px] text-text-400 hover:text-text-200 px-1.5 py-0.5 rounded-md hover:bg-bg-200 transition-all duration-150 active:scale-95"
+                            className="text-[length:var(--fs-xxs)] text-text-400 hover:text-text-200 px-1.5 py-0.5 rounded-md hover:bg-bg-200 transition-all duration-150 active:scale-95"
                             onClick={() => notificationStore.markAllRead()}
                           >
                             {t('sidebar.readAll')}
                           </button>
                         )}
                         <button
-                          className="text-[10px] text-text-400 hover:text-text-200 px-1.5 py-0.5 rounded-md hover:bg-bg-200 transition-all duration-150 active:scale-95"
+                          className="text-[length:var(--fs-xxs)] text-text-400 hover:text-text-200 px-1.5 py-0.5 rounded-md hover:bg-bg-200 transition-all duration-150 active:scale-95"
                           onClick={() => notificationStore.clearAll()}
                         >
                           {t('common:clear')}
@@ -1257,7 +1256,9 @@ export function SidePanel({
           <>
             {t('sidebar.batchDeleteSessionsConfirm', { count: selectedSessionIds.size })}
             {selectedSessionId && selectedSessionIds.has(selectedSessionId) && (
-              <div className="mt-2 text-xs text-warning-100">{t('sidebar.batchDeleteIncludesCurrent')}</div>
+              <div className="mt-2 text-[length:var(--fs-sm)] text-warning-100">
+                {t('sidebar.batchDeleteIncludesCurrent')}
+              </div>
             )}
           </>
         }

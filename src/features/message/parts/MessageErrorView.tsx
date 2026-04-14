@@ -51,7 +51,7 @@ export const MessageErrorView = memo(function MessageErrorView({ error }: Messag
         onClick={() => hasDetails && setExpanded(!expanded)}
       >
         <AlertCircleIcon className={`w-4 h-4 ${colorClass} flex-shrink-0`} />
-        <span className={`text-sm ${colorClass} flex-1 min-w-0 truncate`}>{title}</span>
+        <span className={`text-[length:var(--fs-base)] ${colorClass} flex-1 min-w-0 truncate`}>{title}</span>
         {hasDetails && (
           <ChevronDownIcon
             className={`w-4 h-4 text-text-400 transition-transform duration-300 ${expanded ? '' : '-rotate-90'}`}
@@ -67,7 +67,7 @@ export const MessageErrorView = memo(function MessageErrorView({ error }: Messag
         <div className="overflow-hidden">
           {shouldRenderBody && (
             <div className={`mt-2 pt-2 space-y-1.5 border-t ${borderClass}`}>
-              <p className="text-xs text-text-300 break-words">{description}</p>
+              <p className="text-[length:var(--fs-sm)] text-text-300 break-words">{description}</p>
               {formattedDetails && <CodeBlock code={formattedDetails} language={detailsLang} maxHeight={240} />}
             </div>
           )}
