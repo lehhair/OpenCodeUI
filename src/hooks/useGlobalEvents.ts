@@ -342,6 +342,9 @@ export function useGlobalEvents(directories?: string[]) {
         if (!isAbort && import.meta.env.DEV) {
           console.warn('[GlobalEvents] Session error:', error)
         }
+        if (error.sessionID == null || error.sessionID.length < 1) {
+          return // Don't handle errors with no sessionID
+        }
         messageStore.handleSessionError(error.sessionID)
         childSessionStore.markError(error.sessionID)
         if (!isAbort) {
