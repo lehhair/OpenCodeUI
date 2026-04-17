@@ -2,8 +2,8 @@ import { useCallback, useRef, useSyncExternalStore } from 'react'
 import { flushSync } from 'react-dom'
 import { THEME_SWITCH_DISABLE_MS } from '../constants'
 import { themeStore, type ColorMode } from '../store/themeStore'
-import type { StepFinishDisplay } from '../store/themeStore'
-import type { ReasoningDisplayMode, DiffStyle, ToolCardStyle } from '../store/themeStore'
+import type { StepFinishDisplay, CustomCSSSnippet } from '../store/themeStore'
+import type { ReasoningDisplayMode, DiffStyle, ToolCardStyle, CompletedAtFormat } from '../store/themeStore'
 
 // 保持向后兼容的类型别名
 export type ThemeMode = ColorMode
@@ -122,6 +122,26 @@ export function useTheme() {
     themeStore.setCustomCSS(css)
   }, [])
 
+  const saveCustomCSSSnippet = useCallback((name: string, css: string) => {
+    return themeStore.saveCustomCSSSnippet(name, css)
+  }, [])
+
+  const updateCustomCSSSnippet = useCallback((id: string, updates: Partial<Pick<CustomCSSSnippet, 'name' | 'css'>>) => {
+    themeStore.updateCustomCSSSnippet(id, updates)
+  }, [])
+
+  const deleteCustomCSSSnippet = useCallback((id: string) => {
+    themeStore.deleteCustomCSSSnippet(id)
+  }, [])
+
+  const applyCustomCSSSnippet = useCallback((id: string) => {
+    themeStore.applyCustomCSSSnippet(id)
+  }, [])
+
+  const clearActiveCustomCSSSnippet = useCallback(() => {
+    themeStore.clearActiveCustomCSSSnippet()
+  }, [])
+
   // ---- Collapse User Messages ----
 
   const setCollapseUserMessages = useCallback((enabled: boolean) => {
@@ -132,6 +152,10 @@ export function useTheme() {
 
   const setStepFinishDisplay = useCallback((display: Partial<StepFinishDisplay>) => {
     themeStore.setStepFinishDisplay(display)
+  }, [])
+
+  const setCompletedAtFormat = useCallback((format: CompletedAtFormat) => {
+    themeStore.setCompletedAtFormat(format)
   }, [])
 
   // ---- Reasoning Display Mode ----
@@ -205,6 +229,13 @@ export function useTheme() {
     // 自定义 CSS
     customCSS: state.customCSS,
     setCustomCSS,
+    customCSSSnippets: state.customCSSSnippets,
+    activeCustomCSSSnippetId: state.activeCustomCSSSnippetId,
+    saveCustomCSSSnippet,
+    updateCustomCSSSnippet,
+    deleteCustomCSSSnippet,
+    applyCustomCSSSnippet,
+    clearActiveCustomCSSSnippet,
 
     // 折叠长用户消息
     collapseUserMessages: state.collapseUserMessages,
@@ -213,6 +244,8 @@ export function useTheme() {
     // step-finish 信息栏显示
     stepFinishDisplay: state.stepFinishDisplay,
     setStepFinishDisplay,
+    completedAtFormat: state.completedAtFormat,
+    setCompletedAtFormat,
 
     // 思考内容显示样式
     reasoningDisplayMode: state.reasoningDisplayMode,

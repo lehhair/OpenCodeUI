@@ -54,7 +54,7 @@ function StatusIndicator({
         progress={clampedPercent / 100}
         size={size}
         strokeWidth={3}
-        trackClassName="text-bg-300"
+        trackClassName="text-text-100/10"
         progressClassName={progressColor}
       />
 
@@ -218,7 +218,9 @@ export function SidebarFooter({ showLabels, connectionState, stats, hasMessages,
             <div className="flex items-center justify-between mb-2">
               <span className="text-[length:var(--fs-sm)] font-medium text-text-200">{t('sidebar.contextUsage')}</span>
               <div className="flex items-center gap-2">
-                <span className="text-[length:var(--fs-sm)] font-mono text-text-400">{Math.round(stats.contextPercent)}%</span>
+                <span className="text-[length:var(--fs-sm)] font-mono text-text-400">
+                  {Math.round(stats.contextPercent)}%
+                </span>
                 <button
                   type="button"
                   onClick={() => {

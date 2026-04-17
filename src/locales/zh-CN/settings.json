@@ -6,16 +6,24 @@
   "tabs": {
     "servers": "服务器",
     "serversDesc": "后端连接和快速切换活跃端点",
+    "models": "模型",
+    "modelsDesc": "控制哪些模型保留在选择器里",
+    "agent": "Agent",
+    "agentDesc": "执行默认值、工具请求和 agent 交互行为",
     "chat": "对话",
-    "chatDesc": "推理风格、路径显示和对话行为",
+    "chatDesc": "消息呈现、路径显示和 step 元数据",
+    "workspace": "工作区",
+    "workspaceDesc": "布局、侧边栏和代码查看偏好",
     "appearance": "外观",
-    "appearanceDesc": "主题、颜色模式和布局偏好",
+    "appearanceDesc": "主题、语言、字体和视觉样式",
     "notifications": "通知",
     "notificationsDesc": "桌面和应用内提醒",
     "service": "服务",
     "serviceDesc": "本地 opencode 服务管理",
     "shortcuts": "快捷键",
-    "shortcutsDesc": "自定义键盘快捷键以加速工作流"
+    "shortcutsDesc": "自定义键盘快捷键以加速工作流",
+    "about": "关于",
+    "aboutDesc": "版本信息、更新检查和发布页入口"
   },
   "groups": {
     "core": "核心",
@@ -104,7 +112,30 @@
     "duration": "耗时",
     "showResponseTime": "显示消息响应时间",
     "totalDuration": "总耗时",
-    "showTurnElapsed": "显示完整轮次耗时"
+    "showTurnElapsed": "显示完整轮次耗时",
+    "completedAt": "完成时刻",
+    "showCompletedAt": "显示消息完成时间",
+    "completedAtFormat": "完成时刻格式",
+    "completedAtFormatDesc": "选择只显示时间，或显示完整日期和时间",
+    "completedAtTimeOnly": "仅时间",
+    "completedAtDateTime": "日期时间"
+  },
+  "agent": {
+    "behavior": "Agent 行为",
+    "behaviorDesc": "执行默认值和消息排队行为",
+    "toolInteraction": "工具交互",
+    "toolInteractionDesc": "控制工具请求和工具输出在对话中的交互方式"
+  },
+  "models": {
+    "visibility": "模型可见性",
+    "visibilityDesc": "禁用你不想出现在选择器里的模型。禁用状态会按当前服务器保存。",
+    "searchPlaceholder": "搜索模型",
+    "clearSearch": "清空搜索",
+    "keepOneEnabled": "至少保留一个启用模型，这样对话还能继续发送消息。",
+    "loading": "正在加载模型...",
+    "empty": "当前服务器没有可用模型",
+    "noResults": "没有匹配当前搜索的模型",
+    "providerCount": "{{count}} 个模型"
   },
   "appearance": {
     "themePresets": "主题预设",
@@ -114,6 +145,19 @@
     "customCssHelp": "使用自定义 CSS 覆盖字体、颜色和样式。",
     "customCssSpecificityHelp": "可覆盖字体、颜色与样式；如需提高优先级，请使用 <1>:root:root</1>。",
     "loadTemplate": "加载模板",
+    "importCss": "导入 CSS",
+    "savedOverrides": "已保存覆盖方案",
+    "savedOverridesDesc": "给可复用的 CSS 覆盖片段命名并切换，不会改变当前选择的主题",
+    "overrideNamePlaceholder": "覆盖方案名称",
+    "saveAsNewOverride": "另存为新方案",
+    "renameOverride": "重命名",
+    "updateOverride": "保存修改",
+    "applyOverride": "应用",
+    "selectedOverride": "已选中",
+    "activeOverride": "当前方案",
+    "modifiedOverride": "已修改",
+    "noSavedOverrides": "还没有保存的覆盖方案",
+    "deleteOverrideConfirm": "删除已保存的覆盖方案“{{name}}”？",
     "display": "显示",
     "displayDesc": "控制颜色模式和布局",
     "colorMode": "颜色模式",
@@ -157,6 +201,12 @@
     "folderStyleRecentsShowDiffDesc": "在文件夹式最近记录中显示会话的增删和文件统计",
     "showChildSessions": "始终显示子会话",
     "showChildSessionsDesc": "始终在父会话下列出子会话。关闭时仅显示活跃或正在查看的子会话"
+  },
+  "workspace": {
+    "layout": "布局和阅读",
+    "layoutDesc": "工作区布局、阅读舒适度和代码查看偏好",
+    "sidebar": "侧边栏",
+    "sidebarDesc": "侧边栏布局和最近对话的组织方式"
   },
   "notifications": {
     "systemNotifications": "系统通知",
@@ -228,6 +278,25 @@
     "envVarsDesc": "传递给 opencode serve 进程（如 HTTPS_PROXY、API 密钥）",
     "keyPlaceholder": "KEY",
     "valuePlaceholder": "值"
+  },
+  "about": {
+    "title": "关于和更新",
+    "versionCardTitle": "版本",
+    "versionCardDesc": "检查是否有新的 OpenCodeUI 发布版本，并直接跳到下载页面。",
+    "currentVersion": "当前版本",
+    "latestVersion": "最新发布",
+    "unknownVersion": "未知",
+    "statusIdle": "点击检查更新，看看是否已经有新版本。",
+    "statusChecking": "正在检查 GitHub 发布版本...",
+    "statusUpToDate": "你已经在使用最新版本。",
+    "statusUpdateAvailable": "发现新版本：{{version}}",
+    "statusError": "检查更新失败：{{error}}",
+    "publishedAt": "发布时间：{{date}}",
+    "checkNow": "检查更新",
+    "viewUpdate": "查看更新",
+    "openReleases": "打开发布页",
+    "toastTitle": "发现新版本：{{version}}",
+    "toastBody": "点击打开关于页，并查看发布页面。"
   },
   "keybindings": {
     "title": "键盘快捷键",

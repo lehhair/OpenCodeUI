@@ -2,7 +2,7 @@ import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTheme } from '../../../hooks/useTheme'
 import type { StepFinishPart } from '../../../types/message'
-import { formatNumber, formatCost, formatDuration } from '../../../utils/formatUtils'
+import { formatNumber, formatCost, formatDuration, formatCompletedAt } from '../../../utils/formatUtils'
 
 interface StepFinishPartViewProps {
   part: StepFinishPart
@@ -14,6 +14,8 @@ interface StepFinishPartViewProps {
   agent?: string
   /** model 显示名（来自消息 info） */
   modelLabel?: string
+  /** 消息完成时间戳（毫秒），用于显示完成时刻 */
+  completedAt?: number
 }
 
 export const StepFinishPartView = memo(function StepFinishPartView({
@@ -22,9 +24,10 @@ export const StepFinishPartView = memo(function StepFinishPartView({
   turnDuration,
   agent,
   modelLabel,
+  completedAt,
 }: StepFinishPartViewProps) {
   const { t } = useTranslation('message')
-  const { stepFinishDisplay: show } = useTheme()
+  const { stepFinishDisplay: show, completedAtFormat } = useTheme()
   const { tokens, cost } = part
   const totalTokens = tokens.input + tokens.output + tokens.reasoning + tokens.cache.read + tokens.cache.write
   const cacheHit = tokens.cache.read
@@ -37,7 +40,8 @@ export const StepFinishPartView = memo(function StepFinishPartView({
     (show.cache && cacheHit > 0) ||
     (show.cost && cost > 0) ||
     (show.duration && duration != null && duration > 0) ||
-    (show.turnDuration && turnDuration != null && turnDuration > 0)
+    (show.turnDuration && turnDuration != null && turnDuration > 0) ||
+    (show.completedAt && completedAt != null)
   if (!hasAny) return null
 
   return (
@@ -64,6 +68,7 @@ export const StepFinishPartView = memo(function StepFinishPartView({
       {show.turnDuration && turnDuration != null && turnDuration > 0 && (
         <span>{t('stepFinish.totalDuration', { duration: formatDuration(turnDuration) })}</span>
       )}
+      {show.completedAt && completedAt != null && <span>{formatCompletedAt(completedAt, completedAtFormat)}</span>}
     </div>
   )
 })

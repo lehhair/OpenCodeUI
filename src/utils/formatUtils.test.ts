@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatDuration } from './formatUtils'
+import { formatCompletedAt, formatDateTime, formatDuration, formatTime } from './formatUtils'
 
 describe('formatDuration', () => {
   it('formats milliseconds and seconds', () => {
@@ -19,5 +19,23 @@ describe('formatDuration', () => {
   it('formats day durations as days, hours, and minutes', () => {
     expect(formatDuration(((24 + 21) * 60 + 10) * 60 * 1000)).toBe('1d 21h 10m')
     expect(formatDuration(24 * 60 * 60 * 1000)).toBe('1d')
+  })
+})
+
+describe('completed time formatting', () => {
+  it('formats local time as HH:MM', () => {
+    const ms = new Date(2026, 3, 17, 10, 30, 45).getTime()
+    expect(formatTime(ms)).toBe('10:30')
+  })
+
+  it('formats local date and time as YYYY-MM-DD HH:MM', () => {
+    const ms = new Date(2026, 3, 17, 10, 30, 45).getTime()
+    expect(formatDateTime(ms)).toBe('2026-04-17 10:30')
+  })
+
+  it('switches output based on completedAt format', () => {
+    const ms = new Date(2026, 3, 17, 10, 30, 45).getTime()
+    expect(formatCompletedAt(ms, 'time')).toBe('10:30')
+    expect(formatCompletedAt(ms, 'dateTime')).toBe('2026-04-17 10:30')
   })
 })

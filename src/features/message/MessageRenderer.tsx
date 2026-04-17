@@ -37,7 +37,7 @@ import type {
   AssistantMessageInfo,
 } from '../../types/message'
 import { isToolPart, isVisibleReasoningPart, isVisibleTextPart } from '../../types/message'
-import { formatDuration } from '../../utils/formatUtils'
+import { formatDuration, formatCompletedAt } from '../../utils/formatUtils'
 
 interface MessageRendererProps {
   message: Message
@@ -377,7 +377,7 @@ const AssistantMessageView = memo(function AssistantMessageView({
   onEnsureParts?: (messageId: string) => void
 }) {
   const { parts, isStreaming, info } = message
-  const { stepFinishDisplay } = useTheme()
+  const { stepFinishDisplay, completedAtFormat } = useTheme()
 
   const wrapperRef = useEntryGrowAnimation(info.time.created)
 
@@ -431,6 +431,7 @@ const AssistantMessageView = memo(function AssistantMessageView({
   const hasStepFinishPart = parts.some(part => part.type === 'step-finish')
   const showTurnDurationFooter =
     !isStreaming && !hasStepFinishPart && stepFinishDisplay.turnDuration && turnDuration != null && turnDuration > 0
+  const showCompletedAtFooter = !isStreaming && !hasStepFinishPart && stepFinishDisplay.completedAt && completed != null
 
   if (!isStreaming && parts.length === 0) {
     // 有错误时直接显示错误信息
@@ -470,6 +471,7 @@ const AssistantMessageView = memo(function AssistantMessageView({
                   isStreaming={isStreaming}
                   agent={agent}
                   modelLabel={modelLabel}
+                  completedAt={isLastStepFinish ? completed : undefined}
                 />
               )
             }
@@ -491,6 +493,7 @@ const AssistantMessageView = memo(function AssistantMessageView({
                     turnDuration={isLastStepFinish ? turnDuration : undefined}
                     agent={agent}
                     modelLabel={modelLabel}
+                    completedAt={isLastStepFinish ? completed : undefined}
                   />
                 )
               case 'subtask':
@@ -509,9 +512,10 @@ const AssistantMessageView = memo(function AssistantMessageView({
       {/* Message-level error */}
       {messageError && <MessageErrorView error={messageError} />}
 
-      {showTurnDurationFooter && (
+      {(showTurnDurationFooter || showCompletedAtFooter) && (
         <div className="flex items-center gap-3 text-[length:var(--fs-xxs)] text-text-500 pl-5 py-0.5">
-          <span>total {formatDuration(turnDuration!)}</span>
+          {showTurnDurationFooter && <span>total {formatDuration(turnDuration!)}</span>}
+          {showCompletedAtFooter && <span>{formatCompletedAt(completed!, completedAtFormat)}</span>}
         </div>
       )}
 
@@ -537,6 +541,7 @@ interface ToolGroupProps {
   isStreaming?: boolean
   agent?: string
   modelLabel?: string
+  completedAt?: number
 }
 
 /** 用户需要阅读/交互的工具：沉浸模式下这些工具完成后保持展开 */
@@ -554,6 +559,7 @@ const ToolGroup = memo(function ToolGroup({
   isStreaming,
   agent,
   modelLabel,
+  completedAt,
 }: ToolGroupProps) {
   const { t } = useTranslation('message')
   const { descriptiveToolSteps, inlineToolRequests, immersiveMode } = useTheme()
@@ -729,6 +735,7 @@ const ToolGroup = memo(function ToolGroup({
               turnDuration={turnDuration}
               agent={agent}
               modelLabel={modelLabel}
+              completedAt={completedAt}
             />
           </div>
         )}

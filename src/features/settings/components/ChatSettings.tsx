@@ -2,33 +2,19 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { PathAutoIcon, PathUnixIcon, PathWindowsIcon } from '../../../components/Icons'
 import { usePathMode, useIsMobile } from '../../../hooks'
-import { autoApproveStore } from '../../../store'
-import { themeStore, type ReasoningDisplayMode, type ToolCardStyle } from '../../../store/themeStore'
+import { themeStore, type ReasoningDisplayMode, type CompletedAtFormat } from '../../../store/themeStore'
 import { Toggle, SegmentedControl, SettingRow, SettingsSection } from './SettingsUI'
 import type { PathMode } from '../../../utils/directoryUtils'
 
 export function ChatSettings() {
   const { t } = useTranslation(['settings'])
   const { pathMode, setPathMode, effectiveStyle, detectedStyle, isAutoMode } = usePathMode()
-  const [autoApprove, setAutoApprove] = useState(autoApproveStore.enabled)
   const [collapseUserMessages, setCollapseUserMessages] = useState(themeStore.collapseUserMessages)
   const [stepFinishDisplay, setStepFinishDisplay] = useState(themeStore.stepFinishDisplay)
+  const [completedAtFormat, setCompletedAtFormat] = useState(themeStore.completedAtFormat)
   const [reasoningDisplayMode, setReasoningDisplayMode] = useState(themeStore.reasoningDisplayMode)
-  const [descriptiveToolSteps, setDescriptiveToolSteps] = useState(themeStore.descriptiveToolSteps)
-  const [inlineToolRequests, setInlineToolRequests] = useState(themeStore.inlineToolRequests)
-  const [toolCardStyle, setToolCardStyle] = useState(themeStore.toolCardStyle)
-  const [immersiveMode, setImmersiveMode] = useState(themeStore.immersiveMode)
-  const [compactInlinePermission, setCompactInlinePermission] = useState(themeStore.compactInlinePermission)
-  const [queueFollowupMessages, setQueueFollowupMessages] = useState(themeStore.queueFollowupMessages)
   const isMobile = useIsMobile()
   void isMobile
-
-  const handleAutoApprove = () => {
-    const v = !autoApprove
-    setAutoApprove(v)
-    autoApproveStore.setEnabled(v)
-    if (!v) autoApproveStore.clearAllRules()
-  }
 
   const handleCollapseToggle = () => {
     const v = !collapseUserMessages
@@ -36,48 +22,9 @@ export function ChatSettings() {
     themeStore.setCollapseUserMessages(v)
   }
 
-  const handleQueueFollowupMessagesToggle = () => {
-    const v = !queueFollowupMessages
-    setQueueFollowupMessages(v)
-    themeStore.setQueueFollowupMessages(v)
-  }
-
   const handleReasoningDisplayModeChange = (mode: ReasoningDisplayMode) => {
     setReasoningDisplayMode(mode)
     themeStore.setReasoningDisplayMode(mode)
-  }
-
-  const handleDescriptiveToolStepsToggle = () => {
-    const v = !descriptiveToolSteps
-    setDescriptiveToolSteps(v)
-    themeStore.setDescriptiveToolSteps(v)
-  }
-
-  const handleInlineToolRequestsToggle = () => {
-    const v = !inlineToolRequests
-    setInlineToolRequests(v)
-    themeStore.setInlineToolRequests(v)
-  }
-
-  const handleCompactInlinePermissionToggle = () => {
-    const v = !compactInlinePermission
-    setCompactInlinePermission(v)
-    themeStore.setCompactInlinePermission(v)
-  }
-
-  const handleToolCardStyleChange = (style: ToolCardStyle) => {
-    setToolCardStyle(style)
-    themeStore.setToolCardStyle(style)
-  }
-
-  const handleImmersiveModeToggle = () => {
-    const v = !immersiveMode
-    setImmersiveMode(v)
-    themeStore.setImmersiveMode(v)
-    setInlineToolRequests(v)
-    setDescriptiveToolSteps(v)
-    setToolCardStyle(v ? 'compact' : 'classic')
-    setCompactInlinePermission(v)
   }
 
   return (
@@ -105,18 +52,9 @@ export function ChatSettings() {
         )}
       </SettingsSection>
 
-      {/* 行为 */}
-      <SettingsSection title={t('chat.agentBehavior')}>
-        <SettingRow label={t('chat.autoApprove')} description={t('chat.autoApproveDesc')} onClick={handleAutoApprove}>
-          <Toggle enabled={autoApprove} onChange={handleAutoApprove} />
-        </SettingRow>
-        <SettingRow
-          label={t('chat.queueFollowupMessages')}
-          description={t('chat.queueFollowupMessagesDesc')}
-          onClick={handleQueueFollowupMessagesToggle}
-        >
-          <Toggle enabled={queueFollowupMessages} onChange={handleQueueFollowupMessagesToggle} />
-        </SettingRow>
+      <SettingsSection title={t('chat.conversationExperience')}>
+        <p className="text-[length:var(--fs-sm)] text-text-400">{t('chat.conversationExperienceDesc')}</p>
+
         <SettingRow
           label={t('chat.collapseLongMessages')}
           description={t('chat.collapseLongMessagesDesc')}
@@ -124,42 +62,7 @@ export function ChatSettings() {
         >
           <Toggle enabled={collapseUserMessages} onChange={handleCollapseToggle} />
         </SettingRow>
-      </SettingsSection>
 
-      {/* 沉浸模式 */}
-      <SettingsSection title={t('chat.immersiveMode')}>
-        <SettingRow
-          label={t('chat.immersiveMode')}
-          description={t('chat.immersiveModeDesc')}
-          onClick={handleImmersiveModeToggle}
-        >
-          <Toggle enabled={immersiveMode} onChange={handleImmersiveModeToggle} />
-        </SettingRow>
-        <SettingRow
-          label={t('chat.inlineToolRequests')}
-          description={t('chat.inlineToolRequestsDesc')}
-          onClick={handleInlineToolRequestsToggle}
-        >
-          <Toggle enabled={inlineToolRequests} onChange={handleInlineToolRequestsToggle} />
-        </SettingRow>
-        <SettingRow
-          label={t('chat.descriptiveToolSteps')}
-          description={t('chat.descriptiveToolStepsDesc')}
-          onClick={handleDescriptiveToolStepsToggle}
-        >
-          <Toggle enabled={descriptiveToolSteps} onChange={handleDescriptiveToolStepsToggle} />
-        </SettingRow>
-        <SettingRow
-          label={t('chat.compactInlinePermission')}
-          description={t('chat.compactInlinePermissionDesc')}
-          onClick={handleCompactInlinePermissionToggle}
-        >
-          <Toggle enabled={compactInlinePermission} onChange={handleCompactInlinePermissionToggle} />
-        </SettingRow>
-      </SettingsSection>
-
-      {/* 显示 */}
-      <SettingsSection title={t('chat.thinkingDisplay')}>
         <div>
           <p className="text-[length:var(--fs-md)] text-text-100 mb-1.5">{t('chat.thinkingDisplay')}</p>
           <p className="text-[length:var(--fs-sm)] text-text-400 mb-3">{t('chat.thinkingDisplayDesc')}</p>
@@ -171,18 +74,6 @@ export function ChatSettings() {
               { value: 'markdown', label: t('chat.markdown') },
             ]}
             onChange={v => handleReasoningDisplayModeChange(v as ReasoningDisplayMode)}
-          />
-        </div>
-        <div>
-          <p className="text-[length:var(--fs-md)] text-text-100 mb-1.5">{t('chat.toolCardStyle')}</p>
-          <p className="text-[length:var(--fs-sm)] text-text-400 mb-3">{t('chat.toolCardStyleDesc')}</p>
-          <SegmentedControl
-            value={toolCardStyle}
-            options={[
-              { value: 'classic', label: t('chat.toolCardClassic') },
-              { value: 'compact', label: t('chat.toolCardCompact') },
-            ]}
-            onChange={v => handleToolCardStyleChange(v as ToolCardStyle)}
           />
         </div>
       </SettingsSection>
@@ -198,6 +89,7 @@ export function ChatSettings() {
             { key: 'cost', label: t('chat.cost'), desc: t('chat.showApiCost') },
             { key: 'duration', label: t('chat.duration'), desc: t('chat.showResponseTime') },
             { key: 'turnDuration', label: t('chat.totalDuration'), desc: t('chat.showTurnElapsed') },
+            { key: 'completedAt', label: t('chat.completedAt'), desc: t('chat.showCompletedAt') },
           ] as const
         ).map(({ key, label, desc }) => (
           <SettingRow
@@ -220,6 +112,25 @@ export function ChatSettings() {
             />
           </SettingRow>
         ))}
+
+        {stepFinishDisplay.completedAt && (
+          <div>
+            <p className="text-[length:var(--fs-md)] text-text-100 mb-1.5">{t('chat.completedAtFormat')}</p>
+            <p className="text-[length:var(--fs-sm)] text-text-400 mb-3">{t('chat.completedAtFormatDesc')}</p>
+            <SegmentedControl
+              value={completedAtFormat}
+              options={[
+                { value: 'time', label: t('chat.completedAtTimeOnly') },
+                { value: 'dateTime', label: t('chat.completedAtDateTime') },
+              ]}
+              onChange={v => {
+                const next = v as CompletedAtFormat
+                setCompletedAtFormat(next)
+                themeStore.setCompletedAtFormat(next)
+              }}
+            />
+          </div>
+        )}
       </SettingsSection>
     </div>
   )

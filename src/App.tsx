@@ -20,6 +20,7 @@ import {
   usePaneController,
   usePaneControllers,
   usePaneLayout,
+  updateStore,
 } from './store'
 import {
   ChatViewportProvider,
@@ -31,6 +32,7 @@ import { uiErrorHandler, isSameDirectory, collectActiveDirectories } from './uti
 import { initNotificationSound } from './utils/notificationSoundBridge'
 import { createPtySession } from './api/pty'
 import type { TerminalTab } from './store/layoutStore'
+import type { SettingsTab } from './features/settings/SettingsDialog'
 
 const SettingsDialog = lazy(() =>
   import('./features/settings/SettingsDialog').then(module => ({ default: module.SettingsDialog })),
@@ -76,6 +78,11 @@ function App() {
   useEffect(() => {
     const cleanup = initNotificationSound()
     return cleanup
+  }, [])
+
+  useEffect(() => {
+    if (import.meta.env.DEV) return
+    void updateStore.checkForUpdates()
   }, [])
 
   useViewportHeight()
@@ -202,13 +209,17 @@ function App() {
   const focusedDirectory = focusedRouteDirectory || ''
 
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false)
-  const [settingsInitialTab, setSettingsInitialTab] = useState<
-    'appearance' | 'chat' | 'notifications' | 'service' | 'servers' | 'keybindings'
-  >('servers')
-  const openSettings = useCallback(() => {
-    setSettingsInitialTab('servers')
+  const [settingsInitialTab, setSettingsInitialTab] = useState<SettingsTab>('servers')
+  const openSettingsTab = useCallback((tab: SettingsTab) => {
+    setSettingsInitialTab(tab)
     setSettingsDialogOpen(true)
   }, [])
+  const openSettings = useCallback(() => {
+    openSettingsTab('servers')
+  }, [openSettingsTab])
+  const openAboutSettings = useCallback(() => {
+    openSettingsTab('about')
+  }, [openSettingsTab])
   const closeSettings = useCallback(() => setSettingsDialogOpen(false), [])
 
   const [projectDialogOpen, setProjectDialogOpen] = useState(false)
@@ -333,8 +344,7 @@ function App() {
         description: t('commands:openShortcutsSettingsDesc'),
         category: t('commands:categories.general'),
         action: () => {
-          setSettingsInitialTab('keybindings')
-          setSettingsDialogOpen(true)
+          openSettingsTab('keybindings')
         },
       },
       {
@@ -512,6 +522,7 @@ function App() {
     t,
     openSettings,
     openProject,
+    openSettingsTab,
     sidebarExpanded,
     setSidebarExpanded,
     focusedController,
@@ -577,7 +588,7 @@ function App() {
           />
         </Suspense>
 
-        <ToastContainer />
+        <ToastContainer onOpenAbout={openAboutSettings} />
 
         <Suspense fallback={null}>
           <CloseServiceDialog

@@ -13,6 +13,9 @@ vi.mock('../utils/perServerStorage', () => ({
     set: (key: string, value: string) => {
       storage.set(key, value)
     },
+    remove: (key: string) => {
+      storage.delete(key)
+    },
   },
 }))
 
@@ -93,5 +96,29 @@ describe('useModelSelection', () => {
     })
 
     expect(result.current.selectedModelKey).toBe('openai:gpt-4.1')
+  })
+
+  it('falls back to the first visible model when the persisted model disappears', () => {
+    storage.set(STORAGE_KEY_SELECTED_MODEL, 'openai:gpt-4o-mini')
+
+    const { result } = renderHook(() => useModelSelection({ models: [MODELS[0]] }))
+
+    expect(result.current.selectedModelKey).toBe('openai:gpt-4.1')
+    expect(storage.get(STORAGE_KEY_SELECTED_MODEL)).toBe('openai:gpt-4.1')
+  })
+
+  it('saves variant preference for the resolved fallback model before switching away', () => {
+    storage.set(STORAGE_KEY_SELECTED_MODEL, 'openai:gpt-4o-mini')
+    variantPrefs.set('openai:gpt-4.1', 'fast')
+    variantPrefs.set('openai:gpt-4o-mini', 'balanced')
+
+    const { result } = renderHook(() => useModelSelection({ models: [MODELS[0]] }))
+
+    act(() => {
+      result.current.handleModelChange('openai:gpt-4.1', MODELS[0])
+    })
+
+    expect(variantPrefs.get('openai:gpt-4.1')).toBe('fast')
+    expect(variantPrefs.get('openai:gpt-4o-mini')).toBe('balanced')
   })
 })

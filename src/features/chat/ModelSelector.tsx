@@ -252,14 +252,36 @@ const ModelListPanel = memo(function ModelListPanel({
                       </span>
                     )}
                     {/*
-                     * 末尾图标位：选中 / 已钉住 / hover pin 共享同一个固定宽度位置
-                     * 优先级：选中对勾 > 已钉住图标 > hover 时渐现的 pin 按钮
+                     * 末尾图标位：选中对勾 / 已钉住图标 / hover pin 按钮
+                     * - 选中态（PC）：默认对勾，hover 对勾时切换为 pin 按钮
+                     * - 选中态（触摸）：仅显示对勾，置顶通过长按行触发
+                     * - 未选中：已钉住常驻钉子，未钉住 hover 行渐现 pin 按钮
                      */}
                     <span className="w-5 flex items-center justify-center flex-shrink-0">
                       {isSelected ? (
-                        <span className="text-accent-secondary-100">
-                          <CheckIcon />
-                        </span>
+                        preferTouchUi ? (
+                          <span className="text-accent-secondary-100">
+                            <CheckIcon />
+                          </span>
+                        ) : (
+                          <button
+                            onClick={e => onTogglePin(e, model)}
+                            className="group/pin p-0.5 rounded transition-all duration-150"
+                          >
+                            <span className="text-accent-secondary-100 block group-hover/pin:hidden">
+                              <CheckIcon />
+                            </span>
+                            <span
+                              className={`hidden group-hover/pin:block ${
+                                pinned
+                                  ? 'text-accent-main-100 opacity-80 hover:opacity-100'
+                                  : 'text-text-500 opacity-60 hover:!opacity-100'
+                              }`}
+                            >
+                              <PinIcon size={12} />
+                            </span>
+                          </button>
+                        )
                       ) : preferTouchUi ? (
                         // 触摸设备：已钉住时显示钉子图标（长按切换）
                         pinned ? (
@@ -495,6 +517,15 @@ export const ModelSelector = memo(
     const handleKeyDown = useCallback(
       (e: React.KeyboardEvent) => {
         e.stopPropagation()
+
+        if (itemIndices.length === 0) {
+          if (e.key === 'Escape') {
+            e.preventDefault()
+            closeMenu()
+          }
+          return
+        }
+
         switch (e.key) {
           case 'ArrowDown':
             e.preventDefault()

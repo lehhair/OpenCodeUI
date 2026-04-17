@@ -21,7 +21,9 @@ const WorktreePanel = lazy(() => import('./WorktreePanel').then(module => ({ def
 function PanelFallback() {
   const { t } = useTranslation(['components', 'common'])
   return (
-    <div className="flex items-center justify-center h-full text-text-400 text-[length:var(--fs-sm)]">{t('rightPanel.loadingPanel')}</div>
+    <div className="flex items-center justify-center h-full text-text-400 text-[length:var(--fs-sm)]">
+      {t('rightPanel.loadingPanel')}
+    </div>
   )
 }
 
@@ -83,13 +85,16 @@ export const RightPanel = memo(function RightPanel({ directory, sessionId }: Rig
     (activeTab: PanelTab | null) => {
       if (!activeTab) {
         return (
-          <div className="flex items-center justify-center h-full text-text-400 text-[length:var(--fs-sm)]">{t('common:noContent')}</div>
+          <div className="flex items-center justify-center h-full text-text-400 text-[length:var(--fs-sm)]">
+            {t('common:noContent')}
+          </div>
         )
       }
 
-      switch (activeTab.type) {
-        case 'files':
-          return (
+      return (
+        <>
+          {/* Keep files mounted so expanded folders and previews survive tab switches. */}
+          <div className={activeTab.type === 'files' ? 'h-full' : 'hidden'}>
             <Suspense fallback={<PanelFallback />}>
               <FilesContent
                 activeTab={activeTab}
@@ -98,52 +103,50 @@ export const RightPanel = memo(function RightPanel({ directory, sessionId }: Rig
                 sessionId={sessionId}
               />
             </Suspense>
-          )
-        case 'changes':
-          if (!sessionId) {
-            return (
-              <div className="flex items-center justify-center h-full text-text-400 text-[length:var(--fs-sm)]">
-                {t('rightPanel.noActiveSession')}
-              </div>
-            )
-          }
-          return (
-            <Suspense fallback={<PanelFallback />}>
-              <ChangesContent
-                activeTab={activeTab}
-                directory={normalizedDirectory}
-                sessionId={sessionId}
-                isPanelResizing={isPanelResizing}
-              />
-            </Suspense>
-          )
-        case 'terminal':
-          return (
+          </div>
+
+          {sessionId ? (
+            <div className={activeTab.type === 'changes' ? 'h-full' : 'hidden'}>
+              <Suspense fallback={<PanelFallback />}>
+                <ChangesContent
+                  activeTab={activeTab}
+                  directory={normalizedDirectory}
+                  sessionId={sessionId}
+                  isPanelResizing={isPanelResizing}
+                />
+              </Suspense>
+            </div>
+          ) : activeTab.type === 'changes' ? (
+            <div className="flex items-center justify-center h-full text-text-400 text-[length:var(--fs-sm)]">
+              {t('rightPanel.noActiveSession')}
+            </div>
+          ) : null}
+
+          {activeTab.type === 'terminal' ? (
             <Suspense fallback={<PanelFallback />}>
               <TerminalContent activeTab={activeTab} directory={normalizedDirectory} />
             </Suspense>
-          )
-        case 'mcp':
-          return (
+          ) : null}
+
+          {activeTab.type === 'mcp' ? (
             <Suspense fallback={<PanelFallback />}>
               <McpPanel isResizing={isPanelResizing} />
             </Suspense>
-          )
-        case 'skill':
-          return (
+          ) : null}
+
+          {activeTab.type === 'skill' ? (
             <Suspense fallback={<PanelFallback />}>
               <SkillPanel isResizing={isPanelResizing} />
             </Suspense>
-          )
-        case 'worktree':
-          return (
+          ) : null}
+
+          {activeTab.type === 'worktree' ? (
             <Suspense fallback={<PanelFallback />}>
               <WorktreePanel isResizing={isPanelResizing} />
             </Suspense>
-          )
-        default:
-          return null
-      }
+          ) : null}
+        </>
+      )
     },
     [normalizedDirectory, sessionId, isPanelResizing, t],
   )

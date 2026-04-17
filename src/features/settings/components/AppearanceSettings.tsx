@@ -4,18 +4,44 @@ import { Button } from '../../../components/ui/Button'
 import { SunIcon, MoonIcon, SystemIcon, CheckIcon } from '../../../components/Icons'
 import { Toggle, SegmentedControl, SettingRow, SettingsSection } from './SettingsUI'
 import { useTheme } from '../../../hooks'
-import { layoutStore, useLayoutStore } from '../../../store'
+import { getThemePreset } from '../../../themes'
+import type { CustomCSSSnippet } from '../../../store/themeStore'
 import { FONT_SCALE_MIN, FONT_SCALE_MAX } from '../../../store/themeStore'
+import { saveData } from '../../../utils/downloadUtils'
 
 // ============================================
 // Theme Preset Card
 // ============================================
 
-const PRESET_PREVIEW_COLORS: Record<string, { bg: string; accent: string; text: string }> = {
-  eucalyptus: { bg: '#f0f3f0', accent: '#4d9e82', text: '#1e2e28' },
-  claude: { bg: '#f3f0eb', accent: '#e87c2a', text: '#2d2a26' },
-  breeze: { bg: '#f3f5f7', accent: '#2ba5a5', text: '#212d36' },
-  custom: { bg: '#f0f0f0', accent: '#888888', text: '#333333' },
+const FALLBACK_PREVIEW_COLORS = {
+  bg: '#f0f0f0',
+  accent: '#888888',
+  text: '#333333',
+}
+
+function toCssHsl(token: string): string {
+  return `hsl(${token})`
+}
+
+function getPresetPreviewColors(id: string, resolvedTheme: 'light' | 'dark') {
+  const preset = getThemePreset(id)
+  if (!preset) return FALLBACK_PREVIEW_COLORS
+
+  const colors = resolvedTheme === 'dark' ? preset.dark : preset.light
+  return {
+    bg: toCssHsl(colors.background.bg100),
+    accent: toCssHsl(colors.accent.main100),
+    text: toCssHsl(colors.text.text100),
+  }
+}
+
+function getSnippetFileName(name: string): string {
+  const safe = name
+    .trim()
+    .replace(/[<>:"/\\|?*]/g, '')
+    .replace(/\p{Cc}/gu, '')
+    .replace(/\s+/g, '-')
+  return `${safe || 'custom-css'}.css`
 }
 
 function PresetCard({
@@ -24,14 +50,16 @@ function PresetCard({
   description,
   isActive,
   onClick,
+  resolvedTheme,
 }: {
   id: string
   name: string
   description: string
   isActive: boolean
   onClick: (e: React.MouseEvent) => void
+  resolvedTheme: 'light' | 'dark'
 }) {
-  const colors = PRESET_PREVIEW_COLORS[id] || PRESET_PREVIEW_COLORS.custom
+  const colors = getPresetPreviewColors(id, resolvedTheme)
   return (
     <button
       onClick={onClick}
@@ -135,14 +163,21 @@ function FontScaleSlider({
 function CustomCSSEditor({
   value,
   onChange,
+  onImportFile,
+  onLoadTemplate,
+  onClear,
   t,
 }: {
   value: string
   onChange: (css: string) => void
+  onImportFile: (css: string) => void
+  onLoadTemplate: (css: string) => void
+  onClear: () => void
   t: (key: string) => string
 }) {
   const [localValue, setLocalValue] = useState(value)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     setLocalValue(value)
@@ -152,6 +187,19 @@ function CustomCSSEditor({
     setLocalValue(newVal)
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => onChange(newVal), 400)
+  }
+
+  const handleFileImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = event => {
+      const css = event.target?.result as string
+      setLocalValue(css)
+      onImportFile(css)
+    }
+    reader.readAsText(file)
+    e.target.value = ''
   }
 
   const template = `/* ====== One Dark Inspired Theme Template ====== */
@@ -331,14 +379,26 @@ function CustomCSSEditor({
             }}
           />
         </div>
-        {!localValue.trim() && (
+        <div className="flex items-center gap-1.5">
+          <input ref={fileInputRef} type="file" accept=".css" onChange={handleFileImport} className="hidden" />
           <button
-            onClick={() => handleChange(template)}
-            className="text-[length:var(--fs-xxs)] text-accent-main-100 hover:text-accent-main-200 transition-colors px-1.5 py-0.5 rounded hover:bg-bg-200/50 shrink-0"
+            onClick={() => fileInputRef.current?.click()}
+            className="text-[10px] text-accent-main-100 hover:text-accent-main-200 transition-colors px-1.5 py-0.5 rounded hover:bg-bg-200/50 shrink-0"
           >
-            {t('appearance.loadTemplate')}
+            {t('appearance.importCss')}
           </button>
-        )}
+          {!localValue.trim() && (
+            <button
+              onClick={() => {
+                setLocalValue(template)
+                onLoadTemplate(template)
+              }}
+              className="text-[10px] text-accent-main-100 hover:text-accent-main-200 transition-colors px-1.5 py-0.5 rounded hover:bg-bg-200/50 shrink-0"
+            >
+              {t('appearance.loadTemplate')}
+            </button>
+          )}
+        </div>
       </div>
       <textarea
         value={localValue}
@@ -356,13 +416,68 @@ function CustomCSSEditor({
             size="sm"
             onClick={() => {
               setLocalValue('')
-              onChange('')
+              onClear()
             }}
           >
             {t('common:clear')}
           </Button>
         </div>
       )}
+    </div>
+  )
+}
+
+function SavedSnippetItem({
+  snippet,
+  isActive,
+  isDirty,
+  onApply,
+  onExport,
+  onDelete,
+  t,
+}: {
+  snippet: CustomCSSSnippet
+  isActive: boolean
+  isDirty: boolean
+  onApply: () => void
+  onExport: () => void
+  onDelete: () => void
+  t: (key: string) => string
+}) {
+  return (
+    <div className="rounded-lg border border-border-200/50 px-3 py-2.5 bg-bg-100/40">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-[length:var(--fs-sm)] font-medium text-text-100 truncate">{snippet.name}</span>
+            {isActive && (
+              <span className="px-1.5 py-0.5 rounded bg-accent-main-100/10 text-accent-main-100 text-[length:var(--fs-xxs)]">
+                {t('appearance.activeOverride')}
+              </span>
+            )}
+            {isDirty && (
+              <span className="px-1.5 py-0.5 rounded bg-warning-bg text-warning-200 text-[length:var(--fs-xxs)]">
+                {t('appearance.modifiedOverride')}
+              </span>
+            )}
+          </div>
+          <div className="text-[length:var(--fs-xs)] text-text-400 mt-1 whitespace-pre-wrap break-all max-h-10 overflow-hidden">
+            {snippet.css.slice(0, 160) || '/* empty */'}
+          </div>
+        </div>
+
+        <div className="flex items-center gap-1 shrink-0">
+          <Button variant="ghost" size="sm" onClick={onApply} disabled={isActive && !isDirty}>
+            {isActive && !isDirty ? t('appearance.selectedOverride') : t('appearance.applyOverride')}
+          </Button>
+          <Button variant="ghost" size="sm" onClick={onExport}>
+            {t('common:download')}
+          </Button>
+          <Button variant="ghost" size="sm" onClick={onDelete}>
+            {t('common:delete')}
+          </Button>
+        </div>
+      </div>
     </div>
   )
 }
@@ -376,17 +491,19 @@ export function AppearanceSettings() {
   const {
     mode: themeMode,
     setThemeWithAnimation,
-    isWideMode,
-    toggleWideMode,
     presetId,
+    resolvedTheme,
     setPresetWithAnimation,
     availablePresets,
     customCSS,
     setCustomCSS,
-    diffStyle,
-    setDiffStyle,
-    codeWordWrap,
-    setCodeWordWrap,
+    customCSSSnippets,
+    activeCustomCSSSnippetId,
+    saveCustomCSSSnippet,
+    updateCustomCSSSnippet,
+    deleteCustomCSSSnippet,
+    applyCustomCSSSnippet,
+    clearActiveCustomCSSSnippet,
     glassEffect,
     setGlassEffect,
     uiFontScale,
@@ -394,7 +511,47 @@ export function AppearanceSettings() {
     codeFontScale,
     setCodeFontScale,
   } = useTheme()
-  const { sidebarFolderRecents, sidebarFolderRecentsShowDiff, sidebarShowChildSessions, wakeLock } = useLayoutStore()
+
+  const activeSnippet = customCSSSnippets.find(item => item.id === activeCustomCSSSnippetId) || null
+  const hasUnsavedSnippetChanges = activeSnippet != null && activeSnippet.css !== customCSS
+  const [snippetName, setSnippetName] = useState('')
+
+  useEffect(() => {
+    setSnippetName(activeSnippet?.name ?? '')
+  }, [activeSnippet?.id, activeSnippet?.name])
+
+  const handleImportCSS = (css: string) => {
+    clearActiveCustomCSSSnippet()
+    setCustomCSS(css)
+  }
+
+  const handleSaveNewSnippet = () => {
+    const name = snippetName.trim()
+    const css = customCSS.trim()
+    if (!name || !css) return
+    saveCustomCSSSnippet(name, customCSS)
+  }
+
+  const handleRenameSnippet = () => {
+    const name = snippetName.trim()
+    if (!activeSnippet || !name || name === activeSnippet.name) return
+    updateCustomCSSSnippet(activeSnippet.id, { name })
+  }
+
+  const handleUpdateSnippet = () => {
+    if (!activeSnippet) return
+    updateCustomCSSSnippet(activeSnippet.id, { css: customCSS })
+  }
+
+  const handleDeleteSnippet = (snippet: CustomCSSSnippet) => {
+    const confirmed = window.confirm(t('appearance.deleteOverrideConfirm', { name: snippet.name }))
+    if (!confirmed) return
+    deleteCustomCSSSnippet(snippet.id)
+  }
+
+  const handleExportSnippet = (snippet: CustomCSSSnippet) => {
+    saveData(new TextEncoder().encode(snippet.css), getSnippetFileName(snippet.name), 'text/css;charset=utf-8')
+  }
 
   return (
     <div>
@@ -410,6 +567,7 @@ export function AppearanceSettings() {
                 description={p.description}
                 isActive={presetId === p.id}
                 onClick={e => setPresetWithAnimation(p.id, e)}
+                resolvedTheme={resolvedTheme}
               />
             ))}
           </div>
@@ -418,7 +576,82 @@ export function AppearanceSettings() {
 
       <SettingsSection title={t('appearance.customCss')}>
         <p className="text-[length:var(--fs-sm)] text-text-400">{t('appearance.customCssDesc')}</p>
-        <CustomCSSEditor value={customCSS} onChange={setCustomCSS} t={t} />
+
+        <div className="space-y-4">
+          <CustomCSSEditor
+            value={customCSS}
+            onChange={setCustomCSS}
+            onImportFile={handleImportCSS}
+            onLoadTemplate={handleImportCSS}
+            onClear={() => {
+              clearActiveCustomCSSSnippet()
+              setCustomCSS('')
+            }}
+            t={t}
+          />
+
+          <div className="rounded-lg border border-border-200/50 bg-bg-100/30 p-3 space-y-3">
+            <div>
+              <p className="text-[length:var(--fs-md)] text-text-100 mb-1.5">{t('appearance.savedOverrides')}</p>
+              <p className="text-[length:var(--fs-sm)] text-text-400">{t('appearance.savedOverridesDesc')}</p>
+            </div>
+
+            <div className="flex flex-col gap-2 md:flex-row md:items-center">
+              <input
+                value={snippetName}
+                onChange={e => setSnippetName(e.target.value)}
+                placeholder={t('appearance.overrideNamePlaceholder')}
+                className="flex-1 min-w-0 px-3 py-2 text-[length:var(--fs-sm)] bg-bg-200/50 border border-border-200 rounded-lg text-text-100 placeholder:text-text-500 focus:outline-none focus:border-accent-main-100/50"
+              />
+
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={handleSaveNewSnippet}
+                  disabled={!snippetName.trim() || !customCSS.trim()}
+                >
+                  {t('appearance.saveAsNewOverride')}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleRenameSnippet}
+                  disabled={!activeSnippet || !snippetName.trim() || snippetName.trim() === activeSnippet.name}
+                >
+                  {t('appearance.renameOverride')}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleUpdateSnippet}
+                  disabled={!activeSnippet || !hasUnsavedSnippetChanges}
+                >
+                  {t('appearance.updateOverride')}
+                </Button>
+              </div>
+            </div>
+
+            {customCSSSnippets.length > 0 ? (
+              <div className="space-y-2">
+                {customCSSSnippets.map(snippet => (
+                  <SavedSnippetItem
+                    key={snippet.id}
+                    snippet={snippet}
+                    isActive={snippet.id === activeCustomCSSSnippetId}
+                    isDirty={snippet.id === activeCustomCSSSnippetId && hasUnsavedSnippetChanges}
+                    onApply={() => applyCustomCSSSnippet(snippet.id)}
+                    onExport={() => handleExportSnippet(snippet)}
+                    onDelete={() => handleDeleteSnippet(snippet)}
+                    t={t}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="text-[length:var(--fs-sm)] text-text-500">{t('appearance.noSavedOverrides')}</div>
+            )}
+          </div>
+        </div>
       </SettingsSection>
 
       <SettingsSection title={t('appearance.display')}>
@@ -436,49 +669,12 @@ export function AppearanceSettings() {
         </div>
 
         <SettingRow
-          label={t('appearance.wideMode')}
-          description={t('appearance.wideModeDesc')}
-          onClick={toggleWideMode}
-        >
-          <Toggle enabled={isWideMode} onChange={toggleWideMode} />
-        </SettingRow>
-
-        <SettingRow
           label={t('appearance.glassEffect')}
           description={t('appearance.glassEffectDesc')}
           onClick={() => setGlassEffect(!glassEffect)}
         >
           <Toggle enabled={glassEffect} onChange={() => setGlassEffect(!glassEffect)} />
         </SettingRow>
-
-        <SettingRow
-          label={t('appearance.codeWordWrap')}
-          description={t('appearance.codeWordWrapDesc')}
-          onClick={() => setCodeWordWrap(!codeWordWrap)}
-        >
-          <Toggle enabled={codeWordWrap} onChange={() => setCodeWordWrap(!codeWordWrap)} />
-        </SettingRow>
-
-        <SettingRow
-          label={t('appearance.wakeLock')}
-          description={t('appearance.wakeLockDesc')}
-          onClick={() => layoutStore.setWakeLock(!wakeLock)}
-        >
-          <Toggle enabled={wakeLock} onChange={() => layoutStore.setWakeLock(!wakeLock)} />
-        </SettingRow>
-
-        <div>
-          <p className="text-[length:var(--fs-md)] text-text-100 mb-1.5">{t('appearance.diffStyle')}</p>
-          <SegmentedControl
-            value={diffStyle}
-            options={[
-              { value: 'markers', label: t('appearance.diffStyleMarkers') },
-              { value: 'changeBars', label: t('appearance.diffStyleChangeBars') },
-            ]}
-            onChange={v => setDiffStyle(v as 'markers' | 'changeBars')}
-          />
-          <p className="text-[length:var(--fs-xs)] text-text-500 mt-1">{t('appearance.diffStyleDesc')}</p>
-        </div>
 
         <div>
           <p className="text-[length:var(--fs-md)] text-text-100 mb-2">{t('appearance.uiFontScale')}</p>
@@ -513,41 +709,6 @@ export function AppearanceSettings() {
             <option value="en">{t('appearance.languages.en')}</option>
             <option value="zh-CN">{t('appearance.languages.zh-CN')}</option>
           </select>
-        </SettingRow>
-      </SettingsSection>
-
-      <SettingsSection title={t('appearance.sidebar')}>
-        <SettingRow
-          label={t('appearance.folderStyleRecents')}
-          description={t('appearance.folderStyleRecentsDesc')}
-          onClick={() => layoutStore.setSidebarFolderRecents(!sidebarFolderRecents)}
-        >
-          <Toggle
-            enabled={sidebarFolderRecents}
-            onChange={() => layoutStore.setSidebarFolderRecents(!sidebarFolderRecents)}
-          />
-        </SettingRow>
-
-        <SettingRow
-          label={t('appearance.folderStyleRecentsShowDiff')}
-          description={t('appearance.folderStyleRecentsShowDiffDesc')}
-          onClick={() => layoutStore.setSidebarFolderRecentsShowDiff(!sidebarFolderRecentsShowDiff)}
-        >
-          <Toggle
-            enabled={sidebarFolderRecentsShowDiff}
-            onChange={() => layoutStore.setSidebarFolderRecentsShowDiff(!sidebarFolderRecentsShowDiff)}
-          />
-        </SettingRow>
-
-        <SettingRow
-          label={t('appearance.showChildSessions')}
-          description={t('appearance.showChildSessionsDesc')}
-          onClick={() => layoutStore.setSidebarShowChildSessions(!sidebarShowChildSessions)}
-        >
-          <Toggle
-            enabled={sidebarShowChildSessions}
-            onChange={() => layoutStore.setSidebarShowChildSessions(!sidebarShowChildSessions)}
-          />
         </SettingRow>
       </SettingsSection>
     </div>

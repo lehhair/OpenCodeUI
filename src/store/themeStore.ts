@@ -2,9 +2,9 @@
  * 主题状态管理 Store
  *
  * 管理：
- * - 主题风格选择（claude / breeze / custom）
+ * - 主题风格选择（内置预设）
  * - 日夜模式（system / light / dark）
- * - 自定义 CSS（可用于覆盖字体等）
+ * - 自定义 CSS 覆盖（可用于覆盖字体等）
  * - CSS 变量注入
  */
 
@@ -54,6 +54,14 @@ function computedColorToHex(cssColor: string): string | null {
 
 export type ColorMode = 'system' | 'light' | 'dark'
 
+export interface CustomCSSSnippet {
+  id: string
+  name: string
+  css: string
+  createdAt: number
+  updatedAt: number
+}
+
 /** step-finish 信息栏各项显示开关 */
 export interface StepFinishDisplay {
   tokens: boolean
@@ -63,7 +71,10 @@ export interface StepFinishDisplay {
   turnDuration: boolean
   agent: boolean
   model: boolean
+  completedAt: boolean
 }
+
+export type CompletedAtFormat = 'time' | 'dateTime'
 
 export type ReasoningDisplayMode = 'capsule' | 'italic' | 'markdown'
 
@@ -90,7 +101,10 @@ const DEFAULT_STEP_FINISH_DISPLAY: StepFinishDisplay = {
   turnDuration: true,
   agent: false,
   model: false,
+  completedAt: false,
 }
+
+const DEFAULT_COMPLETED_AT_FORMAT: CompletedAtFormat = 'time'
 
 const DEFAULT_REASONING_DISPLAY_MODE: ReasoningDisplayMode = 'capsule'
 const DEFAULT_DIFF_STYLE: DiffStyle = 'markers'
@@ -115,10 +129,16 @@ export interface ThemeState {
   colorMode: ColorMode
   /** 用户自定义 CSS（覆盖 CSS 变量） */
   customCSS: string
+  /** 已保存的自定义 CSS 方案 */
+  customCSSSnippets: CustomCSSSnippet[]
+  /** 当前选中的已保存方案 ID；仅用于切换/保存，不直接决定渲染 */
+  activeCustomCSSSnippetId: string | null
   /** 是否自动折叠长用户消息 */
   collapseUserMessages: boolean
   /** step-finish 信息栏显示开关 */
   stepFinishDisplay: StepFinishDisplay
+  /** 完成时刻显示格式 */
+  completedAtFormat: CompletedAtFormat
   /** 思考内容展示样式 */
   reasoningDisplayMode: ReasoningDisplayMode
   /** 宽模式 */
@@ -154,8 +174,11 @@ export interface ThemeState {
 const STORAGE_KEY_PRESET = 'theme-preset'
 const STORAGE_KEY_COLOR_MODE = 'theme-mode'
 const STORAGE_KEY_CUSTOM_CSS = 'theme-custom-css'
+const STORAGE_KEY_CUSTOM_CSS_SNIPPETS = 'theme-custom-css-snippets'
+const STORAGE_KEY_ACTIVE_CUSTOM_CSS_SNIPPET_ID = 'theme-active-custom-css-snippet-id'
 const STORAGE_KEY_COLLAPSE_USER_MESSAGES = 'collapse-user-messages'
 const STORAGE_KEY_STEP_FINISH_DISPLAY = 'step-finish-display'
+const STORAGE_KEY_COMPLETED_AT_FORMAT = 'completed-at-format'
 const STORAGE_KEY_REASONING_DISPLAY_MODE = 'reasoning-display-mode'
 const STORAGE_KEY_WIDE_MODE = 'chat-wide-mode'
 const STORAGE_KEY_DIFF_STYLE = 'diff-style'
@@ -178,6 +201,27 @@ const STYLE_ID_THEME = 'opencode-theme-vars'
 const STYLE_ID_FONT_SCALE = 'opencode-font-scale'
 const STYLE_ID_CUSTOM = 'opencode-custom-css'
 
+function parseCustomCSSSnippets(raw: string | null): CustomCSSSnippet[] {
+  if (!raw) return []
+
+  try {
+    const parsed = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return []
+
+    return parsed.filter(
+      (item): item is CustomCSSSnippet =>
+        item &&
+        typeof item.id === 'string' &&
+        typeof item.name === 'string' &&
+        typeof item.css === 'string' &&
+        typeof item.createdAt === 'number' &&
+        typeof item.updatedAt === 'number',
+    )
+  } catch {
+    return []
+  }
+}
+
 // ============================================
 // Store Implementation
 // ============================================
@@ -188,8 +232,14 @@ class ThemeStore {
 
   constructor() {
     const savedPreset = localStorage.getItem(STORAGE_KEY_PRESET) || DEFAULT_THEME_ID
+    const normalizedPreset = getThemePreset(savedPreset) ? savedPreset : DEFAULT_THEME_ID
     const savedMode = (localStorage.getItem(STORAGE_KEY_COLOR_MODE) as ColorMode) || 'system'
     const savedCSS = localStorage.getItem(STORAGE_KEY_CUSTOM_CSS) || ''
+    const customCSSSnippets = parseCustomCSSSnippets(localStorage.getItem(STORAGE_KEY_CUSTOM_CSS_SNIPPETS))
+    const savedActiveCustomCSSSnippetId = localStorage.getItem(STORAGE_KEY_ACTIVE_CUSTOM_CSS_SNIPPET_ID)
+    const activeCustomCSSSnippetId = customCSSSnippets.some(item => item.id === savedActiveCustomCSSSnippetId)
+      ? savedActiveCustomCSSSnippetId
+      : null
     const savedCollapse = localStorage.getItem(STORAGE_KEY_COLLAPSE_USER_MESSAGES)
     const collapseUserMessages = savedCollapse === null ? true : savedCollapse === 'true'
     const savedReasoningDisplay = localStorage.getItem(STORAGE_KEY_REASONING_DISPLAY_MODE)
@@ -205,6 +255,10 @@ class ThemeStore {
     } catch {
       /* ignore */
     }
+
+    const savedCompletedAtFormat = localStorage.getItem(STORAGE_KEY_COMPLETED_AT_FORMAT)
+    const completedAtFormat: CompletedAtFormat =
+      savedCompletedAtFormat === 'dateTime' ? 'dateTime' : DEFAULT_COMPLETED_AT_FORMAT
 
     const savedWideMode = localStorage.getItem(STORAGE_KEY_WIDE_MODE) === 'true'
     const savedDiffStyle = localStorage.getItem(STORAGE_KEY_DIFF_STYLE) as DiffStyle | null
@@ -251,11 +305,14 @@ class ThemeStore {
       savedQueueFollowupMessages === null ? DEFAULT_QUEUE_FOLLOWUP_MESSAGES : savedQueueFollowupMessages === 'true'
 
     this.state = {
-      presetId: savedPreset,
+      presetId: normalizedPreset,
       colorMode: savedMode,
       customCSS: savedCSS,
+      customCSSSnippets,
+      activeCustomCSSSnippetId,
       collapseUserMessages,
       stepFinishDisplay,
+      completedAtFormat,
       reasoningDisplayMode,
       wideMode: savedWideMode,
       diffStyle,
@@ -287,11 +344,20 @@ class ThemeStore {
   get customCSS() {
     return this.state.customCSS
   }
+  get customCSSSnippets() {
+    return this.state.customCSSSnippets
+  }
+  get activeCustomCSSSnippetId() {
+    return this.state.activeCustomCSSSnippetId
+  }
   get collapseUserMessages() {
     return this.state.collapseUserMessages
   }
   get stepFinishDisplay() {
     return this.state.stepFinishDisplay
+  }
+  get completedAtFormat() {
+    return this.state.completedAtFormat
   }
   get reasoningDisplayMode() {
     return this.state.reasoningDisplayMode
@@ -340,17 +406,11 @@ class ThemeStore {
 
   /** 获取所有可用主题列表 */
   getAvailablePresets(): { id: string; name: string; description: string }[] {
-    const presets = builtinThemes.map(t => ({
+    return builtinThemes.map(t => ({
       id: t.id,
       name: t.name,
       description: t.description,
     }))
-    presets.push({
-      id: 'custom',
-      name: 'Custom',
-      description: 'Your own CSS theme',
-    })
-    return presets
   }
 
   /** 解析实际生效的暗/亮模式 */
@@ -390,6 +450,74 @@ class ThemeStore {
     this.emit()
   }
 
+  saveCustomCSSSnippet(name: string, css: string): CustomCSSSnippet {
+    const now = Date.now()
+    const snippet: CustomCSSSnippet = {
+      id: `css-${now}-${Math.random().toString(36).slice(2, 8)}`,
+      name,
+      css,
+      createdAt: now,
+      updatedAt: now,
+    }
+
+    const customCSSSnippets = [...this.state.customCSSSnippets, snippet]
+    this.state = { ...this.state, customCSSSnippets, activeCustomCSSSnippetId: snippet.id }
+    this.persistCustomCSSSnippets(customCSSSnippets)
+    localStorage.setItem(STORAGE_KEY_ACTIVE_CUSTOM_CSS_SNIPPET_ID, snippet.id)
+    this.emit()
+    return snippet
+  }
+
+  updateCustomCSSSnippet(id: string, updates: Partial<Pick<CustomCSSSnippet, 'name' | 'css'>>) {
+    const customCSSSnippets = this.state.customCSSSnippets.map(item =>
+      item.id === id ? { ...item, ...updates, updatedAt: Date.now() } : item,
+    )
+
+    this.state = { ...this.state, customCSSSnippets }
+    this.persistCustomCSSSnippets(customCSSSnippets)
+    this.emit()
+  }
+
+  deleteCustomCSSSnippet(id: string) {
+    const customCSSSnippets = this.state.customCSSSnippets.filter(item => item.id !== id)
+    const activeCustomCSSSnippetId =
+      this.state.activeCustomCSSSnippetId === id ? null : this.state.activeCustomCSSSnippetId
+
+    this.state = { ...this.state, customCSSSnippets, activeCustomCSSSnippetId }
+    this.persistCustomCSSSnippets(customCSSSnippets)
+
+    if (activeCustomCSSSnippetId) {
+      localStorage.setItem(STORAGE_KEY_ACTIVE_CUSTOM_CSS_SNIPPET_ID, activeCustomCSSSnippetId)
+    } else {
+      localStorage.removeItem(STORAGE_KEY_ACTIVE_CUSTOM_CSS_SNIPPET_ID)
+    }
+
+    this.emit()
+  }
+
+  applyCustomCSSSnippet(id: string) {
+    const snippet = this.state.customCSSSnippets.find(item => item.id === id)
+    if (!snippet) return
+
+    this.state = {
+      ...this.state,
+      customCSS: snippet.css,
+      activeCustomCSSSnippetId: id,
+    }
+
+    localStorage.setItem(STORAGE_KEY_CUSTOM_CSS, snippet.css)
+    localStorage.setItem(STORAGE_KEY_ACTIVE_CUSTOM_CSS_SNIPPET_ID, id)
+    this.applyCustomCSS()
+    this.emit()
+  }
+
+  clearActiveCustomCSSSnippet() {
+    if (this.state.activeCustomCSSSnippetId === null) return
+    this.state = { ...this.state, activeCustomCSSSnippetId: null }
+    localStorage.removeItem(STORAGE_KEY_ACTIVE_CUSTOM_CSS_SNIPPET_ID)
+    this.emit()
+  }
+
   setCollapseUserMessages(enabled: boolean) {
     if (this.state.collapseUserMessages === enabled) return
     this.state = { ...this.state, collapseUserMessages: enabled }
@@ -401,6 +529,13 @@ class ThemeStore {
     const next = { ...this.state.stepFinishDisplay, ...display }
     this.state = { ...this.state, stepFinishDisplay: next }
     localStorage.setItem(STORAGE_KEY_STEP_FINISH_DISPLAY, JSON.stringify(next))
+    this.emit()
+  }
+
+  setCompletedAtFormat(format: CompletedAtFormat) {
+    if (this.state.completedAtFormat === format) return
+    this.state = { ...this.state, completedAtFormat: format }
+    localStorage.setItem(STORAGE_KEY_COMPLETED_AT_FORMAT, format)
     this.emit()
   }
 
@@ -551,13 +686,6 @@ class ThemeStore {
     if (preset) {
       const colors: ThemeColors = resolvedMode === 'dark' ? preset.dark : preset.light
       this.injectThemeStyle(colors)
-    } else if (this.state.presetId === 'custom') {
-      // Custom 主题：用默认主题颜色作为底色，用户 CSS 在上面覆盖
-      const fallback = getThemePreset(DEFAULT_THEME_ID)
-      if (fallback) {
-        const colors: ThemeColors = resolvedMode === 'dark' ? fallback.dark : fallback.light
-        this.injectThemeStyle(colors)
-      }
     }
 
     // 3. 应用自定义 CSS
@@ -681,6 +809,10 @@ class ThemeStore {
     } else {
       root.removeAttribute('data-glass')
     }
+  }
+
+  private persistCustomCSSSnippets(customCSSSnippets: CustomCSSSnippet[]) {
+    localStorage.setItem(STORAGE_KEY_CUSTOM_CSS_SNIPPETS, JSON.stringify(customCSSSnippets))
   }
 
   // ---- Subscription (useSyncExternalStore compatible) ----

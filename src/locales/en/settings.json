@@ -6,16 +6,24 @@
   "tabs": {
     "servers": "Servers",
     "serversDesc": "Backend connections and fast active endpoint switching",
+    "models": "Models",
+    "modelsDesc": "Choose which models stay available in the selector",
+    "agent": "Agent",
+    "agentDesc": "Execution defaults, tool requests, and agent interaction behavior",
     "chat": "Chat",
-    "chatDesc": "Reasoning style, path display, and conversation behavior",
+    "chatDesc": "Message presentation, path formatting, and step metadata",
+    "workspace": "Workspace",
+    "workspaceDesc": "Layout, sidebar, and code viewing preferences",
     "appearance": "Appearance",
-    "appearanceDesc": "Theme, color mode, and layout preferences",
+    "appearanceDesc": "Theme, language, typography, and visual styling",
     "notifications": "Notifications",
     "notificationsDesc": "Desktop and in-app alerts",
     "service": "Service",
     "serviceDesc": "Local opencode service management",
     "shortcuts": "Shortcuts",
-    "shortcutsDesc": "Customize keyboard shortcuts for faster workflows"
+    "shortcutsDesc": "Customize keyboard shortcuts for faster workflows",
+    "about": "About",
+    "aboutDesc": "Version info, update checks, and release links"
   },
   "groups": {
     "core": "Core",
@@ -104,7 +112,30 @@
     "duration": "Duration",
     "showResponseTime": "Show message response time",
     "totalDuration": "Total Duration",
-    "showTurnElapsed": "Show full turn elapsed time"
+    "showTurnElapsed": "Show full turn elapsed time",
+    "completedAt": "Completed At",
+    "showCompletedAt": "Show message completion time",
+    "completedAtFormat": "Completion Time Format",
+    "completedAtFormatDesc": "Choose whether to show only time or full date and time",
+    "completedAtTimeOnly": "Time Only",
+    "completedAtDateTime": "Date & Time"
+  },
+  "agent": {
+    "behavior": "Agent Behavior",
+    "behaviorDesc": "Execution defaults and queued message behavior",
+    "toolInteraction": "Tool Interaction",
+    "toolInteractionDesc": "How tool requests and tool output behave inside conversations"
+  },
+  "models": {
+    "visibility": "Model Visibility",
+    "visibilityDesc": "Disable models you do not want to appear in the selector. Disabled models stay hidden across sessions on this server.",
+    "searchPlaceholder": "Search models",
+    "clearSearch": "Clear search",
+    "keepOneEnabled": "At least one model stays enabled so the chat can still send messages.",
+    "loading": "Loading models...",
+    "empty": "No models available on the current server",
+    "noResults": "No models match the current search",
+    "providerCount": "{{count}} models"
   },
   "appearance": {
     "themePresets": "Theme Presets",
@@ -114,6 +145,19 @@
     "customCssHelp": "Override fonts, colors, and styles with custom CSS.",
     "customCssSpecificityHelp": "Override fonts, colors, and styles. Use <1>:root:root</1> for higher specificity.",
     "loadTemplate": "Load Template",
+    "importCss": "Import CSS",
+    "savedOverrides": "Saved Overrides",
+    "savedOverridesDesc": "Name and switch between reusable CSS override snippets without changing the selected theme",
+    "overrideNamePlaceholder": "Override name",
+    "saveAsNewOverride": "Save As New",
+    "renameOverride": "Rename",
+    "updateOverride": "Save Changes",
+    "applyOverride": "Apply",
+    "selectedOverride": "Selected",
+    "activeOverride": "Active",
+    "modifiedOverride": "Modified",
+    "noSavedOverrides": "No saved overrides yet",
+    "deleteOverrideConfirm": "Delete saved override \"{{name}}\"?",
     "display": "Display",
     "displayDesc": "Control color mode and layout",
     "colorMode": "Color Mode",
@@ -157,6 +201,12 @@
     "folderStyleRecentsShowDiffDesc": "Show additions, deletions, and file counts for sessions in folder-style recents",
     "showChildSessions": "Always Show Child Sessions",
     "showChildSessionsDesc": "Always list child sessions under their parent. When off, only active or selected children are shown."
+  },
+  "workspace": {
+    "layout": "Layout & Reading",
+    "layoutDesc": "Workspace layout, reading comfort, and code viewing preferences",
+    "sidebar": "Sidebar",
+    "sidebarDesc": "Sidebar layout and recent chat organization"
   },
   "notifications": {
     "systemNotifications": "System Notifications",
@@ -228,6 +278,25 @@
     "envVarsDesc": "Passed to the opencode serve process (e.g. HTTPS_PROXY, API keys)",
     "keyPlaceholder": "KEY",
     "valuePlaceholder": "value"
+  },
+  "about": {
+    "title": "About & Updates",
+    "versionCardTitle": "Version",
+    "versionCardDesc": "Check whether a newer OpenCodeUI release is available and jump to the download page.",
+    "currentVersion": "Current Version",
+    "latestVersion": "Latest Release",
+    "unknownVersion": "Unknown",
+    "statusIdle": "Check for updates to see whether a newer version is available.",
+    "statusChecking": "Checking GitHub releases...",
+    "statusUpToDate": "You are already on the latest version.",
+    "statusUpdateAvailable": "A newer version is available: {{version}}",
+    "statusError": "Failed to check for updates: {{error}}",
+    "publishedAt": "Published: {{date}}",
+    "checkNow": "Check for Updates",
+    "viewUpdate": "View Update",
+    "openReleases": "Open Releases Page",
+    "toastTitle": "New version available: {{version}}",
+    "toastBody": "Click to open About and view the release page."
   },
   "keybindings": {
     "title": "Keyboard Shortcuts",

@@ -20,9 +20,9 @@ import { ChatViewportProvider, canUseSplitPane, useChatViewportMaybe, type ChatV
 import { SessionNavigationContext } from '../../contexts/SessionNavigationContext'
 import { paneLayoutStore } from '../../store/paneLayoutStore'
 import { autoApproveStore } from '../../store/autoApproveStore'
-import { messageStore, paneControllerStore } from '../../store'
+import { messageStore, paneControllerStore, useHiddenModelKeys } from '../../store'
 import { restoreModelSelection } from '../../utils/sessionHelpers'
-import { findModelByKey } from '../../utils/modelUtils'
+import { findModelByKey, getModelKey } from '../../utils/modelUtils'
 import { useTheme } from '../../hooks/useTheme'
 import type { Attachment } from '../../api'
 
@@ -123,6 +123,11 @@ export const ChatPane = memo(function ChatPane({
   // Models
   // ============================================
   const { models, isLoading: modelsLoading, refetch: refetchModels } = useModels()
+  const hiddenModelKeys = useHiddenModelKeys()
+  const visibleModels = useMemo(
+    () => models.filter(model => !hiddenModelKeys.includes(getModelKey(model))),
+    [models, hiddenModelKeys],
+  )
   const {
     selectedModelKey,
     selectedVariant,
@@ -130,7 +135,7 @@ export const ChatPane = memo(function ChatPane({
     handleModelChange,
     handleVariantChange,
     restoreFromMessage,
-  } = useModelSelection({ models })
+  } = useModelSelection({ models: visibleModels })
 
   // ============================================
   // Full Auto Hint
@@ -308,13 +313,13 @@ export const ChatPane = memo(function ChatPane({
       const agent = agents.find(a => a.name === agentName)
       if (agent?.model) {
         const modelKey = `${agent.model.providerID}:${agent.model.modelID}`
-        const model = findModelByKey(models, modelKey)
+        const model = findModelByKey(visibleModels, modelKey)
         if (model) {
           handleModelChange(modelKey, model)
         }
       }
     },
-    [agents, models, handleModelChange],
+    [agents, visibleModels, handleModelChange],
   )
 
   const handleAgentChange = useCallback(
@@ -344,11 +349,15 @@ export const ChatPane = memo(function ChatPane({
   // revert/undo 恢复：inputRestoreContent 变化时立即恢复
   useEffect(() => {
     if (!inputRestoreContent?.model) return
-    const modelSelection = restoreModelSelection(inputRestoreContent.model, inputRestoreContent.variant ?? null, models)
+    const modelSelection = restoreModelSelection(
+      inputRestoreContent.model,
+      inputRestoreContent.variant ?? null,
+      visibleModels,
+    )
     if (modelSelection) {
       restoreFromMessage(inputRestoreContent.model, inputRestoreContent.variant)
     }
-  }, [inputRestoreContent, models, restoreFromMessage])
+  }, [inputRestoreContent, visibleModels, restoreFromMessage])
 
   // session 切换：只在 routeSessionId 变化时，从最后一条 user 消息恢复模型
   const restoredSessionRef = useRef<string | null>(null)
@@ -367,7 +376,7 @@ export const ChatPane = memo(function ChatPane({
     }
     // 依赖 routeSessionId 和 messages.length（等加载完），不依赖 messages 引用
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [routeSessionId, messages.length, models, restoreFromMessage])
+  }, [routeSessionId, messages.length, visibleModels, restoreFromMessage])
 
   // ============================================
   // Agent Restoration Effect
@@ -530,7 +539,7 @@ export const ChatPane = memo(function ChatPane({
         <div className="absolute top-0 left-0 right-0 z-20 pointer-events-none">
           <div className="pointer-events-auto">
             <Header
-              models={models}
+              models={visibleModels}
               modelsLoading={modelsLoading}
               selectedModelKey={selectedModelKey}
               onModelChange={handleModelChange}
@@ -616,7 +625,7 @@ export const ChatPane = memo(function ChatPane({
                 }
               : undefined
           }
-          models={models}
+          models={visibleModels}
           selectedModelKey={selectedModelKey}
           onModelChange={handleModelChange}
           modelsLoading={modelsLoading}

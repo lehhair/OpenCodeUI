@@ -2,7 +2,7 @@
 // useModelSelection - 模型选择逻辑
 // ============================================
 
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo, useEffect } from 'react'
 import type { ModelInfo } from '../api'
 import { getModelKey, findModelByKey, saveModelVariantPref, getModelVariantPref } from '../utils/modelUtils'
 import { serverStorage } from '../utils/perServerStorage'
@@ -46,12 +46,22 @@ export function useModelSelection({ models }: UseModelSelectionOptions): UseMode
     return getModelVariantPref(resolvedModelKey)
   }, [resolvedModelKey, persistedModel, selectedModelKey, selectedVariant])
 
+  useEffect(() => {
+    if (selectedModelKey === resolvedModelKey && selectedVariant === resolvedSelectedVariant) return
+
+    if (resolvedModelKey) {
+      serverStorage.set(STORAGE_KEY_SELECTED_MODEL, resolvedModelKey)
+    } else {
+      serverStorage.remove(STORAGE_KEY_SELECTED_MODEL)
+    }
+  }, [resolvedModelKey, resolvedSelectedVariant, selectedModelKey, selectedVariant])
+
   // 切换模型
   const handleModelChange = useCallback(
     (modelKey: string, _model: ModelInfo) => {
       // 先保存当前模型的 variant 偏好
-      if (selectedModelKey && resolvedSelectedVariant) {
-        saveModelVariantPref(selectedModelKey, resolvedSelectedVariant)
+      if (resolvedModelKey && resolvedSelectedVariant) {
+        saveModelVariantPref(resolvedModelKey, resolvedSelectedVariant)
       }
 
       // 切换模型
@@ -61,7 +71,7 @@ export function useModelSelection({ models }: UseModelSelectionOptions): UseMode
       })
       serverStorage.set(STORAGE_KEY_SELECTED_MODEL, modelKey)
     },
-    [selectedModelKey, resolvedSelectedVariant],
+    [resolvedModelKey, resolvedSelectedVariant],
   )
 
   // Variant 变化时保存偏好

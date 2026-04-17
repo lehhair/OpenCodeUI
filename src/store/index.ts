@@ -63,8 +63,13 @@ export type { ActiveSessionEntry } from './activeSessionStore'
 
 export { serviceStore, useServiceStore } from './serviceStore'
 
+export { modelVisibilityStore, useHiddenModelKeys } from './modelVisibilityStore'
+
 export { soundStore, useSoundSettings } from './soundStore'
 export type { SoundSettings, EventSoundConfig } from './soundStore'
 
 export { followupQueueStore, useFollowupQueue } from './followupQueueStore'
 export type { QueuedFollowupDraft } from './followupQueueStore'
+
+export { updateStore, useUpdateStore, compareVersions, hasUpdateAvailable, shouldShowUpdateToast } from './updateStore'
+export type { UpdateRelease, UpdateState } from './updateStore'

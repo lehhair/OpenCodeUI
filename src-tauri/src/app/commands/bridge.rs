@@ -10,8 +10,8 @@
 // ============================================
 
 use crate::app::bridge::{
-    BridgeCommand, BridgeConnection, BridgeEvent, BridgeKey, BridgeState,
-    ConnectArgs, DisconnectArgs, SendArgs,
+    BridgeCommand, BridgeConnection, BridgeEvent, BridgeKey, BridgeState, ConnectArgs,
+    DisconnectArgs, SendArgs,
 };
 use futures_util::{SinkExt, StreamExt};
 use std::time::Duration;
@@ -20,6 +20,47 @@ use tokio::sync::mpsc;
 
 fn emit(channel: &Channel<BridgeEvent>, event: BridgeEvent) {
     let _ = channel.send(event);
+}
+
+fn split_valid_utf8_prefix(bytes: &[u8]) -> Option<(String, usize)> {
+    if bytes.is_empty() {
+        return None;
+    }
+
+    match std::str::from_utf8(bytes) {
+        Ok(text) => Some((text.to_string(), bytes.len())),
+        Err(error) => {
+            let valid_up_to = error.valid_up_to();
+
+            if let Some(error_len) = error.error_len() {
+                let consumed = valid_up_to + error_len;
+                let text = String::from_utf8_lossy(&bytes[..consumed]).into_owned();
+                Some((text, consumed))
+            } else if valid_up_to > 0 {
+                let text = std::str::from_utf8(&bytes[..valid_up_to])
+                    .expect("valid_up_to must point to a valid UTF-8 prefix")
+                    .to_string();
+                Some((text, valid_up_to))
+            } else {
+                None
+            }
+        }
+    }
+}
+
+fn emit_stream_chunk(channel: &Channel<BridgeEvent>, pending_utf8: &mut Vec<u8>, chunk: &[u8]) {
+    if chunk.is_empty() {
+        return;
+    }
+
+    pending_utf8.extend_from_slice(chunk);
+
+    while let Some((text, consumed)) = split_valid_utf8_prefix(pending_utf8.as_slice()) {
+        pending_utf8.drain(..consumed);
+        if !text.is_empty() {
+            emit(channel, BridgeEvent::Data { data: text });
+        }
+    }
 }
 
 // ============================================
@@ -110,7 +151,12 @@ async fn connect_stream(
         Ok(r) => r,
         Err(e) => {
             let msg = format!("HTTP stream connection failed: {}", e);
-            emit(&on_event, BridgeEvent::Error { message: msg.clone() });
+            emit(
+                &on_event,
+                BridgeEvent::Error {
+                    message: msg.clone(),
+                },
+            );
             state.remove_if_current(&key, conn_id);
             return Err(msg);
         }
@@ -118,7 +164,12 @@ async fn connect_stream(
 
     if !response.status().is_success() {
         let msg = format!("HTTP stream server returned {}", response.status());
-        emit(&on_event, BridgeEvent::Error { message: msg.clone() });
+        emit(
+            &on_event,
+            BridgeEvent::Error {
+                message: msg.clone(),
+            },
+        );
         state.remove_if_current(&key, conn_id);
         return Err(msg);
     }
@@ -128,34 +179,45 @@ async fn connect_stream(
     // Read timeout — if no data arrives for 90s the connection is likely dead
     const READ_TIMEOUT: Duration = Duration::from_secs(90);
     let mut stream = response.bytes_stream();
+    let mut pending_utf8 = Vec::new();
 
     loop {
         // Check cancellation (disconnect or replaced by a new connect)
         if !state.is_current(&key, conn_id) {
-            emit(&on_event, BridgeEvent::Disconnected {
-                code: None,
-                reason: "Disconnected by client".to_string(),
-            });
+            emit(
+                &on_event,
+                BridgeEvent::Disconnected {
+                    code: None,
+                    reason: "Disconnected by client".to_string(),
+                },
+            );
             return Ok(());
         }
 
         match tokio::time::timeout(READ_TIMEOUT, stream.next()).await {
             Ok(Some(Ok(chunk))) => {
-                let text = String::from_utf8_lossy(&chunk).into_owned();
-                emit(&on_event, BridgeEvent::Data { data: text });
+                emit_stream_chunk(&on_event, &mut pending_utf8, chunk.as_ref());
             }
             Ok(Some(Err(e))) => {
                 let msg = format!("HTTP stream error: {}", e);
-                emit(&on_event, BridgeEvent::Error { message: msg.clone() });
+                emit(
+                    &on_event,
+                    BridgeEvent::Error {
+                        message: msg.clone(),
+                    },
+                );
                 state.remove_if_current(&key, conn_id);
                 return Err(msg);
             }
             Ok(None) => {
                 state.remove_if_current(&key, conn_id);
-                emit(&on_event, BridgeEvent::Disconnected {
-                    code: None,
-                    reason: "Stream ended".to_string(),
-                });
+                emit(
+                    &on_event,
+                    BridgeEvent::Disconnected {
+                        code: None,
+                        reason: "Stream ended".to_string(),
+                    },
+                );
                 return Ok(());
             }
             Err(_) => {
@@ -163,11 +225,48 @@ async fn connect_stream(
                     "HTTP stream read timeout ({}s without data)",
                     READ_TIMEOUT.as_secs()
                 );
-                emit(&on_event, BridgeEvent::Error { message: msg.clone() });
+                emit(
+                    &on_event,
+                    BridgeEvent::Error {
+                        message: msg.clone(),
+                    },
+                );
                 state.remove_if_current(&key, conn_id);
                 return Err(msg);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::split_valid_utf8_prefix;
+
+    #[test]
+    fn split_valid_utf8_prefix_waits_for_incomplete_chinese_bytes() {
+        let text = "中文A";
+        let bytes = text.as_bytes();
+
+        assert_eq!(split_valid_utf8_prefix(&bytes[..2]), None);
+        assert_eq!(
+            split_valid_utf8_prefix(&bytes[..3]),
+            Some(("中".to_string(), 3))
+        );
+        assert_eq!(
+            split_valid_utf8_prefix(bytes),
+            Some((text.to_string(), bytes.len()))
+        );
+    }
+
+    #[test]
+    fn split_valid_utf8_prefix_returns_valid_prefix_before_incomplete_tail() {
+        let mut bytes = "中文".as_bytes().to_vec();
+        bytes.extend_from_slice(&"世".as_bytes()[..2]);
+
+        assert_eq!(
+            split_valid_utf8_prefix(&bytes),
+            Some(("中文".to_string(), "中文".len()))
+        );
     }
 }
 
@@ -212,10 +311,17 @@ async fn connect_ws(
         Ok(result) => result,
         Err(error) => {
             let message = match error {
-                WsError::Http(response) => format!("WebSocket server returned {}", response.status()),
+                WsError::Http(response) => {
+                    format!("WebSocket server returned {}", response.status())
+                }
                 other => format!("WebSocket connection failed: {}", other),
             };
-            emit(&on_event, BridgeEvent::Error { message: message.clone() });
+            emit(
+                &on_event,
+                BridgeEvent::Error {
+                    message: message.clone(),
+                },
+            );
             state.remove_if_current(&key, conn_id);
             return Err(message);
         }

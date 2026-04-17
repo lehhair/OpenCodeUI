@@ -1,5 +1,28 @@
 # Changelog
 
+## [v0.5.3] - 2026-04-17
+
+- style: use distinct icons for settings tabs (9b2adb1)
+- fix: sanitize exported CSS snippet filenames safely (139725c)
+- fix: adapt token usage ring track to all themes (75f2ad4)
+- refactor: derive theme previews from preset tokens (720c426)
+- feat: add reusable CSS overrides for themes (eba9d1d)
+- refactor: split settings into agent and workspace tabs (b38ac6b)
+- feat: add configurable message completion timestamps (2f01c56)
+- feat: add model visibility settings (731efdd)
+- style: improve glass effect - thicker base, blur(22px), saturate(200%) (bd27ce1)
+- feat(themes): 新增Sakura、Ocean、Obsidian三款预设主题 (bfa449c)
+- feat(settings): 添加自定义CSS模板管理功能 (79db9f4)
+
+## [v0.5.2] - 2026-04-15
+
+- test: fix streamed event mock typing (92627ee)
+- fix: preserve UTF-8 text in streamed markdown updates (8d89ce4)
+- feat: add release update checks with about entry (closes #33) (e29a842)
+- fix: preserve files and changes panel state across tab switches (closes #63) (3d57dc9)
+- fix: allow pin toggle on selected model in desktop model selector (96e0ab2)
+- fix: remove mobile 16px font-size override so input matches message stream (9e1eb6e)
+
 ## [v0.5.1] - 2026-04-13
 
 - feat: show agent and model name in step finish info (closes #61) (7299319)

@@ -3,6 +3,7 @@
 // ============================================
 
 import { getApiBaseUrl, getAuthHeader } from './http'
+import { createSseTextParser } from './sse'
 import { normalizeTodoItems } from './todo'
 import { isTauri } from '../utils/tauri'
 import type { EventCallbacks, EventType, GlobalEvent, SessionErrorPayload, TodoUpdatedPayload } from './types'
@@ -222,9 +223,7 @@ async function connectViaTauri() {
     // 捕获当前连接代次，旧代次的事件一律丢弃
     const myGeneration = connectionGeneration
 
-    // SSE line parser state — Rust sends raw HTTP chunks, we parse SSE here
-    let sseBuffer = ''
-    const sseDataLines: string[] = []
+    const sseParser = createSseTextParser()
 
     const onEvent = new Channel<BridgeEvent>()
 
@@ -256,24 +255,10 @@ async function connectViaTauri() {
           resetHeartbeat()
           if (!msg.data?.data) break
 
-          // Parse raw SSE chunk — same logic as the browser branch
-          sseBuffer += msg.data.data
-          const lines = sseBuffer.split('\n')
-          sseBuffer = lines.pop() || ''
-
-          for (const rawLine of lines) {
-            const line = rawLine.endsWith('\r') ? rawLine.slice(0, -1) : rawLine
-
-            if (line.startsWith('data:')) {
-              const payload = line[5] === ' ' ? line.slice(6) : line.slice(5)
-              sseDataLines.push(payload)
-            } else if (line === '' && sseDataLines.length > 0) {
-              const eventData = sseDataLines.join('\n')
-              sseDataLines.length = 0
-              const globalEvent = parseGlobalEvent(eventData)
-              if (globalEvent) {
-                broadcastEvent(globalEvent)
-              }
+          for (const eventData of sseParser.push(msg.data.data)) {
+            const globalEvent = parseGlobalEvent(eventData)
+            if (globalEvent) {
+              broadcastEvent(globalEvent)
             }
           }
           break
@@ -376,7 +361,7 @@ function connectViaBrowser() {
       }
 
       const decoder = new TextDecoder()
-      let buffer = ''
+      const sseParser = createSseTextParser()
 
       while (true) {
         // 代次不匹配，说明已经 reconnect 过了，停止读取旧流
@@ -397,34 +382,11 @@ function connectViaBrowser() {
 
         resetHeartbeat()
 
-        buffer += decoder.decode(value, { stream: true })
-
-        const lines = buffer.split('\n')
-        buffer = lines.pop() || ''
-
-        // SSE spec: 多行 data 用 \n 拼接，空行触发 dispatch
-        const dataLines: string[] = []
-
-        for (const rawLine of lines) {
-          // 兼容 CRLF：剥掉尾部 \r
-          const line = rawLine.endsWith('\r') ? rawLine.slice(0, -1) : rawLine
-
-          if (line.startsWith('data:')) {
-            // SSE spec: "data:" 后面可以有可选空格
-            const payload = line[5] === ' ' ? line.slice(6) : line.slice(5)
-            dataLines.push(payload)
-          } else if (line === '') {
-            // 空行 = 事件结束，dispatch 已积累的 data
-            if (dataLines.length > 0) {
-              const eventData = dataLines.join('\n')
-              dataLines.length = 0
-              const globalEvent = parseGlobalEvent(eventData)
-              if (globalEvent) {
-                broadcastEvent(globalEvent)
-              }
-            }
+        for (const eventData of sseParser.push(decoder.decode(value, { stream: true }))) {
+          const globalEvent = parseGlobalEvent(eventData)
+          if (globalEvent) {
+            broadcastEvent(globalEvent)
           }
-          // SSE spec: 忽略 "event:", "id:", "retry:" 等其他字段（当前不需要）
         }
       }
     })

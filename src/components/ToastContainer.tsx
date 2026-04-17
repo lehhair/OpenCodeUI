@@ -16,7 +16,8 @@ import {
   type ToastItem,
   type NotificationType,
 } from '../store/notificationStore'
-import { CloseIcon, HandIcon, QuestionIcon, CheckIcon, AlertCircleIcon } from './Icons'
+import { hasUpdateAvailable, shouldShowUpdateToast, updateStore, useUpdateStore } from '../store/updateStore'
+import { CloseIcon, HandIcon, QuestionIcon, CheckIcon, AlertCircleIcon, DownloadIcon } from './Icons'
 
 // ============================================
 // 类型图标映射
@@ -86,9 +87,13 @@ function Toast({ item, onDismiss, onClick }: { item: ToastItem; onDismiss: () =>
 
       {/* Content */}
       <div className="min-w-0 flex-1">
-        <div className="text-[length:var(--fs-sm)] font-medium text-text-100 truncate leading-tight">{notification.title}</div>
+        <div className="text-[length:var(--fs-sm)] font-medium text-text-100 truncate leading-tight">
+          {notification.title}
+        </div>
         {notification.body && (
-          <div className="text-[length:var(--fs-xs)] text-text-300 truncate mt-0.5 leading-tight">{notification.body}</div>
+          <div className="text-[length:var(--fs-xs)] text-text-300 truncate mt-0.5 leading-tight">
+            {notification.body}
+          </div>
         )}
       </div>
 
@@ -107,6 +112,67 @@ function Toast({ item, onDismiss, onClick }: { item: ToastItem; onDismiss: () =>
   )
 }
 
+function UpdateToast({ onOpenAbout }: { onOpenAbout: () => void }) {
+  const { t } = useTranslation(['settings', 'common'])
+  const updateState = useUpdateStore()
+  const latestVersion = updateState.latestRelease?.tagName || `v${updateState.currentVersion}`
+  const show = shouldShowUpdateToast(updateState)
+  const [isVisible, setIsVisible] = useState(false)
+
+  useEffect(() => {
+    if (!show) {
+      setIsVisible(false)
+      return
+    }
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => setIsVisible(true))
+    })
+  }, [show])
+
+  if (!show || !hasUpdateAvailable(updateState)) return null
+
+  return (
+    <div
+      style={{
+        transition: 'all 250ms cubic-bezier(0.34, 1.15, 0.64, 1)',
+        opacity: isVisible ? 1 : 0,
+        transform: isVisible ? 'translateY(0) translateX(0)' : 'translateY(-8px) translateX(8px)',
+      }}
+      className="group relative flex items-center gap-2.5 p-3 glass border border-border-200/60 rounded-xl shadow-lg cursor-pointer hover:bg-bg-100/80 hover:border-border-300 transition-colors duration-150"
+      onClick={() => {
+        updateStore.hideToastForCurrentVersion()
+        onOpenAbout()
+      }}
+      role="status"
+    >
+      <div className="shrink-0 flex items-center justify-center w-6 h-6 rounded-md bg-info-bg">
+        <DownloadIcon size={14} className="text-info-100" />
+      </div>
+
+      <div className="min-w-0 flex-1">
+        <div className="text-[length:var(--fs-sm)] font-medium text-text-100 truncate leading-tight">
+          {t('about.toastTitle', { version: latestVersion })}
+        </div>
+        <div className="text-[length:var(--fs-xs)] text-text-300 truncate mt-0.5 leading-tight">
+          {t('about.toastBody')}
+        </div>
+      </div>
+
+      <button
+        className="shrink-0 flex items-center justify-center w-6 h-6 rounded-md text-text-400 hover:text-text-200 hover:bg-bg-200 transition-all duration-150 active:scale-90"
+        onClick={e => {
+          e.stopPropagation()
+          updateStore.dismissCurrentVersion()
+        }}
+        aria-label={t('common:dismiss')}
+      >
+        <CloseIcon size={12} />
+      </button>
+    </div>
+  )
+}
+
 // ============================================
 // Container — 平铺布局
 // ============================================
@@ -115,11 +181,14 @@ function Toast({ item, onDismiss, onClick }: { item: ToastItem; onDismiss: () =>
 // 点击 toast 跳转 session 并标记对应通知已读。
 // 2+ 条时右对齐显示 clear all 文字按钮。
 
-export function ToastContainer() {
+export function ToastContainer({ onOpenAbout }: { onOpenAbout: () => void }) {
   const { t } = useTranslation(['components', 'common'])
   const { toasts } = useNotificationStore()
 
-  if (toasts.length === 0) return null
+  const updateState = useUpdateStore()
+  const showUpdateToast = shouldShowUpdateToast(updateState)
+
+  if (!showUpdateToast && toasts.length === 0) return null
 
   const handleClick = (item: ToastItem) => {
     const { id, sessionId, directory } = item.notification
@@ -133,6 +202,8 @@ export function ToastContainer() {
 
   return (
     <div className="fixed top-3 right-3 left-3 md:left-auto md:w-80 z-50 flex flex-col gap-2">
+      <UpdateToast onOpenAbout={onOpenAbout} />
+
       {toasts.map(item => (
         <Toast
           key={item.notification.id}
