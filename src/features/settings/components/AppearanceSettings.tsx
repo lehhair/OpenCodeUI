@@ -4,6 +4,7 @@ import { Button } from '../../../components/ui/Button'
 import { SunIcon, MoonIcon, SystemIcon, CheckIcon } from '../../../components/Icons'
 import { Toggle, SegmentedControl, SettingRow, SettingsSection } from './SettingsUI'
 import { useTheme } from '../../../hooks'
+import { getThemePreset } from '../../../themes'
 import type { CustomCSSSnippet } from '../../../store/themeStore'
 import { FONT_SCALE_MIN, FONT_SCALE_MAX } from '../../../store/themeStore'
 import { saveData } from '../../../utils/downloadUtils'
@@ -12,14 +13,26 @@ import { saveData } from '../../../utils/downloadUtils'
 // Theme Preset Card
 // ============================================
 
-const PRESET_PREVIEW_COLORS: Record<string, { bg: string; accent: string; text: string }> = {
-  eucalyptus: { bg: '#f0f3f0', accent: '#4d9e82', text: '#1e2e28' },
-  claude: { bg: '#f3f0eb', accent: '#e87c2a', text: '#2d2a26' },
-  breeze: { bg: '#f3f5f7', accent: '#2ba5a5', text: '#212d36' },
-  sakura: { bg: '#fdf2f4', accent: '#e85a8b', text: '#2d1f24' },
-  ocean: { bg: '#f0f5fa', accent: '#2b6cb0', text: '#1a2433' },
-  obsidian: { bg: '#fcfcfc', accent: '#a88bfa', text: '#1a1a1a' },
-  custom: { bg: '#f0f0f0', accent: '#888888', text: '#333333' },
+const FALLBACK_PREVIEW_COLORS = {
+  bg: '#f0f0f0',
+  accent: '#888888',
+  text: '#333333',
+}
+
+function toCssHsl(token: string): string {
+  return `hsl(${token})`
+}
+
+function getPresetPreviewColors(id: string, resolvedTheme: 'light' | 'dark') {
+  const preset = getThemePreset(id)
+  if (!preset) return FALLBACK_PREVIEW_COLORS
+
+  const colors = resolvedTheme === 'dark' ? preset.dark : preset.light
+  return {
+    bg: toCssHsl(colors.background.bg100),
+    accent: toCssHsl(colors.accent.main100),
+    text: toCssHsl(colors.text.text100),
+  }
 }
 
 function getSnippetFileName(name: string): string {
@@ -36,14 +49,16 @@ function PresetCard({
   description,
   isActive,
   onClick,
+  resolvedTheme,
 }: {
   id: string
   name: string
   description: string
   isActive: boolean
   onClick: (e: React.MouseEvent) => void
+  resolvedTheme: 'light' | 'dark'
 }) {
-  const colors = PRESET_PREVIEW_COLORS[id] || PRESET_PREVIEW_COLORS.custom
+  const colors = getPresetPreviewColors(id, resolvedTheme)
   return (
     <button
       onClick={onClick}
@@ -476,6 +491,7 @@ export function AppearanceSettings() {
     mode: themeMode,
     setThemeWithAnimation,
     presetId,
+    resolvedTheme,
     setPresetWithAnimation,
     availablePresets,
     customCSS,
@@ -550,6 +566,7 @@ export function AppearanceSettings() {
                 description={p.description}
                 isActive={presetId === p.id}
                 onClick={e => setPresetWithAnimation(p.id, e)}
+                resolvedTheme={resolvedTheme}
               />
             ))}
           </div>
