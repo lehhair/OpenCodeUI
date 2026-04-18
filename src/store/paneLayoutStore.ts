@@ -304,6 +304,44 @@ function createPaneLayoutStore() {
     },
 
     /**
+     * Split a pane placing the new leaf on a specific side relative to the target.
+     * - left/top:  new leaf becomes `first`  (old pane shifts right/down)
+     * - right/bottom: new leaf becomes `second` (old pane stays put)
+     * Direction is derived from the side.
+     * Returns the new pane id, or null if target not found.
+     */
+    splitPaneToSide(
+      targetPaneId: string,
+      side: 'top' | 'bottom' | 'left' | 'right',
+      newSessionId: string | null,
+    ): string | null {
+      const leaf = findLeaf(_root, targetPaneId)
+      if (!leaf) return null
+
+      const direction: 'horizontal' | 'vertical' = side === 'left' || side === 'right' ? 'horizontal' : 'vertical'
+      const newLeaf: PaneLeaf = { type: 'leaf', id: genPaneId(), sessionId: newSessionId }
+      const existing: PaneLeaf = { ...leaf }
+      const newIsFirst = side === 'left' || side === 'top'
+
+      const split: PaneSplit = {
+        type: 'split',
+        id: genSplitId(),
+        direction,
+        ratio: 0.5,
+        first: newIsFirst ? newLeaf : existing,
+        second: newIsFirst ? existing : newLeaf,
+      }
+
+      _root = replaceNode(_root, targetPaneId, split)
+      _focusedPaneId = newLeaf.id
+      if (_fullscreenPaneId === targetPaneId) {
+        _fullscreenPaneId = null
+      }
+      _refreshSnapshot()
+      return newLeaf.id
+    },
+
+    /**
      * Close a pane. Its sibling takes its parent's place.
      * If it's the last pane, we exit split mode (root becomes the single leaf).
      */

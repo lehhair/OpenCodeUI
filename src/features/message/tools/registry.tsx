@@ -260,7 +260,7 @@ function editExtractData(part: ToolPart): ExtractedToolData {
 export const toolRegistry: ToolRegistry = [
   // Bash / Terminal
   {
-    match: includes('bash', 'sh', 'cmd', 'terminal', 'shell'),
+    match: (name: string) => includes('bash', 'cmd', 'terminal', 'shell')(name) || exact('sh')(name),
     icon: <TerminalIcon />,
     extractData: bashExtractData,
     renderer: BashRenderer,

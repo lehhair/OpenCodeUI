@@ -1,5 +1,23 @@
 # Changelog
 
+## [v0.5.5] - 2026-04-18
+
+- fix: remove redundant *Single i18n keys — let i18next handle count=1 natively (9385ef8)
+- style: match pane drop highlight radius to pane shell (rounded-lg) (f8acac2)
+- feat: enable drag-to-split on active session list items (ac20b7b)
+
+## [v0.5.4] - 2026-04-18
+
+- polish: pane drop overlay — drop text labels, harden edge cases (2be4c13)
+- perf: keep pane drop overlay state out of ChatPane re-render path (17025ad)
+- feat: drag sessions onto chat pane to split or replace (e413864)
+- fix: add keyboard shortcuts to question dialogs (send keybinding to submit, Escape to skip) (dc83e0e)
+- fix: narrow shell tool detection to exact 'sh' match across all matchers (f534454)
+- Update zh-CN usage stats labels to English (074878e)
+- fix: distinguish file writes in tool summary (2f25e93)
+- fix: refine message tool summary wording (1d41542)
+- fix: guard session error without sessionID (2166183)
+
 ## [v0.5.3] - 2026-04-17
 
 - style: use distinct icons for settings tabs (9b2adb1)

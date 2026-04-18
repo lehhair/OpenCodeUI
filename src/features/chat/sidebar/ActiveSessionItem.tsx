@@ -42,8 +42,25 @@ export function ActiveSessionItem({ entry, resolvedSession, isSelected, onSelect
     // 用户可以等 session 数据加载完，或从 Recents tab 找到
   }
 
+  // 拖拽到主信息流进行分屏 / 替换会话
+  // 和 SessionListItem 使用完全一致的 dataTransfer 格式，ChatPane 的 drop handler 能识别
+  const isDraggable = !!resolvedSession
+  const handleDragStart = (e: React.DragEvent) => {
+    if (!isDraggable) {
+      e.preventDefault()
+      return
+    }
+    e.dataTransfer.setData('text/x-session-id', entry.sessionId)
+    if (directory) {
+      e.dataTransfer.setData('text/x-session-directory', directory)
+    }
+    e.dataTransfer.effectAllowed = 'move'
+  }
+
   return (
     <div
+      draggable={isDraggable}
+      onDragStart={handleDragStart}
       onClick={handleClick}
       className={`group relative flex items-center gap-2.5 px-3 py-2 rounded-lg cursor-default transition-all duration-200 border border-transparent ${
         isSelected ? 'bg-bg-000 shadow-sm ring-1 ring-border-200/50' : 'hover:bg-bg-200/50'

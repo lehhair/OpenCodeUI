@@ -174,7 +174,9 @@ export function SessionList({
           </div>
         ) : sessions.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-text-400 opacity-60">
-            <p className="text-[length:var(--fs-sm)]">{search ? t('common:noMatchesFound') : t('sessions.noChatsYet')}</p>
+            <p className="text-[length:var(--fs-sm)]">
+              {search ? t('common:noMatchesFound') : t('sessions.noChatsYet')}
+            </p>
           </div>
         ) : showGroups ? (
           // Grouped View
@@ -469,6 +471,21 @@ export function SessionListItem({
     e.stopPropagation()
   }
 
+  // 拖拽会话到主信息流进行分屏 / 替换会话
+  const handleDragStart = (e: React.DragEvent) => {
+    if (isEditMode || isEditing) {
+      e.preventDefault()
+      return
+    }
+    e.dataTransfer.setData('text/x-session-id', session.id)
+    if (session.directory) {
+      e.dataTransfer.setData('text/x-session-directory', session.directory)
+    }
+    e.dataTransfer.effectAllowed = 'move'
+  }
+
+  const isDraggable = !isEditMode && !isEditing
+
   if (isEditing) {
     return (
       <div className={isMinimal ? 'px-2 py-0.5' : 'px-3 py-2'}>
@@ -481,7 +498,9 @@ export function SessionListItem({
           onKeyDown={handleKeyDown}
           onClick={e => e.stopPropagation()}
           className={`w-full bg-bg-000 border border-accent-main-100/50 rounded px-2 text-text-100 focus:outline-none focus:ring-1 focus:ring-accent-main-100/30 ${
-            isMinimal ? 'py-0.5 text-[length:var(--fs-sm)] leading-normal' : 'py-1.5 text-[length:var(--fs-base)] leading-relaxed'
+            isMinimal
+              ? 'py-0.5 text-[length:var(--fs-sm)] leading-normal'
+              : 'py-1.5 text-[length:var(--fs-base)] leading-relaxed'
           }`}
         />
       </div>
@@ -503,6 +522,8 @@ export function SessionListItem({
     return (
       <div
         ref={itemRef}
+        draggable={isDraggable}
+        onDragStart={handleDragStart}
         onClick={handleClick}
         onTouchStart={isEditMode ? undefined : handleTouchStart}
         onTouchMove={isEditMode ? undefined : handleTouchMove}
@@ -556,7 +577,10 @@ export function SessionListItem({
           }`}
         >
           {/* 标题 */}
-          <span className="min-w-0 flex-1 truncate text-[length:var(--fs-sm)]" title={session.title || t('sessions.untitledChat')}>
+          <span
+            className="min-w-0 flex-1 truncate text-[length:var(--fs-sm)]"
+            title={session.title || t('sessions.untitledChat')}
+          >
             {session.title || t('sessions.untitledChat')}
           </span>
 
@@ -617,6 +641,8 @@ export function SessionListItem({
   return (
     <div
       ref={itemRef}
+      draggable={isDraggable}
+      onDragStart={handleDragStart}
       onClick={handleClick}
       onTouchStart={isEditMode ? undefined : handleTouchStart}
       onTouchMove={isEditMode ? undefined : handleTouchMove}

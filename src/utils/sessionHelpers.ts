@@ -27,13 +27,9 @@ export function restoreModelSelection(
     return null
   }
 
-  // 优先精确匹配 providerId + modelId
-  let model = models.find(m => m.providerId === lastModel.providerID && m.id === lastModel.modelID)
-
-  // 如果精确匹配失败，尝试只匹配 modelID（向后兼容）
-  if (!model) {
-    model = models.find(m => m.id === lastModel.modelID)
-  }
+  // 精确匹配 providerId + modelId（不做 modelID-only fallback，
+  // 避免多 provider 同 modelId 时选错渠道）
+  const model = models.find(m => m.providerId === lastModel.providerID && m.id === lastModel.modelID)
 
   if (!model) {
     return null

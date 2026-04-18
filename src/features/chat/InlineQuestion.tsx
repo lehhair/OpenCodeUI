@@ -8,6 +8,7 @@ import { memo, useState, useCallback, useRef, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { CheckIcon } from '../../components/Icons'
 import type { ApiQuestionRequest, ApiQuestionInfo, QuestionAnswer } from '../../api'
+import { keybindingStore, matchesKeybinding } from '../../store/keybindingStore'
 
 interface InlineQuestionProps {
   request: ApiQuestionRequest
@@ -115,8 +116,27 @@ export const InlineQuestion = memo(function InlineQuestion({
     return selected.size > 0 || (isCustom && !!customValue)
   })
 
+  // 键盘快捷键：和主输入框一致的 send keybinding 提交，Escape 跳过
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        onReject(request.id)
+        return
+      }
+      const sendKey = keybindingStore.getKey('sendMessage')
+      if (sendKey && matchesKeybinding(e.nativeEvent, sendKey)) {
+        e.preventDefault()
+        if (canSubmit && !isReplying) {
+          handleSubmit()
+        }
+      }
+    },
+    [onReject, request.id, canSubmit, isReplying, handleSubmit],
+  )
+
   return (
-    <div className="space-y-2">
+    <div className="space-y-2" onKeyDown={handleKeyDown}>
       {/* 问题列表 */}
       <div className="space-y-3">
         {request.questions.map((question, qIdx) => (
@@ -206,7 +226,9 @@ function InlineQuestionItem({
     <div className="space-y-2">
       {/* 问题文字 */}
       <div>
-        {question.header && <div className="text-[length:var(--fs-xs)] text-text-400 font-medium mb-0.5">{question.header}</div>}
+        {question.header && (
+          <div className="text-[length:var(--fs-xs)] text-text-400 font-medium mb-0.5">{question.header}</div>
+        )}
         <div className="text-[length:var(--fs-md)] text-text-100">{question.question}</div>
       </div>
 

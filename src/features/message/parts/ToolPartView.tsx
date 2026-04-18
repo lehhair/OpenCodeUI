@@ -406,7 +406,7 @@ export const ToolPartView = memo(function ToolPartView({
 // ============================================
 
 /** 用户需要阅读/交互的工具 */
-const READABLE_TOOL_PATTERNS = /bash|sh|cmd|terminal|shell|write|save|edit|replace|patch|todo|question|ask/i
+const READABLE_TOOL_PATTERNS = /bash|\bsh\b|cmd|terminal|shell|write|save|edit|replace|patch|todo|question|ask/i
 
 function isReadableTool(toolName: string): boolean {
   return READABLE_TOOL_PATTERNS.test(toolName.toLowerCase())

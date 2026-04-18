@@ -60,7 +60,7 @@ export const StepFinishPartView = memo(function StepFinishPartView({
           className="text-text-600"
           title={`${t('stepFinish.cacheRead', { read: tokens.cache.read })}, ${t('stepFinish.cacheWrite', { write: tokens.cache.write })}`}
         >
-          ({t('stepFinish.cached', { count: cacheHit })})
+          ({t('stepFinish.cached', { count: formatNumber(cacheHit) })})
         </span>
       )}
       {show.cost && cost > 0 && <span>{formatCost(cost)}</span>}

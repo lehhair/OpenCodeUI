@@ -4,6 +4,7 @@ import { QuestionIcon, CheckIcon, ReturnIcon, ChevronDownIcon } from '../../comp
 import type { ApiQuestionRequest, ApiQuestionInfo, QuestionAnswer } from '../../api'
 import { usePresence } from '../../hooks'
 import { useChatViewport } from './chatViewport'
+import { keybindingStore, matchesKeybinding } from '../../store/keybindingStore'
 
 interface QuestionDialogProps {
   request: ApiQuestionRequest
@@ -149,6 +150,27 @@ export function QuestionDialog({
     }
   })
 
+  // 键盘快捷键：和主输入框一致的 send keybinding 提交，Escape 跳过
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      // Escape → 跳过
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        onReject()
+        return
+      }
+      // send keybinding → 提交（仅在可提交时）
+      const sendKey = keybindingStore.getKey('sendMessage')
+      if (sendKey && matchesKeybinding(e.nativeEvent, sendKey)) {
+        e.preventDefault()
+        if (canSubmit && !isReplying) {
+          handleSubmit()
+        }
+      }
+    },
+    [onReject, canSubmit, isReplying, handleSubmit],
+  )
+
   // 弹出/收起动画
   const { shouldRender, ref: animRef } = usePresence<HTMLDivElement>(!collapsed, {
     from: { opacity: 0, transform: 'translateY(16px)' },
@@ -159,7 +181,7 @@ export function QuestionDialog({
   if (!shouldRender) return null
 
   return (
-    <div ref={animRef} className="absolute bottom-0 left-0 right-0 z-[10]">
+    <div ref={animRef} className="absolute bottom-0 left-0 right-0 z-[10]" onKeyDown={handleKeyDown}>
       <div
         className="mx-auto max-w-3xl pointer-events-auto transition-[max-width] duration-300 ease-in-out pb-2"
         style={{
@@ -176,7 +198,9 @@ export function QuestionDialog({
                 <div className="flex items-center justify-center text-text-100 w-5 h-5">
                   <QuestionIcon />
                 </div>
-                <h3 className="text-[length:var(--fs-base)] leading-none font-medium text-text-100">{t('questionDialog.title')}</h3>
+                <h3 className="text-[length:var(--fs-base)] leading-none font-medium text-text-100">
+                  {t('questionDialog.title')}
+                </h3>
                 {queueLength > 1 && (
                   <span className="text-[length:var(--fs-sm)] text-text-400 bg-bg-200 px-1.5 py-0.5 rounded">
                     {t('questionDialog.moreCount', { count: queueLength - 1 })}
@@ -316,7 +340,9 @@ function QuestionItem({
 
               <div className="flex-1 min-w-0">
                 <span className="text-[length:var(--fs-base)] text-text-100">{option.label}</span>
-                {option.description && <p className="text-[length:var(--fs-sm)] text-text-400 mt-0.5">{option.description}</p>}
+                {option.description && (
+                  <p className="text-[length:var(--fs-sm)] text-text-400 mt-0.5">{option.description}</p>
+                )}
               </div>
             </button>
           )
