@@ -65,13 +65,6 @@
     "minimize": "Minimize",
     "typeYourAnswer": "Type your own answer..."
   },
-  "paneDrop": {
-    "replace": "Replace session",
-    "splitLeft": "Split left",
-    "splitRight": "Split right",
-    "splitTop": "Split top",
-    "splitBottom": "Split bottom"
-  },
   "permissionDialog": {
     "permission": "Permission: {{permission}}",
     "moreCount": "+{{count}} more",

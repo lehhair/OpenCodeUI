@@ -65,13 +65,6 @@
     "minimize": "最小化",
     "typeYourAnswer": "输入你的回答..."
   },
-  "paneDrop": {
-    "replace": "替换会话",
-    "splitLeft": "向左分屏",
-    "splitRight": "向右分屏",
-    "splitTop": "向上分屏",
-    "splitBottom": "向下分屏"
-  },
   "permissionDialog": {
     "permission": "权限：{{permission}}",
     "moreCount": "还有 {{count}} 个",

@@ -410,11 +410,16 @@ export const ChatPane = memo(function ChatPane({
   // re-rendering ChatPane on each move is very expensive once several panes
   // exist (ChatArea / messages / hooks). rAF also throttles DOM writes to one
   // per frame for smoothness.
+  //
+  // Zone resolution has two refs on purpose:
+  //   - pendingZoneRef: written synchronously by every dragover (most recent)
+  //   - currentZoneRef: what the overlay is actually showing (written by rAF)
+  // drop() prefers the pending value so it never loses a last-frame move.
   // ============================================
   const overlayRef = useRef<PaneDropOverlayHandle>(null)
   const currentZoneRef = useRef<DropZone | null>(null)
-  const dropRafRef = useRef<number | null>(null)
   const pendingZoneRef = useRef<DropZone | null>(null)
+  const dropRafRef = useRef<number | null>(null)
 
   const writeZone = useCallback((zone: DropZone | null) => {
     if (currentZoneRef.current === zone) return
@@ -430,11 +435,21 @@ export const ChatPane = memo(function ChatPane({
     pendingZoneRef.current = null
   }, [])
 
+  const resetDropState = useCallback(() => {
+    cancelPendingZone()
+    writeZone(null)
+  }, [cancelPendingZone, writeZone])
+
+  // Drag end can fire on the source (SessionListItem) — we listen globally so
+  // the overlay always clears even if the user aborts with ESC inside the pane.
   useEffect(() => {
+    const handleGlobalDragEnd = () => resetDropState()
+    window.addEventListener('dragend', handleGlobalDragEnd)
     return () => {
+      window.removeEventListener('dragend', handleGlobalDragEnd)
       if (dropRafRef.current !== null) cancelAnimationFrame(dropRafRef.current)
     }
-  }, [])
+  }, [resetDropState])
 
   const readSessionDragPayload = useCallback((e: React.DragEvent): { sessionId: string; directory: string } | null => {
     if (!e.dataTransfer.types.includes('text/x-session-id')) return null
@@ -472,17 +487,17 @@ export const ChatPane = memo(function ChatPane({
       // Ignore bubbles that stay within the pane
       const related = e.relatedTarget as Node | null
       if (related && e.currentTarget.contains(related)) return
-      cancelPendingZone()
-      writeZone(null)
+      resetDropState()
     },
-    [cancelPendingZone, writeZone],
+    [resetDropState],
   )
 
   const handlePaneDrop = useCallback(
     (e: React.DragEvent<HTMLDivElement>) => {
-      cancelPendingZone()
-      const zone = currentZoneRef.current
-      writeZone(null)
+      // Prefer pending (freshly-written by the last dragover) over current
+      // (what rAF had a chance to commit) so we never miss a last-frame move.
+      const zone = pendingZoneRef.current ?? currentZoneRef.current
+      resetDropState()
 
       const payload = readSessionDragPayload(e)
       if (!payload || !zone) return
@@ -502,7 +517,7 @@ export const ChatPane = memo(function ChatPane({
         navigatePaneToSession(newPaneId, payload.sessionId, payload.directory || undefined)
       }
     },
-    [paneId, routeSessionId, navigatePaneToSession, readSessionDragPayload, cancelPendingZone, writeZone],
+    [paneId, routeSessionId, navigatePaneToSession, readSessionDragPayload, resetDropState],
   )
 
   const handleToggleFullAuto = useCallback(() => {

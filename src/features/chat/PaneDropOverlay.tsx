@@ -8,13 +8,16 @@
  *   (`setZone`), so high-frequency dragover events do NOT re-render the
  *   expensive ChatPane subtree — only this tiny overlay re-renders.
  *
+ * Visual:
+ * - Pure visual highlight (no text labels). Follows VS Code / JetBrains
+ *   conventions where the mouse is the user's focal point during a drag.
+ *
  * Hit testing:
  * - Center rectangle: inner 40% x 40% of the pane → replace session
  * - Outside: closest edge by normalized distance → split to that side
  */
 
 import { forwardRef, memo, useImperativeHandle, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 export type DropZone = 'top' | 'bottom' | 'left' | 'right' | 'center'
 
@@ -68,15 +71,12 @@ export function resolveDropZone(point: DropPoint | null): DropZone | null {
  * is `pointer-events: none` so it does NOT interfere with normal UI clicks.
  */
 export const PaneDropOverlay = forwardRef<PaneDropOverlayHandle>(function PaneDropOverlay(_props, ref) {
-  const { t } = useTranslation('chat')
   const [activeZone, setActiveZone] = useState<DropZone | null>(null)
 
   useImperativeHandle(
     ref,
     () => ({
       setZone(zone: DropZone | null) {
-        // Functional update keeps us from reading stale state and avoids a render
-        // when the zone hasn't actually changed.
         setActiveZone(prev => (prev === zone ? prev : zone))
       },
     }),
@@ -85,21 +85,10 @@ export const PaneDropOverlay = forwardRef<PaneDropOverlayHandle>(function PaneDr
 
   if (!activeZone) return null
 
-  const label =
-    activeZone === 'center'
-      ? t('paneDrop.replace')
-      : activeZone === 'top'
-        ? t('paneDrop.splitTop')
-        : activeZone === 'bottom'
-          ? t('paneDrop.splitBottom')
-          : activeZone === 'left'
-            ? t('paneDrop.splitLeft')
-            : t('paneDrop.splitRight')
-
-  return <DropZoneVisual zone={activeZone} label={label} />
+  return <DropZoneVisual zone={activeZone} />
 })
 
-const DropZoneVisual = memo(function DropZoneVisual({ zone, label }: { zone: DropZone; label: string }) {
+const DropZoneVisual = memo(function DropZoneVisual({ zone }: { zone: DropZone }) {
   const highlightStyle: React.CSSProperties = (() => {
     switch (zone) {
       case 'center':
@@ -117,16 +106,10 @@ const DropZoneVisual = memo(function DropZoneVisual({ zone, label }: { zone: Dro
 
   return (
     <div className="pointer-events-none absolute inset-0 z-30">
-      <div className="absolute inset-0 bg-bg-000/10" />
       <div
         className="absolute rounded-md border-2 border-accent-main-100 bg-accent-main-100/15 transition-[left,top,width,height] duration-150 ease-out"
         style={highlightStyle}
       />
-      <div className="absolute inset-0 flex items-center justify-center">
-        <span className="px-3 py-1 rounded-md bg-bg-100/90 border border-border-200/60 text-[length:var(--fs-sm)] text-text-100 font-medium shadow-sm">
-          {label}
-        </span>
-      </div>
     </div>
   )
 })
