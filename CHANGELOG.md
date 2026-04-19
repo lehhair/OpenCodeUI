@@ -1,5 +1,12 @@
 # Changelog
 
+## [v0.5.6] - 2026-04-19
+
+- chore: sync Tauri app icons from web opencode.svg (f792218)
+- polish: slim desktop titlebar down to minimal app chrome (375e8d1)
+- feat: add platform-aware desktop titlebar foundation (43fa2da)
+- fix: prevent model selector from jumping to wrong provider on split (5b33360)
+
 ## [v0.5.5] - 2026-04-18
 
 - fix: remove redundant *Single i18n keys — let i18next handle count=1 natively (9385ef8)
