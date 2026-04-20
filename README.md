@@ -288,8 +288,40 @@ npm run release:prepare -- 0.2.0
 
 ```bash
 npm install
-npm run tauri build
+npm run tauri:build
 ```
+
+### macOS 构建说明
+
+在 macOS 上建议先安装 Xcode Command Line Tools：
+
+```bash
+xcode-select --install
+```
+
+然后使用专用命令构建 `.app` 和 `.dmg`：
+
+```bash
+npm run tauri:build:mac
+```
+
+构建产物位于 `src-tauri/target/release/bundle/`。
+
+说明：该命令默认启用 `CI=true`，会跳过 Finder 美化步骤，提升本地 DMG 打包稳定性。
+
+### macOS 签名与公证（GitHub Actions，可选）
+
+仓库的 `release.yml` 已支持 macOS 构建时读取 Apple 签名/公证环境变量。
+如果未配置这些 Secrets，仍会产出未签名的 macOS 安装包。
+
+可选 Secrets：
+
+- `APPLE_CERTIFICATE`（base64 的 `.p12` 证书）
+- `APPLE_CERTIFICATE_PASSWORD`
+- `APPLE_SIGNING_IDENTITY`
+- `APPLE_ID`
+- `APPLE_PASSWORD`（App 专用密码）
+- `APPLE_TEAM_ID`
 
 ## 项目结构
 

@@ -288,8 +288,40 @@ Download the installer from [Releases](https://github.com/lehhair/OpenCodeUI/rel
 
 ```bash
 npm install
-npm run tauri build
+npm run tauri:build
 ```
+
+### macOS Build Notes
+
+On macOS, install Xcode Command Line Tools first:
+
+```bash
+xcode-select --install
+```
+
+Then use the macOS-specific command to build both `.app` and `.dmg`:
+
+```bash
+npm run tauri:build:mac
+```
+
+Build artifacts are generated under `src-tauri/target/release/bundle/`.
+
+Note: this script enables `CI=true` by default, which skips Finder styling steps and makes local DMG packaging more reliable.
+
+### macOS Signing and Notarization (GitHub Actions, Optional)
+
+The repository `release.yml` already supports reading Apple signing/notarization variables during macOS builds.
+If these Secrets are not configured, the workflow still produces unsigned macOS artifacts.
+
+Optional Secrets:
+
+- `APPLE_CERTIFICATE` (base64 encoded `.p12` certificate)
+- `APPLE_CERTIFICATE_PASSWORD`
+- `APPLE_SIGNING_IDENTITY`
+- `APPLE_ID`
+- `APPLE_PASSWORD` (app-specific password)
+- `APPLE_TEAM_ID`
 
 ## Project Structure
 

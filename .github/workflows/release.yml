@@ -68,6 +68,16 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         with:
           args: ${{ matrix.args }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Optional macOS signing/notarization secrets.
+          # If not provided, macOS artifacts are built unsigned.
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
 
       - name: Prepare artifacts
         shell: bash
@@ -82,6 +92,11 @@ jobs:
             find "$BUNDLE_DIR/nsis" -name "*.exe" -exec cp {} release-artifacts/ \; 2>/dev/null || true
           elif [[ "${{ matrix.os }}" == "macos" ]]; then
             find "$BUNDLE_DIR/dmg" -name "*.dmg" -exec cp {} release-artifacts/ \; 2>/dev/null || true
+            APP_PATH=$(find "$BUNDLE_DIR/macos" -name "*.app" -type d 2>/dev/null | head -1)
+            if [[ -n "$APP_PATH" ]]; then
+              APP_NAME=$(basename "$APP_PATH" .app)
+              ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "release-artifacts/${APP_NAME}-${{ github.ref_name }}-${{ matrix.arch }}.app.zip"
+            fi
           elif [[ "${{ matrix.os }}" == "linux" ]]; then
             find "$BUNDLE_DIR/deb" -name "*.deb" -exec cp {} release-artifacts/ \; 2>/dev/null || true
             find "$BUNDLE_DIR/appimage" -name "*.AppImage" -exec cp {} release-artifacts/ \; 2>/dev/null || true
@@ -225,7 +240,7 @@ jobs:
             BODY="No changelog entry found for ${TAG}."
           fi
           echo "$BODY" > /tmp/release-body.md
-          printf '\n---\n\n**Desktop:** Windows (.exe), macOS (.dmg), Linux (.deb, .AppImage)\n**Mobile:** Android (.apk) — arm64, armeabi-v7a\n' >> /tmp/release-body.md
+          printf '\n---\n\n**Desktop:** Windows (.exe), macOS (.dmg, .app.zip), Linux (.deb, .AppImage)\n**Mobile:** Android (.apk) — arm64, armeabi-v7a\n' >> /tmp/release-body.md
 
       - name: Create Release
         uses: softprops/action-gh-release@v2

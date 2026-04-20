@@ -9,7 +9,7 @@
     "typecheck": "tsc -b",
     "type-check": "npm run typecheck",
     "build": "tsc -b && vite build",
-    "icons:tauri": "tauri icon public/opencode.svg -o src-tauri/icons",
+    "icons:tauri": "npx tauri icon public/opencode.svg -o src-tauri/icons",
     "lint": "eslint .",
     "format": "prettier . --write",
     "format:check": "prettier . --check",
@@ -19,7 +19,10 @@
     "release:prepare": "node scripts/prepare-release.mjs",
     "check": "npm run format:check && npm run lint && npm run test:run && npm run build",
     "preview": "vite preview",
-    "tauri": "tauri",
+    "tauri": "npx tauri",
+    "tauri:dev": "npx tauri dev",
+    "tauri:build": "npx tauri build",
+    "tauri:build:mac": "CI=true npx tauri build --bundles app,dmg",
     "postinstall": "node scripts/copy-material-icons.mjs"
   },
   "dependencies": {
