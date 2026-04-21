@@ -37,6 +37,14 @@ export interface SoundSettings {
   events: Record<NotificationType, EventSoundConfig>
 }
 
+export interface BackupCustomAudioItem {
+  base64: string
+  mimeType: string
+  fileName?: string
+}
+
+export type BackupCustomAudioMap = Partial<Record<NotificationType, BackupCustomAudioItem>>
+
 type Subscriber = () => void
 
 // ============================================
@@ -110,6 +118,30 @@ function saveSettings(settings: SoundSettings) {
   } catch {
     // quota exceeded
   }
+}
+
+function blobToBase64(blob: Blob): Promise<string> {
+  return blob.arrayBuffer().then(buffer => {
+    let binary = ''
+    const bytes = new Uint8Array(buffer)
+    const chunkSize = 0x8000
+
+    for (let index = 0; index < bytes.length; index += chunkSize) {
+      const chunk = bytes.subarray(index, index + chunkSize)
+      binary += String.fromCharCode(...chunk)
+    }
+
+    return btoa(binary)
+  })
+}
+
+function base64ToBlob(base64: string, mimeType: string): Blob {
+  const binary = atob(base64)
+  const bytes = new Uint8Array(binary.length)
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index)
+  }
+  return new Blob([bytes], { type: mimeType || 'application/octet-stream' })
 }
 
 // ============================================
@@ -356,6 +388,44 @@ class SoundStore {
     a.click()
     document.body.removeChild(a)
     URL.revokeObjectURL(url)
+  }
+
+  async exportCustomAudioForBackup(): Promise<BackupCustomAudioMap> {
+    const exported: BackupCustomAudioMap = {}
+    const types: NotificationType[] = ['completed', 'permission', 'question', 'error']
+
+    for (const type of types) {
+      const blob = await this.getCustomAudioBlobAsync(type)
+      if (!blob) continue
+      exported[type] = {
+        base64: await blobToBase64(blob),
+        mimeType: blob.type || 'application/octet-stream',
+        fileName: this.settings.events[type].customFileName,
+      }
+    }
+
+    return exported
+  }
+
+  async importCustomAudioFromBackup(customAudio: BackupCustomAudioMap): Promise<void> {
+    const types: NotificationType[] = ['completed', 'permission', 'question', 'error']
+
+    for (const type of types) {
+      const item = customAudio[type]
+      if (!item) {
+        try {
+          await idbDelete(`custom-${type}`)
+        } catch {
+          // ignore restore cleanup failures
+        }
+        this.customAudioCache.delete(type)
+        continue
+      }
+
+      const blob = base64ToBlob(item.base64, item.mimeType)
+      await idbPut(`custom-${type}`, blob)
+      this.customAudioCache.set(type, blob)
+    }
   }
 
   /** 异步获取自定义音频（如果缓存没有，从 IDB 加载） */
