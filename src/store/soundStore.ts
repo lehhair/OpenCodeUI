@@ -37,6 +37,19 @@ export interface SoundSettings {
   events: Record<NotificationType, EventSoundConfig>
 }
 
+export interface BackupCustomAudioItem {
+  base64: string
+  mimeType: string
+  fileName?: string
+}
+
+export type BackupCustomAudioMap = Partial<Record<NotificationType, BackupCustomAudioItem>>
+
+export interface SoundBackup {
+  settings: SoundSettings
+  customAudio: BackupCustomAudioMap
+}
+
 type Subscriber = () => void
 
 // ============================================
@@ -66,6 +79,14 @@ function createDefaultSettings(): SoundSettings {
   }
 }
 
+function normalizeEventConfig(type: NotificationType, parsedEvent: unknown): EventSoundConfig {
+  const event = parsedEvent && typeof parsedEvent === 'object' ? (parsedEvent as Record<string, unknown>) : undefined
+  return {
+    soundId: typeof event?.soundId === 'string' ? event.soundId : DEFAULT_SOUNDS[type],
+    customFileName: typeof event?.customFileName === 'string' ? event.customFileName : undefined,
+  }
+}
+
 // ============================================
 // localStorage helpers
 // ============================================
@@ -85,10 +106,10 @@ function loadSettings(): SoundSettings {
           : defaults.currentSessionEnabled,
       volume: typeof parsed.volume === 'number' ? Math.max(0, Math.min(100, parsed.volume)) : defaults.volume,
       events: {
-        completed: parsed.events?.completed || defaults.events.completed,
-        permission: parsed.events?.permission || defaults.events.permission,
-        question: parsed.events?.question || defaults.events.question,
-        error: parsed.events?.error || defaults.events.error,
+        completed: normalizeEventConfig('completed', parsed.events?.completed),
+        permission: normalizeEventConfig('permission', parsed.events?.permission),
+        question: normalizeEventConfig('question', parsed.events?.question),
+        error: normalizeEventConfig('error', parsed.events?.error),
       },
     }
   } catch {
@@ -102,6 +123,30 @@ function saveSettings(settings: SoundSettings) {
   } catch {
     // quota exceeded
   }
+}
+
+function blobToBase64(blob: Blob): Promise<string> {
+  return blob.arrayBuffer().then(buffer => {
+    let binary = ''
+    const bytes = new Uint8Array(buffer)
+    const chunkSize = 0x8000
+
+    for (let index = 0; index < bytes.length; index += chunkSize) {
+      const chunk = bytes.subarray(index, index + chunkSize)
+      binary += String.fromCharCode(...chunk)
+    }
+
+    return btoa(binary)
+  })
+}
+
+function base64ToBlob(base64: string, mimeType: string): Blob {
+  const binary = atob(base64)
+  const bytes = new Uint8Array(binary.length)
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index)
+  }
+  return new Blob([bytes], { type: mimeType || 'application/octet-stream' })
 }
 
 // ============================================
@@ -205,7 +250,9 @@ class SoundStore {
   }
 
   private notify() {
-    this.subscribers.forEach(cb => cb())
+    this.subscribers.forEach(cb => {
+      cb()
+    })
   }
 
   private persist() {
@@ -282,6 +329,7 @@ class SoundStore {
         events: {
           ...this.settings.events,
           [type]: {
+            ...this.settings.events[type],
             soundId: 'custom',
             customFileName: file.name,
           },
@@ -312,6 +360,7 @@ class SoundStore {
       events: {
         ...this.settings.events,
         [type]: {
+          ...this.settings.events[type],
           soundId: DEFAULT_SOUNDS[type],
           customFileName: undefined,
         },
@@ -344,6 +393,44 @@ class SoundStore {
     a.click()
     document.body.removeChild(a)
     URL.revokeObjectURL(url)
+  }
+
+  async exportCustomAudioForBackup(): Promise<BackupCustomAudioMap> {
+    const exported: BackupCustomAudioMap = {}
+    const types: NotificationType[] = ['completed', 'permission', 'question', 'error']
+
+    for (const type of types) {
+      const blob = await this.getCustomAudioBlobAsync(type)
+      if (!blob) continue
+      exported[type] = {
+        base64: await blobToBase64(blob),
+        mimeType: blob.type || 'application/octet-stream',
+        fileName: this.settings.events[type].customFileName,
+      }
+    }
+
+    return exported
+  }
+
+  async importCustomAudioFromBackup(customAudio: BackupCustomAudioMap): Promise<void> {
+    const types: NotificationType[] = ['completed', 'permission', 'question', 'error']
+
+    for (const type of types) {
+      const item = customAudio[type]
+      if (!item) {
+        try {
+          await idbDelete(`custom-${type}`)
+        } catch {
+          // ignore restore cleanup failures
+        }
+        this.customAudioCache.delete(type)
+        continue
+      }
+
+      const blob = base64ToBlob(item.base64, item.mimeType)
+      await idbPut(`custom-${type}`, blob)
+      this.customAudioCache.set(type, blob)
+    }
   }
 
   /** 异步获取自定义音频（如果缓存没有，从 IDB 加载） */
@@ -391,6 +478,78 @@ class SoundStore {
 // ============================================
 
 export const soundStore = new SoundStore()
+
+function normalizeSoundSettings(raw: unknown): SoundSettings {
+  const defaults = createDefaultSettings()
+  const parsed = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : undefined
+
+  return {
+    enabled: typeof parsed?.enabled === 'boolean' ? parsed.enabled : defaults.enabled,
+    currentSessionEnabled:
+      typeof parsed?.currentSessionEnabled === 'boolean'
+        ? parsed.currentSessionEnabled
+        : defaults.currentSessionEnabled,
+    volume:
+      typeof parsed?.volume === 'number' ? Math.max(0, Math.min(100, Math.round(parsed.volume))) : defaults.volume,
+    events: {
+      completed: normalizeEventConfig(
+        'completed',
+        parsed?.events && (parsed.events as Record<string, unknown>).completed,
+      ),
+      permission: normalizeEventConfig(
+        'permission',
+        parsed?.events && (parsed.events as Record<string, unknown>).permission,
+      ),
+      question: normalizeEventConfig('question', parsed?.events && (parsed.events as Record<string, unknown>).question),
+      error: normalizeEventConfig('error', parsed?.events && (parsed.events as Record<string, unknown>).error),
+    },
+  }
+}
+
+function normalizeBackupCustomAudioMap(raw: unknown): BackupCustomAudioMap {
+  if (!raw || typeof raw !== 'object') return {}
+
+  const parsed = raw as Record<string, unknown>
+  const normalized: BackupCustomAudioMap = {}
+  const types: NotificationType[] = ['completed', 'permission', 'question', 'error']
+
+  for (const type of types) {
+    const item = parsed[type]
+    if (!item || typeof item !== 'object') continue
+    const value = item as Record<string, unknown>
+    if (typeof value.base64 !== 'string' || typeof value.mimeType !== 'string') continue
+    normalized[type] = {
+      base64: value.base64,
+      mimeType: value.mimeType,
+      fileName: typeof value.fileName === 'string' ? value.fileName : undefined,
+    }
+  }
+
+  return normalized
+}
+
+export async function exportSoundBackup(): Promise<SoundBackup> {
+  return {
+    settings: normalizeSoundSettings(soundStore.getSnapshot()),
+    customAudio: await soundStore.exportCustomAudioForBackup(),
+  }
+}
+
+export async function importSoundBackup(raw: unknown): Promise<void> {
+  const parsed = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : undefined
+  const settings = normalizeSoundSettings(parsed?.settings)
+  const customAudio = normalizeBackupCustomAudioMap(parsed?.customAudio)
+  const types: NotificationType[] = ['completed', 'permission', 'question', 'error']
+
+  for (const type of types) {
+    if (!customAudio[type] && settings.events[type].soundId === 'custom') {
+      settings.events[type] = { soundId: DEFAULT_SOUNDS[type] }
+    }
+  }
+
+  saveSettings(settings)
+  await soundStore.importCustomAudioFromBackup(customAudio)
+}
 
 export function useSoundSettings(): SoundSettings {
   return useSyncExternalStore(soundStore.subscribe, soundStore.getSnapshot)

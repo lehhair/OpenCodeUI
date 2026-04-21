@@ -1,5 +1,33 @@
 # Changelog
 
+## [v0.5.8] - 2026-04-21
+
+- fix: polish sidebar session and notification layout (51b22f2)
+- refactor: modularize settings backup snapshots (a9d59c6)
+- fix: reset project dialog state on reopen (b344278)
+- feat: add settings backup import and export (93ad2ab)
+- fix: rebalance obsidian surface contrast (0837734)
+- fix: separate system notification settings from sound config (ccc80e4)
+- feat: add separate system notification controls (3236d14)
+- feat: add Dracula theme preset (7623377)
+- fix: persist model selection across session restore (d8eb318)
+- fix: shrink launcher icon mark further for masked shells (4f3e99f)
+- fix: reduce app icon mark scale and drop custom Android splash (2552342)
+- fix: remove unsupported Android splash attr from canary build (21ea11a)
+- fix: shrink Android app icon foreground and add native splash theme (8325bfc)
+- feat: redesign app icons for desktop and Android (527d423)
+
+## [v0.5.7] - 2026-04-19
+
+- fix: anchor toasts to the content area beneath desktop titlebar (fe15280)
+
+## [v0.5.6] - 2026-04-19
+
+- chore: sync Tauri app icons from web opencode.svg (f792218)
+- polish: slim desktop titlebar down to minimal app chrome (375e8d1)
+- feat: add platform-aware desktop titlebar foundation (43fa2da)
+- fix: prevent model selector from jumping to wrong provider on split (5b33360)
+
 ## [v0.5.5] - 2026-04-18
 
 - fix: remove redundant *Single i18n keys — let i18next handle count=1 natively (9385ef8)

@@ -136,7 +136,7 @@ export const ChatPane = memo(function ChatPane({
     handleModelChange,
     handleVariantChange,
     restoreFromMessage,
-  } = useModelSelection({ models: visibleModels })
+  } = useModelSelection({ models: visibleModels, sessionId })
 
   // ============================================
   // Full Auto Hint
@@ -372,8 +372,11 @@ export const ChatPane = memo(function ChatPane({
 
     const lastUserMsg = [...messages].reverse().find(m => m.info.role === 'user')
     if (lastUserMsg && 'model' in lastUserMsg.info) {
-      const userInfo = lastUserMsg.info as { model?: { providerID: string; modelID: string; variant?: string } }
-      restoreFromMessage(userInfo.model, userInfo.model?.variant)
+      const userInfo = lastUserMsg.info as {
+        model?: { providerID: string; modelID: string; variant?: string }
+        variant?: string
+      }
+      restoreFromMessage(userInfo.model, userInfo.variant ?? userInfo.model?.variant)
     }
     // 依赖 routeSessionId 和 messages.length（等加载完），不依赖 messages 引用
     // eslint-disable-next-line react-hooks/exhaustive-deps

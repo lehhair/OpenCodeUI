@@ -62,20 +62,12 @@ export function ActiveSessionItem({ entry, resolvedSession, isSelected, onSelect
       draggable={isDraggable}
       onDragStart={handleDragStart}
       onClick={handleClick}
-      className={`group relative flex items-center gap-2.5 px-3 py-2 rounded-lg cursor-default transition-all duration-200 border border-transparent ${
+      className={`group relative flex items-start pl-[6px] pr-3 py-2 rounded-lg cursor-default transition-all duration-200 border border-transparent ${
         isSelected ? 'bg-bg-000 shadow-sm ring-1 ring-border-200/50' : 'hover:bg-bg-200/50'
       } ${!resolvedSession ? 'opacity-50 cursor-default' : ''}`}
     >
-      {/* Status dot */}
-      <span className="relative shrink-0 flex items-center justify-center w-4 h-4">
-        <span className={`absolute w-2 h-2 rounded-full ${statusConfig.dotColor}`} />
-        {statusConfig.pulse && (
-          <span className={`absolute w-2 h-2 rounded-full ${statusConfig.dotColor} animate-ping opacity-50`} />
-        )}
-      </span>
-
       {/* Content */}
-      <div className="flex-1 min-w-0">
+      <div className="flex-1 min-w-0 pr-1">
         <p
           className={`text-[length:var(--fs-md)] truncate font-medium ${
             isSelected ? 'text-text-100' : 'text-text-200 group-hover:text-text-100'
@@ -84,7 +76,14 @@ export function ActiveSessionItem({ entry, resolvedSession, isSelected, onSelect
         >
           {displayTitle}
         </p>
-        <div className="flex items-center mt-0.5 h-4 min-w-0 overflow-hidden text-[length:var(--fs-xxs)] text-text-400 gap-1 whitespace-nowrap">
+        <div className="mt-1 flex h-4 min-w-0 items-center gap-1 overflow-hidden whitespace-nowrap text-[length:var(--fs-xxs)] text-text-400">
+          <span className="relative shrink-0 flex h-3 w-3 items-center justify-center">
+            <span className={`absolute h-1.5 w-1.5 rounded-full ${statusConfig.dotColor}`} />
+            {statusConfig.pulse && (
+              <span className={`absolute h-1.5 w-1.5 rounded-full ${statusConfig.dotColor} animate-ping opacity-50`} />
+            )}
+          </span>
+          <span className="opacity-30 shrink-0">·</span>
           <span className={`shrink-0 whitespace-nowrap ${statusConfig.color}`}>{statusConfig.label}</span>
           {pending?.description && (
             <>

@@ -47,6 +47,7 @@ export function findModelByKey(models: ModelInfo[], key: string): ModelInfo | un
 const STORAGE_KEY = 'model-usage-stats'
 const VARIANT_STORAGE_KEY = 'model-variant-prefs'
 const PINNED_STORAGE_KEY = 'model-pinned'
+const SESSION_SELECTION_STORAGE_KEY = 'session-model-selection'
 
 interface ModelUsageStats {
   [modelKey: string]: {
@@ -57,6 +58,13 @@ interface ModelUsageStats {
 
 interface ModelVariantPrefs {
   [modelKey: string]: string // modelKey -> variant
+}
+
+interface SessionModelSelections {
+  [sessionId: string]: {
+    modelKey: string
+    variant?: string
+  }
 }
 
 /**
@@ -142,6 +150,35 @@ export function saveModelVariantPref(modelKey: string, variant: string | undefin
 export function getModelVariantPref(modelKey: string): string | undefined {
   const prefs = getModelVariantPrefs()
   return prefs[modelKey]
+}
+
+// ============================================
+// Session 模型选择存储
+// ============================================
+
+export function getSessionModelSelections(): SessionModelSelections {
+  try {
+    const stored = serverStorage.get(SESSION_SELECTION_STORAGE_KEY)
+    return stored ? JSON.parse(stored) : {}
+  } catch {
+    return {}
+  }
+}
+
+export function getSessionModelSelection(sessionId: string): { modelKey: string; variant?: string } | undefined {
+  const selections = getSessionModelSelections()
+  return selections[sessionId]
+}
+
+export function saveSessionModelSelection(sessionId: string, modelKey: string, variant: string | undefined): void {
+  const selections = getSessionModelSelections()
+  selections[sessionId] = variant ? { modelKey, variant } : { modelKey }
+
+  try {
+    serverStorage.set(SESSION_SELECTION_STORAGE_KEY, JSON.stringify(selections))
+  } catch (e) {
+    console.warn('Failed to save session model selection:', e)
+  }
 }
 
 // ============================================

@@ -12,6 +12,9 @@ use bridge::BridgeState;
 use std::sync::atomic::{AtomicU64, Ordering};
 use tauri::Manager;
 
+#[cfg(windows)]
+use tauri_plugin_decorum::WebviewWindowExt;
+
 // Desktop-only imports for service management
 #[cfg(not(target_os = "android"))]
 use dir_state::OpenDirectoryState;
@@ -49,23 +52,47 @@ fn create_new_window(app: &tauri::AppHandle, directory: Option<String>) {
         }
     }
 
-    match tauri::WebviewWindowBuilder::new(app, &label, tauri::WebviewUrl::App("index.html".into()))
+    match configure_desktop_window_builder(
+        tauri::WebviewWindowBuilder::new(app, &label, tauri::WebviewUrl::App("index.html".into())),
+    )
         .title("OpenCode")
         .inner_size(800.0, 600.0)
         .build()
     {
-        Ok(_) => log::info!(
-            "Created new window '{}' for directory: {:?}",
-            label,
-            directory
-        ),
+        Ok(window) => {
+            #[cfg(windows)]
+            let _ = window.create_overlay_titlebar();
+
+            log::info!(
+                "Created new window '{}' for directory: {:?}",
+                label,
+                directory
+            )
+        }
         Err(e) => log::error!("Failed to create new window: {}", e),
     }
 }
 
+#[cfg(not(target_os = "android"))]
+fn configure_desktop_window_builder<'a, R: tauri::Runtime, M: tauri::Manager<R>>(
+    window_builder: tauri::WebviewWindowBuilder<'a, R, M>,
+) -> tauri::WebviewWindowBuilder<'a, R, M> {
+    let window_builder = window_builder;
+
+    #[cfg(target_os = "macos")]
+    let window_builder = window_builder
+        .title_bar_style(tauri::TitleBarStyle::Overlay)
+        .hidden_title(true)
+        .traffic_light_position(tauri::LogicalPosition::new(12.0, 18.0));
+
+    window_builder
+}
+
 pub fn run() {
-    let builder = tauri::Builder::default()
-        .manage(BridgeState::default());
+    let builder = tauri::Builder::default().manage(BridgeState::default());
+
+    #[cfg(not(target_os = "android"))]
+    let builder = builder.plugin(tauri_plugin_decorum::init());
 
     // Desktop: 注册 OpenDirectoryState + single-instance 插件（需在 setup 之前）
     #[cfg(not(target_os = "android"))]
@@ -97,6 +124,11 @@ pub fn run() {
             #[cfg(debug_assertions)]
             if let Some(window) = app.get_webview_window("main") {
                 window.open_devtools();
+            }
+
+            #[cfg(windows)]
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.create_overlay_titlebar();
             }
 
             // Desktop: 解析 CLI 参数，存入 pending state

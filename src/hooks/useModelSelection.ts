@@ -2,14 +2,22 @@
 // useModelSelection - 模型选择逻辑
 // ============================================
 
-import { useState, useCallback, useMemo, useEffect } from 'react'
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import type { ModelInfo } from '../api'
-import { getModelKey, findModelByKey, saveModelVariantPref, getModelVariantPref } from '../utils/modelUtils'
+import {
+  getModelKey,
+  findModelByKey,
+  saveModelVariantPref,
+  getModelVariantPref,
+  getSessionModelSelection,
+  saveSessionModelSelection,
+} from '../utils/modelUtils'
 import { serverStorage } from '../utils/perServerStorage'
 import { STORAGE_KEY_SELECTED_MODEL } from '../constants'
 
 interface UseModelSelectionOptions {
   models: ModelInfo[]
+  sessionId?: string | null
 }
 
 interface UseModelSelectionReturn {
@@ -24,7 +32,7 @@ interface UseModelSelectionReturn {
   ) => void
 }
 
-export function useModelSelection({ models }: UseModelSelectionOptions): UseModelSelectionReturn {
+export function useModelSelection({ models, sessionId = null }: UseModelSelectionOptions): UseModelSelectionReturn {
   const [{ selectedModelKey, selectedVariant }, setSelection] = useState<{
     selectedModelKey: string | null
     selectedVariant: string | undefined
@@ -36,6 +44,7 @@ export function useModelSelection({ models }: UseModelSelectionOptions): UseMode
       selectedVariant: initialModelKey ? getModelVariantPref(initialModelKey) : undefined,
     }
   })
+  const hydratedSessionRef = useRef<string | null>(sessionId)
 
   const persistedModel = selectedModelKey ? findModelByKey(models, selectedModelKey) : undefined
   const currentModel = useMemo(() => persistedModel ?? models[0], [models, persistedModel])
@@ -47,14 +56,41 @@ export function useModelSelection({ models }: UseModelSelectionOptions): UseMode
   }, [resolvedModelKey, persistedModel, selectedModelKey, selectedVariant])
 
   useEffect(() => {
-    if (selectedModelKey === resolvedModelKey && selectedVariant === resolvedSelectedVariant) return
+    if (!sessionId) {
+      hydratedSessionRef.current = null
+      return
+    }
 
+    if (hydratedSessionRef.current === sessionId) return
+
+    const sessionSelection = getSessionModelSelection(sessionId)
+    if (!sessionSelection) {
+      hydratedSessionRef.current = sessionId
+      return
+    }
+
+    const restoredModel = findModelByKey(models, sessionSelection.modelKey)
+    if (!restoredModel) return
+
+    const nextVariant = sessionSelection.variant ?? getModelVariantPref(sessionSelection.modelKey)
+    setSelection({
+      selectedModelKey: sessionSelection.modelKey,
+      selectedVariant: nextVariant,
+    })
+    hydratedSessionRef.current = sessionId
+  }, [models, sessionId])
+
+  useEffect(() => {
     if (resolvedModelKey) {
       serverStorage.set(STORAGE_KEY_SELECTED_MODEL, resolvedModelKey)
-    } else {
-      serverStorage.remove(STORAGE_KEY_SELECTED_MODEL)
+      if (sessionId) {
+        saveSessionModelSelection(sessionId, resolvedModelKey, resolvedSelectedVariant)
+      }
+      return
     }
-  }, [resolvedModelKey, resolvedSelectedVariant, selectedModelKey, selectedVariant])
+
+    serverStorage.remove(STORAGE_KEY_SELECTED_MODEL)
+  }, [resolvedModelKey, resolvedSelectedVariant, sessionId])
 
   // 切换模型
   const handleModelChange = useCallback(
@@ -69,7 +105,6 @@ export function useModelSelection({ models }: UseModelSelectionOptions): UseMode
         selectedModelKey: modelKey,
         selectedVariant: getModelVariantPref(modelKey),
       })
-      serverStorage.set(STORAGE_KEY_SELECTED_MODEL, modelKey)
     },
     [resolvedModelKey, resolvedSelectedVariant],
   )

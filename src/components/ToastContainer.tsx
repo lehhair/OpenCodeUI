@@ -76,7 +76,7 @@ function Toast({ item, onDismiss, onClick }: { item: ToastItem; onDismiss: () =>
         transform: show ? 'translateY(0) translateX(0)' : 'translateY(-8px) translateX(8px)',
         pointerEvents: show ? 'auto' : 'none',
       }}
-      className="group relative flex items-center gap-2.5 p-3 glass border border-border-200/60 rounded-xl shadow-lg cursor-pointer hover:bg-bg-100/80 hover:border-border-300 transition-colors duration-150"
+      className="group relative flex items-center gap-2.5 p-3 glass border border-border-200/60 rounded-xl shadow-lg cursor-pointer hover:bg-bg-100/80 hover:border-border-300 transition-colors duration-150 pointer-events-auto"
       onClick={onClick}
       role="alert"
     >
@@ -139,7 +139,7 @@ function UpdateToast({ onOpenAbout }: { onOpenAbout: () => void }) {
         opacity: isVisible ? 1 : 0,
         transform: isVisible ? 'translateY(0) translateX(0)' : 'translateY(-8px) translateX(8px)',
       }}
-      className="group relative flex items-center gap-2.5 p-3 glass border border-border-200/60 rounded-xl shadow-lg cursor-pointer hover:bg-bg-100/80 hover:border-border-300 transition-colors duration-150"
+      className="group relative flex items-center gap-2.5 p-3 glass border border-border-200/60 rounded-xl shadow-lg cursor-pointer hover:bg-bg-100/80 hover:border-border-300 transition-colors duration-150 pointer-events-auto"
       onClick={() => {
         updateStore.hideToastForCurrentVersion()
         onOpenAbout()
@@ -201,7 +201,7 @@ export function ToastContainer({ onOpenAbout }: { onOpenAbout: () => void }) {
   }
 
   return (
-    <div className="fixed top-3 right-3 left-3 md:left-auto md:w-80 z-50 flex flex-col gap-2">
+    <div className="absolute top-3 right-3 left-3 md:left-auto md:w-80 z-50 flex flex-col gap-2 pointer-events-none">
       <UpdateToast onOpenAbout={onOpenAbout} />
 
       {toasts.map(item => (
@@ -215,7 +215,7 @@ export function ToastContainer({ onOpenAbout }: { onOpenAbout: () => void }) {
 
       {/* Clear all — 轻量文字按钮，右对齐 */}
       {toasts.length >= 2 && (
-        <div className="flex justify-end">
+        <div className="flex justify-end pointer-events-auto">
           <button
             className="text-[length:var(--fs-xs)] text-text-300 hover:text-text-100 px-2 py-1 rounded-md hover:bg-bg-200/60 transition-all duration-150 active:scale-95"
             onClick={() => notificationStore.dismissAllToasts()}

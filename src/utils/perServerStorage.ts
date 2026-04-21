@@ -76,3 +76,47 @@ export const serverStorage = {
     serverStorage.set(key, JSON.stringify(value))
   },
 }
+
+export interface PerServerStorageBackup {
+  entries: Record<string, string>
+}
+
+const SERVER_STORAGE_PREFIX = 'srv:'
+
+export function exportPerServerStorageBackup(): PerServerStorageBackup {
+  const entries: Record<string, string> = {}
+
+  for (let index = 0; index < localStorage.length; index += 1) {
+    const key = localStorage.key(index)
+    if (!key || !key.startsWith(SERVER_STORAGE_PREFIX)) continue
+    const value = localStorage.getItem(key)
+    if (value !== null) {
+      entries[key] = value
+    }
+  }
+
+  return { entries }
+}
+
+export function importPerServerStorageBackup(raw: unknown): void {
+  const parsed = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : undefined
+  const entries = parsed?.entries && typeof parsed.entries === 'object' ? parsed.entries : {}
+
+  const keysToRemove: string[] = []
+  for (let index = 0; index < localStorage.length; index += 1) {
+    const key = localStorage.key(index)
+    if (key && key.startsWith(SERVER_STORAGE_PREFIX)) {
+      keysToRemove.push(key)
+    }
+  }
+
+  for (const key of keysToRemove) {
+    localStorage.removeItem(key)
+  }
+
+  for (const [key, value] of Object.entries(entries as Record<string, unknown>)) {
+    if (key.startsWith(SERVER_STORAGE_PREFIX) && typeof value === 'string') {
+      localStorage.setItem(key, value)
+    }
+  }
+}

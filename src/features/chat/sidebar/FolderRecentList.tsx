@@ -758,11 +758,15 @@ function FolderRecentSection({
               if (!isEditMode) onSelectProject()
               onToggle()
             }}
-            className={`flex flex-1 min-w-0 items-center gap-1.5 ${showProjectCheckbox ? 'pl-1.5' : 'pl-2'} pr-2 py-1.5 text-left cursor-default select-none`}
+            className={`flex flex-1 min-w-0 items-center gap-2 ${showProjectCheckbox ? 'pl-1.5' : 'pl-2'} pr-2 py-1.5 text-left cursor-default select-none`}
             title={project.worktree}
           >
-            <FolderDisplayIcon size={15} className="shrink-0 text-text-400" />
-            <span className="min-w-0 flex-1 truncate text-[length:var(--fs-sm)] font-medium text-text-300">{projectName}</span>
+            <span className="size-5 shrink-0 flex items-center justify-center">
+              <FolderDisplayIcon size={15} className="text-text-400" />
+            </span>
+            <span className="min-w-0 flex-1 truncate text-[length:var(--fs-sm)] font-medium text-text-300">
+              {projectName}
+            </span>
             {folderStatus && (
               <span
                 className="relative shrink-0 flex items-center justify-center w-3 h-3"
@@ -817,7 +821,9 @@ function FolderRecentSection({
                   onReorderWorkspace={onReorderWorkspace}
                 />
               ) : sessions.length === 0 ? (
-                <div className="px-2 py-1 text-[length:var(--fs-xs)] text-text-400/50">{t('sidebar.noChatsInFolder')}</div>
+                <div className="px-2 py-1 text-[length:var(--fs-xs)] text-text-400/50">
+                  {t('sidebar.noChatsInFolder')}
+                </div>
               ) : (
                 <>
                   {sessions.map(session => (

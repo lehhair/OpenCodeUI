@@ -15,6 +15,23 @@ export function isTauriMobile(): boolean {
   return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
 }
 
+export type DesktopPlatform = 'windows' | 'macos' | 'linux' | 'other'
+
+export function getDesktopPlatform(): DesktopPlatform {
+  if (!isTauri() || isTauriMobile() || typeof navigator === 'undefined') return 'other'
+
+  const ua = navigator.userAgent.toLowerCase()
+  if (ua.includes('windows')) return 'windows'
+  if (ua.includes('mac os') || ua.includes('macintosh')) return 'macos'
+  if (ua.includes('linux')) return 'linux'
+  return 'other'
+}
+
+export function usesCustomDesktopTitlebar(): boolean {
+  const platform = getDesktopPlatform()
+  return platform === 'windows' || platform === 'macos'
+}
+
 /** 文件扩展名 → MIME 类型映射 */
 export function extToMime(ext: string): string {
   const map: Record<string, string> = {

@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useEffect, memo } from 'react'
 import { useTranslation } from 'react-i18next'
+import { DESKTOP_FULLSCREEN_LAYER_Z_INDEX } from '../../constants'
 import { DownloadIcon, PlusIcon, MinusIcon } from '../../components/Icons'
 import { CopyButton } from '../../components/ui'
 import { getAttachmentIcon } from './utils'
@@ -86,13 +87,21 @@ export const AttachmentDetailModal = memo(function AttachmentDetailModal({
   )
 
   return (
-    <FullscreenViewer isOpen={isOpen} onClose={onClose} zIndex={200} title={titleNode} headerRight={headerRightNode}>
+    <FullscreenViewer
+      isOpen={isOpen}
+      onClose={onClose}
+      zIndex={DESKTOP_FULLSCREEN_LAYER_Z_INDEX}
+      title={titleNode}
+      headerRight={headerRightNode}
+    >
       {isImage && hasUrl ? (
         <ZoomableImage url={attachment.url!} alt={attachment.displayName} />
       ) : hasContent ? (
         <CodePreview code={attachment.content!} language={detectLanguage(attachment.displayName) || 'text'} />
       ) : (
-        <div className="flex items-center justify-center h-full text-text-400 text-[length:var(--fs-base)]">{t('attachment.noPreview')}</div>
+        <div className="flex items-center justify-center h-full text-text-400 text-[length:var(--fs-base)]">
+          {t('attachment.noPreview')}
+        </div>
       )}
     </FullscreenViewer>
   )

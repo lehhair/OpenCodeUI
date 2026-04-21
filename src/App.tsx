@@ -7,6 +7,7 @@ import type { CommandItem } from './components/CommandPalette'
 import { ToastContainer } from './components/ToastContainer'
 import { RightPanel } from './components/RightPanel'
 import { BottomPanel } from './components/BottomPanel'
+import { DesktopTitlebar } from './components/DesktopTitlebar'
 import { useDirectory, useGlobalEvents, useGlobalKeybindings, useRouter } from './hooks'
 import { useViewportHeight } from './hooks/useViewportHeight'
 import { useCloseServiceDialog } from './hooks/useCloseServiceDialog'
@@ -537,46 +538,50 @@ function App() {
 
   return (
     <div
-      className="relative h-[var(--app-height)] flex bg-bg-100 overflow-hidden"
+      className="relative flex h-[var(--app-height)] flex-col bg-bg-100 overflow-hidden"
       style={{ paddingTop: 'var(--safe-area-inset-top)' }}
     >
+      <DesktopTitlebar />
       <ChatViewportProvider value={chatViewport}>
-        <Sidebar
-          isOpen={sidebarExpanded}
-          selectedSessionId={paneLayout.focusedSessionId}
-          onSelectSession={handleSelectSession}
-          onNewSession={handleNewSession}
-          onOpen={handleOpenSidebar}
-          onClose={() => setSidebarExpanded(false)}
-          contextLimit={focusedController?.contextLimit}
-          onOpenSettings={openSettings}
-          projectDialogOpen={projectDialogOpen}
-          onProjectDialogClose={closeProjectDialog}
-        />
+        <div className="relative flex min-h-0 flex-1 overflow-hidden">
+          <Sidebar
+            isOpen={sidebarExpanded}
+            selectedSessionId={paneLayout.focusedSessionId}
+            onSelectSession={handleSelectSession}
+            onNewSession={handleNewSession}
+            onOpen={handleOpenSidebar}
+            onClose={() => setSidebarExpanded(false)}
+            contextLimit={focusedController?.contextLimit}
+            onOpenSettings={openSettings}
+            projectDialogOpen={projectDialogOpen}
+            onProjectDialogClose={closeProjectDialog}
+          />
 
-        <div className="flex-1 flex min-w-0 h-full overflow-hidden">
-          <div
-            ref={surfaceRef}
-            className="flex-1 flex flex-col min-w-0 overflow-hidden"
-            style={{
-              minWidth:
-                chatViewport.interaction.sidebarBehavior === 'overlay' ? undefined : `${CHAT_SURFACE_MIN_WIDTH}px`,
-            }}
-          >
+          <div className="flex-1 flex min-w-0 h-full overflow-hidden">
             <div
-              className={paneLayout.isSplit && !paneLayout.fullscreenPaneId ? 'flex-1 min-h-0 p-2' : 'flex-1 min-h-0'}
+              ref={surfaceRef}
+              className="flex-1 flex flex-col min-w-0 overflow-hidden"
+              style={{
+                minWidth:
+                  chatViewport.interaction.sidebarBehavior === 'overlay' ? undefined : `${CHAT_SURFACE_MIN_WIDTH}px`,
+              }}
             >
-              <SplitContainer
-                node={paneLayout.root}
-                renderLeaf={renderPaneLeaf}
-                fullscreenPaneId={paneLayout.fullscreenPaneId}
-              />
+              <div
+                className={paneLayout.isSplit && !paneLayout.fullscreenPaneId ? 'flex-1 min-h-0 p-2' : 'flex-1 min-h-0'}
+              >
+                <SplitContainer
+                  node={paneLayout.root}
+                  renderLeaf={renderPaneLeaf}
+                  fullscreenPaneId={paneLayout.fullscreenPaneId}
+                />
+              </div>
+
+              <BottomPanel directory={focusedDirectory} />
             </div>
 
-            <BottomPanel directory={focusedDirectory} />
+            <RightPanel directory={focusedDirectory} sessionId={paneLayout.focusedSessionId} />
           </div>
-
-          <RightPanel directory={focusedDirectory} sessionId={paneLayout.focusedSessionId} />
+          <ToastContainer onOpenAbout={openAboutSettings} />
         </div>
 
         <Suspense fallback={null}>
@@ -587,8 +592,6 @@ function App() {
             commands={commands}
           />
         </Suspense>
-
-        <ToastContainer onOpenAbout={openAboutSettings} />
 
         <Suspense fallback={null}>
           <CloseServiceDialog

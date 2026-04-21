@@ -1005,7 +1005,7 @@ export function SidePanel({
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder={t('sidebar.searchChats')}
-              className="w-full bg-bg-200/40 hover:bg-bg-200/60 focus:bg-bg-000 border border-transparent focus:border-border-200 rounded-lg py-1.5 pl-8 pr-8 text-[length:var(--fs-sm)] text-text-100 placeholder:text-text-400/70 focus:outline-none transition-all"
+              className="w-full bg-bg-200/40 hover:bg-bg-200/60 focus:bg-bg-000 border border-transparent focus:border-border-200 rounded-lg py-1.5 pl-[30px] pr-8 text-[length:var(--fs-sm)] text-text-100 placeholder:text-text-400/70 focus:outline-none transition-all"
             />
             {search && (
               <button
@@ -1021,13 +1021,13 @@ export function SidePanel({
 
         {/* Tab Bar: Recents / Active */}
         <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-          <div className="flex items-center px-3 gap-1 shrink-0">
+          <div className="flex items-center mx-2 gap-1 shrink-0">
             <button
               onClick={() => {
                 setSidebarTab('recents')
                 if (sidebarTab !== 'recents') exitEditMode()
               }}
-              className={`px-2 py-1.5 text-[length:var(--fs-xxs)] font-semibold uppercase tracking-wider transition-colors duration-150 ${
+              className={`pl-[6px] pr-2 py-1.5 text-[length:var(--fs-xxs)] font-semibold uppercase tracking-wider transition-colors duration-150 ${
                 sidebarTab === 'recents' ? 'text-text-100' : 'text-text-500 hover:text-text-300'
               }`}
             >
@@ -1038,17 +1038,17 @@ export function SidePanel({
                 setSidebarTab('active')
                 exitEditMode()
               }}
-              className={`px-2 py-1.5 text-[length:var(--fs-xxs)] font-semibold uppercase tracking-wider transition-colors duration-150 flex items-center gap-1.5 ${
+              className={`pl-[6px] pr-2 py-1.5 text-[length:var(--fs-xxs)] font-semibold uppercase tracking-wider transition-colors duration-150 flex items-center gap-1 ${
                 sidebarTab === 'active' ? 'text-text-100' : 'text-text-500 hover:text-text-300'
               }`}
             >
-              {t('sidebar.active')}
+              <span className="inline-flex h-4 items-center leading-none">{t('sidebar.active')}</span>
               {attentionCount > 0 && (
                 <span
-                  className={`inline-flex items-center justify-center min-w-[16px] h-4 px-1 text-[length:var(--fs-xxs)] font-bold rounded-full ${
+                  className={`inline-flex h-[15px] min-w-[15px] shrink-0 items-center justify-center self-center rounded-full px-1 text-[length:var(--fs-xxs)] font-medium leading-none transition-colors ${
                     attentionCount > busyCount
-                      ? 'bg-accent-main-100/15 text-accent-main-100'
-                      : 'bg-success-100/15 text-success-100'
+                      ? 'bg-accent-main-100/10 text-accent-main-100'
+                      : 'bg-success-100/10 text-success-100'
                   }`}
                 >
                   {attentionCount}
@@ -1154,13 +1154,13 @@ export function SidePanel({
 
           {/* Active Sessions Tab */}
           {sidebarTab === 'active' && (
-            <div className="flex-1 overflow-y-auto custom-scrollbar px-2 py-2">
+            <div className="flex-1 overflow-y-auto custom-scrollbar px-2 pb-3">
               {busySessions.length === 0 && notifications.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 text-text-400 opacity-60">
                   <p className="text-[length:var(--fs-sm)]">{t('sidebar.noActiveSessions')}</p>
                 </div>
               ) : (
-                <div className="space-y-0.5">
+                <div className="mt-1 space-y-0.5">
                   {/* Busy sessions — 子 session 挂在父下面 */}
                   {activeSessionTree.rootEntries.map(entry => renderActiveSessionNode(entry))}
 
@@ -1169,7 +1169,7 @@ export function SidePanel({
                     <div
                       className={`flex items-center justify-between gap-2 ${busySessions.length > 0 ? 'mt-2 pt-2 border-t border-border-200/30' : ''}`}
                     >
-                      <span className="text-[length:var(--fs-xxs)] font-medium text-text-400 uppercase tracking-wider pl-1">
+                      <span className="text-[length:var(--fs-xxs)] font-medium text-text-400 uppercase tracking-wider pl-[6px]">
                         {t('sidebar.notifications')}
                       </span>
                       <div className="flex items-center gap-0.5">

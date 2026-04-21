@@ -35,6 +35,10 @@ export interface ToastItem {
   exiting: boolean
 }
 
+export interface NotificationPreferencesBackup {
+  toastEnabled: boolean
+}
+
 interface NotificationState {
   toasts: ToastItem[]
   notifications: NotificationEntry[]
@@ -279,6 +283,18 @@ class NotificationStore {
 // ============================================
 
 export const notificationStore = new NotificationStore()
+
+export function exportNotificationPreferencesBackup(): NotificationPreferencesBackup {
+  return {
+    toastEnabled: notificationStore.toastEnabled,
+  }
+}
+
+export function importNotificationPreferencesBackup(raw: unknown): void {
+  const parsed = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : undefined
+  const toastEnabled = typeof parsed?.toastEnabled === 'boolean' ? parsed.toastEnabled : true
+  notificationStore.setToastEnabled(toastEnabled)
+}
 
 export function useNotificationStore() {
   return useSyncExternalStore(notificationStore.subscribe, notificationStore.getSnapshot)

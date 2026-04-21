@@ -1,6 +1,6 @@
 {
   "name": "opencodeui",
-  "version": "0.5.5",
+  "version": "0.5.8",
   "description": "A third-party web frontend for OpenCode",
   "license": "GPL-3.0-only",
   "type": "module",
@@ -9,6 +9,7 @@
     "typecheck": "tsc -b",
     "type-check": "npm run typecheck",
     "build": "tsc -b && vite build",
+    "icons:tauri": "tauri icon src-tauri/app-icon.manifest.json -o src-tauri/icons",
     "lint": "eslint .",
     "format": "prettier . --write",
     "format:check": "prettier . --check",

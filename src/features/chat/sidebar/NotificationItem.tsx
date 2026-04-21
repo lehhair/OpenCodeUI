@@ -1,6 +1,8 @@
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { CheckIcon, AlertCircleIcon, CloseIcon, HandIcon, QuestionIcon } from '../../../components/Icons'
 import { notificationStore } from '../../../store/notificationStore'
+import { useInputCapabilities } from '../../../hooks/useInputCapabilities'
 import { formatNotificationTime } from './sidebarUtils'
 import type { NotificationEntry } from '../../../store/notificationStore'
 import type { ApiSession } from '../../../api'
@@ -9,17 +11,15 @@ const notifTypeConfig = {
   completed: {
     icon: CheckIcon,
     color: 'text-success-100',
-    bgAccent: 'bg-success-bg',
     labelKey: 'notification.completed',
   },
-  error: { icon: AlertCircleIcon, color: 'text-danger-100', bgAccent: 'bg-danger-bg', labelKey: 'notification.error' },
+  error: { icon: AlertCircleIcon, color: 'text-danger-100', labelKey: 'notification.error' },
   permission: {
     icon: HandIcon,
     color: 'text-warning-100',
-    bgAccent: 'bg-warning-bg',
     labelKey: 'notification.permission',
   },
-  question: { icon: QuestionIcon, color: 'text-info-100', bgAccent: 'bg-info-bg', labelKey: 'notification.question' },
+  question: { icon: QuestionIcon, color: 'text-info-100', labelKey: 'notification.question' },
 } as const
 
 interface NotificationItemProps {
@@ -30,13 +30,72 @@ interface NotificationItemProps {
 
 export function NotificationItem({ entry, resolvedSession, onSelect }: NotificationItemProps) {
   const { t } = useTranslation(['chat', 'common'])
+  const { preferTouchUi } = useInputCapabilities()
   const displayTitle = resolvedSession?.title || entry.title || entry.sessionId.slice(0, 12) + '...'
   const directory = resolvedSession?.directory || entry.directory
+  const [showActions, setShowActions] = useState(false)
+  const itemRef = useRef<HTMLDivElement>(null)
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const touchMoved = useRef(false)
 
   const config = notifTypeConfig[entry.type]
   const Icon = config.icon
+  const actionsVisible = preferTouchUi ? showActions : false
+
+  const handleTouchStart = useCallback(() => {
+    if (!preferTouchUi) return
+    touchMoved.current = false
+    longPressTimer.current = setTimeout(() => {
+      if (!touchMoved.current) {
+        setShowActions(true)
+      }
+    }, 500)
+  }, [preferTouchUi])
+
+  const handleTouchMove = useCallback(() => {
+    if (!preferTouchUi) return
+    touchMoved.current = true
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current)
+      longPressTimer.current = null
+    }
+  }, [preferTouchUi])
+
+  const handleTouchEnd = useCallback(() => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current)
+      longPressTimer.current = null
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!showActions) return
+    const handleClickOutside = (e: MouseEvent | TouchEvent) => {
+      if (itemRef.current && !itemRef.current.contains(e.target as Node)) {
+        setShowActions(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    document.addEventListener('touchstart', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('touchstart', handleClickOutside)
+    }
+  }, [showActions])
+
+  useEffect(() => {
+    return () => {
+      if (longPressTimer.current) {
+        clearTimeout(longPressTimer.current)
+      }
+    }
+  }, [])
 
   const handleClick = () => {
+    if (showActions) {
+      setShowActions(false)
+      return
+    }
     notificationStore.markRead(entry.id)
     if (resolvedSession) {
       onSelect(resolvedSession)
@@ -53,20 +112,33 @@ export function NotificationItem({ entry, resolvedSession, onSelect }: Notificat
 
   return (
     <div
+      ref={itemRef}
       onClick={handleClick}
-      className={`group relative flex items-center gap-2.5 px-3 py-2 rounded-lg cursor-default transition-all duration-200 border border-transparent hover:bg-bg-200/50 ${entry.read ? 'opacity-50' : ''}`}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+      className={`group relative flex items-start pl-[6px] pr-3 py-2 rounded-lg cursor-default select-none transition-all duration-200 border border-transparent hover:bg-bg-200/50 ${showActions ? 'bg-bg-200/50' : ''} ${entry.read ? 'opacity-50' : ''}`}
     >
-      {/* Status icon — matches toast style */}
-      <div className={`shrink-0 flex items-center justify-center w-6 h-6 rounded-md ${config.bgAccent}`}>
-        <Icon size={14} className={config.color} />
-      </div>
-
       {/* Content */}
-      <div className="flex-1 min-w-0">
-        <p className="text-[length:var(--fs-md)] truncate font-medium text-text-200 group-hover:text-text-100" title={displayTitle}>
-          {displayTitle}
-        </p>
-        <div className="flex items-center mt-0.5 min-w-0 overflow-hidden text-[length:var(--fs-xxs)] text-text-400 gap-1">
+      <div
+        className={`flex-1 min-w-0 transition-[padding] duration-200 ${actionsVisible ? 'pr-9' : 'pr-1 group-hover:pr-9'}`}
+      >
+        <div className="flex min-w-0 items-center gap-1.5">
+          <p
+            className="min-w-0 flex-1 truncate text-[length:var(--fs-md)] font-medium text-text-200 group-hover:text-text-100"
+            title={displayTitle}
+          >
+            {displayTitle}
+          </p>
+          {!entry.read && !actionsVisible && (
+            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-accent-main-100 group-hover:hidden" />
+          )}
+        </div>
+        <div className="mt-1 flex h-4 min-w-0 items-center gap-1 overflow-hidden whitespace-nowrap text-[length:var(--fs-xxs)] text-text-400">
+          <span className={`relative shrink-0 flex h-3 w-3 items-center justify-center ${config.color}`}>
+            <Icon size={10} />
+          </span>
+          <span className="opacity-30 shrink-0">·</span>
           <span className={`shrink-0 ${config.color}`}>{t(config.labelKey)}</span>
           {entry.body && (
             <>
@@ -87,11 +159,16 @@ export function NotificationItem({ entry, resolvedSession, onSelect }: Notificat
         </div>
       </div>
 
-      {/* Unread dot + dismiss */}
-      <div className="shrink-0 flex items-center gap-1">
-        {!entry.read && <span className="w-1.5 h-1.5 rounded-full bg-accent-main-100" />}
+      {/* Dismiss action */}
+      <div
+        className={`absolute right-2 top-1/2 z-10 flex -translate-y-1/2 items-center gap-0.5 transition-all duration-200 ${
+          actionsVisible
+            ? 'opacity-100 pointer-events-auto'
+            : 'opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto'
+        }`}
+      >
         <button
-          className="p-0.5 rounded-md text-text-400 opacity-0 group-hover:opacity-100 hover:text-text-200 hover:bg-bg-200 transition-all duration-150 active:scale-90"
+          className="p-1.5 rounded-md hover:bg-danger-bg active:bg-danger-bg text-text-400 hover:text-danger-100 active:text-danger-100 transition-colors focus:outline-none"
           onClick={handleDismiss}
           aria-label={t('common:dismiss')}
         >

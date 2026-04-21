@@ -16,6 +16,12 @@ export interface EnvVar {
   value: string
 }
 
+export interface ServiceSettingsBackup {
+  autoStart: boolean
+  binaryPath: string
+  envVars: EnvVar[]
+}
+
 interface ServiceStoreSnapshot {
   autoStart: boolean
   /** opencode 可执行文件路径，空字符串表示使用默认 "opencode" */
@@ -174,6 +180,33 @@ class ServiceStore {
 }
 
 export const serviceStore = new ServiceStore()
+
+export function exportServiceSettingsBackup(): ServiceSettingsBackup {
+  return {
+    autoStart: serviceStore.autoStart,
+    binaryPath: serviceStore.binaryPath,
+    envVars: serviceStore.envVars.map(item => ({ ...item })),
+  }
+}
+
+export function importServiceSettingsBackup(raw: unknown): void {
+  const parsed = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : undefined
+  const envVars = Array.isArray(parsed?.envVars)
+    ? parsed.envVars
+        .filter(
+          (item): item is EnvVar =>
+            !!item &&
+            typeof item === 'object' &&
+            typeof (item as Record<string, unknown>).key === 'string' &&
+            typeof (item as Record<string, unknown>).value === 'string',
+        )
+        .map(item => ({ key: item.key, value: item.value }))
+    : []
+
+  serviceStore.setAutoStart(parsed?.autoStart === true)
+  serviceStore.setBinaryPath(typeof parsed?.binaryPath === 'string' ? parsed.binaryPath : '')
+  serviceStore.setEnvVars(envVars)
+}
 
 /** React hook */
 export function useServiceStore() {

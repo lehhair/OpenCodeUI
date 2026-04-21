@@ -16,6 +16,10 @@ import {
 } from '../../../components/Icons'
 import { useNotification } from '../../../hooks'
 import { notificationStore } from '../../../store'
+import {
+  notificationEventSettingsStore,
+  useNotificationEventSettings,
+} from '../../../store/notificationEventSettingsStore'
 import { soundStore, useSoundSettings } from '../../../store/soundStore'
 import { Toggle, SettingRow, SettingsCard } from './SettingsUI'
 import { BUILTIN_SOUNDS, SOUND_OPTIONS, isSoundSupported, playSound } from '../../../utils/soundPlayer'
@@ -104,6 +108,38 @@ function VolumeSlider({ value, onChange }: { value: number; onChange: (v: number
   )
 }
 
+function EventEnableRow({
+  type,
+  labelKey,
+  descKey,
+  icon,
+  color,
+}: {
+  type: NotificationType
+  labelKey: string
+  descKey: string
+  icon: React.ReactNode
+  color: string
+}) {
+  const { t } = useTranslation(['settings'])
+  const settings = useNotificationEventSettings()
+  const eventConfig = settings.events[type]
+
+  return (
+    <SettingRow
+      label={t(labelKey as `notifications.${string}`)}
+      description={t(descKey as `notifications.${string}`)}
+      icon={<span className={color}>{icon}</span>}
+      onClick={() => notificationEventSettingsStore.setSystemEnabled(type, !eventConfig.systemEnabled)}
+    >
+      <Toggle
+        enabled={eventConfig.systemEnabled}
+        onChange={() => notificationEventSettingsStore.setSystemEnabled(type, !eventConfig.systemEnabled)}
+      />
+    </SettingRow>
+  )
+}
+
 // ============================================
 // Event Sound Card
 // ============================================
@@ -177,24 +213,28 @@ function EventSoundCard({
   return (
     <div className="rounded-lg border border-border-200/50 bg-bg-000/40 p-3">
       {/* Header */}
-      <div className="flex items-center justify-between mb-2.5">
+      <div className="flex items-start justify-between gap-2 mb-2.5">
         <div className="flex items-center gap-2.5">
           <span className={color}>{icon}</span>
           <div>
-            <div className="text-[length:var(--fs-md)] font-medium text-text-100">{t(labelKey as `notifications.${string}`)}</div>
+            <div className="text-[length:var(--fs-md)] font-medium text-text-100">
+              {t(labelKey as `notifications.${string}`)}
+            </div>
             <div className="text-[length:var(--fs-xs)] text-text-400">{t(descKey as `notifications.${string}`)}</div>
           </div>
         </div>
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={handlePreview}
-          disabled={eventConfig.soundId === 'none'}
-          className="gap-1.5 text-[length:var(--fs-sm)]"
-        >
-          <PlayIcon size={12} />
-          {t('notifications.preview')}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={handlePreview}
+            disabled={eventConfig.soundId === 'none'}
+            className="gap-1.5 text-[length:var(--fs-sm)]"
+          >
+            <PlayIcon size={12} />
+            {t('notifications.preview')}
+          </Button>
+        </div>
       </div>
 
       {/* Sound Selector */}
@@ -250,10 +290,18 @@ function EventSoundCard({
       {/* Custom audio info + actions */}
       {hasCustom && eventConfig.customFileName && (
         <div className="flex items-center gap-2 mb-1.5 px-0.5">
-          <span className="text-[length:var(--fs-xs)] text-text-300 truncate max-w-[200px]" title={eventConfig.customFileName}>
+          <span
+            className="text-[length:var(--fs-xs)] text-text-300 truncate max-w-[200px]"
+            title={eventConfig.customFileName}
+          >
             {eventConfig.customFileName}
           </span>
-          <Button size="sm" variant="ghost" onClick={handleExportCustom} className="gap-1 text-[length:var(--fs-xs)] h-6 px-1.5">
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={handleExportCustom}
+            className="gap-1 text-[length:var(--fs-xs)] h-6 px-1.5"
+          >
             <DownloadIcon size={10} />
             {t('notifications.exportAudio')}
           </Button>
@@ -330,40 +378,73 @@ export function NotificationSettings() {
           title={t('notifications.systemNotifications')}
           description={t('notifications.systemNotificationsDesc')}
         >
-          {notificationsSupported ? (
-            <div className="space-y-1.5">
-              <SettingRow
-                label={t('notifications.notificationsLabel')}
-                description={
-                  notificationPermission === 'denied'
-                    ? t('notifications.blockedByBrowser')
-                    : t('notifications.notifyWhenComplete')
-                }
-                onClick={() => notificationPermission !== 'denied' && setNotificationsEnabled(!notificationsEnabled)}
-              >
-                <Toggle
-                  enabled={notificationsEnabled && notificationPermission !== 'denied'}
-                  onChange={() => notificationPermission !== 'denied' && setNotificationsEnabled(!notificationsEnabled)}
-                />
-              </SettingRow>
-
-              <SettingRow
-                label={t('notifications.testNotification')}
-                description={notificationsEnabled ? t('notifications.sendSampleDesc') : t('notifications.enableToTest')}
-              >
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={handleTestNotification}
-                  disabled={!notificationsEnabled || notificationPermission === 'denied'}
+          <div className="space-y-3">
+            {notificationsSupported ? (
+              <div className="space-y-1.5">
+                <SettingRow
+                  label={t('notifications.notificationsLabel')}
+                  description={
+                    notificationPermission === 'denied'
+                      ? t('notifications.blockedByBrowser')
+                      : t('notifications.notifyWhenComplete')
+                  }
+                  onClick={() => notificationPermission !== 'denied' && setNotificationsEnabled(!notificationsEnabled)}
                 >
-                  {t('common:send')}
-                </Button>
-              </SettingRow>
-            </div>
-          ) : (
-            <div className="text-[length:var(--fs-sm)] text-text-400 leading-relaxed">{t('notifications.notAvailable')}</div>
-          )}
+                  <Toggle
+                    enabled={notificationsEnabled && notificationPermission !== 'denied'}
+                    onChange={() =>
+                      notificationPermission !== 'denied' && setNotificationsEnabled(!notificationsEnabled)
+                    }
+                  />
+                </SettingRow>
+
+                <SettingRow
+                  label={t('notifications.testNotification')}
+                  description={
+                    notificationsEnabled ? t('notifications.sendSampleDesc') : t('notifications.enableToTest')
+                  }
+                >
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={handleTestNotification}
+                    disabled={!notificationsEnabled || notificationPermission === 'denied'}
+                  >
+                    {t('common:send')}
+                  </Button>
+                </SettingRow>
+              </div>
+            ) : (
+              <div className="text-[length:var(--fs-sm)] text-text-400 leading-relaxed">
+                {t('notifications.notAvailable')}
+              </div>
+            )}
+
+            {notificationsEnabled && notificationPermission !== 'denied' && (
+              <div className="border-t border-border-200/35 pt-3">
+                <div className="px-1 mb-3">
+                  <div className="text-[length:var(--fs-md)] font-semibold text-text-100 mb-1.5">
+                    {t('notifications.notificationTypes')}
+                  </div>
+                  <div className="text-[length:var(--fs-xs)] text-text-400">
+                    {t('notifications.notificationTypesDesc')}
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  {EVENT_TYPES.map(evt => (
+                    <EventEnableRow
+                      key={evt.type}
+                      type={evt.type}
+                      labelKey={evt.labelKey}
+                      descKey={evt.descKey}
+                      icon={evt.icon}
+                      color={evt.color}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         </SettingsCard>
 
         <SettingsCard title={t('notifications.inAppAlerts')} description={t('notifications.inAppAlertsDesc')}>
@@ -409,7 +490,9 @@ export function NotificationSettings() {
 
               {/* Volume Slider */}
               <div className="px-2.5 py-2.5">
-                <div className="text-[length:var(--fs-md)] font-medium text-text-100 mb-1">{t('notifications.volume')}</div>
+                <div className="text-[length:var(--fs-md)] font-medium text-text-100 mb-1">
+                  {t('notifications.volume')}
+                </div>
                 <div className="text-[length:var(--fs-xs)] text-text-400 mb-2.5">{t('notifications.volumeDesc')}</div>
                 <VolumeSlider value={soundSettings.volume} onChange={v => soundStore.setVolume(v)} />
               </div>
@@ -421,7 +504,9 @@ export function NotificationSettings() {
                 <div className="text-[length:var(--fs-md)] font-semibold text-text-100 mb-1.5 px-1">
                   {t('notifications.eventSounds')}
                 </div>
-                <div className="text-[length:var(--fs-xs)] text-text-400 mb-3 px-1">{t('notifications.eventSoundsDesc')}</div>
+                <div className="text-[length:var(--fs-xs)] text-text-400 mb-3 px-1">
+                  {t('notifications.eventSoundsDesc')}
+                </div>
                 <div className="grid gap-3 xl:grid-cols-2">
                   {EVENT_TYPES.map(evt => (
                     <EventSoundCard
@@ -438,7 +523,9 @@ export function NotificationSettings() {
             )}
           </div>
         ) : (
-          <div className="text-[length:var(--fs-sm)] text-text-400 leading-relaxed">{t('notifications.soundNotSupported')}</div>
+          <div className="text-[length:var(--fs-sm)] text-text-400 leading-relaxed">
+            {t('notifications.soundNotSupported')}
+          </div>
         )}
       </SettingsCard>
     </div>

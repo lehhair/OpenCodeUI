@@ -91,6 +91,7 @@ export function ProjectDialog({ isOpen, onClose, onSelect, initialPath = '' }: P
     if (!isOpen) return
 
     let cancelled = false
+
     const timer = window.setTimeout(() => {
       loadedPathRef.current = ''
       setItems([])
@@ -301,7 +302,15 @@ export function ProjectDialog({ isOpen, onClose, onSelect, initialPath = '' }: P
   // ==========================================
 
   return (
-    <Dialog isOpen={isOpen} onClose={onClose} rawContent width={560} showCloseButton={false} className="h-[460px]">
+    <Dialog
+      isOpen={isOpen}
+      onClose={onClose}
+      rawContent
+      width={560}
+      showCloseButton={false}
+      allowTouchBackdropClose
+      className="h-[460px]"
+    >
       {/* Header */}
       <div className="p-4 pb-2 shrink-0">
         <div className="relative bg-bg-000/40 rounded-xl border border-border-200 focus-within:border-accent-main-100/50 transition-colors flex items-center px-3 py-2.5">

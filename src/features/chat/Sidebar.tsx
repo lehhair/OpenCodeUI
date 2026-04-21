@@ -35,6 +35,7 @@ export const Sidebar = memo(function Sidebar({
   onProjectDialogClose,
 }: SidebarProps) {
   const [isProjectDialogOpen, setIsProjectDialogOpen] = useState(false)
+  const [projectDialogKey, setProjectDialogKey] = useState(0)
   const { addDirectory, pathInfo } = useDirectory()
   const { interaction, layout, actions } = useChatViewport()
   const isOverlay = interaction.sidebarBehavior === 'overlay'
@@ -57,6 +58,7 @@ export const Sidebar = memo(function Sidebar({
   )
 
   const openProjectDialog = useCallback(() => {
+    setProjectDialogKey(key => key + 1)
     setIsProjectDialogOpen(true)
   }, [])
 
@@ -263,6 +265,7 @@ export const Sidebar = memo(function Sidebar({
         </div>
 
         <ProjectDialog
+          key={`mobile-${projectDialogKey}-${Number(isProjectDialogVisible)}`}
           isOpen={isProjectDialogVisible}
           onClose={closeProjectDialog}
           onSelect={handleAddProject}
@@ -316,6 +319,7 @@ export const Sidebar = memo(function Sidebar({
       </div>
 
       <ProjectDialog
+        key={`desktop-${projectDialogKey}-${Number(isProjectDialogVisible)}`}
         isOpen={isProjectDialogVisible}
         onClose={closeProjectDialog}
         onSelect={handleAddProject}

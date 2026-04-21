@@ -50,6 +50,11 @@ export interface ServerHealth {
   version?: string // 服务器版本
 }
 
+export interface ServerSettingsBackup {
+  servers: ServerConfig[]
+  activeServerId: string | null
+}
+
 type Listener = () => void
 
 const STORAGE_KEY = 'opencode-servers'
@@ -420,6 +425,77 @@ class ServerStore {
 
 // 单例导出
 export const serverStore = new ServerStore()
+
+function normalizeServerBackup(raw: unknown): ServerSettingsBackup {
+  const parsed = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : undefined
+  const servers = Array.isArray(parsed?.servers)
+    ? parsed.servers
+        .filter(
+          (item): item is ServerConfig =>
+            !!item &&
+            typeof item === 'object' &&
+            typeof (item as Record<string, unknown>).id === 'string' &&
+            typeof (item as Record<string, unknown>).name === 'string' &&
+            typeof (item as Record<string, unknown>).url === 'string',
+        )
+        .map(item => ({
+          id: item.id,
+          name: item.name,
+          url: item.url.replace(/\/+$/, ''),
+          isDefault: item.isDefault === true,
+          auth:
+            item.auth &&
+            typeof item.auth === 'object' &&
+            typeof item.auth.username === 'string' &&
+            typeof item.auth.password === 'string'
+              ? { username: item.auth.username, password: item.auth.password }
+              : undefined,
+        }))
+    : []
+
+  const normalizedServers = servers.length
+    ? servers
+    : [
+        {
+          id: 'local',
+          name: 'Local',
+          url: API_BASE_URL,
+          isDefault: true,
+        },
+      ]
+
+  const activeServerId =
+    typeof parsed?.activeServerId === 'string' && normalizedServers.some(server => server.id === parsed.activeServerId)
+      ? parsed.activeServerId
+      : (normalizedServers[0]?.id ?? null)
+
+  return {
+    servers: normalizedServers,
+    activeServerId,
+  }
+}
+
+export function exportServerSettingsBackup(): ServerSettingsBackup {
+  return {
+    servers: serverStore.getServers().map(server => ({
+      ...server,
+      auth: server.auth ? { ...server.auth } : undefined,
+    })),
+    activeServerId: serverStore.getActiveServerId(),
+  }
+}
+
+export function importServerSettingsBackup(raw: unknown): void {
+  const normalized = normalizeServerBackup(raw)
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized.servers))
+  if (normalized.activeServerId) {
+    localStorage.setItem(ACTIVE_SERVER_KEY, normalized.activeServerId)
+    sessionStorage.setItem(ACTIVE_SERVER_KEY, normalized.activeServerId)
+  } else {
+    localStorage.removeItem(ACTIVE_SERVER_KEY)
+    sessionStorage.removeItem(ACTIVE_SERVER_KEY)
+  }
+}
 
 /**
  * 生成 Basic Auth header 值

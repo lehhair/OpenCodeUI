@@ -41,4 +41,21 @@ describe('Dialog', () => {
     })
     expect(screen.queryByText('dialog body')).not.toBeInTheDocument()
   })
+
+  it('can close from touch backdrop when enabled', () => {
+    const onClose = vi.fn()
+    render(
+      <Dialog isOpen={true} onClose={onClose} title="Test Dialog" allowTouchBackdropClose>
+        <div>dialog body</div>
+      </Dialog>,
+    )
+
+    const backdrop = screen.getByRole('dialog').parentElement
+    expect(backdrop).not.toBeNull()
+
+    fireEvent.pointerDown(backdrop as HTMLElement, { pointerType: 'touch' })
+    fireEvent.click(backdrop as HTMLElement)
+
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
 })

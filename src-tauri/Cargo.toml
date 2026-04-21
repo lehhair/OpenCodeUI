@@ -1,6 +1,6 @@
 [package]
 name = "opencodeui"
-version = "0.5.5"
+version = "0.5.8"
 description = "OpenCode UI - Tauri Mobile App"
 authors = ["lehhair"]
 license = "GPL-3.0-only"
@@ -24,6 +24,7 @@ reqwest = { version = "0.12", default-features = false, features = [
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tauri = { version = "2", features = ["devtools"] }
+tauri-plugin-decorum = "1.1.1"
 tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
 tauri-plugin-http = "2"

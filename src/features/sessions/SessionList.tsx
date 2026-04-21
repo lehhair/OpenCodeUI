@@ -358,6 +358,7 @@ export function SessionListItem({
     session.summary &&
     (session.summary.additions > 0 || session.summary.deletions > 0 || session.summary.files > 0),
   )
+  const itemPaddingClass = isCompact ? (isEditMode ? 'px-3 py-2' : 'pl-[6px] pr-3 py-2') : 'px-3 py-2.5'
 
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -528,7 +529,7 @@ export function SessionListItem({
         onTouchStart={isEditMode ? undefined : handleTouchStart}
         onTouchMove={isEditMode ? undefined : handleTouchMove}
         onTouchEnd={isEditMode ? undefined : handleTouchEnd}
-        className={`group relative flex items-center gap-1.5 px-2 py-1.5 rounded-md cursor-default transition-colors duration-150 select-none ${
+        className={`group relative flex items-center gap-2 px-2 py-1.5 rounded-md cursor-default transition-colors duration-150 select-none ${
           isSelected && !isEditMode
             ? 'bg-bg-200/80 text-text-100'
             : isEditMode && isChecked
@@ -550,14 +551,14 @@ export function SessionListItem({
             data-selection-id={session.id}
             onMouseDown={handleCheckMouseDown}
             onClick={handleCheckClick}
-            className={`shrink-0 flex items-center justify-center w-3.5 h-3.5 rounded-full cursor-pointer transition-colors ${
+            className={`shrink-0 flex items-center justify-center size-5 rounded-full cursor-pointer transition-colors ${
               isChecked ? 'bg-accent-main-100' : 'border border-text-500/50 hover:border-text-400'
             }`}
           >
             {isChecked && <CheckIcon size={9} className="text-white" />}
           </button>
         ) : (
-          <span className="relative shrink-0 flex items-center justify-center w-3 h-3" title={statusIndicatorTitle}>
+          <span className="relative shrink-0 flex items-center justify-center size-5" title={statusIndicatorTitle}>
             {activeStatus ? (
               <>
                 <span className={`absolute w-1.5 h-1.5 rounded-full ${activeStatus.dot}`} />
@@ -647,7 +648,7 @@ export function SessionListItem({
       onTouchStart={isEditMode ? undefined : handleTouchStart}
       onTouchMove={isEditMode ? undefined : handleTouchMove}
       onTouchEnd={isEditMode ? undefined : handleTouchEnd}
-      className={`group relative flex items-start ${isCompact ? 'px-3 py-2' : 'px-3 py-2.5'} rounded-lg cursor-default transition-all duration-200 border border-transparent select-none ${
+      className={`group relative flex items-start ${itemPaddingClass} rounded-lg cursor-default transition-all duration-200 border border-transparent select-none ${
         isSelected && !isEditMode ? 'bg-bg-000 shadow-sm ring-1 ring-border-200/50' : 'hover:bg-bg-200/50'
       } ${showActions && !isEditMode ? 'bg-bg-200/50' : ''}`}
     >

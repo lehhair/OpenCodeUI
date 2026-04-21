@@ -672,6 +672,118 @@ export const oceanTheme: ThemePreset = {
   dark: oceanDark,
 }
 
+const draculaLight: ThemeColors = {
+  background: {
+    bg000: '48 100% 96%',
+    bg100: '48 88% 94%',
+    bg200: '45 52% 90%',
+    bg300: '240 19% 88%',
+    bg400: '240 19% 84%',
+  },
+  text: {
+    text000: '0 0% 100%',
+    text100: '0 0% 12%',
+    text200: '49 18% 36%',
+    text300: '46 14% 46%',
+    text400: '45 12% 58%',
+    text500: '240 19% 84%',
+    text600: '240 19% 88%',
+  },
+  accent: {
+    brand: '252 54% 54%',
+    main000: '336 78% 36%',
+    main100: '252 54% 54%',
+    main200: '265 89% 78%',
+    secondary100: '198 96% 30%',
+  },
+  semantic: {
+    success100: '114 84% 24%',
+    success200: '120 90% 30%',
+    successBg: '48 100% 96%',
+    warning100: '24 78% 36%',
+    warning200: '54 78% 36%',
+    warningBg: '48 100% 96%',
+    danger000: '6 66% 48%',
+    danger100: '12 72% 54%',
+    danger200: '0 100% 67%',
+    dangerBg: '48 100% 96%',
+    danger900: '240 19% 84%',
+    info100: '198 96% 30%',
+    info200: '204 100% 42%',
+    infoBg: '48 100% 96%',
+  },
+  border: {
+    border100: '240 19% 88%',
+    border200: '240 19% 84%',
+    border300: '49 18% 36%',
+  },
+  special: {
+    alwaysBlack: '0 0% 0%',
+    alwaysWhite: '0 0% 100%',
+    oncolor100: '0 0% 100%',
+  },
+}
+
+const draculaDark: ThemeColors = {
+  background: {
+    bg000: '231 15% 18%',
+    bg100: '233 16% 16%',
+    bg200: '233 17% 14%',
+    bg300: '233 18% 12%',
+    bg400: '233 20% 10%',
+  },
+  text: {
+    text000: '0 0% 100%',
+    text100: '60 30% 96%',
+    text200: '60 23% 90%',
+    text300: '225 27% 51%',
+    text400: '228 16% 62%',
+    text500: '232 14% 31%',
+    text600: '233 17% 14%',
+  },
+  accent: {
+    brand: '265 89% 78%',
+    main000: '258 60% 60%',
+    main100: '265 89% 78%',
+    main200: '265 89% 78%',
+    secondary100: '225 27% 51%',
+  },
+  semantic: {
+    success100: '135 94% 65%',
+    success200: '120 90% 30%',
+    successBg: '235 14% 15%',
+    warning100: '31 100% 71%',
+    warning200: '54 78% 36%',
+    warningBg: '235 14% 15%',
+    danger000: '0 100% 67%',
+    danger100: '12 72% 54%',
+    danger200: '0 100% 67%',
+    dangerBg: '235 14% 15%',
+    danger900: '230 15% 24%',
+    info100: '191 97% 77%',
+    info200: '204 100% 42%',
+    infoBg: '235 14% 15%',
+  },
+  border: {
+    border100: '232 14% 31%',
+    border200: '232 14% 31%',
+    border300: '225 27% 51%',
+  },
+  special: {
+    alwaysBlack: '0 0% 0%',
+    alwaysWhite: '0 0% 100%',
+    oncolor100: '0 0% 100%',
+  },
+}
+
+export const draculaTheme: ThemePreset = {
+  id: 'dracula',
+  name: 'Dracula',
+  description: 'Official Dracula preset with Alucard day and monochrome night',
+  light: draculaLight,
+  dark: draculaDark,
+}
+
 // ============================================
 // Obsidian 主题 - 纯黑高对比
 // ============================================
@@ -679,10 +791,10 @@ export const oceanTheme: ThemePreset = {
 const obsidianLight: ThemeColors = {
   background: {
     bg000: '0 0% 100%',
-    bg100: '0 0% 99%',
-    bg200: '0 0% 98%',
-    bg300: '0 0% 96%',
-    bg400: '0 0% 89%',
+    bg100: '0 0% 98%',
+    bg200: '0 0% 95%',
+    bg300: '0 0% 91%',
+    bg400: '0 0% 86%',
   },
   text: {
     text000: '0 0% 100%',
@@ -730,11 +842,11 @@ const obsidianLight: ThemeColors = {
 
 const obsidianDark: ThemeColors = {
   background: {
-    bg000: '0 0% 12%',
+    bg000: '0 0% 16%',
     bg100: '0 0% 13%',
-    bg200: '0 0% 14%',
-    bg300: '0 0% 15%',
-    bg400: '0 0% 16%',
+    bg200: '0 0% 10%',
+    bg300: '0 0% 8%',
+    bg400: '0 0% 5%',
   },
   text: {
     text000: '0 0% 100%',
@@ -798,6 +910,7 @@ export const builtinThemes: ThemePreset[] = [
   breezeTheme,
   sakuraTheme,
   oceanTheme,
+  draculaTheme,
   obsidianTheme,
 ]
 

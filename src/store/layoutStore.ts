@@ -75,6 +75,9 @@ const STORAGE_KEY_SIDEBAR_FOLDER_RECENTS_SHOW_DIFF = 'opencode-sidebar-folder-re
 const STORAGE_KEY_SIDEBAR_SHOW_CHILD_SESSIONS = 'opencode-sidebar-show-child-sessions'
 const STORAGE_KEY_PANEL_LAYOUT = 'opencode-panel-layout'
 const STORAGE_KEY_TERMINAL_LAYOUT = 'opencode-terminal-layout'
+const STORAGE_KEY_RIGHT_PANEL_WIDTH = 'opencode-right-panel-width'
+const STORAGE_KEY_BOTTOM_PANEL_HEIGHT = 'opencode-bottom-panel-height'
+const STORAGE_KEY_VIEWPORT_SIDEBAR_WIDTH = 'sidebar-width'
 
 interface PersistedPanelTab {
   id: string
@@ -83,7 +86,7 @@ interface PersistedPanelTab {
   title?: string
 }
 
-interface PersistedPanelLayout {
+export interface PersistedPanelLayout {
   version: 1
   panelTabs: PersistedPanelTab[]
   activeTabId: LayoutState['activeTabId']
@@ -91,12 +94,12 @@ interface PersistedPanelLayout {
   bottomPanelOpen: boolean
 }
 
-interface PersistedTerminalDirectoryLayout {
+export interface PersistedTerminalDirectoryLayout {
   order: Record<PanelPosition, string[]>
   activeTabId: LayoutState['activeTabId']
 }
 
-interface PersistedTerminalLayoutMap {
+export interface PersistedTerminalLayoutMap {
   version: 1
   directories: Record<string, PersistedTerminalDirectoryLayout>
 }
@@ -311,7 +314,7 @@ export class LayoutStore {
       }
 
       // 右侧面板宽度
-      const savedWidth = localStorage.getItem('opencode-right-panel-width')
+      const savedWidth = localStorage.getItem(STORAGE_KEY_RIGHT_PANEL_WIDTH)
       if (savedWidth) {
         const width = parseInt(savedWidth)
         if (!isNaN(width) && width >= 160 && width <= MAX_RIGHT_PANEL_WIDTH) {
@@ -320,7 +323,7 @@ export class LayoutStore {
       }
 
       // 底部面板高度
-      const savedBottomHeight = localStorage.getItem('opencode-bottom-panel-height')
+      const savedBottomHeight = localStorage.getItem(STORAGE_KEY_BOTTOM_PANEL_HEIGHT)
       if (savedBottomHeight) {
         const height = parseInt(savedBottomHeight)
         if (!isNaN(height) && height >= 100 && height <= 500) {
@@ -657,7 +660,7 @@ export class LayoutStore {
   setRightPanelWidth(width: number) {
     this.state.rightPanelWidth = Math.min(Math.max(width, 160), MAX_RIGHT_PANEL_WIDTH)
     try {
-      localStorage.setItem('opencode-right-panel-width', this.state.rightPanelWidth.toString())
+      localStorage.setItem(STORAGE_KEY_RIGHT_PANEL_WIDTH, this.state.rightPanelWidth.toString())
     } catch {
       // ignore
     }
@@ -968,6 +971,102 @@ export class LayoutStore {
 }
 
 export const layoutStore = new LayoutStore()
+
+export interface LayoutBackup {
+  sidebarExpanded: boolean
+  sidebarFolderRecents: boolean
+  sidebarFolderRecentsShowDiff: boolean
+  sidebarShowChildSessions: boolean
+  wakeLock: boolean
+  rightPanelWidth: number
+  bottomPanelHeight: number
+  panelLayout: PersistedPanelLayout
+  terminalLayout: PersistedTerminalLayoutMap
+  sidebarWidth: number | null
+}
+
+function buildPersistedPanelLayout(state: LayoutState): PersistedPanelLayout {
+  return {
+    version: 1,
+    panelTabs: state.panelTabs
+      .filter((tab): tab is PanelTab & { type: PersistedPanelTabType } => tab.type !== 'terminal')
+      .map(tab => ({
+        id: tab.id,
+        type: tab.type,
+        position: tab.position,
+        title: tab.title,
+      })),
+    activeTabId: { ...state.activeTabId },
+    rightPanelOpen: state.rightPanelOpen,
+    bottomPanelOpen: state.bottomPanelOpen,
+  }
+}
+
+export function exportLayoutBackup(): LayoutBackup {
+  const state = layoutStore.getState()
+  const rawSidebarWidth = localStorage.getItem(STORAGE_KEY_VIEWPORT_SIDEBAR_WIDTH)
+  const sidebarWidth = rawSidebarWidth !== null ? Number.parseInt(rawSidebarWidth, 10) : null
+  let terminalLayout: PersistedTerminalLayoutMap
+
+  try {
+    terminalLayout = sanitizePersistedTerminalLayoutMap(
+      JSON.parse(localStorage.getItem(STORAGE_KEY_TERMINAL_LAYOUT) ?? 'null'),
+    )
+  } catch {
+    terminalLayout = { version: 1, directories: {} }
+  }
+
+  return {
+    sidebarExpanded: state.sidebarExpanded,
+    sidebarFolderRecents: state.sidebarFolderRecents,
+    sidebarFolderRecentsShowDiff: state.sidebarFolderRecentsShowDiff,
+    sidebarShowChildSessions: state.sidebarShowChildSessions,
+    wakeLock: state.wakeLock,
+    rightPanelWidth: state.rightPanelWidth,
+    bottomPanelHeight: state.bottomPanelHeight,
+    panelLayout: buildPersistedPanelLayout(state),
+    terminalLayout,
+    sidebarWidth: Number.isFinite(sidebarWidth) ? sidebarWidth : null,
+  }
+}
+
+export function importLayoutBackup(raw: unknown): void {
+  const parsed = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : undefined
+  const panelLayout =
+    sanitizePersistedPanelLayout(parsed?.panelLayout) ?? buildPersistedPanelLayout(layoutStore.getState())
+  const terminalLayout = sanitizePersistedTerminalLayoutMap(parsed?.terminalLayout)
+  const rightPanelWidth =
+    typeof parsed?.rightPanelWidth === 'number'
+      ? Math.min(Math.max(Math.round(parsed.rightPanelWidth), 160), MAX_RIGHT_PANEL_WIDTH)
+      : 450
+  const bottomPanelHeight =
+    typeof parsed?.bottomPanelHeight === 'number'
+      ? Math.min(Math.max(Math.round(parsed.bottomPanelHeight), 100), 500)
+      : 250
+  const sidebarWidth =
+    typeof parsed?.sidebarWidth === 'number' && Number.isFinite(parsed.sidebarWidth) && parsed.sidebarWidth > 0
+      ? Math.round(parsed.sidebarWidth)
+      : null
+
+  localStorage.setItem(STORAGE_KEY_SIDEBAR, String(parsed?.sidebarExpanded === true))
+  localStorage.setItem(STORAGE_KEY_SIDEBAR_FOLDER_RECENTS, String(parsed?.sidebarFolderRecents === true))
+  localStorage.setItem(
+    STORAGE_KEY_SIDEBAR_FOLDER_RECENTS_SHOW_DIFF,
+    String(parsed?.sidebarFolderRecentsShowDiff !== false),
+  )
+  localStorage.setItem(STORAGE_KEY_SIDEBAR_SHOW_CHILD_SESSIONS, String(parsed?.sidebarShowChildSessions === true))
+  localStorage.setItem(STORAGE_KEY_WAKE_LOCK, String(parsed?.wakeLock === true))
+  localStorage.setItem(STORAGE_KEY_RIGHT_PANEL_WIDTH, String(rightPanelWidth))
+  localStorage.setItem(STORAGE_KEY_BOTTOM_PANEL_HEIGHT, String(bottomPanelHeight))
+  localStorage.setItem(STORAGE_KEY_PANEL_LAYOUT, JSON.stringify(panelLayout))
+  localStorage.setItem(STORAGE_KEY_TERMINAL_LAYOUT, JSON.stringify(terminalLayout))
+
+  if (sidebarWidth !== null) {
+    localStorage.setItem(STORAGE_KEY_VIEWPORT_SIDEBAR_WIDTH, String(sidebarWidth))
+  } else {
+    localStorage.removeItem(STORAGE_KEY_VIEWPORT_SIDEBAR_WIDTH)
+  }
+}
 
 // ============================================
 // React Hook

@@ -537,6 +537,10 @@ export function keybindingsEqual(a: string, b: string): boolean {
   return normalizeKeybindingString(a) === normalizeKeybindingString(b)
 }
 
+export interface KeybindingBackup {
+  customKeys: Record<string, string>
+}
+
 /**
  * Keybinding Store
  */
@@ -704,3 +708,27 @@ class KeybindingStore {
 
 // 单例导出
 export const keybindingStore = new KeybindingStore()
+
+export function exportKeybindingBackup(): KeybindingBackup {
+  const customKeys: Record<string, string> = {}
+  for (const keybinding of keybindingStore.getAll()) {
+    if (keybinding.currentKey !== keybinding.defaultKey) {
+      customKeys[keybinding.action] = keybinding.currentKey
+    }
+  }
+  return { customKeys }
+}
+
+export function importKeybindingBackup(raw: unknown): void {
+  const parsed = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : undefined
+  const nextCustomKeys = parsed?.customKeys && typeof parsed.customKeys === 'object' ? parsed.customKeys : {}
+
+  keybindingStore.resetAll()
+
+  for (const keybinding of DEFAULT_KEYBINDINGS) {
+    const customKey = (nextCustomKeys as Record<string, unknown>)[keybinding.action]
+    if (typeof customKey === 'string' && customKey.trim()) {
+      keybindingStore.setKeybinding(keybinding.action, customKey)
+    }
+  }
+}

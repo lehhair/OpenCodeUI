@@ -74,6 +74,62 @@ body,
   /* 原生已 setPadding，这里不再加 padding */
 }
 
+/* ============================================
+ * Desktop Titlebar (Tauri desktop)
+ * ============================================ */
+
+.desktop-titlebar {
+  position: relative;
+  -webkit-app-region: no-drag;
+}
+
+.desktop-titlebar [data-tauri-drag-region] {
+  app-region: drag;
+  -webkit-app-region: drag;
+}
+
+.desktop-titlebar [data-tauri-decorum-tb] {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  height: 100%;
+  pointer-events: auto;
+}
+
+.desktop-titlebar button.decorum-tb-btn,
+.desktop-titlebar button#decorum-tb-minimize,
+.desktop-titlebar button#decorum-tb-maximize,
+.desktop-titlebar button#decorum-tb-close {
+  position: relative;
+  z-index: 240;
+  width: 46px;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  outline: none;
+  box-shadow: none;
+  background: transparent;
+  color: hsl(var(--text-300));
+  pointer-events: auto;
+  transition:
+    background-color 160ms ease,
+    color 160ms ease;
+}
+
+.desktop-titlebar button.decorum-tb-btn:hover,
+.desktop-titlebar button#decorum-tb-minimize:hover,
+.desktop-titlebar button#decorum-tb-maximize:hover {
+  background: hsl(var(--bg-200) / 0.92);
+  color: hsl(var(--text-100));
+}
+
+.desktop-titlebar button#decorum-tb-close:hover {
+  background: hsl(var(--danger-100));
+  color: hsl(var(--always-white, 0 0% 100%));
+}
+
 /* Browser/PWA: keyboard inset via visualViewport (Tauri uses native insets) */
 @media (display-mode: browser), (display-mode: standalone) {
   :root:not(.tauri-app) #root {

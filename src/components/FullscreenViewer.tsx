@@ -16,6 +16,7 @@
 
 import { memo, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
+import { DESKTOP_FULLSCREEN_LAYER_Z_INDEX } from '../constants'
 import { CloseIcon } from './Icons'
 import { ModalShell } from './ui/ModalShell'
 import type { ViewMode } from './DiffViewer'
@@ -57,7 +58,7 @@ export const FullscreenViewer = memo(function FullscreenViewer({
   const { t } = useTranslation('common')
 
   return (
-    <ModalShell isOpen={isOpen} onClose={onClose} zIndex={zIndex}>
+    <ModalShell isOpen={isOpen} onClose={onClose} zIndex={zIndex ?? DESKTOP_FULLSCREEN_LAYER_Z_INDEX}>
       <div className="w-full h-full flex flex-col bg-bg-100">
         {showHeader && (
           <div className="flex items-center h-11 px-4 border-b border-border-100/40 shrink-0 gap-3">

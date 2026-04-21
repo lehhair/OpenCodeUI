@@ -24,6 +24,12 @@ interface PersistedUpdateState {
   dismissedVersion: string | null
 }
 
+export interface UpdateSettingsBackup {
+  latestRelease: UpdateRelease | null
+  lastCheckedAt: number | null
+  dismissedVersion: string | null
+}
+
 type Subscriber = () => void
 
 const STORAGE_KEY = 'opencode:update-check'
@@ -238,6 +244,28 @@ export class UpdateStore {
 }
 
 export const updateStore = new UpdateStore()
+
+export function exportUpdateSettingsBackup(): UpdateSettingsBackup {
+  const state = updateStore.getSnapshot()
+  return {
+    latestRelease: state.latestRelease,
+    lastCheckedAt: state.lastCheckedAt,
+    dismissedVersion: state.dismissedVersion,
+  }
+}
+
+export function importUpdateSettingsBackup(raw: unknown): void {
+  const parsed = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : undefined
+  const payload: PersistedUpdateState = {
+    latestRelease:
+      parsed?.latestRelease && typeof parsed.latestRelease === 'object'
+        ? (parsed.latestRelease as UpdateRelease)
+        : null,
+    lastCheckedAt: typeof parsed?.lastCheckedAt === 'number' ? parsed.lastCheckedAt : null,
+    dismissedVersion: typeof parsed?.dismissedVersion === 'string' ? parsed.dismissedVersion : null,
+  }
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(payload))
+}
 
 export function useUpdateStore(): UpdateState {
   return useSyncExternalStore(updateStore.subscribe, updateStore.getSnapshot, updateStore.getSnapshot)

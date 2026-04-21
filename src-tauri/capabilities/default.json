@@ -5,6 +5,17 @@
   "windows": ["main", "win-*"],
   "permissions": [
     "core:default",
+    "core:window:allow-start-dragging",
+    "core:window:allow-set-theme",
+    "core:window:allow-set-focus",
+    "core:window:allow-close",
+    "core:window:allow-center",
+    "core:window:allow-minimize",
+    "core:window:allow-maximize",
+    "core:window:allow-set-size",
+    "core:window:allow-is-maximized",
+    "core:window:allow-toggle-maximize",
+    "decorum:allow-show-snap-overlay",
     {
       "identifier": "http:default",
       "allow": [

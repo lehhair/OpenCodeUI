@@ -9,6 +9,8 @@ const {
   getSelectableAgentsMock,
   registerSessionConsumerMock,
   updateConsumerSessionIdMock,
+  sendNotificationMock,
+  isSystemEnabledMock,
   errorHandlerMock,
 } = vi.hoisted(() => ({
   createSessionMock: vi.fn(),
@@ -17,6 +19,8 @@ const {
   getSelectableAgentsMock: vi.fn(),
   registerSessionConsumerMock: vi.fn(),
   updateConsumerSessionIdMock: vi.fn(),
+  sendNotificationMock: vi.fn(),
+  isSystemEnabledMock: vi.fn((type: string) => type !== 'permission'),
   errorHandlerMock: vi.fn(),
 }))
 
@@ -85,7 +89,13 @@ vi.mock('../hooks', () => ({
 }))
 
 vi.mock('./useNotification', () => ({
-  useNotification: () => ({ sendNotification: vi.fn() }),
+  useNotification: () => ({ sendNotification: sendNotificationMock }),
+}))
+
+vi.mock('../store/notificationEventSettingsStore', () => ({
+  notificationEventSettingsStore: {
+    isSystemEnabled: (type: string) => isSystemEnabledMock(type),
+  },
 }))
 
 vi.mock('../api', () => ({
@@ -126,10 +136,13 @@ describe('useChatSession handleCommand', () => {
     getSelectableAgentsMock.mockReset()
     registerSessionConsumerMock.mockReset()
     updateConsumerSessionIdMock.mockReset()
+    sendNotificationMock.mockReset()
+    isSystemEnabledMock.mockReset()
     errorHandlerMock.mockReset()
 
     registerSessionConsumerMock.mockReturnValue(vi.fn())
     getSelectableAgentsMock.mockResolvedValue([{ name: 'build', mode: 'primary', hidden: false }])
+    isSystemEnabledMock.mockImplementation((type: string) => type !== 'permission')
 
     vi.spyOn(window, 'requestAnimationFrame').mockImplementation(cb => window.setTimeout(() => cb(0), 16))
     vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(id => {
@@ -208,4 +221,59 @@ describe('useChatSession handleCommand', () => {
     expect(settled).toBe(true)
     expect(commandResult).toBe(true)
   })
+
+  it.each([
+    {
+      disabledType: 'permission',
+      trigger: 'onPermissionAsked',
+      payload: { id: 'perm-1', sessionID: 'session-1', permission: 'bash', patterns: [] },
+    },
+    {
+      disabledType: 'question',
+      trigger: 'onQuestionAsked',
+      payload: {
+        id: 'question-1',
+        sessionID: 'session-1',
+        questions: [{ header: 'Need input' }],
+      },
+    },
+    {
+      disabledType: 'completed',
+      trigger: 'onSessionIdle',
+      payload: 'session-1',
+    },
+    {
+      disabledType: 'error',
+      trigger: 'onSessionError',
+      payload: 'session-1',
+    },
+  ])(
+    'does not send browser notification when the $disabledType event is disabled',
+    async ({ disabledType, trigger, payload }) => {
+      let callbacks: Record<string, ((payload: unknown) => void) | undefined> | undefined
+      registerSessionConsumerMock.mockImplementation((_paneId, _sessionId, consumerCallbacks) => {
+        callbacks = consumerCallbacks as typeof callbacks
+        return vi.fn()
+      })
+      isSystemEnabledMock.mockImplementation((type: string) => type !== disabledType)
+
+      renderHook(() =>
+        useChatSession({
+          paneId: 'pane-1',
+          chatAreaRef: { current: null },
+          currentModel: { id: 'model-1', providerId: 'provider-1', variants: [] } as never,
+          refetchModels: vi.fn(async () => {}),
+          sessionId: 'session-1',
+          navigateToSession: vi.fn(),
+          navigateHome: vi.fn(),
+        }),
+      )
+
+      act(() => {
+        callbacks?.[trigger]?.(payload)
+      })
+
+      expect(sendNotificationMock).not.toHaveBeenCalled()
+    },
+  )
 })

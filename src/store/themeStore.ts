@@ -167,6 +167,8 @@ export interface ThemeState {
   queueFollowupMessages: boolean
 }
 
+export type ThemeBackup = ThemeState
+
 // ============================================
 // Storage Keys
 // ============================================
@@ -833,3 +835,97 @@ class ThemeStore {
 
 // Singleton
 export const themeStore = new ThemeStore()
+
+function normalizeThemeBackup(raw: unknown): ThemeBackup {
+  const parsed = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : undefined
+  const customCSSSnippets = parseCustomCSSSnippets(
+    JSON.stringify(Array.isArray(parsed?.customCSSSnippets) ? parsed.customCSSSnippets : []),
+  )
+  const activeCustomCSSSnippetId =
+    typeof parsed?.activeCustomCSSSnippetId === 'string' &&
+    customCSSSnippets.some(item => item.id === parsed.activeCustomCSSSnippetId)
+      ? parsed.activeCustomCSSSnippetId
+      : null
+
+  return {
+    presetId:
+      typeof parsed?.presetId === 'string' && getThemePreset(parsed.presetId) ? parsed.presetId : DEFAULT_THEME_ID,
+    colorMode: parsed?.colorMode === 'light' || parsed?.colorMode === 'dark' ? parsed.colorMode : 'system',
+    customCSS: typeof parsed?.customCSS === 'string' ? parsed.customCSS : '',
+    customCSSSnippets,
+    activeCustomCSSSnippetId,
+    collapseUserMessages: typeof parsed?.collapseUserMessages === 'boolean' ? parsed.collapseUserMessages : true,
+    stepFinishDisplay:
+      parsed?.stepFinishDisplay && typeof parsed.stepFinishDisplay === 'object'
+        ? { ...DEFAULT_STEP_FINISH_DISPLAY, ...(parsed.stepFinishDisplay as Partial<StepFinishDisplay>) }
+        : DEFAULT_STEP_FINISH_DISPLAY,
+    completedAtFormat: parsed?.completedAtFormat === 'dateTime' ? 'dateTime' : DEFAULT_COMPLETED_AT_FORMAT,
+    reasoningDisplayMode:
+      parsed?.reasoningDisplayMode === 'italic' || parsed?.reasoningDisplayMode === 'markdown'
+        ? parsed.reasoningDisplayMode
+        : DEFAULT_REASONING_DISPLAY_MODE,
+    wideMode: parsed?.wideMode === true,
+    diffStyle: parsed?.diffStyle === 'changeBars' ? 'changeBars' : DEFAULT_DIFF_STYLE,
+    descriptiveToolSteps:
+      typeof parsed?.descriptiveToolSteps === 'boolean' ? parsed.descriptiveToolSteps : DEFAULT_DESCRIPTIVE_TOOL_STEPS,
+    inlineToolRequests:
+      typeof parsed?.inlineToolRequests === 'boolean' ? parsed.inlineToolRequests : DEFAULT_INLINE_TOOL_REQUESTS,
+    codeWordWrap: typeof parsed?.codeWordWrap === 'boolean' ? parsed.codeWordWrap : DEFAULT_CODE_WORD_WRAP,
+    uiFontScale: clampFontScale(typeof parsed?.uiFontScale === 'number' ? parsed.uiFontScale : DEFAULT_UI_FONT_SCALE),
+    codeFontScale: clampFontScale(
+      typeof parsed?.codeFontScale === 'number' ? parsed.codeFontScale : DEFAULT_CODE_FONT_SCALE,
+    ),
+    toolCardStyle:
+      parsed?.toolCardStyle === 'classic' || parsed?.toolCardStyle === 'compact'
+        ? parsed.toolCardStyle
+        : DEFAULT_TOOL_CARD_STYLE,
+    immersiveMode: typeof parsed?.immersiveMode === 'boolean' ? parsed.immersiveMode : DEFAULT_IMMERSIVE_MODE,
+    compactInlinePermission:
+      typeof parsed?.compactInlinePermission === 'boolean'
+        ? parsed.compactInlinePermission
+        : DEFAULT_COMPACT_INLINE_PERMISSION,
+    glassEffect: typeof parsed?.glassEffect === 'boolean' ? parsed.glassEffect : DEFAULT_GLASS_EFFECT,
+    queueFollowupMessages:
+      typeof parsed?.queueFollowupMessages === 'boolean'
+        ? parsed.queueFollowupMessages
+        : DEFAULT_QUEUE_FOLLOWUP_MESSAGES,
+  }
+}
+
+export function exportThemeBackup(): ThemeBackup {
+  const state = themeStore.getState()
+  return {
+    ...state,
+    customCSSSnippets: state.customCSSSnippets.map(item => ({ ...item })),
+    stepFinishDisplay: { ...state.stepFinishDisplay },
+  }
+}
+
+export function importThemeBackup(raw: unknown): void {
+  const backup = normalizeThemeBackup(raw)
+  localStorage.setItem(STORAGE_KEY_PRESET, backup.presetId)
+  localStorage.setItem(STORAGE_KEY_COLOR_MODE, backup.colorMode)
+  localStorage.setItem(STORAGE_KEY_CUSTOM_CSS, backup.customCSS)
+  localStorage.setItem(STORAGE_KEY_CUSTOM_CSS_SNIPPETS, JSON.stringify(backup.customCSSSnippets))
+  if (backup.activeCustomCSSSnippetId) {
+    localStorage.setItem(STORAGE_KEY_ACTIVE_CUSTOM_CSS_SNIPPET_ID, backup.activeCustomCSSSnippetId)
+  } else {
+    localStorage.removeItem(STORAGE_KEY_ACTIVE_CUSTOM_CSS_SNIPPET_ID)
+  }
+  localStorage.setItem(STORAGE_KEY_COLLAPSE_USER_MESSAGES, String(backup.collapseUserMessages))
+  localStorage.setItem(STORAGE_KEY_STEP_FINISH_DISPLAY, JSON.stringify(backup.stepFinishDisplay))
+  localStorage.setItem(STORAGE_KEY_COMPLETED_AT_FORMAT, backup.completedAtFormat)
+  localStorage.setItem(STORAGE_KEY_REASONING_DISPLAY_MODE, backup.reasoningDisplayMode)
+  localStorage.setItem(STORAGE_KEY_WIDE_MODE, String(backup.wideMode))
+  localStorage.setItem(STORAGE_KEY_DIFF_STYLE, backup.diffStyle)
+  localStorage.setItem(STORAGE_KEY_DESCRIPTIVE_TOOL_STEPS, String(backup.descriptiveToolSteps))
+  localStorage.setItem(STORAGE_KEY_INLINE_TOOL_REQUESTS, String(backup.inlineToolRequests))
+  localStorage.setItem(STORAGE_KEY_CODE_WORD_WRAP, String(backup.codeWordWrap))
+  localStorage.setItem(STORAGE_KEY_FONT_SCALE, String(backup.uiFontScale))
+  localStorage.setItem(STORAGE_KEY_CODE_FONT_SCALE, String(backup.codeFontScale))
+  localStorage.setItem(STORAGE_KEY_TOOL_CARD_STYLE, backup.toolCardStyle)
+  localStorage.setItem(STORAGE_KEY_IMMERSIVE_MODE, String(backup.immersiveMode))
+  localStorage.setItem(STORAGE_KEY_COMPACT_INLINE_PERMISSION, String(backup.compactInlinePermission))
+  localStorage.setItem(STORAGE_KEY_GLASS_EFFECT, String(backup.glassEffect))
+  localStorage.setItem(STORAGE_KEY_QUEUE_FOLLOWUP_MESSAGES, String(backup.queueFollowupMessages))
+}

@@ -1,8 +1,10 @@
-import { useCallback } from 'react'
+import { useCallback, useRef, useState, type ChangeEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '../../../components/ui/Button'
-import { ExternalLinkIcon, RetryIcon } from '../../../components/Icons'
+import { DownloadIcon, ExternalLinkIcon, RetryIcon, UploadIcon } from '../../../components/Icons'
 import { hasUpdateAvailable, updateStore, useUpdateStore, RELEASES_PAGE_URL } from '../../../store/updateStore'
+import { saveData } from '../../../utils/downloadUtils'
+import { exportSettingsBackup, importSettingsBackup, previewBackupMeta } from '../../../utils/settingsBackup'
 import { isTauri } from '../../../utils/tauri'
 import { SettingsCard, SettingsSection } from './SettingsUI'
 
@@ -24,6 +26,9 @@ export function AboutSettings() {
   const latestRelease = updateState.latestRelease
   const latestVersion = latestRelease?.tagName || t('about.unknownVersion')
   const releaseDate = latestRelease?.publishedAt ? new Date(latestRelease.publishedAt).toLocaleString() : null
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [backupBusy, setBackupBusy] = useState<'export' | 'import' | null>(null)
+  const [backupError, setBackupError] = useState<string | null>(null)
 
   const handleCheckUpdates = useCallback(() => {
     void updateStore.checkForUpdates({ force: true })
@@ -34,6 +39,53 @@ export function AboutSettings() {
     updateStore.hideToastForCurrentVersion()
     void openExternalUrl(targetUrl)
   }, [latestRelease?.url])
+
+  const handleExportBackup = useCallback(async () => {
+    setBackupError(null)
+    setBackupBusy('export')
+    try {
+      const { fileName, data } = await exportSettingsBackup()
+      saveData(data, fileName, 'application/json;charset=utf-8')
+    } catch (error) {
+      setBackupError(error instanceof Error ? error.message : t('about.backupExportFailed'))
+    } finally {
+      setBackupBusy(null)
+    }
+  }, [t])
+
+  const handleImportClick = useCallback(() => {
+    setBackupError(null)
+    fileInputRef.current?.click()
+  }, [])
+
+  const handleImportBackup = useCallback(
+    async (event: ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0]
+      event.target.value = ''
+      if (!file) return
+
+      setBackupError(null)
+      setBackupBusy('import')
+
+      try {
+        const { createdAt } = await previewBackupMeta(file)
+        const confirmed = window.confirm(
+          createdAt
+            ? t('about.backupImportConfirmWithDate', { date: new Date(createdAt).toLocaleString() })
+            : t('about.backupImportConfirm'),
+        )
+        if (!confirmed) return
+
+        await importSettingsBackup(file)
+        window.location.reload()
+      } catch (error) {
+        setBackupError(error instanceof Error ? error.message : t('about.backupImportFailed'))
+      } finally {
+        setBackupBusy(null)
+      }
+    },
+    [t],
+  )
 
   let statusText = t('about.statusIdle')
   if (updateState.checking) {
@@ -81,6 +133,38 @@ export function AboutSettings() {
                 {hasUpdate ? t('about.viewUpdate') : t('about.openReleases')}
               </Button>
             </div>
+          </div>
+        </SettingsCard>
+
+        <SettingsCard title={t('about.backupCardTitle')} description={t('about.backupCardDesc')}>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="application/json,.json"
+            onChange={handleImportBackup}
+            className="hidden"
+          />
+          <div className="space-y-4">
+            <div className="rounded-lg border border-border-200/50 bg-bg-100/35 px-3 py-3 text-[length:var(--fs-sm)] text-text-300 leading-relaxed">
+              {t('about.backupWarning')}
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" variant="secondary" isLoading={backupBusy === 'export'} onClick={handleExportBackup}>
+                {backupBusy !== 'export' && <DownloadIcon size={12} />}
+                {t('about.exportBackup')}
+              </Button>
+              <Button size="sm" variant="ghost" isLoading={backupBusy === 'import'} onClick={handleImportClick}>
+                {backupBusy !== 'import' && <UploadIcon size={12} />}
+                {t('about.importBackup')}
+              </Button>
+            </div>
+
+            {backupError && (
+              <div className="rounded-lg border border-danger-100/20 bg-danger-100/10 px-3 py-2 text-[length:var(--fs-sm)] text-danger-100 leading-relaxed">
+                {backupError}
+              </div>
+            )}
           </div>
         </SettingsCard>
       </SettingsSection>
