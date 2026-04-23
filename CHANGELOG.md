@@ -1,5 +1,13 @@
 # Changelog
 
+## [v0.5.9] - 2026-04-23
+
+- fix: harden live tool timing updates (d6c963a)
+- feat: resolve issue #74 running tool durations (54490f3)
+- feat: store calibrated server time locally (f35c4ab)
+- feat: handle server.connected event timestamps (0e77075)
+- refactor: extract shared ticking clock hook (1b0c626)
+
 ## [v0.5.8] - 2026-04-21
 
 - fix: polish sidebar session and notification layout (51b22f2)
