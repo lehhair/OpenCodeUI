@@ -4,6 +4,7 @@ import { formatCompletedAt, formatDateTime, formatDuration, formatTime } from '.
 describe('formatDuration', () => {
   it('formats milliseconds and seconds', () => {
     expect(formatDuration(999)).toBe('999ms')
+    expect(formatDuration(123.456)).toBe('123ms')
     expect(formatDuration(1500)).toBe('1.5s')
   })
 

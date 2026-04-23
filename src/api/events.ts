@@ -93,6 +93,14 @@ let pendingDisconnect: Promise<void> = Promise.resolve()
 let lastReconnectedBroadcast = 0
 const RECONNECTED_COOLDOWN = 2000
 
+function finalizeConnectionAttempt(generation: number): boolean {
+  if (generation !== connectionGeneration) {
+    return false
+  }
+  isConnecting = false
+  return true
+}
+
 /**
  * 广播 onReconnected，带 cooldown 防止 SSE 快速重连时密集触发数据拉取
  */
@@ -221,6 +229,8 @@ interface BridgeEvent {
 }
 
 async function connectViaTauri() {
+  const myGeneration = connectionGeneration
+
   try {
     // 等待上一次 disconnect 完成，避免 Rust 侧 connect/disconnect 竞争
     await pendingDisconnect
@@ -230,9 +240,6 @@ async function connectViaTauri() {
     const url = `${getApiBaseUrl()}/global/event`
     const authHeaders = getAuthHeader()
     const authHeader = authHeaders['Authorization'] || null
-
-    // 捕获当前连接代次，旧代次的事件一律丢弃
-    const myGeneration = connectionGeneration
 
     const sseParser = createSseTextParser()
 
@@ -307,7 +314,7 @@ async function connectViaTauri() {
       args: { bridgeId: 'sse', url, authHeader },
       onEvent,
     }).catch((error: unknown) => {
-      isConnecting = false
+      if (!finalizeConnectionAttempt(myGeneration)) return
       const errorMsg = error instanceof Error ? error.message : String(error)
       if (import.meta.env.DEV) {
         console.warn('[SSE/Tauri] invoke error:', errorMsg)
@@ -322,7 +329,7 @@ async function connectViaTauri() {
       scheduleReconnect()
     })
   } catch (error) {
-    isConnecting = false
+    if (!finalizeConnectionAttempt(myGeneration)) return
     const errorMsg = error instanceof Error ? error.message : String(error)
     console.warn('[SSE/Tauri] Failed to initialize:', errorMsg)
     updateConnectionState({ state: 'error', error: errorMsg })
@@ -348,12 +355,12 @@ function connectViaBrowser() {
     },
   })
     .then(async response => {
-      isConnecting = false
-
       if (myGeneration !== connectionGeneration) {
         await response.body?.cancel?.().catch(() => {})
         return
       }
+
+      finalizeConnectionAttempt(myGeneration)
 
       if (!response.ok) {
         throw new Error(`Failed to subscribe: ${response.status}`)
@@ -416,7 +423,9 @@ function connectViaBrowser() {
       }
     })
     .catch(error => {
-      isConnecting = false
+      if (!finalizeConnectionAttempt(myGeneration)) {
+        return
+      }
 
       if (error.name === 'AbortError') {
         return

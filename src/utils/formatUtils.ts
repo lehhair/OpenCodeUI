@@ -12,8 +12,9 @@ export function formatToolName(name: string): string {
 
 /** Format a duration in ms to human-readable string */
 export function formatDuration(ms: number): string {
-  if (ms < 1000) return `${ms}ms`
-  const s = ms / 1000
+  const normalizedMs = Math.max(0, Math.round(ms))
+  if (normalizedMs < 1000) return `${normalizedMs}ms`
+  const s = normalizedMs / 1000
   if (s < 60) return `${s.toFixed(1)}s`
 
   const totalSeconds = Math.round(s)

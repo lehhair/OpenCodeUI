@@ -123,4 +123,12 @@ describe('ToolPartView running duration', () => {
 
     expect(screen.getByText('0ms')).toBeInTheDocument()
   })
+
+  it('rounds calibrated sub-second durations before rendering', () => {
+    getActiveCalibratedNowMock.mockReturnValue(7_623.456)
+
+    render(<ToolPartView part={createRunningToolPart()} />)
+
+    expect(screen.getByText('123ms')).toBeInTheDocument()
+  })
 })

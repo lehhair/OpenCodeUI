@@ -214,4 +214,34 @@ describe('subscribeToEvents', () => {
     expect(received).toEqual(['new-server-time'])
     unsubscribe()
   })
+
+  it('ignores stale browser fetch failures from an old SSE generation after reconnect', async () => {
+    const firstFetch = createDeferred<Pick<Response, 'ok' | 'body'>>()
+    const secondFetch = createDeferred<Pick<Response, 'ok' | 'body'>>()
+    const fetchMock = vi
+      .fn()
+      .mockImplementationOnce(() => firstFetch.promise)
+      .mockImplementationOnce(() => secondFetch.promise)
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { subscribeToEvents, reconnectSSE, getConnectionInfo } = await import('./events')
+    const onError = vi.fn()
+
+    const unsubscribe = subscribeToEvents({
+      onError,
+    })
+
+    reconnectSSE()
+
+    firstFetch.reject(new Error('stale failure'))
+
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(onError).not.toHaveBeenCalled()
+    expect(getConnectionInfo().state).toBe('connecting')
+
+    secondFetch.reject(Object.assign(new Error('aborted'), { name: 'AbortError' }))
+    unsubscribe()
+  })
 })
