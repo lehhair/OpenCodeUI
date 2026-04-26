@@ -1,5 +1,11 @@
 # Changelog
 
+## [v0.5.10] - 2026-04-26
+
+- feat: add manual terminal labels and restore state (b42a90d)
+- fix: align terminal PTY handling with upstream (093f2f2)
+- fix: avoid macOS traffic light overlap in fullscreen headers (a5a3554)
+
 ## [v0.5.9] - 2026-04-23
 
 - fix: harden live tool timing updates (d6c963a)
