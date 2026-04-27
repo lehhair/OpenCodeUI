@@ -40,6 +40,7 @@ export function Dialog({
   const previousFocusedElementRef = useRef<HTMLElement | null>(null)
   const previousFocusedElementIdRef = useRef<string | null>(null)
   const restoreFocusTimerRef = useRef<number | null>(null)
+  const handoffFocusTimerRef = useRef<number | null>(null)
 
   // 拖拽条区域 ref —— 下滑关闭只从这个区域开始
   const dragHandleRef = useRef<HTMLDivElement>(null)
@@ -51,6 +52,15 @@ export function Dialog({
   const [dragY, setDragY] = useState(0)
   const isDragging = useRef(false)
   const [isDraggingActive, setIsDraggingActive] = useState(false)
+
+  const focusFirstFocusable = useCallback((container: ParentNode) => {
+    const focusable = container.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    )
+
+    const target = focusable[0] ?? (container instanceof HTMLElement ? container : null)
+    target?.focus()
+  }, [])
 
   const restorePreviousFocus = useCallback(() => {
     const previousFocusedElement = previousFocusedElementRef.current
@@ -68,14 +78,30 @@ export function Dialog({
 
   const requestClose = useCallback(() => {
     onClose()
+    if (handoffFocusTimerRef.current !== null) {
+      clearTimeout(handoffFocusTimerRef.current)
+    }
+    handoffFocusTimerRef.current = window.setTimeout(() => {
+      handoffFocusTimerRef.current = null
+      const dialogs = Array.from(document.querySelectorAll<HTMLElement>('[role="dialog"][aria-modal="true"]'))
+      const latestDialog = dialogs.at(-1)
+      if (latestDialog && latestDialog !== dialogRef.current) {
+        focusFirstFocusable(latestDialog)
+      }
+    }, 0)
     if (restoreFocusTimerRef.current !== null) {
       clearTimeout(restoreFocusTimerRef.current)
     }
     restoreFocusTimerRef.current = window.setTimeout(() => {
       restoreFocusTimerRef.current = null
+      const activeDialog = document.querySelector<HTMLElement>('[role="dialog"][aria-modal="true"]')
+      if (activeDialog) {
+        focusFirstFocusable(activeDialog)
+        return
+      }
       restorePreviousFocus()
     }, 200)
-  }, [onClose, restorePreviousFocus])
+  }, [onClose, restorePreviousFocus, focusFirstFocusable])
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     // 只有从拖拽条区域开始的触摸才能触发下滑关闭
@@ -141,14 +167,8 @@ export function Dialog({
   const focusDialogContent = useCallback(() => {
     const dialog = dialogRef.current
     if (!dialog) return
-
-    const focusable = dialog.querySelectorAll<HTMLElement>(
-      'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
-    )
-
-    const target = focusable[0] ?? dialog
-    target.focus()
-  }, [])
+    focusFirstFocusable(dialog)
+  }, [focusFirstFocusable])
 
   // Focus trap
   const handleFocusTrap = useCallback((e: KeyboardEvent) => {
@@ -196,15 +216,13 @@ export function Dialog({
   useEffect(() => {
     if (!isOpen) return
 
+    if (restoreFocusTimerRef.current !== null) {
+      clearTimeout(restoreFocusTimerRef.current)
+      restoreFocusTimerRef.current = null
+    }
+
     previousFocusedElementRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
     previousFocusedElementIdRef.current = previousFocusedElementRef.current?.id || null
-
-    let nestedFrameId: number | null = null
-    const frameId = requestAnimationFrame(() => {
-      nestedFrameId = requestAnimationFrame(() => {
-        focusDialogContent()
-      })
-    })
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -216,28 +234,37 @@ export function Dialog({
     document.addEventListener('keydown', handleKeyDown)
     return () => {
       document.removeEventListener('keydown', handleKeyDown)
-      cancelAnimationFrame(frameId)
-      if (nestedFrameId !== null) cancelAnimationFrame(nestedFrameId)
     }
-  }, [isOpen, requestClose, handleFocusTrap, focusDialogContent])
+  }, [isOpen, requestClose, handleFocusTrap])
+
+  useEffect(() => {
+    if (!isOpen || !isVisible) return
+
+    focusDialogContent()
+  }, [isOpen, isVisible, focusDialogContent])
 
   useEffect(() => {
     if (isOpen || shouldRender) return
 
-    const previousFocusedElement = previousFocusedElementRef.current
-    if (!previousFocusedElement || !document.contains(previousFocusedElement)) return
-
     const timerId = window.setTimeout(() => {
+      const activeDialog = document.querySelector<HTMLElement>('[role="dialog"][aria-modal="true"]')
+      if (activeDialog) {
+        focusFirstFocusable(activeDialog)
+        return
+      }
       restorePreviousFocus()
     }, 0)
 
     return () => clearTimeout(timerId)
-  }, [isOpen, shouldRender, restorePreviousFocus])
+  }, [isOpen, shouldRender, restorePreviousFocus, focusFirstFocusable])
 
   useEffect(() => {
     return () => {
       if (restoreFocusTimerRef.current !== null) {
         clearTimeout(restoreFocusTimerRef.current)
+      }
+      if (handoffFocusTimerRef.current !== null) {
+        clearTimeout(handoffFocusTimerRef.current)
       }
     }
   }, [])

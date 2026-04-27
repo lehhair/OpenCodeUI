@@ -113,58 +113,63 @@ export function NotificationItem({ entry, resolvedSession, onSelect }: Notificat
   return (
     <div
       ref={itemRef}
-      onClick={handleClick}
-      onTouchStart={handleTouchStart}
-      onTouchMove={handleTouchMove}
-      onTouchEnd={handleTouchEnd}
       className={`group relative flex items-start pl-[6px] pr-3 py-2 rounded-lg cursor-default select-none transition-all duration-200 border border-transparent hover:bg-bg-200/50 ${showActions ? 'bg-bg-200/50' : ''} ${entry.read ? 'opacity-50' : ''}`}
     >
-      {/* Content */}
-      <div
-        className={`flex-1 min-w-0 transition-[padding] duration-200 ${actionsVisible ? 'pr-9' : 'pr-1 group-hover:pr-9'}`}
+      <button
+        type="button"
+        onClick={handleClick}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        className="flex flex-1 min-w-0 bg-transparent border-none p-0 text-left"
       >
-        <div className="flex min-w-0 items-center gap-1.5">
-          <p
-            className="min-w-0 flex-1 truncate text-[length:var(--fs-md)] font-medium text-text-200 group-hover:text-text-100"
-            title={displayTitle}
-          >
-            {displayTitle}
-          </p>
-          {!entry.read && !actionsVisible && (
-            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-accent-main-100 group-hover:hidden" />
-          )}
+        {/* Content */}
+        <div
+          className={`flex-1 min-w-0 transition-[padding] duration-200 ${actionsVisible ? 'pr-9' : 'pr-1 group-hover:pr-9 group-focus-within:pr-9'}`}
+        >
+          <div className="flex min-w-0 items-center gap-1.5">
+            <p
+              className="min-w-0 flex-1 truncate text-[length:var(--fs-md)] font-medium text-text-200 group-hover:text-text-100"
+              title={displayTitle}
+            >
+              {displayTitle}
+            </p>
+            {!entry.read && !actionsVisible && (
+              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-accent-main-100 group-hover:hidden group-focus-within:hidden" />
+            )}
+          </div>
+          <div className="mt-1 flex h-4 min-w-0 items-center gap-1 overflow-hidden whitespace-nowrap text-[length:var(--fs-xxs)] text-text-400">
+            <span className={`relative shrink-0 flex h-3 w-3 items-center justify-center ${config.color}`}>
+              <Icon size={10} />
+            </span>
+            <span className="opacity-30 shrink-0">·</span>
+            <span className={`shrink-0 ${config.color}`}>{t(config.labelKey)}</span>
+            {entry.body && (
+              <>
+                <span className="opacity-30 shrink-0">·</span>
+                <span className="truncate">{entry.body}</span>
+              </>
+            )}
+            <span className="opacity-30 shrink-0">·</span>
+            <span className="tabular-nums shrink-0">{formatNotificationTime(entry.timestamp)}</span>
+            {directory && (
+              <>
+                <span className="opacity-30 shrink-0">·</span>
+                <span className="truncate opacity-50" title={directory}>
+                  {directory.replace(/\\/g, '/').split('/').filter(Boolean).pop()}
+                </span>
+              </>
+            )}
+          </div>
         </div>
-        <div className="mt-1 flex h-4 min-w-0 items-center gap-1 overflow-hidden whitespace-nowrap text-[length:var(--fs-xxs)] text-text-400">
-          <span className={`relative shrink-0 flex h-3 w-3 items-center justify-center ${config.color}`}>
-            <Icon size={10} />
-          </span>
-          <span className="opacity-30 shrink-0">·</span>
-          <span className={`shrink-0 ${config.color}`}>{t(config.labelKey)}</span>
-          {entry.body && (
-            <>
-              <span className="opacity-30 shrink-0">·</span>
-              <span className="truncate">{entry.body}</span>
-            </>
-          )}
-          <span className="opacity-30 shrink-0">·</span>
-          <span className="tabular-nums shrink-0">{formatNotificationTime(entry.timestamp)}</span>
-          {directory && (
-            <>
-              <span className="opacity-30 shrink-0">·</span>
-              <span className="truncate opacity-50" title={directory}>
-                {directory.replace(/\\/g, '/').split('/').filter(Boolean).pop()}
-              </span>
-            </>
-          )}
-        </div>
-      </div>
+      </button>
 
       {/* Dismiss action */}
       <div
         className={`absolute right-2 top-1/2 z-10 flex -translate-y-1/2 items-center gap-0.5 transition-all duration-200 ${
           actionsVisible
             ? 'opacity-100 pointer-events-auto'
-            : 'opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto'
+            : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 pointer-events-none group-hover:pointer-events-auto group-focus-within:pointer-events-auto'
         }`}
       >
         <button
@@ -172,6 +177,7 @@ export function NotificationItem({ entry, resolvedSession, onSelect }: Notificat
           className="p-1.5 rounded-md hover:bg-danger-bg active:bg-danger-bg text-text-400 hover:text-danger-100 active:text-danger-100 transition-colors focus-visible:ring-1 focus-visible:ring-danger-100/40 focus-visible:ring-inset"
           onClick={handleDismiss}
           aria-label={t('common:dismiss')}
+          tabIndex={preferTouchUi && !actionsVisible ? -1 : 0}
         >
           <CloseIcon size={10} />
         </button>

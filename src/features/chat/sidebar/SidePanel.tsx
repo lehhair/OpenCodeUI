@@ -851,6 +851,7 @@ export function SidePanel({
           <button
             type="button"
             onClick={() => setProjectsExpanded(!projectsExpanded)}
+            aria-expanded={projectsExpanded}
             className={`h-8 flex items-center rounded-lg active:scale-[0.98] transition-all duration-300 overflow-hidden ${
               projectsExpanded ? 'bg-bg-200 text-text-100' : 'text-text-300 hover:text-text-100 hover:bg-bg-200'
             }`}
@@ -910,7 +911,7 @@ export function SidePanel({
                     <button
                       type="button"
                       onClick={() => handleSelectProject(project.id)}
-                      aria-pressed={isActive}
+                      aria-current={isActive ? 'true' : undefined}
                       className="min-w-0 flex flex-1 items-center gap-2 text-left bg-transparent border-none p-0"
                       title={project.worktree}
                     >
@@ -943,7 +944,7 @@ export function SidePanel({
                           setProjectDeleteConfirm({ isOpen: true, projectId: project.id })
                         }}
                         aria-label={t('sidebar.removeProject')}
-                        className="p-1 rounded text-text-400 hover:text-danger-100 hover:bg-danger-100/10 md:opacity-0 md:group-hover:opacity-100 transition-all"
+                        className="p-1 rounded text-text-400 hover:text-danger-100 hover:bg-danger-100/10 md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100 transition-all"
                         title={t('common:remove')}
                       >
                         <TrashIcon size={12} />
@@ -955,6 +956,7 @@ export function SidePanel({
             </div>
             <div className="border-t border-border-200/50 p-1">
               <button
+                type="button"
                 onClick={onAddProject}
                 className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-[length:var(--fs-sm)] text-text-400 hover:text-text-100 hover:bg-bg-200/50 transition-colors"
               >
@@ -1005,6 +1007,7 @@ export function SidePanel({
         <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
           <div className="flex items-center mx-2 gap-1 shrink-0">
             <button
+              type="button"
               onClick={() => {
                 setSidebarTab('recents')
                 if (sidebarTab !== 'recents') exitEditMode()
@@ -1016,6 +1019,7 @@ export function SidePanel({
               {t('sidebar.recents')}
             </button>
             <button
+              type="button"
               onClick={() => {
                 setSidebarTab('active')
                 exitEditMode()

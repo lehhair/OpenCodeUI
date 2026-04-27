@@ -91,7 +91,7 @@ function ServerItem({
         <button
           type="button"
           onClick={onSelect}
-          aria-pressed={isActive}
+          aria-current={isActive ? 'true' : undefined}
           className="min-w-0 flex flex-1 items-center gap-3 bg-transparent border-none p-0 text-left"
         >
           <GlobeIcon size={14} className={isActive ? 'text-accent-main-100' : 'text-text-400'} />

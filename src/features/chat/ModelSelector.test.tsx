@@ -86,8 +86,15 @@ describe('ModelSelector', () => {
     const pinButtons = screen.getAllByRole('button', { name: /Pin to top|Unpin/ })
 
     expect(searchInput).toHaveAttribute('aria-controls', listbox.id)
+    expect(searchInput).toHaveAttribute('aria-expanded', 'true')
     expect(searchInput).toHaveAttribute('aria-activedescendant')
     expect(selectedOption).toHaveAttribute('aria-selected', 'true')
+    expect(selectedOption).not.toContainElement(pinButtons[0])
     expect(pinButtons.length).toBeGreaterThan(0)
+
+    fireEvent.change(searchInput, { target: { value: 'nope' } })
+
+    expect(searchInput).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('status')).toHaveTextContent('No models found')
   })
 })

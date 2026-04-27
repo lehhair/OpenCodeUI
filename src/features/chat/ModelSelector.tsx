@@ -129,6 +129,7 @@ interface ModelListPanelProps {
   lastMousePosRef: React.RefObject<{ x: number; y: number }>
   idPrefix: string
   listboxId: string
+  isOpen: boolean
   maxListHeight: string
   searchPlaceholder: string
   noResultsText: string
@@ -158,6 +159,7 @@ const ModelListPanel = memo(function ModelListPanel({
   lastMousePosRef,
   idPrefix,
   listboxId,
+  isOpen,
   maxListHeight,
   searchPlaceholder,
   noResultsText,
@@ -187,7 +189,7 @@ const ModelListPanel = memo(function ModelListPanel({
             placeholder={searchPlaceholder}
             aria-label={searchPlaceholder}
             aria-controls={listboxId}
-            aria-expanded={flatList.length > 0}
+            aria-expanded={isOpen}
             aria-activedescendant={activeOptionId}
             aria-autocomplete="list"
             autoComplete="off"
@@ -233,14 +235,11 @@ const ModelListPanel = memo(function ModelListPanel({
               return (
                 <div
                   key={item.key}
-                  id={`${idPrefix}-${index}`}
-                  role="option"
-                  aria-selected={isSelected}
-                  onClick={() => onItemClick(model)}
-                  onTouchStart={onTouchStart ? () => onTouchStart(model) : undefined}
-                  onTouchEnd={onTouchEnd}
-                  onTouchMove={onTouchEnd}
-                  title={`${model.name} · ${model.providerName}${model.contextLimit ? ` · ${formatContext(model.contextLimit)}` : ''}`}
+                  className={`
+                    group flex items-center gap-2 px-2.5 py-2 rounded-lg transition-colors duration-100
+                    ${isSelected ? 'bg-accent-main-100/10 text-accent-main-100' : 'text-text-200'}
+                    ${isHL && !isSelected ? 'bg-bg-200/40 text-text-100' : ''}
+                  `}
                   onMouseMove={e => {
                     if (ignoreMouseRef.current) return
                     if (e.clientX === lastMousePosRef.current.x && e.clientY === lastMousePosRef.current.y) return
@@ -248,89 +247,66 @@ const ModelListPanel = memo(function ModelListPanel({
                     const hIndex = itemIndices.indexOf(index)
                     if (hIndex !== -1 && hIndex !== highlightedIndex) setHighlightedIndex(hIndex)
                   }}
-                  className={`
-                    group flex items-center justify-between gap-2 px-2.5 py-2 rounded-lg cursor-pointer text-[length:var(--fs-base)] font-sans transition-colors duration-100 select-none
-                    ${isSelected ? 'bg-accent-main-100/10 text-accent-main-100' : 'text-text-200'}
-                    ${isHL && !isSelected ? 'bg-bg-200/40 text-text-100' : ''}
-                  `}
                 >
-                  {/* Left: name + capability icons */}
-                  <div className="flex items-center gap-2 min-w-0 flex-1 overflow-hidden">
-                    <span className={`truncate font-medium ${isSelected ? 'text-accent-main-100' : 'text-text-100'}`}>
-                      {model.name}
-                    </span>
-                    <div
-                      aria-hidden="true"
-                      className={`flex items-center gap-1 flex-shrink-0 transition-opacity ${isHL || isSelected ? 'opacity-60' : 'opacity-25'}`}
-                    >
-                      {model.supportsReasoning && <ThinkingIcon size={12} />}
-                      {model.supportsImages && <EyeIcon size={13} />}
-                    </div>
-                  </div>
-
-                  {/* Right: provider + context + trailing icon (check / pin, mutually exclusive) */}
-                  <div className="flex items-center gap-2 text-[length:var(--fs-sm)] font-mono flex-shrink-0">
-                    <span className="text-text-500 max-w-[100px] truncate text-right">{model.providerName}</span>
-                    {model.contextLimit > 0 && (
-                      <span className="text-text-500 w-[4ch] text-right hidden sm:inline">
-                        {formatContext(model.contextLimit)}
+                  <button
+                    id={`${idPrefix}-${index}`}
+                    type="button"
+                    role="option"
+                    aria-selected={isSelected}
+                    onClick={() => onItemClick(model)}
+                    onTouchStart={onTouchStart ? () => onTouchStart(model) : undefined}
+                    onTouchEnd={onTouchEnd}
+                    onTouchMove={onTouchEnd}
+                    title={`${model.name} · ${model.providerName}${model.contextLimit ? ` · ${formatContext(model.contextLimit)}` : ''}`}
+                    className="flex min-w-0 flex-1 items-center justify-between gap-2 bg-transparent border-none p-0 text-left"
+                  >
+                    {/* Left: name + capability icons */}
+                    <div className="flex items-center gap-2 min-w-0 flex-1 overflow-hidden">
+                      <span className={`truncate font-medium ${isSelected ? 'text-accent-main-100' : 'text-text-100'}`}>
+                        {model.name}
                       </span>
-                    )}
-                    {/*
-                     * 末尾图标位：选中对勾 / 已钉住图标 / hover pin 按钮
-                     * - 选中态（PC）：默认对勾，hover 对勾时切换为 pin 按钮
-                     * - 选中态（触摸）：仅显示对勾，置顶通过长按行触发
-                     * - 未选中：已钉住常驻钉子，未钉住 hover 行渐现 pin 按钮
-                     */}
-                    <span className="w-5 flex items-center justify-center flex-shrink-0">
-                      {isSelected ? (
-                        preferTouchUi ? (
-                          <span className="text-accent-secondary-100">
-                            <CheckIcon />
-                          </span>
-                        ) : (
-                          <button
-                            onClick={e => onTogglePin(e, model)}
-                            aria-label={pinned ? unpinLabel : pinLabel}
-                            className="group/pin p-0.5 rounded transition-all duration-150"
-                          >
-                            <span className="text-accent-secondary-100 block group-hover/pin:hidden">
-                              <CheckIcon />
-                            </span>
-                            <span
-                              className={`hidden group-hover/pin:block ${
-                                pinned
-                                  ? 'text-accent-main-100 opacity-80 hover:opacity-100'
-                                  : 'text-text-500 opacity-60 hover:!opacity-100'
-                              }`}
-                            >
-                              <PinIcon size={12} />
-                            </span>
-                          </button>
-                        )
-                      ) : preferTouchUi ? (
-                        // 触摸设备：已钉住时显示钉子图标（长按切换）
-                        pinned ? (
-                          <span className="text-accent-main-100/60">
-                            <PinIcon size={12} />
-                          </span>
-                        ) : null
-                      ) : (
-                        // 鼠标设备：已钉住常驻，未钉住 hover 渐现
-                        <button
-                          onClick={e => onTogglePin(e, model)}
-                          aria-label={pinned ? unpinLabel : pinLabel}
-                          className={`p-0.5 rounded transition-all duration-150 ${
-                            pinned
-                              ? 'text-accent-main-100 opacity-80 hover:opacity-100'
-                              : 'text-text-500 opacity-0 group-hover:opacity-40 hover:!opacity-100'
-                          }`}
-                        >
-                          <PinIcon size={12} />
-                        </button>
+                      <div
+                        aria-hidden="true"
+                        className={`flex items-center gap-1 flex-shrink-0 transition-opacity ${isHL || isSelected ? 'opacity-60' : 'opacity-25'}`}
+                      >
+                        {model.supportsReasoning && <ThinkingIcon size={12} />}
+                        {model.supportsImages && <EyeIcon size={13} />}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 text-[length:var(--fs-sm)] font-mono flex-shrink-0">
+                      <span className="text-text-500 max-w-[100px] truncate text-right">{model.providerName}</span>
+                      {model.contextLimit > 0 && (
+                        <span className="text-text-500 w-[4ch] text-right hidden sm:inline">{formatContext(model.contextLimit)}</span>
                       )}
+                      {isSelected && (
+                        <span className="w-5 flex items-center justify-center flex-shrink-0 text-accent-secondary-100">
+                          <CheckIcon />
+                        </span>
+                      )}
+                    </div>
+                  </button>
+
+                  {!preferTouchUi && (
+                    <button
+                      type="button"
+                      onClick={e => onTogglePin(e, model)}
+                      aria-label={pinned ? unpinLabel : pinLabel}
+                      className={`w-5 flex items-center justify-center flex-shrink-0 p-0.5 rounded transition-all duration-150 ${
+                        pinned
+                          ? 'text-accent-main-100 opacity-80 hover:opacity-100'
+                          : 'text-text-500 opacity-0 group-hover:opacity-40 group-focus-within:opacity-40 hover:!opacity-100 focus-visible:!opacity-100'
+                      }`}
+                    >
+                      <PinIcon size={12} />
+                    </button>
+                  )}
+
+                  {preferTouchUi && pinned && !isSelected && (
+                    <span className="w-5 flex items-center justify-center flex-shrink-0 text-accent-main-100/60">
+                      <PinIcon size={12} />
                     </span>
-                  </div>
+                  )}
                 </div>
               )
             })}
@@ -668,6 +644,7 @@ export const ModelSelector = memo(
             lastMousePosRef={lastMousePosRef}
             idPrefix={idPrefix}
             listboxId={listboxId}
+            isOpen={isOpen}
             maxListHeight={listMaxH}
             searchPlaceholder={t('modelSelector.searchModels')}
             noResultsText={t('modelSelector.noModelsFound')}

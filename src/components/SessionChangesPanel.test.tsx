@@ -235,6 +235,26 @@ describe('SessionChangesPanel', () => {
     expect(unifiedButton).toHaveAttribute('aria-pressed', 'false')
   })
 
+  it('opens the change mode menu from ArrowUp with focus on the last option', async () => {
+    render(<SessionChangesPanel sessionId="session-1" directory="/repo" />)
+
+    await act(async () => {
+      vi.runAllTimers()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    fireEvent.keyDown(screen.getByRole('button', { name: /Change mode:/ }), { key: 'ArrowUp' })
+
+    await act(async () => {
+      vi.advanceTimersByTime(48)
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(screen.getByRole('menuitemradio', { name: 'Branch changes' })).toHaveFocus()
+  })
+
   it('offers git initialization when the project is not a git repository', async () => {
     getCurrentProject.mockResolvedValueOnce({
       id: 'global',

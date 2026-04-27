@@ -230,7 +230,7 @@ function ProjectItem({ project, displayName, path, onSelect, onRemove }: Project
           type="button"
           onClick={onRemove}
           aria-label={t('common:remove')}
-          className="p-1 rounded text-text-400 hover:text-danger-100 hover:bg-danger-100/10 md:opacity-0 md:group-hover:opacity-100 transition-colors"
+          className="p-1 rounded text-text-400 hover:text-danger-100 hover:bg-danger-100/10 md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100 transition-colors"
           title={t('common:remove')}
         >
           <TrashIcon className="w-3 h-3" />

@@ -110,4 +110,50 @@ describe('Dialog', () => {
 
     expect(screen.getByRole('dialog', { name: 'Settings' })).toBeInTheDocument()
   })
+
+  it('does not steal focus back when another dialog opens during close', async () => {
+    function Harness() {
+      const [isFirstOpen, setIsFirstOpen] = useState(true)
+      const [isSecondOpen, setIsSecondOpen] = useState(false)
+
+      return (
+        <>
+          <button id="first-trigger" type="button">
+            First trigger
+          </button>
+          <Dialog
+            isOpen={isFirstOpen}
+            onClose={() => {
+              setIsFirstOpen(false)
+              setIsSecondOpen(true)
+            }}
+            title="First Dialog"
+          >
+            <button type="button">First action</button>
+          </Dialog>
+          <Dialog isOpen={isSecondOpen} onClose={() => setIsSecondOpen(false)} title="Second Dialog">
+            <button type="button">Second action</button>
+          </Dialog>
+        </>
+      )
+    }
+
+    render(<Harness />)
+
+    await act(async () => {
+      vi.runAllTimers()
+      await Promise.resolve()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+
+    await act(async () => {
+      vi.runAllTimers()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(screen.getByRole('dialog', { name: 'Second Dialog' })).toBeInTheDocument()
+    expect(document.getElementById('first-trigger')).not.toHaveFocus()
+  })
 })

@@ -107,6 +107,7 @@ export const SessionChangesPanel = memo(function SessionChangesPanel({
   const changeMenuTriggerRef = useRef<HTMLButtonElement>(null)
   const changeMenuRef = useRef<HTMLDivElement>(null)
   const changeMenuOptionRefs = useRef<Partial<Record<ChangeMode, HTMLButtonElement | null>>>({})
+  const changeMenuOpenFocusRef = useRef<'selected' | 'first' | 'last'>('selected')
   const changeMenuId = useId()
 
   const isAnyResizing = isPanelResizing || isResizing
@@ -204,17 +205,20 @@ export const SessionChangesPanel = memo(function SessionChangesPanel({
   useEffect(() => {
     if (!changeMenuOpen) return
 
-    const targetMode = changeOptions.includes(changeMode) ? changeMode : preferredChangeMode
-    let nestedFrameId: number | null = null
-    const frameId = requestAnimationFrame(() => {
-      nestedFrameId = requestAnimationFrame(() => {
-        focusChangeMenuOption(targetMode)
-      })
-    })
+    const targetMode =
+      changeMenuOpenFocusRef.current === 'first'
+        ? changeOptions[0]
+        : changeMenuOpenFocusRef.current === 'last'
+          ? changeOptions[changeOptions.length - 1]
+          : changeOptions.includes(changeMode)
+            ? changeMode
+            : preferredChangeMode
+    const timerId = window.setTimeout(() => {
+      focusChangeMenuOption(targetMode)
+    }, 0)
 
     return () => {
-      cancelAnimationFrame(frameId)
-      if (nestedFrameId !== null) cancelAnimationFrame(nestedFrameId)
+      clearTimeout(timerId)
     }
   }, [changeMenuOpen, changeOptions, changeMode, focusChangeMenuOption, preferredChangeMode])
 
@@ -568,10 +572,14 @@ export const SessionChangesPanel = memo(function SessionChangesPanel({
             <button
               ref={changeMenuTriggerRef}
               type="button"
-              onClick={() => setChangeMenuOpen(open => !open)}
+              onClick={() => {
+                changeMenuOpenFocusRef.current = 'selected'
+                setChangeMenuOpen(open => !open)
+              }}
               onKeyDown={event => {
                 if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
                   event.preventDefault()
+                  changeMenuOpenFocusRef.current = event.key === 'ArrowUp' ? 'last' : 'first'
                   setChangeMenuOpen(true)
                 }
               }}
@@ -615,7 +623,13 @@ export const SessionChangesPanel = memo(function SessionChangesPanel({
                       key={mode}
                       ref={node => {
                         changeMenuOptionRefs.current[mode] = node
-                        if (node && changeMenuOpen && isSelected) {
+                        const shouldFocusNode =
+                          changeMenuOpen &&
+                          ((changeMenuOpenFocusRef.current === 'selected' && isSelected) ||
+                            (changeMenuOpenFocusRef.current === 'first' && mode === changeOptions[0]) ||
+                            (changeMenuOpenFocusRef.current === 'last' && mode === changeOptions[changeOptions.length - 1]))
+
+                        if (node && shouldFocusNode) {
                           node.focus()
                         }
                       }}
