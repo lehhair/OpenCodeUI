@@ -80,15 +80,18 @@ fn create_hidden_content_window(
     app: &tauri::AppHandle,
     label: &str,
 ) -> Result<tauri::WebviewWindow, tauri::Error> {
-    configure_desktop_window_builder(tauri::WebviewWindowBuilder::new(
+    let builder = configure_desktop_window_builder(tauri::WebviewWindowBuilder::new(
         app,
         label,
         tauri::WebviewUrl::App("index.html".into()),
     ))
     .title("OpenCode")
-    .inner_size(800.0, 600.0)
-    .visible(false)
-    .build()
+    .inner_size(800.0, 600.0);
+
+    #[cfg(windows)]
+    let builder = builder.disable_drag_drop_handler();
+
+    builder.visible(false).build()
 }
 
 #[cfg(not(target_os = "android"))]
