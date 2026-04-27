@@ -410,8 +410,8 @@ export const ModelSelector = memo(
     const closeMenu = useCallback(() => {
       setIsOpen(false)
       setSearchQuery('')
-      if (trigger === 'header') triggerRef.current?.focus()
-    }, [trigger])
+      triggerRef.current?.focus()
+    }, [])
 
     useImperativeHandle(ref, () => ({ openMenu }), [openMenu])
 

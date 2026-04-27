@@ -62,6 +62,11 @@ export function Dialog({
     target?.focus()
   }, [])
 
+  const getTopOpenDialog = useCallback(
+    () => Array.from(document.querySelectorAll<HTMLElement>('[role="dialog"][aria-modal="true"][data-dialog-open="true"]')).at(-1),
+    [],
+  )
+
   const restorePreviousFocus = useCallback(() => {
     const previousFocusedElement = previousFocusedElementRef.current
     if (previousFocusedElement && document.contains(previousFocusedElement)) {
@@ -94,14 +99,18 @@ export function Dialog({
     }
     restoreFocusTimerRef.current = window.setTimeout(() => {
       restoreFocusTimerRef.current = null
-      const activeDialog = Array.from(document.querySelectorAll<HTMLElement>('[role="dialog"][aria-modal="true"]')).at(-1)
+      const activeDialog = getTopOpenDialog()
       if (activeDialog) {
-        focusFirstFocusable(activeDialog)
+        if (activeDialog.contains(previousFocusedElementRef.current)) {
+          restorePreviousFocus()
+        } else {
+          focusFirstFocusable(activeDialog)
+        }
         return
       }
       restorePreviousFocus()
     }, 200)
-  }, [onClose, restorePreviousFocus, focusFirstFocusable])
+  }, [onClose, restorePreviousFocus, focusFirstFocusable, getTopOpenDialog])
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     // 只有从拖拽条区域开始的触摸才能触发下滑关闭
@@ -226,7 +235,7 @@ export function Dialog({
     previousFocusedElementIdRef.current = previousFocusedElementRef.current?.id || null
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      const topDialog = Array.from(document.querySelectorAll<HTMLElement>('[role="dialog"][aria-modal="true"]')).at(-1)
+      const topDialog = getTopOpenDialog()
       if (topDialog && topDialog !== dialogRef.current) return
 
       if (e.key === 'Escape') {
@@ -239,7 +248,7 @@ export function Dialog({
     return () => {
       document.removeEventListener('keydown', handleKeyDown)
     }
-  }, [isOpen, requestClose, handleFocusTrap])
+  }, [isOpen, requestClose, handleFocusTrap, getTopOpenDialog])
 
   useEffect(() => {
     if (!isOpen || !isVisible) return
@@ -251,16 +260,20 @@ export function Dialog({
     if (isOpen || shouldRender) return
 
     const timerId = window.setTimeout(() => {
-      const activeDialog = Array.from(document.querySelectorAll<HTMLElement>('[role="dialog"][aria-modal="true"]')).at(-1)
+      const activeDialog = getTopOpenDialog()
       if (activeDialog) {
-        focusFirstFocusable(activeDialog)
+        if (activeDialog.contains(previousFocusedElementRef.current)) {
+          restorePreviousFocus()
+        } else {
+          focusFirstFocusable(activeDialog)
+        }
         return
       }
       restorePreviousFocus()
     }, 0)
 
     return () => clearTimeout(timerId)
-  }, [isOpen, shouldRender, restorePreviousFocus, focusFirstFocusable])
+  }, [isOpen, shouldRender, restorePreviousFocus, focusFirstFocusable, getTopOpenDialog])
 
   useEffect(() => {
     return () => {
@@ -304,6 +317,7 @@ export function Dialog({
         }}
         role="dialog"
         aria-modal="true"
+        data-dialog-open={isOpen || undefined}
         aria-labelledby={!rawContent && title ? titleId : undefined}
         aria-label={rawContent ? ariaLabel || (typeof title === 'string' && title ? title : undefined) : ariaLabel}
         tabIndex={-1}

@@ -110,6 +110,21 @@ export function InputToolbar({
   const variantTriggerRef = useRef<HTMLButtonElement>(null)
   const variantMenuRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const agentMenuFocusRef = useRef<'selected' | 'first' | 'last'>('selected')
+  const variantMenuFocusRef = useRef<'selected' | 'first' | 'last'>('selected')
+  const agentMenuId = 'input-toolbar-agent-menu'
+  const variantMenuId = 'input-toolbar-variant-menu'
+
+  const focusMenuItem = useCallback((menu: HTMLDivElement | null, mode: 'selected' | 'first' | 'last') => {
+    if (!menu) return
+
+    const items = Array.from(menu.querySelectorAll<HTMLButtonElement>('[role="menuitemradio"], button'))
+    if (items.length === 0) return
+
+    const selectedItem = menu.querySelector<HTMLButtonElement>('[role="menuitemradio"][aria-checked="true"]')
+    const target = mode === 'first' ? items[0] : mode === 'last' ? items[items.length - 1] : selectedItem ?? items[0]
+    target?.focus()
+  }, [])
 
   // 文件选择器（Tauri 原生 / 浏览器 fallback）
   const handleFileClick = useCallback(async () => {
@@ -176,6 +191,22 @@ export function InputToolbar({
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
+  useEffect(() => {
+    if (!agentMenuOpen) return
+    const timerId = window.setTimeout(() => {
+      focusMenuItem(agentMenuRef.current, agentMenuFocusRef.current)
+    }, 0)
+    return () => clearTimeout(timerId)
+  }, [agentMenuOpen, focusMenuItem])
+
+  useEffect(() => {
+    if (!variantMenuOpen) return
+    const timerId = window.setTimeout(() => {
+      focusMenuItem(variantMenuRef.current, variantMenuFocusRef.current)
+    }, 0)
+    return () => clearTimeout(timerId)
+  }, [variantMenuOpen, focusMenuItem])
+
   const selectableAgents = agents.filter(a => a.mode !== 'subagent' && !a.hidden)
   const currentAgent = agents.find(a => a.name === selectedAgent)
 
@@ -202,8 +233,22 @@ export function InputToolbar({
           <div className="relative">
             <button
               ref={agentTriggerRef}
-              onClick={() => setAgentMenuOpen(!agentMenuOpen)}
+              type="button"
+              onClick={() => {
+                agentMenuFocusRef.current = 'selected'
+                setAgentMenuOpen(!agentMenuOpen)
+              }}
+              onKeyDown={e => {
+                if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                  e.preventDefault()
+                  agentMenuFocusRef.current = e.key === 'ArrowUp' ? 'last' : 'first'
+                  setAgentMenuOpen(true)
+                }
+              }}
               disabled={controlsDisabled}
+              aria-haspopup="menu"
+              aria-expanded={agentMenuOpen}
+              aria-controls={agentMenuOpen ? agentMenuId : undefined}
               className="flex items-center gap-1.5 px-2 py-1.5 text-[length:var(--fs-base)] rounded-lg transition-all duration-150 hover:bg-bg-200 active:scale-95 cursor-pointer min-w-0 overflow-hidden w-full"
               title={
                 currentAgent
@@ -231,7 +276,7 @@ export function InputToolbar({
               align="left"
               constrainToRef={inputContainerRef}
             >
-              <div ref={agentMenuRef}>
+              <div id={agentMenuId} ref={agentMenuRef} role="menu" aria-label={currentAgent?.name || selectedAgent || 'Agent'}>
                 {selectableAgents.map(agent => (
                   <MenuItem
                     key={agent.name}
@@ -247,6 +292,7 @@ export function InputToolbar({
                     onClick={() => {
                       onAgentChange?.(agent.name)
                       setAgentMenuOpen(false)
+                      agentTriggerRef.current?.focus()
                     }}
                   />
                 ))}
@@ -260,8 +306,22 @@ export function InputToolbar({
           <div className="relative">
             <button
               ref={variantTriggerRef}
-              onClick={() => setVariantMenuOpen(!variantMenuOpen)}
+              type="button"
+              onClick={() => {
+                variantMenuFocusRef.current = 'selected'
+                setVariantMenuOpen(!variantMenuOpen)
+              }}
+              onKeyDown={e => {
+                if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                  e.preventDefault()
+                  variantMenuFocusRef.current = e.key === 'ArrowUp' ? 'last' : 'first'
+                  setVariantMenuOpen(true)
+                }
+              }}
               disabled={controlsDisabled}
+              aria-haspopup="menu"
+              aria-expanded={variantMenuOpen}
+              aria-controls={variantMenuOpen ? variantMenuId : undefined}
               className="flex items-center gap-1.5 px-2 py-1.5 text-[length:var(--fs-base)] rounded-lg transition-all duration-150 hover:bg-bg-200 active:scale-95 cursor-pointer min-w-0 overflow-hidden w-full"
               title={
                 selectedVariant
@@ -291,7 +351,7 @@ export function InputToolbar({
               minWidth="auto"
               constrainToRef={inputContainerRef}
             >
-              <div ref={variantMenuRef}>
+              <div id={variantMenuId} ref={variantMenuRef} role="menu" aria-label={selectedVariant || t('inputToolbar.default')}>
                 <MenuItem
                   label={t('inputToolbar.default')}
                   icon={<ThinkingIcon />}
@@ -300,6 +360,7 @@ export function InputToolbar({
                   onClick={() => {
                     onVariantChange?.(undefined)
                     setVariantMenuOpen(false)
+                    variantTriggerRef.current?.focus()
                   }}
                 />
                 {variants.map(variant => (
@@ -312,6 +373,7 @@ export function InputToolbar({
                     onClick={() => {
                       onVariantChange?.(variant)
                       setVariantMenuOpen(false)
+                      variantTriggerRef.current?.focus()
                     }}
                   />
                 ))}

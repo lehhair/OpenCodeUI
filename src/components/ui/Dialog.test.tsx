@@ -156,4 +156,25 @@ describe('Dialog', () => {
     expect(screen.getByRole('dialog', { name: 'Second Dialog' })).toBeInTheDocument()
     expect(document.getElementById('first-trigger')).not.toHaveFocus()
   })
+
+  it('only closes the topmost dialog on Escape when dialogs are stacked', () => {
+    const firstClose = vi.fn()
+    const secondClose = vi.fn()
+
+    render(
+      <>
+        <Dialog isOpen={true} onClose={firstClose} title="First Dialog">
+          <button type="button">First action</button>
+        </Dialog>
+        <Dialog isOpen={true} onClose={secondClose} title="Second Dialog">
+          <button type="button">Second action</button>
+        </Dialog>
+      </>,
+    )
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+
+    expect(secondClose).toHaveBeenCalledTimes(1)
+    expect(firstClose).not.toHaveBeenCalled()
+  })
 })
