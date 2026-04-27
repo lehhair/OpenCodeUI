@@ -900,47 +900,46 @@ export function SidePanel({
                 return (
                   <div
                     key={project.id}
-                    onClick={() => handleSelectProject(project.id)}
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={e => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault()
-                        handleSelectProject(project.id)
-                      }
-                    }}
-                    className={`group w-full flex items-center gap-2 px-2 py-1.5 transition-colors cursor-default ${
+                    className={`group w-full flex items-center gap-2 px-2 py-1.5 transition-colors ${
                       isActive ? 'bg-bg-200/60 text-text-100' : 'text-text-300 hover:text-text-100 hover:bg-bg-200/50'
                     }`}
-                    title={project.worktree}
                   >
-                    <span className="w-5 h-5 flex items-center justify-center shrink-0">
-                      {isGlobal ? <GlobeIcon size={14} className="text-accent-main-100" /> : <FolderIcon size={14} />}
-                    </span>
-                    <div className="flex-1 min-w-0 text-left">
-                      <div className="text-left text-[length:var(--fs-sm)]">
-                        <div
-                          className="overflow-hidden whitespace-nowrap text-left"
-                          style={{
-                            WebkitMaskImage: 'linear-gradient(to right, black 82%, transparent 100%)',
-                            maskImage: 'linear-gradient(to right, black 82%, transparent 100%)',
-                          }}
-                        >
-                          {itemLabel}
+                    <button
+                      type="button"
+                      onClick={() => handleSelectProject(project.id)}
+                      aria-pressed={isActive}
+                      className="min-w-0 flex flex-1 items-center gap-2 text-left bg-transparent border-none p-0"
+                      title={project.worktree}
+                    >
+                      <span className="w-5 h-5 flex items-center justify-center shrink-0">
+                        {isGlobal ? <GlobeIcon size={14} className="text-accent-main-100" /> : <FolderIcon size={14} />}
+                      </span>
+                      <div className="flex-1 min-w-0 text-left">
+                        <div className="text-left text-[length:var(--fs-sm)]">
+                          <div
+                            className="overflow-hidden whitespace-nowrap text-left"
+                            style={{
+                              WebkitMaskImage: 'linear-gradient(to right, black 82%, transparent 100%)',
+                              maskImage: 'linear-gradient(to right, black 82%, transparent 100%)',
+                            }}
+                          >
+                            {itemLabel}
+                          </div>
                         </div>
+                        {!isGlobal && project.worktree && (
+                          <div className="text-[length:var(--fs-xxs)] text-text-400 truncate font-mono opacity-70">
+                            {getParentPath(project.worktree)}
+                          </div>
+                        )}
                       </div>
-                      {!isGlobal && project.worktree && (
-                        <div className="text-[length:var(--fs-xxs)] text-text-400 truncate font-mono opacity-70">
-                          {getParentPath(project.worktree)}
-                        </div>
-                      )}
-                    </div>
+                    </button>
                     {!isGlobal && (
                       <button
-                        onClick={e => {
-                          e.stopPropagation()
+                        type="button"
+                        onClick={() => {
                           setProjectDeleteConfirm({ isOpen: true, projectId: project.id })
                         }}
+                        aria-label={t('sidebar.removeProject')}
                         className="p-1 rounded text-text-400 hover:text-danger-100 hover:bg-danger-100/10 md:opacity-0 md:group-hover:opacity-100 transition-all"
                         title={t('common:remove')}
                       >

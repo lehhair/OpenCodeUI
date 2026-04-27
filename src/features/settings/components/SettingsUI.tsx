@@ -10,12 +10,21 @@ import type React from 'react'
  * Toggle switch — 36×20，即时生效。
  * 圆角 full，hover 有 ring 反馈，checked 时 accent 色。
  */
-export function Toggle({ enabled, onChange }: { enabled: boolean; onChange: () => void }) {
+export function Toggle({
+  enabled,
+  onChange,
+  ariaLabel,
+}: {
+  enabled: boolean
+  onChange: () => void
+  ariaLabel?: string
+}) {
   return (
     <button
       type="button"
       role="switch"
       aria-checked={enabled}
+      aria-label={ariaLabel}
       onClick={e => {
         e.stopPropagation()
         onChange()

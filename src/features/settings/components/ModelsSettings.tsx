@@ -105,6 +105,7 @@ export function ModelsSettings() {
                     </div>
                     <Toggle
                       enabled={providerVisible}
+                      ariaLabel={`${t('models.visibility')}: ${group.providerName}`}
                       onChange={() => {
                         const nextVisible = !providerVisible
                         if (!nextVisible && providerVisibleCount >= visibleCount) return
@@ -120,23 +121,16 @@ export function ModelsSettings() {
                       const context = formatContext(model.contextLimit)
 
                       return (
-                        <div
-                          key={key}
-                          role="button"
-                          tabIndex={0}
-                          onClick={() => {
-                            if (enabled && visibleCount <= 1) return
-                            modelVisibilityStore.setVisible(model, !enabled)
-                          }}
-                          onKeyDown={e => {
-                            if (e.key !== 'Enter' && e.key !== ' ') return
-                            e.preventDefault()
-                            if (enabled && visibleCount <= 1) return
-                            modelVisibilityStore.setVisible(model, !enabled)
-                          }}
-                          className="w-full flex items-center justify-between gap-4 px-4 py-3 text-left hover:bg-bg-100/35 transition-colors outline-none focus-visible:bg-bg-100/35 focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-accent-main-100"
-                        >
-                          <div className="min-w-0 flex-1">
+                        <div key={key} className="w-full flex items-center justify-between gap-4 px-4 py-3 hover:bg-bg-100/35 transition-colors">
+                          <button
+                            type="button"
+                            aria-pressed={enabled}
+                            onClick={() => {
+                              if (enabled && visibleCount <= 1) return
+                              modelVisibilityStore.setVisible(model, !enabled)
+                            }}
+                            className="min-w-0 flex-1 text-left outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-accent-main-100 rounded-md"
+                          >
                             <div className="text-[length:var(--fs-md)] font-medium text-text-100 truncate">
                               {model.name}
                             </div>
@@ -144,15 +138,11 @@ export function ModelsSettings() {
                               {model.id}
                               {context ? ` · ${context}` : ''}
                             </div>
-                          </div>
-                          <div
-                            onClick={e => {
-                              e.stopPropagation()
-                            }}
-                            className="shrink-0"
-                          >
+                          </button>
+                          <div className="shrink-0">
                             <Toggle
                               enabled={enabled}
+                              ariaLabel={`${t('models.visibility')}: ${model.name}`}
                               onChange={() => {
                                 if (enabled && visibleCount <= 1) return
                                 modelVisibilityStore.setVisible(model, !enabled)
