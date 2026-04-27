@@ -1,6 +1,6 @@
 import { renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { useGlobalEvents } from './useGlobalEvents'
+import { registerSessionConsumer, useGlobalEvents } from './useGlobalEvents'
 
 function createDeferred<T>() {
   let resolve!: (value: T) => void
@@ -228,6 +228,60 @@ describe('useGlobalEvents', () => {
 
     expect(notificationPushMock).not.toHaveBeenCalled()
     expect(playNotificationSoundDedupedMock).not.toHaveBeenCalled()
+  })
+
+  it('keeps later pending question requests for the same session after one reply arrives', async () => {
+    let callbacks: Parameters<typeof subscribeToEventsMock>[0] | undefined
+    const consumerAskedMock = vi.fn()
+    subscribeToEventsMock.mockImplementation(cb => {
+      callbacks = cb
+      return vi.fn()
+    })
+
+    renderHook(() => useGlobalEvents())
+
+    await waitFor(() => expect(callbacks).toBeDefined())
+
+    callbacks!.onQuestionAsked?.({
+      id: 'question-1',
+      sessionID: 'child-session',
+      questions: [{ header: 'First question' }],
+    })
+    callbacks!.onQuestionAsked?.({
+      id: 'question-2',
+      sessionID: 'child-session',
+      questions: [{ header: 'Second question' }],
+    })
+
+    expect(consumerAskedMock).not.toHaveBeenCalled()
+
+    callbacks!.onQuestionReplied?.({
+      sessionID: 'child-session',
+      requestID: 'question-1',
+    })
+
+    getFocusedSessionIdMock.mockReturnValue('parent-session')
+    childBelongsToSessionMock.mockImplementation((sessionId: string, rootSessionId: string) => {
+      return sessionId === 'child-session' && rootSessionId === 'parent-session'
+    })
+
+    const unregister = registerSessionConsumer('pane-1', 'parent-session', {
+      onQuestionAsked: consumerAskedMock,
+    })
+
+    callbacks!.onSessionCreated?.({
+      id: 'child-session',
+      parentID: 'parent-session',
+      title: 'Child Session',
+      directory: '/workspace',
+    } as never)
+
+    expect(consumerAskedMock).toHaveBeenCalledTimes(1)
+    expect(consumerAskedMock).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'question-2', sessionID: 'child-session' }),
+    )
+
+    unregister()
   })
 
   it('still plays current-session sound for the directly focused session', async () => {

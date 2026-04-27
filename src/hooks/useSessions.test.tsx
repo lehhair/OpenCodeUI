@@ -3,6 +3,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { EventCallbacks } from '../types/api/event'
 import { useSessions } from './useSessions'
 
+function createDeferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>(res => {
+    resolve = res
+  })
+  return { promise, resolve }
+}
+
 const getSessionsMock = vi.fn()
 const createSessionMock = vi.fn()
 const deleteSessionMock = vi.fn()
@@ -107,5 +115,49 @@ describe('useSessions', () => {
     })
 
     expect(result.current.sessions.map(session => session.id)).toEqual(['session-1'])
+  })
+
+  it('does not refetch on reconnect while a newer request is still in flight', async () => {
+    const firstRequest = createDeferred<ReturnType<typeof makeSession>[]>()
+    const secondRequest = createDeferred<ReturnType<typeof makeSession>[]>()
+
+    getSessionsMock
+      .mockImplementationOnce(() => firstRequest.promise)
+      .mockImplementationOnce(() => secondRequest.promise)
+
+    const { result } = renderHook(() => useSessions({ directory: '/workspace/demo' }))
+
+    await act(async () => {
+      vi.runAllTimers()
+      await Promise.resolve()
+    })
+
+    act(() => {
+      result.current.setSearch('branch')
+    })
+
+    await act(async () => {
+      vi.advanceTimersByTime(300)
+      await Promise.resolve()
+    })
+
+    await act(async () => {
+      firstRequest.resolve([makeSession('session-1')])
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    await act(async () => {
+      latestEventCallbacks.onReconnected?.('network')
+      await Promise.resolve()
+    })
+
+    expect(getSessionsMock).toHaveBeenCalledTimes(2)
+
+    await act(async () => {
+      secondRequest.resolve([makeSession('session-2')])
+      await Promise.resolve()
+      await Promise.resolve()
+    })
   })
 })

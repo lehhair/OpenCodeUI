@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Dialog } from './Dialog'
@@ -5,6 +6,10 @@ import { Dialog } from './Dialog'
 describe('Dialog', () => {
   beforeEach(() => {
     vi.useFakeTimers()
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation(cb => window.setTimeout(() => cb(performance.now()), 0))
+    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(id => {
+      clearTimeout(id)
+    })
   })
 
   afterEach(() => {
@@ -58,5 +63,51 @@ describe('Dialog', () => {
     fireEvent.click(backdrop as HTMLElement)
 
     expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('moves focus into the dialog when it opens', async () => {
+    function Harness() {
+      const [isOpen, setIsOpen] = useState(true)
+
+      return (
+        <>
+          <button id="dialog-trigger" type="button">
+            Open dialog
+          </button>
+          <Dialog isOpen={isOpen} onClose={() => setIsOpen(false)} title="Test Dialog">
+            <button type="button">Inner action</button>
+          </Dialog>
+        </>
+      )
+    }
+
+    render(<Harness />)
+
+    const trigger = screen.getByRole('button', { name: 'Open dialog' })
+    trigger.focus()
+
+    await act(async () => {
+      vi.runAllTimers()
+      await Promise.resolve()
+    })
+
+    expect(screen.getByRole('button', { name: 'Close' })).toHaveFocus()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+
+    await act(async () => {
+      vi.runAllTimers()
+      await Promise.resolve()
+    })
+  })
+
+  it('uses aria-label for rawContent dialogs', () => {
+    render(
+      <Dialog isOpen={true} onClose={vi.fn()} ariaLabel="Settings" rawContent showCloseButton={false}>
+        <div>settings body</div>
+      </Dialog>,
+    )
+
+    expect(screen.getByRole('dialog', { name: 'Settings' })).toBeInTheDocument()
   })
 })

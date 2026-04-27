@@ -176,8 +176,10 @@ export const FileExplorer = memo(function FileExplorer({
             {t('fileExplorer.explorer')}
           </span>
           <button
+            type="button"
             onClick={refresh}
             disabled={isLoading}
+            aria-label={t('common:refresh')}
             className="p-1 text-text-400 hover:text-text-100 hover:bg-bg-200 rounded transition-colors disabled:opacity-50"
             title={t('common:refresh')}
           >

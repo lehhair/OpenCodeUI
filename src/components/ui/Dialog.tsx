@@ -8,6 +8,7 @@ interface DialogProps {
   isOpen: boolean
   onClose: () => void
   title?: React.ReactNode
+  ariaLabel?: string
   children: React.ReactNode
   width?: string | number
   className?: string
@@ -22,6 +23,7 @@ export function Dialog({
   isOpen,
   onClose,
   title,
+  ariaLabel,
   children,
   width = 400,
   className = '',
@@ -35,6 +37,9 @@ export function Dialog({
   const shouldRender = useDelayedRender(isOpen, 200)
   const dialogRef = useRef<HTMLDivElement>(null)
   const titleId = useId()
+  const previousFocusedElementRef = useRef<HTMLElement | null>(null)
+  const previousFocusedElementIdRef = useRef<string | null>(null)
+  const restoreFocusTimerRef = useRef<number | null>(null)
 
   // 拖拽条区域 ref —— 下滑关闭只从这个区域开始
   const dragHandleRef = useRef<HTMLDivElement>(null)
@@ -46,6 +51,31 @@ export function Dialog({
   const [dragY, setDragY] = useState(0)
   const isDragging = useRef(false)
   const [isDraggingActive, setIsDraggingActive] = useState(false)
+
+  const restorePreviousFocus = useCallback(() => {
+    const previousFocusedElement = previousFocusedElementRef.current
+    if (previousFocusedElement && document.contains(previousFocusedElement)) {
+      previousFocusedElement.focus()
+      return
+    }
+
+    const previousFocusedElementId = previousFocusedElementIdRef.current
+    if (!previousFocusedElementId) return
+
+    const replacement = document.getElementById(previousFocusedElementId)
+    replacement?.focus()
+  }, [])
+
+  const requestClose = useCallback(() => {
+    onClose()
+    if (restoreFocusTimerRef.current !== null) {
+      clearTimeout(restoreFocusTimerRef.current)
+    }
+    restoreFocusTimerRef.current = window.setTimeout(() => {
+      restoreFocusTimerRef.current = null
+      restorePreviousFocus()
+    }, 200)
+  }, [onClose, restorePreviousFocus])
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     // 只有从拖拽条区域开始的触摸才能触发下滑关闭
@@ -77,7 +107,7 @@ export function Dialog({
   const handleTouchEnd = useCallback(() => {
     if (isDragging.current && dragOffsetY.current > 100) {
       // 下滑超过 100px，关闭
-      onClose()
+      requestClose()
     }
     touchStartY.current = null
     touchStartX.current = null
@@ -85,7 +115,7 @@ export function Dialog({
     isDragging.current = false
     setIsDraggingActive(false)
     setDragY(0)
-  }, [onClose])
+  }, [requestClose])
 
   // 防止背景误触：
   // 1. 只有 pointerdown 和 click 都发生在背景上才关闭
@@ -101,12 +131,24 @@ export function Dialog({
   const handleBackdropClick = useCallback(
     (e: React.MouseEvent) => {
       if (e.target === e.currentTarget && mouseDownOnBackdrop.current) {
-        onClose()
+        requestClose()
       }
       mouseDownOnBackdrop.current = false
     },
-    [onClose],
+    [requestClose],
   )
+
+  const focusDialogContent = useCallback(() => {
+    const dialog = dialogRef.current
+    if (!dialog) return
+
+    const focusable = dialog.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    )
+
+    const target = focusable[0] ?? dialog
+    target.focus()
+  }, [])
 
   // Focus trap
   const handleFocusTrap = useCallback((e: KeyboardEvent) => {
@@ -154,16 +196,51 @@ export function Dialog({
   useEffect(() => {
     if (!isOpen) return
 
+    previousFocusedElementRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    previousFocusedElementIdRef.current = previousFocusedElementRef.current?.id || null
+
+    let nestedFrameId: number | null = null
+    const frameId = requestAnimationFrame(() => {
+      nestedFrameId = requestAnimationFrame(() => {
+        focusDialogContent()
+      })
+    })
+
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        onClose()
+        requestClose()
         return
       }
       handleFocusTrap(e)
     }
     document.addEventListener('keydown', handleKeyDown)
-    return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [isOpen, onClose, handleFocusTrap])
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown)
+      cancelAnimationFrame(frameId)
+      if (nestedFrameId !== null) cancelAnimationFrame(nestedFrameId)
+    }
+  }, [isOpen, requestClose, handleFocusTrap, focusDialogContent])
+
+  useEffect(() => {
+    if (isOpen || shouldRender) return
+
+    const previousFocusedElement = previousFocusedElementRef.current
+    if (!previousFocusedElement || !document.contains(previousFocusedElement)) return
+
+    const timerId = window.setTimeout(() => {
+      restorePreviousFocus()
+    }, 0)
+
+    return () => clearTimeout(timerId)
+  }, [isOpen, shouldRender, restorePreviousFocus])
+
+  useEffect(() => {
+    return () => {
+      if (restoreFocusTimerRef.current !== null) {
+        clearTimeout(restoreFocusTimerRef.current)
+      }
+    }
+  }, [])
 
   if (!shouldRender) return null
 
@@ -197,6 +274,8 @@ export function Dialog({
         role="dialog"
         aria-modal="true"
         aria-labelledby={!rawContent && title ? titleId : undefined}
+        aria-label={rawContent ? ariaLabel || (typeof title === 'string' && title ? title : undefined) : ariaLabel}
+        tabIndex={-1}
         onClick={e => e.stopPropagation()}
       >
         {/* Drag Handle (mobile) - 触摸下滑关闭的唯一触发区域 */}
@@ -221,7 +300,7 @@ export function Dialog({
                 {showCloseButton && (
                   <button
                     type="button"
-                    onClick={onClose}
+                    onClick={requestClose}
                     aria-label={t('common:close')}
                     className="p-2 text-text-400 hover:text-text-200 hover:bg-bg-100 rounded-md transition-colors"
                     title={t('common:close')}

@@ -1,4 +1,4 @@
-import { act, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AttachmentDetailModal } from './AttachmentDetailModal'
 import type { Attachment } from './types'
@@ -48,5 +48,24 @@ describe('AttachmentDetailModal', () => {
       vi.advanceTimersByTime(1)
     })
     expect(screen.queryByText('notes.txt')).not.toBeInTheDocument()
+  })
+
+  it('exposes zoom controls with accessible labels for image attachments', () => {
+    const attachment: Attachment = {
+      id: 'attachment-2',
+      type: 'file',
+      displayName: 'diagram.png',
+      mime: 'image/png',
+      url: 'https://example.com/diagram.png',
+    }
+
+    render(<AttachmentDetailModal attachment={attachment} isOpen={true} onClose={vi.fn()} />)
+
+    const image = screen.getByAltText('diagram.png')
+    fireEvent.load(image)
+
+    expect(screen.getByRole('button', { name: 'Zoom out' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Zoom in' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Reset (double-click / double-tap)' })).toBeInTheDocument()
   })
 })

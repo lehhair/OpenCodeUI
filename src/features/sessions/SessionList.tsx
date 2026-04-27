@@ -528,12 +528,6 @@ export function SessionListItem({
     return (
       <div
         ref={itemRef}
-        draggable={isDraggable}
-        onDragStart={handleDragStart}
-        onClick={handleClick}
-        onTouchStart={isEditMode ? undefined : handleTouchStart}
-        onTouchMove={isEditMode ? undefined : handleTouchMove}
-        onTouchEnd={isEditMode ? undefined : handleTouchEnd}
         className={`group relative flex items-center gap-2 px-2 py-1.5 rounded-md cursor-default transition-colors duration-150 select-none ${
           isSelected && !isEditMode
             ? 'bg-bg-200/80 text-text-100'
@@ -577,40 +571,83 @@ export function SessionListItem({
           </span>
         )}
 
-        <div
-          className={`flex min-w-0 flex-1 items-center gap-1.5 transition-[padding] duration-200 ${
-            showActions ? 'pr-12' : 'pr-0 group-hover:pr-12'
-          }`}
-        >
-          {/* 标题 */}
-          <span
-            className="min-w-0 flex-1 truncate text-[length:var(--fs-sm)]"
-            title={session.title || t('sessions.untitledChat')}
+        {isEditMode ? (
+          <div
+            className={`flex min-w-0 flex-1 items-center gap-1.5 transition-[padding] duration-200 ${
+              showActions ? 'pr-12' : 'pr-0 group-hover:pr-12'
+            }`}
           >
-            {session.title || t('sessions.untitledChat')}
-          </span>
-
-          {((hasSummaryStats && session.summary) || session.time?.updated) && (
-            <div
-              className={`${actionsVisible ? 'hidden' : 'flex group-hover:hidden'} shrink-0 items-center gap-1.5 text-[length:var(--fs-xxs)] text-text-500`}
+            {/* 标题 */}
+            <span
+              className="min-w-0 flex-1 truncate text-[length:var(--fs-sm)]"
+              title={session.title || t('sessions.untitledChat')}
             >
-              {hasSummaryStats && session.summary && (
-                <span className="flex shrink-0 items-center gap-1 font-mono">
-                  {session.summary.additions > 0 && (
-                    <span className="text-success-100">+{session.summary.additions}</span>
-                  )}
-                  {session.summary.deletions > 0 && (
-                    <span className="text-danger-100">-{session.summary.deletions}</span>
-                  )}
-                  {session.summary.files > 0 && <span>{session.summary.files}f</span>}
-                </span>
-              )}
+              {session.title || t('sessions.untitledChat')}
+            </span>
 
-              {/* 时间 — 操作按钮出现时隐藏，并为按钮预留空间 */}
-              {session.time?.updated && <span className="shrink-0">{formatRelativeTime(session.time.updated)}</span>}
+            {((hasSummaryStats && session.summary) || session.time?.updated) && (
+              <div
+                className={`${actionsVisible ? 'hidden' : 'flex group-hover:hidden'} shrink-0 items-center gap-1.5 text-[length:var(--fs-xxs)] text-text-500`}
+              >
+                {hasSummaryStats && session.summary && (
+                  <span className="flex shrink-0 items-center gap-1 font-mono">
+                    {session.summary.additions > 0 && <span className="text-success-100">+{session.summary.additions}</span>}
+                    {session.summary.deletions > 0 && <span className="text-danger-100">-{session.summary.deletions}</span>}
+                    {session.summary.files > 0 && <span>{session.summary.files}f</span>}
+                  </span>
+                )}
+
+                {session.time?.updated && <span className="shrink-0">{formatRelativeTime(session.time.updated)}</span>}
+              </div>
+            )}
+          </div>
+        ) : (
+          <button
+            type="button"
+            draggable={isDraggable}
+            onDragStart={handleDragStart}
+            onClick={handleClick}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+            className="flex min-w-0 flex-1 items-center gap-1.5 bg-transparent border-none p-0 text-left"
+          >
+            <div
+              className={`flex min-w-0 flex-1 items-center gap-1.5 transition-[padding] duration-200 ${
+                showActions ? 'pr-12' : 'pr-0 group-hover:pr-12'
+              }`}
+            >
+              {/* 标题 */}
+              <span
+                className="min-w-0 flex-1 truncate text-[length:var(--fs-sm)]"
+                title={session.title || t('sessions.untitledChat')}
+              >
+                {session.title || t('sessions.untitledChat')}
+              </span>
+
+              {((hasSummaryStats && session.summary) || session.time?.updated) && (
+                <div
+                  className={`${actionsVisible ? 'hidden' : 'flex group-hover:hidden'} shrink-0 items-center gap-1.5 text-[length:var(--fs-xxs)] text-text-500`}
+                >
+                  {hasSummaryStats && session.summary && (
+                    <span className="flex shrink-0 items-center gap-1 font-mono">
+                      {session.summary.additions > 0 && (
+                        <span className="text-success-100">+{session.summary.additions}</span>
+                      )}
+                      {session.summary.deletions > 0 && (
+                        <span className="text-danger-100">-{session.summary.deletions}</span>
+                      )}
+                      {session.summary.files > 0 && <span>{session.summary.files}f</span>}
+                    </span>
+                  )}
+
+                  {/* 时间 — 操作按钮出现时隐藏，并为按钮预留空间 */}
+                  {session.time?.updated && <span className="shrink-0">{formatRelativeTime(session.time.updated)}</span>}
+                </div>
+              )}
             </div>
-          )}
-        </div>
+          </button>
+        )}
 
         {/* 操作按钮 — 编辑模式下隐藏 */}
         {!isEditMode && (
@@ -651,12 +688,6 @@ export function SessionListItem({
   return (
     <div
       ref={itemRef}
-      draggable={isDraggable}
-      onDragStart={handleDragStart}
-      onClick={handleClick}
-      onTouchStart={isEditMode ? undefined : handleTouchStart}
-      onTouchMove={isEditMode ? undefined : handleTouchMove}
-      onTouchEnd={isEditMode ? undefined : handleTouchEnd}
       className={`group relative flex items-start ${itemPaddingClass} rounded-lg cursor-default transition-all duration-200 border border-transparent select-none ${
         isSelected && !isEditMode ? 'bg-bg-000 shadow-sm ring-1 ring-border-200/50' : 'hover:bg-bg-200/50'
       } ${showActions && !isEditMode ? 'bg-bg-200/50' : ''}`}
@@ -682,71 +713,135 @@ export function SessionListItem({
           {isChecked && <CheckIcon size={11} className="text-white" />}
         </button>
       )}
-      <div
-        className={`flex-1 min-w-0 transition-[padding] duration-200 ${!isEditMode && showActions ? 'pr-[60px]' : !isEditMode ? 'pr-1 group-hover:pr-[60px]' : 'pr-1'}`}
-      >
-        {/* Row 1: Title */}
-        <p
-          className={`${isCompact ? 'text-[length:var(--fs-md)]' : 'text-[length:var(--fs-base)]'} truncate font-medium ${isSelected ? 'text-text-100' : 'text-text-200 group-hover:text-text-100'}`}
-          title={session.title || t('sessions.untitledChat')}
-        >
-          {session.title || t('sessions.untitledChat')}
-        </p>
+      {isEditMode ? (
+        <div className="flex-1 min-w-0 pr-1">
+          <p
+            className={`${isCompact ? 'text-[length:var(--fs-md)]' : 'text-[length:var(--fs-base)]'} truncate font-medium text-text-200`}
+            title={session.title || t('sessions.untitledChat')}
+          >
+            {session.title || t('sessions.untitledChat')}
+          </p>
 
-        {/* Row 2: Meta line — 始终存在，保持高度一致 */}
-        <div
-          className={`flex items-center ${isCompact ? 'mt-1' : 'mt-1.5'} h-4 text-[length:var(--fs-xxs)] text-text-400 gap-1 overflow-hidden`}
-        >
-          {/* 活跃状态标记 / 已完成未读圆点 */}
-          {activeStatus ? (
-            <>
-              <span className="relative shrink-0 flex items-center justify-center w-3 h-3">
-                <span className={`absolute w-1.5 h-1.5 rounded-full ${activeStatus.dot}`} />
-                {activeStatus.pulse && (
-                  <span className={`absolute w-1.5 h-1.5 rounded-full ${activeStatus.dot} animate-ping opacity-50`} />
-                )}
-              </span>
-              <span className="opacity-30 shrink-0">·</span>
-            </>
-          ) : hasUnreadCompletedNotification ? (
-            <>
-              <span
-                className="relative shrink-0 flex items-center justify-center w-3 h-3"
-                title={t('chat:notification.completed')}
-              >
-                <span className="absolute w-1.5 h-1.5 rounded-full bg-accent-main-100" />
-              </span>
-              <span className="opacity-30 shrink-0">·</span>
-            </>
-          ) : null}
-          {/* 时间 */}
-          {session.time?.updated && (
-            <span className="shrink-0 opacity-60">{formatRelativeTime(session.time.updated)}</span>
-          )}
-          {/* Stats */}
-          {showStats && session.summary && (
-            <>
-              <span className="opacity-30">·</span>
-              <span className="flex items-center gap-1.5 font-mono shrink-0">
-                {session.summary.additions > 0 && (
-                  <span className="text-success-100">+{session.summary.additions}</span>
-                )}
-                {session.summary.deletions > 0 && <span className="text-danger-100">-{session.summary.deletions}</span>}
-                {session.summary.files > 0 && <span>{session.summary.files}f</span>}
-              </span>
-            </>
-          )}
-          {/* Directory (Global mode) */}
-          {showDirectory && session.directory && (
-            <>
-              <span className="opacity-30 shrink-0">·</span>
-              <span className="truncate opacity-50" title={session.directory}>
-                {session.directory.replace(/\\/g, '/').split('/').filter(Boolean).pop()}
-              </span>
-            </>
-          )}
+          <div
+            className={`flex items-center ${isCompact ? 'mt-1' : 'mt-1.5'} h-4 text-[length:var(--fs-xxs)] text-text-400 gap-1 overflow-hidden`}
+          >
+            {activeStatus ? (
+              <>
+                <span className="relative shrink-0 flex items-center justify-center w-3 h-3">
+                  <span className={`absolute w-1.5 h-1.5 rounded-full ${activeStatus.dot}`} />
+                  {activeStatus.pulse && (
+                    <span className={`absolute w-1.5 h-1.5 rounded-full ${activeStatus.dot} animate-ping opacity-50`} />
+                  )}
+                </span>
+                <span className="opacity-30 shrink-0">·</span>
+              </>
+            ) : hasUnreadCompletedNotification ? (
+              <>
+                <span className="relative shrink-0 flex items-center justify-center w-3 h-3" title={t('chat:notification.completed')}>
+                  <span className="absolute w-1.5 h-1.5 rounded-full bg-accent-main-100" />
+                </span>
+                <span className="opacity-30 shrink-0">·</span>
+              </>
+            ) : null}
+            {session.time?.updated && <span className="shrink-0 opacity-60">{formatRelativeTime(session.time.updated)}</span>}
+            {showStats && session.summary && (
+              <>
+                <span className="opacity-30">·</span>
+                <span className="flex items-center gap-1.5 font-mono shrink-0">
+                  {session.summary.additions > 0 && <span className="text-success-100">+{session.summary.additions}</span>}
+                  {session.summary.deletions > 0 && <span className="text-danger-100">-{session.summary.deletions}</span>}
+                  {session.summary.files > 0 && <span>{session.summary.files}f</span>}
+                </span>
+              </>
+            )}
+            {showDirectory && session.directory && (
+              <>
+                <span className="opacity-30 shrink-0">·</span>
+                <span className="truncate opacity-50" title={session.directory}>
+                  {session.directory.replace(/\\/g, '/').split('/').filter(Boolean).pop()}
+                </span>
+              </>
+            )}
+          </div>
         </div>
-      </div>
+      ) : (
+        <button
+          type="button"
+          draggable={isDraggable}
+          onDragStart={handleDragStart}
+          onClick={handleClick}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+          className="flex min-w-0 flex-1 items-start bg-transparent border-none p-0 text-left"
+        >
+          <div
+            className={`flex-1 min-w-0 transition-[padding] duration-200 ${showActions ? 'pr-[60px]' : 'pr-1 group-hover:pr-[60px]'}`}
+          >
+            {/* Row 1: Title */}
+            <p
+              className={`${isCompact ? 'text-[length:var(--fs-md)]' : 'text-[length:var(--fs-base)]'} truncate font-medium ${isSelected ? 'text-text-100' : 'text-text-200 group-hover:text-text-100'}`}
+              title={session.title || t('sessions.untitledChat')}
+            >
+              {session.title || t('sessions.untitledChat')}
+            </p>
+
+            {/* Row 2: Meta line — 始终存在，保持高度一致 */}
+            <div
+              className={`flex items-center ${isCompact ? 'mt-1' : 'mt-1.5'} h-4 text-[length:var(--fs-xxs)] text-text-400 gap-1 overflow-hidden`}
+            >
+              {/* 活跃状态标记 / 已完成未读圆点 */}
+              {activeStatus ? (
+                <>
+                  <span className="relative shrink-0 flex items-center justify-center w-3 h-3">
+                    <span className={`absolute w-1.5 h-1.5 rounded-full ${activeStatus.dot}`} />
+                    {activeStatus.pulse && (
+                      <span className={`absolute w-1.5 h-1.5 rounded-full ${activeStatus.dot} animate-ping opacity-50`} />
+                    )}
+                  </span>
+                  <span className="opacity-30 shrink-0">·</span>
+                </>
+              ) : hasUnreadCompletedNotification ? (
+                <>
+                  <span
+                    className="relative shrink-0 flex items-center justify-center w-3 h-3"
+                    title={t('chat:notification.completed')}
+                  >
+                    <span className="absolute w-1.5 h-1.5 rounded-full bg-accent-main-100" />
+                  </span>
+                  <span className="opacity-30 shrink-0">·</span>
+                </>
+              ) : null}
+              {/* 时间 */}
+              {session.time?.updated && (
+                <span className="shrink-0 opacity-60">{formatRelativeTime(session.time.updated)}</span>
+              )}
+              {/* Stats */}
+              {showStats && session.summary && (
+                <>
+                  <span className="opacity-30">·</span>
+                  <span className="flex items-center gap-1.5 font-mono shrink-0">
+                    {session.summary.additions > 0 && (
+                      <span className="text-success-100">+{session.summary.additions}</span>
+                    )}
+                    {session.summary.deletions > 0 && <span className="text-danger-100">-{session.summary.deletions}</span>}
+                    {session.summary.files > 0 && <span>{session.summary.files}f</span>}
+                  </span>
+                </>
+              )}
+              {/* Directory (Global mode) */}
+              {showDirectory && session.directory && (
+                <>
+                  <span className="opacity-30 shrink-0">·</span>
+                  <span className="truncate opacity-50" title={session.directory}>
+                    {session.directory.replace(/\\/g, '/').split('/').filter(Boolean).pop()}
+                  </span>
+                </>
+              )}
+            </div>
+          </div>
+        </button>
+      )}
 
       {/* Actions: hover on desktop, long-press on mobile — 编辑模式下隐藏 */}
       {!isEditMode && (

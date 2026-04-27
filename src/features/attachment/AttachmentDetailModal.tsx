@@ -130,7 +130,9 @@ function DownloadButton({ attachment }: { attachment: Attachment }) {
 
   return (
     <button
+      type="button"
       onClick={handleDownload}
+      aria-label={t('attachment.saveToFile')}
       className="p-1.5 text-text-400 hover:text-text-100 hover:bg-bg-200/60 rounded-lg transition-colors"
       title={t('attachment.saveToFile')}
     >
@@ -430,7 +432,9 @@ function ZoomableImage({ url, alt }: { url: string; alt: string }) {
             <MinusIcon size={14} />
           </ZoomButton>
           <button
+            type="button"
             onClick={resetView}
+            aria-label={t('attachment.zoomReset')}
             className="px-2 py-1 rounded text-[length:var(--fs-sm)] font-mono text-text-400 hover:text-text-100 hover:bg-bg-200/60 transition-colors min-w-[52px] min-h-[44px] sm:min-h-0 flex items-center justify-center"
             title={t('attachment.zoomReset')}
           >
@@ -462,8 +466,10 @@ function ZoomButton({
 }) {
   return (
     <button
+      type="button"
       onClick={onClick}
       disabled={disabled}
+      aria-label={title}
       className="p-2 rounded text-text-400 hover:text-text-100 hover:bg-bg-200/60 transition-colors disabled:opacity-30 disabled:cursor-not-allowed min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 flex items-center justify-center"
       title={title}
     >

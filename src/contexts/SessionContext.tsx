@@ -89,8 +89,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       } catch (e) {
         sessionErrorHandler('fetch sessions', e)
       } finally {
-        isFetchingRef.current = false
         if (requestId === requestIdRef.current) {
+          isFetchingRef.current = false
           setIsLoading(false)
           setIsLoadingMore(false)
         }

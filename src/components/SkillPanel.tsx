@@ -71,8 +71,10 @@ export const SkillPanel = memo(function SkillPanel({ isResizing: _isResizing }: 
             {!loading && <span className="text-text-400 text-[length:var(--fs-sm)]">({skills.length})</span>}
           </div>
           <button
+            type="button"
             onClick={loadSkills}
             disabled={loading}
+            aria-label={t('common:refresh')}
             className="p-1 hover:bg-bg-200 rounded text-text-300 hover:text-text-100 transition-colors disabled:opacity-50"
             title={t('common:refresh')}
           >
@@ -85,9 +87,12 @@ export const SkillPanel = memo(function SkillPanel({ isResizing: _isResizing }: 
           <div className="relative">
             <input
               type="text"
+              name="skill-filter"
               value={filter}
               onChange={e => setFilter(e.target.value)}
               placeholder={t('skillPanel.filterPlaceholder')}
+              aria-label={t('skillPanel.filterPlaceholder')}
+              autoComplete="off"
               className="w-full pl-8 pr-2 py-1 text-[length:var(--fs-sm)] bg-bg-200/50 border border-transparent focus:border-border-200 rounded text-text-100 placeholder-text-400 focus:outline-none transition-colors"
             />
             <SearchIcon size={12} className="absolute left-2.5 top-1.5 text-text-400" />
@@ -107,6 +112,7 @@ export const SkillPanel = memo(function SkillPanel({ isResizing: _isResizing }: 
             <AlertCircleIcon size={20} className="text-danger-100" />
             <span>{error}</span>
             <button
+              type="button"
               onClick={loadSkills}
               className="px-3 py-1.5 text-[length:var(--fs-sm)] bg-bg-200/50 hover:bg-bg-200 text-text-200 rounded-md transition-colors"
             >
@@ -139,8 +145,10 @@ const SkillItem = memo(function SkillItem({ skill }: { skill: Skill }) {
 
   return (
     <div className="group">
-      <div
-        className="flex items-start gap-2 px-3 py-2 hover:bg-bg-200/50 cursor-pointer transition-colors"
+      <button
+        type="button"
+        aria-expanded={expanded}
+        className="flex w-full items-start gap-2 px-3 py-2 hover:bg-bg-200/50 transition-colors bg-transparent border-none text-left"
         onClick={() => setExpanded(!expanded)}
       >
         <span className="text-text-400 shrink-0 mt-0.5">
@@ -151,7 +159,7 @@ const SkillItem = memo(function SkillItem({ skill }: { skill: Skill }) {
           <div className="text-[length:var(--fs-base)] text-text-100 font-medium">{skill.name}</div>
           <div className="text-[length:var(--fs-sm)] text-text-400 truncate">{skill.description}</div>
         </div>
-      </div>
+      </button>
 
       {expanded && (
         <div className="px-3 pb-3 pt-0 ml-5 border-l-2 border-border-200/30 pl-3">

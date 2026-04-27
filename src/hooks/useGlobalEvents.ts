@@ -146,6 +146,22 @@ function drainPending<T>(map: Map<string, PendingRequest<T>[]>, sessionID: strin
   return arr.map(item => item.request)
 }
 
+function removePendingByRequestId<T extends { id: string }>(
+  map: Map<string, PendingRequest<T>[]>,
+  sessionID: string,
+  requestID: string,
+) {
+  const arr = map.get(sessionID)
+  if (!arr || arr.length === 0) return
+
+  const filtered = arr.filter(item => item.request.id !== requestID)
+  if (filtered.length === 0) {
+    map.delete(sessionID)
+  } else if (filtered.length !== arr.length) {
+    map.set(sessionID, filtered)
+  }
+}
+
 async function fetchActiveScopeData(directories?: string[]) {
   const scopes = directories && directories.length > 0 ? directories : [undefined]
   const results = await Promise.all(
@@ -426,7 +442,7 @@ export function useGlobalEvents(directories?: string[]) {
       },
 
       onPermissionReplied: data => {
-        pendingPermissions.delete(data.sessionID)
+        removePendingByRequestId(pendingPermissions, data.sessionID, data.requestID)
         activeSessionStore.resolvePendingRequest(data.requestID)
 
         if (belongsToCurrentSession(data.sessionID)) {
@@ -461,7 +477,7 @@ export function useGlobalEvents(directories?: string[]) {
       },
 
       onQuestionReplied: data => {
-        pendingQuestions.delete(data.sessionID)
+        removePendingByRequestId(pendingQuestions, data.sessionID, data.requestID)
         activeSessionStore.resolvePendingRequest(data.requestID)
 
         if (belongsToCurrentSession(data.sessionID)) {
@@ -470,7 +486,7 @@ export function useGlobalEvents(directories?: string[]) {
       },
 
       onQuestionRejected: data => {
-        pendingQuestions.delete(data.sessionID)
+        removePendingByRequestId(pendingQuestions, data.sessionID, data.requestID)
         activeSessionStore.resolvePendingRequest(data.requestID)
 
         if (belongsToCurrentSession(data.sessionID)) {

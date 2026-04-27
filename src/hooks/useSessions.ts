@@ -119,8 +119,8 @@ export function useSessions(options: UseSessionsOptions = {}): UseSessionsResult
         if (requestId !== requestIdRef.current) return
         setError(e instanceof Error ? e : new Error('Failed to fetch sessions'))
       } finally {
-        isFetchingRef.current = false
         if (requestId === requestIdRef.current) {
+          isFetchingRef.current = false
           setIsLoading(false)
           setIsLoadingMore(false)
         }

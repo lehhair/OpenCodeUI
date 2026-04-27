@@ -230,7 +230,15 @@ export function SettingsDialog({ isOpen, onClose, initialTab = 'servers' }: Sett
   // 移动端：全屏体验，顶部 sticky tab
   if (isMobile) {
     return (
-      <Dialog isOpen={isOpen} onClose={onClose} title="" width="100%" showCloseButton={false} rawContent>
+      <Dialog
+        isOpen={isOpen}
+        onClose={onClose}
+        title=""
+        ariaLabel={t('title')}
+        width="100%"
+        showCloseButton={false}
+        rawContent
+      >
         <div className="flex flex-col" style={{ height: '92vh' }}>
           {/* Sticky Header + Tabs */}
           <div className="shrink-0">
@@ -279,7 +287,15 @@ export function SettingsDialog({ isOpen, onClose, initialTab = 'servers' }: Sett
 
   // 桌面端：左侧导航 + 右侧内容
   return (
-    <Dialog isOpen={isOpen} onClose={onClose} title="" width="min(97vw, 1040px)" showCloseButton={false} rawContent>
+    <Dialog
+      isOpen={isOpen}
+      onClose={onClose}
+      title=""
+      ariaLabel={t('title')}
+      width="min(97vw, 1040px)"
+      showCloseButton={false}
+      rawContent
+    >
       <div className="flex h-[min(90vh,820px)]">
         {/* Left Nav - 窄屏时收缩 */}
         <nav
