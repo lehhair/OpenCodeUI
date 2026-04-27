@@ -64,14 +64,12 @@ export function ContextDetailsDialog({ isOpen, onClose, contextLimit }: ContextD
   }, [messages])
 
   const contextUsagePercent = useMemo(() => {
-    const total = lastAssistantWithTokens?.total
-    if (!total || contextLimit <= 0) return null
-    return Math.round((total / contextLimit) * 100)
-  }, [lastAssistantWithTokens, contextLimit])
+    if (stats.contextUsed <= 0 || contextLimit <= 0) return null
+    return Math.round(stats.contextPercent)
+  }, [stats.contextUsed, stats.contextPercent, contextLimit])
 
   const contextMsg = lastAssistantWithTokens?.msg
   const contextTokens = contextMsg?.info.role === 'assistant' ? contextMsg.info.tokens : undefined
-  const contextTotal = lastAssistantWithTokens?.total
 
   const handleToggleMessage = useCallback((msg: Message) => {
     const id = msg.info.id
@@ -96,10 +94,16 @@ export function ContextDetailsDialog({ isOpen, onClose, contextLimit }: ContextD
             value={contextMsg?.info.role === 'assistant' ? contextMsg.info.modelID : '—'}
           />
           <Stat label={t('contextDetails.contextLimit')} value={formatTokens(contextLimit)} />
-          <Stat label={t('contextDetails.totalTokens')} value={contextTotal ? formatTokens(contextTotal) : '—'} />
+          <Stat label={t('contextDetails.totalTokens')} value={stats.contextUsed ? formatTokens(stats.contextUsed) : '—'} />
           <Stat
             label={t('contextDetails.usage')}
-            value={contextUsagePercent === null ? '—' : `${contextUsagePercent}%`}
+            value={
+              contextUsagePercent === null
+                ? '—'
+                : stats.contextEstimated
+                  ? `${contextUsagePercent}% (estimated)`
+                  : `${contextUsagePercent}%`
+            }
           />
           <Stat label={t('contextDetails.totalCost')} value={formatCost(stats.totalCost)} />
         </div>
