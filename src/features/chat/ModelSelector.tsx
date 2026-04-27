@@ -126,6 +126,7 @@ interface ModelListPanelProps {
   onTogglePin: (e: React.MouseEvent, model: ModelInfo) => void
   onTouchStart?: (model: ModelInfo) => void
   onTouchEnd?: () => void
+  handlePinKeyDown: (e: React.KeyboardEvent<HTMLButtonElement>, interactiveIndex: number) => void
   ignoreMouseRef: React.RefObject<boolean>
   lastMousePosRef: React.RefObject<{ x: number; y: number }>
   idPrefix: string
@@ -157,6 +158,7 @@ const ModelListPanel = memo(function ModelListPanel({
   onTogglePin,
   onTouchStart,
   onTouchEnd,
+  handlePinKeyDown,
   ignoreMouseRef,
   lastMousePosRef,
   idPrefix,
@@ -294,7 +296,13 @@ const ModelListPanel = memo(function ModelListPanel({
                     <button
                       type="button"
                       onClick={e => onTogglePin(e, model)}
-                      onKeyDown={e => e.stopPropagation()}
+                      onFocus={() => {
+                        if (interactiveIndex !== -1) setHighlightedIndex(interactiveIndex)
+                      }}
+                      onKeyDown={e => {
+                        e.stopPropagation()
+                        if (interactiveIndex !== -1) handlePinKeyDown(e, interactiveIndex)
+                      }}
                       aria-label={`${pinned ? unpinLabel : pinLabel}: ${model.name}`}
                       className={`w-5 flex items-center justify-center flex-shrink-0 p-0.5 rounded transition-all duration-150 ${
                         pinned
@@ -361,6 +369,7 @@ export const ModelSelector = memo(
     const ignoreMouseRef = useRef(false)
     const lastMousePosRef = useRef({ x: 0, y: 0 })
     const openFocusTargetRef = useRef<'search' | 'list'>('search')
+    const openHighlightedIndexRef = useRef(0)
 
     const idPrefix = trigger === 'header' ? 'ms-item' : 'ms-tb-item'
     const listboxId = `${idPrefix}-listbox`
@@ -409,6 +418,7 @@ export const ModelSelector = memo(
         }
       }
       openFocusTargetRef.current = focusTarget
+      openHighlightedIndexRef.current = targetIndex
       setHighlightedIndex(targetIndex)
       setIsOpen(true)
       setSearchQuery('')
@@ -496,14 +506,14 @@ export const ModelSelector = memo(
       if (!isOpen) return
       const timerId = window.setTimeout(() => {
         if (openFocusTargetRef.current === 'list') {
-          focusItemAtInteractiveIndex(highlightedIndex)
+          focusItemAtInteractiveIndex(openHighlightedIndexRef.current)
         } else {
           searchInputRef.current?.focus()
         }
       }, 50)
 
       return () => clearTimeout(timerId)
-    }, [isOpen, highlightedIndex, focusItemAtInteractiveIndex])
+    }, [isOpen, focusItemAtInteractiveIndex])
 
     useEffect(() => {
       if (!isOpen) return
@@ -617,6 +627,34 @@ export const ModelSelector = memo(
       [closeMenu, focusItemAtInteractiveIndex, handleSelect, itemIndices.length],
     )
 
+    const handlePinKeyDown = useCallback(
+      (e: React.KeyboardEvent<HTMLButtonElement>, interactiveIndex: number) => {
+        switch (e.key) {
+          case 'ArrowDown':
+            e.preventDefault()
+            focusItemAtInteractiveIndex(Math.min(interactiveIndex + 1, itemIndices.length - 1))
+            break
+          case 'ArrowUp':
+            e.preventDefault()
+            focusItemAtInteractiveIndex(Math.max(interactiveIndex - 1, 0))
+            break
+          case 'Home':
+            e.preventDefault()
+            focusItemAtInteractiveIndex(0)
+            break
+          case 'End':
+            e.preventDefault()
+            focusItemAtInteractiveIndex(itemIndices.length - 1)
+            break
+          case 'Escape':
+            e.preventDefault()
+            closeMenu()
+            break
+        }
+      },
+      [closeMenu, focusItemAtInteractiveIndex, itemIndices.length],
+    )
+
     // ---- Trigger button ----
 
     const triggerButton =
@@ -707,6 +745,7 @@ export const ModelSelector = memo(
             onTogglePin={handleTogglePin}
             onTouchStart={handleTouchStart}
             onTouchEnd={handleTouchEnd}
+            handlePinKeyDown={handlePinKeyDown}
             ignoreMouseRef={ignoreMouseRef}
             lastMousePosRef={lastMousePosRef}
             idPrefix={idPrefix}

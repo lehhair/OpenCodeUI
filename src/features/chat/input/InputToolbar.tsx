@@ -159,6 +159,8 @@ export function InputToolbar({
         event.preventDefault()
         onClose()
         trigger?.focus()
+      } else if (event.key === 'Tab') {
+        onClose()
       }
     },
     [],
@@ -318,7 +320,7 @@ export function InputToolbar({
                 id={agentMenuId}
                 ref={agentMenuRef}
                 role="menu"
-                aria-label={currentAgent?.name || selectedAgent || 'Agent'}
+                aria-label="Agent menu"
                 onKeyDown={event =>
                   handleMenuKeyDown(event, agentMenuRef.current, () => setAgentMenuOpen(false), agentTriggerRef.current)
                 }
@@ -401,7 +403,7 @@ export function InputToolbar({
                 id={variantMenuId}
                 ref={variantMenuRef}
                 role="menu"
-                aria-label={selectedVariant || t('inputToolbar.default')}
+                aria-label="Variant menu"
                 onKeyDown={event =>
                   handleMenuKeyDown(event, variantMenuRef.current, () => setVariantMenuOpen(false), variantTriggerRef.current)
                 }
