@@ -243,6 +243,7 @@ export function InputToolbar({
                       </span>
                     }
                     selected={selectedAgent === agent.name}
+                    selectionRole="menuitemradio"
                     onClick={() => {
                       onAgentChange?.(agent.name)
                       setAgentMenuOpen(false)
@@ -295,6 +296,7 @@ export function InputToolbar({
                   label={t('inputToolbar.default')}
                   icon={<ThinkingIcon />}
                   selected={!selectedVariant}
+                  selectionRole="menuitemradio"
                   onClick={() => {
                     onVariantChange?.(undefined)
                     setVariantMenuOpen(false)
@@ -306,6 +308,7 @@ export function InputToolbar({
                     label={variant.charAt(0).toUpperCase() + variant.slice(1)}
                     icon={<ThinkingIcon />}
                     selected={selectedVariant === variant}
+                    selectionRole="menuitemradio"
                     onClick={() => {
                       onVariantChange?.(variant)
                       setVariantMenuOpen(false)

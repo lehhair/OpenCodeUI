@@ -36,6 +36,8 @@ export function ProjectSelector({
     projectId: null,
   })
   const containerRef = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const dropdownRef = useRef<HTMLDivElement>(null)
 
   // ==========================================
   // Click Outside
@@ -52,6 +54,14 @@ export function ProjectSelector({
 
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [isOpen])
+
+  useEffect(() => {
+    if (isOpen) return
+    const activeElement = document.activeElement as Node | null
+    if (activeElement && dropdownRef.current?.contains(activeElement)) {
+      triggerRef.current?.focus()
+    }
   }, [isOpen])
 
   // ==========================================
@@ -94,6 +104,7 @@ export function ProjectSelector({
     <div ref={containerRef} className="relative">
       {/* Trigger Button */}
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => setIsOpen(!isOpen)}
         disabled={isLoading}
@@ -114,6 +125,7 @@ export function ProjectSelector({
 
       {/* Dropdown */}
       <div
+        ref={dropdownRef}
         className={`
           absolute top-full left-0 right-0 mt-1 z-50
           transition-all duration-200 origin-top
@@ -232,7 +244,7 @@ function ProjectItem({ project, displayName, path, onSelect, onRemove }: Project
           type="button"
           onClick={onRemove}
           aria-label={t('common:remove')}
-          className="p-1 rounded text-text-400 hover:text-danger-100 hover:bg-danger-100/10 md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100 transition-colors"
+          className="p-1 rounded text-text-400 hover:text-danger-100 hover:bg-danger-100/10 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 md:focus-visible:opacity-100 transition-colors"
           title={t('common:remove')}
         >
           <TrashIcon className="w-3 h-3" />

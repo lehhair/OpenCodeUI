@@ -154,6 +154,8 @@ export function SidePanel({
   const sessionSelectionAnchorIdRef = useRef<string | null>(null)
   const projectSelectionAnchorIdRef = useRef<string | null>(null)
   const recentsSelectionRootRef = useRef<HTMLDivElement>(null)
+  const projectToggleRef = useRef<HTMLButtonElement>(null)
+  const projectsDropdownRef = useRef<HTMLDivElement>(null)
   // 批量删除确认弹窗
   const [batchDeleteSessionConfirm, setBatchDeleteSessionConfirm] = useState(false)
   const [batchRemoveProjectConfirm, setBatchRemoveProjectConfirm] = useState(false)
@@ -235,6 +237,14 @@ export function SidePanel({
 
   const showLabels = isExpanded || isMobile
   const newChatShortcut = useKeybindingLabel('newSession')
+
+  useEffect(() => {
+    if (showLabels && projectsExpanded) return
+    const activeElement = document.activeElement as Node | null
+    if (activeElement && projectsDropdownRef.current?.contains(activeElement)) {
+      projectToggleRef.current?.focus()
+    }
+  }, [projectsExpanded, showLabels])
 
   // Session stats
   const { messages } = useMessageStore()
@@ -849,6 +859,7 @@ export function SidePanel({
         {/* Project Selector - 只在展开时显示 */}
         {showLabels && (
           <button
+            ref={projectToggleRef}
             type="button"
             onClick={() => setProjectsExpanded(!projectsExpanded)}
             aria-expanded={projectsExpanded}
@@ -885,6 +896,7 @@ export function SidePanel({
 
         {/* Projects Dropdown */}
         <div
+          ref={projectsDropdownRef}
           className="overflow-hidden transition-all duration-300 ease-out"
           style={{
             maxHeight: showLabels && projectsExpanded ? 300 : 0,
@@ -947,7 +959,7 @@ export function SidePanel({
                           setProjectDeleteConfirm({ isOpen: true, projectId: project.id })
                         }}
                         aria-label={t('sidebar.removeProject')}
-                        className="p-1 rounded text-text-400 hover:text-danger-100 hover:bg-danger-100/10 md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100 transition-all"
+                        className="p-1 rounded text-text-400 hover:text-danger-100 hover:bg-danger-100/10 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 md:focus-visible:opacity-100 transition-all"
                         title={t('common:remove')}
                       >
                         <TrashIcon size={12} />

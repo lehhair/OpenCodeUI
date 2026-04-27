@@ -115,10 +115,9 @@ export function NotificationItem({ entry, resolvedSession, onSelect }: Notificat
     <div
       ref={itemRef}
       onFocusCapture={() => {
-        if (!preferTouchUi) setHasFocusWithin(true)
+        setHasFocusWithin(true)
       }}
       onBlurCapture={e => {
-        if (preferTouchUi) return
         const nextTarget = e.relatedTarget as Node | null
         if (!nextTarget || !itemRef.current?.contains(nextTarget)) {
           setHasFocusWithin(false)
@@ -188,7 +187,7 @@ export function NotificationItem({ entry, resolvedSession, onSelect }: Notificat
           className="p-1.5 rounded-md hover:bg-danger-bg active:bg-danger-bg text-text-400 hover:text-danger-100 active:text-danger-100 transition-colors focus-visible:ring-1 focus-visible:ring-danger-100/40 focus-visible:ring-inset"
           onClick={handleDismiss}
           aria-label={t('common:dismiss')}
-          tabIndex={preferTouchUi ? (actionsVisible ? 0 : -1) : hasFocusWithin ? 0 : -1}
+          tabIndex={hasFocusWithin || actionsVisible ? 0 : -1}
         >
           <CloseIcon size={10} />
         </button>

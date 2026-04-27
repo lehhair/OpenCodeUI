@@ -168,8 +168,6 @@ const ModelListPanel = memo(function ModelListPanel({
   pinLabel,
   unpinLabel,
 }: ModelListPanelProps) {
-  const activeOptionId = itemIndices[highlightedIndex] != null ? `${idPrefix}-${itemIndices[highlightedIndex]}` : undefined
-
   return (
     <div ref={menuRef} onKeyDown={handleKeyDown} className="flex flex-col min-h-0 pt-1.5">
       {/* 搜索栏 */}
@@ -188,11 +186,8 @@ const ModelListPanel = memo(function ModelListPanel({
             onKeyDown={handleKeyDown}
             placeholder={searchPlaceholder}
             aria-label={searchPlaceholder}
-            role="combobox"
             aria-controls={listboxId}
             aria-expanded={isOpen}
-            aria-activedescendant={activeOptionId}
-            aria-autocomplete="list"
             autoComplete="off"
             className="flex-1 bg-transparent border-none outline-none text-[length:var(--fs-base)] text-text-100 placeholder:text-text-400"
           />
@@ -203,7 +198,7 @@ const ModelListPanel = memo(function ModelListPanel({
       <div
         ref={listRef}
         id={listboxId}
-        role="listbox"
+        role="list"
         aria-label={searchPlaceholder}
         className={`overflow-y-auto custom-scrollbar flex-1 min-h-0 pl-2 pr-1 ${maxListHeight}`}
       >
@@ -252,8 +247,6 @@ const ModelListPanel = memo(function ModelListPanel({
                   <button
                     id={`${idPrefix}-${index}`}
                     type="button"
-                    role="option"
-                    aria-selected={isSelected}
                     onClick={() => onItemClick(model)}
                     onTouchStart={onTouchStart ? () => onTouchStart(model) : undefined}
                     onTouchEnd={onTouchEnd}

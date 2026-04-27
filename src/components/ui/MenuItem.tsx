@@ -6,16 +6,32 @@ interface MenuItemProps {
   icon?: React.ReactNode
   disabled?: boolean
   selected?: boolean
+  selectionRole?: 'menuitemradio' | 'option'
   onClick?: () => void
 }
 
-export function MenuItem({ label, description, icon, disabled = false, selected = false, onClick }: MenuItemProps) {
+export function MenuItem({
+  label,
+  description,
+  icon,
+  disabled = false,
+  selected = false,
+  selectionRole,
+  onClick,
+}: MenuItemProps) {
+  const selectionProps =
+    selectionRole === 'menuitemradio'
+      ? { role: selectionRole, 'aria-checked': selected }
+      : selectionRole === 'option'
+        ? { role: selectionRole, 'aria-selected': selected }
+        : {}
+
   return (
     <button
       type="button"
       disabled={disabled}
       onClick={onClick}
-      aria-pressed={selected || undefined}
+      {...selectionProps}
       className={`
         w-full px-2 py-2 rounded-lg flex items-start gap-2 text-left bg-transparent border-none
         transition-all duration-150 select-none

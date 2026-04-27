@@ -94,7 +94,7 @@ export function Dialog({
     }
     restoreFocusTimerRef.current = window.setTimeout(() => {
       restoreFocusTimerRef.current = null
-      const activeDialog = document.querySelector<HTMLElement>('[role="dialog"][aria-modal="true"]')
+      const activeDialog = Array.from(document.querySelectorAll<HTMLElement>('[role="dialog"][aria-modal="true"]')).at(-1)
       if (activeDialog) {
         focusFirstFocusable(activeDialog)
         return
@@ -226,9 +226,10 @@ export function Dialog({
     previousFocusedElementIdRef.current = previousFocusedElementRef.current?.id || null
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      const topDialog = Array.from(document.querySelectorAll<HTMLElement>('[role="dialog"][aria-modal="true"]')).at(-1)
+      if (topDialog && topDialog !== dialogRef.current) return
+
       if (e.key === 'Escape') {
-        const topDialog = Array.from(document.querySelectorAll<HTMLElement>('[role="dialog"][aria-modal="true"]')).at(-1)
-        if (topDialog && topDialog !== dialogRef.current) return
         requestClose()
         return
       }
@@ -250,7 +251,7 @@ export function Dialog({
     if (isOpen || shouldRender) return
 
     const timerId = window.setTimeout(() => {
-      const activeDialog = document.querySelector<HTMLElement>('[role="dialog"][aria-modal="true"]')
+      const activeDialog = Array.from(document.querySelectorAll<HTMLElement>('[role="dialog"][aria-modal="true"]')).at(-1)
       if (activeDialog) {
         focusFirstFocusable(activeDialog)
         return
