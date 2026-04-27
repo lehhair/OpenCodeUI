@@ -116,7 +116,8 @@ interface ModelListPanelProps {
   searchQuery: string
   setSearchQuery: (q: string) => void
   setHighlightedIndex: React.Dispatch<React.SetStateAction<number>>
-  handleKeyDown: (e: React.KeyboardEvent) => void
+  handleSearchKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void
+  handleItemKeyDown: (e: React.KeyboardEvent<HTMLButtonElement>, interactiveIndex: number, model: ModelInfo) => void
   flatList: FlatListItem[]
   itemIndices: number[]
   highlightedIndex: number
@@ -146,7 +147,8 @@ const ModelListPanel = memo(function ModelListPanel({
   searchQuery,
   setSearchQuery,
   setHighlightedIndex,
-  handleKeyDown,
+  handleSearchKeyDown,
+  handleItemKeyDown,
   flatList,
   itemIndices,
   highlightedIndex,
@@ -169,7 +171,7 @@ const ModelListPanel = memo(function ModelListPanel({
   unpinLabel,
 }: ModelListPanelProps) {
   return (
-    <div ref={menuRef} onKeyDown={handleKeyDown} className="flex flex-col min-h-0 pt-1.5">
+    <div ref={menuRef} className="flex flex-col min-h-0 pt-1.5">
       {/* 搜索栏 */}
       <div className="shrink-0 px-2 pb-1.5">
         <div className="flex items-center gap-2.5 px-3 py-2 rounded-xl bg-bg-200/40 transition-colors focus-within:bg-bg-200/60">
@@ -183,7 +185,7 @@ const ModelListPanel = memo(function ModelListPanel({
               setSearchQuery(e.target.value)
               setHighlightedIndex(0)
             }}
-            onKeyDown={handleKeyDown}
+            onKeyDown={handleSearchKeyDown}
             placeholder={searchPlaceholder}
             aria-label={searchPlaceholder}
             aria-controls={listboxId}
@@ -226,6 +228,7 @@ const ModelListPanel = memo(function ModelListPanel({
               const itemKey = getModelKey(model)
               const isSelected = selectedModelKey === itemKey
               const isHL = itemIndices[highlightedIndex] === index
+              const interactiveIndex = itemIndices.indexOf(index)
               const pinned = isModelPinned(model)
 
               return (
@@ -248,6 +251,12 @@ const ModelListPanel = memo(function ModelListPanel({
                     id={`${idPrefix}-${index}`}
                     type="button"
                     onClick={() => onItemClick(model)}
+                    onFocus={() => {
+                      if (interactiveIndex !== -1) setHighlightedIndex(interactiveIndex)
+                    }}
+                    onKeyDown={e => {
+                      if (interactiveIndex !== -1) handleItemKeyDown(e, interactiveIndex, model)
+                    }}
                     onTouchStart={onTouchStart ? () => onTouchStart(model) : undefined}
                     onTouchEnd={onTouchEnd}
                     onTouchMove={onTouchEnd}
@@ -351,6 +360,7 @@ export const ModelSelector = memo(
     const menuRef = useRef<HTMLDivElement>(null)
     const ignoreMouseRef = useRef(false)
     const lastMousePosRef = useRef({ x: 0, y: 0 })
+    const openFocusTargetRef = useRef<'search' | 'list'>('search')
 
     const idPrefix = trigger === 'header' ? 'ms-item' : 'ms-tb-item'
     const listboxId = `${idPrefix}-listbox`
@@ -388,7 +398,7 @@ export const ModelSelector = memo(
 
     // ---- Open / Close ----
 
-    const openMenu = useCallback(() => {
+    const openMenu = useCallback((focusTarget: 'search' | 'list' = 'search') => {
       if (disabled || isLoading) return
       let targetIndex = 0
       if (selectedModelKey) {
@@ -398,6 +408,7 @@ export const ModelSelector = memo(
           if (interactiveIndex !== -1) targetIndex = interactiveIndex
         }
       }
+      openFocusTargetRef.current = focusTarget
       setHighlightedIndex(targetIndex)
       setIsOpen(true)
       setSearchQuery('')
@@ -467,11 +478,32 @@ export const ModelSelector = memo(
       [handleSelect],
     )
 
+    const focusItemAtInteractiveIndex = useCallback(
+      (interactiveIndex: number) => {
+        const globalIndex = itemIndices[interactiveIndex]
+        if (globalIndex == null) return
+        setHighlightedIndex(interactiveIndex)
+        const target = document.getElementById(`${idPrefix}-${globalIndex}`) as HTMLElement | null
+        target?.focus()
+        target?.scrollIntoView({ block: 'nearest' })
+      },
+      [itemIndices, idPrefix],
+    )
+
     // ---- Side effects ----
 
     useEffect(() => {
-      if (isOpen) setTimeout(() => searchInputRef.current?.focus(), 50)
-    }, [isOpen])
+      if (!isOpen) return
+      const timerId = window.setTimeout(() => {
+        if (openFocusTargetRef.current === 'list') {
+          focusItemAtInteractiveIndex(highlightedIndex)
+        } else {
+          searchInputRef.current?.focus()
+        }
+      }, 50)
+
+      return () => clearTimeout(timerId)
+    }, [isOpen, highlightedIndex, focusItemAtInteractiveIndex])
 
     useEffect(() => {
       if (!isOpen) return
@@ -513,8 +545,8 @@ export const ModelSelector = memo(
 
     // ---- Keyboard navigation ----
 
-    const handleKeyDown = useCallback(
-      (e: React.KeyboardEvent) => {
+    const handleSearchKeyDown = useCallback(
+      (e: React.KeyboardEvent<HTMLInputElement>) => {
         e.stopPropagation()
 
         if (itemIndices.length === 0) {
@@ -528,19 +560,11 @@ export const ModelSelector = memo(
         switch (e.key) {
           case 'ArrowDown':
             e.preventDefault()
-            setHighlightedIndex(prev => {
-              const next = Math.min(prev + 1, itemIndices.length - 1)
-              document.getElementById(`${idPrefix}-${itemIndices[next]}`)?.scrollIntoView({ block: 'nearest' })
-              return next
-            })
+            focusItemAtInteractiveIndex(Math.min(highlightedIndex + 1, itemIndices.length - 1))
             break
           case 'ArrowUp':
             e.preventDefault()
-            setHighlightedIndex(prev => {
-              const next = Math.max(prev - 1, 0)
-              document.getElementById(`${idPrefix}-${itemIndices[next]}`)?.scrollIntoView({ block: 'nearest' })
-              return next
-            })
+            focusItemAtInteractiveIndex(Math.max(highlightedIndex - 1, 0))
             break
           case 'Enter': {
             e.preventDefault()
@@ -555,18 +579,59 @@ export const ModelSelector = memo(
             break
         }
       },
-      [itemIndices, flatList, highlightedIndex, handleSelect, closeMenu, idPrefix],
+      [itemIndices, flatList, highlightedIndex, handleSelect, closeMenu, focusItemAtInteractiveIndex],
+    )
+
+    const handleItemKeyDown = useCallback(
+      (e: React.KeyboardEvent<HTMLButtonElement>, interactiveIndex: number, model: ModelInfo) => {
+        e.stopPropagation()
+
+        switch (e.key) {
+          case 'ArrowDown':
+            e.preventDefault()
+            focusItemAtInteractiveIndex(Math.min(interactiveIndex + 1, itemIndices.length - 1))
+            break
+          case 'ArrowUp':
+            e.preventDefault()
+            focusItemAtInteractiveIndex(Math.max(interactiveIndex - 1, 0))
+            break
+          case 'Home':
+            e.preventDefault()
+            focusItemAtInteractiveIndex(0)
+            break
+          case 'End':
+            e.preventDefault()
+            focusItemAtInteractiveIndex(itemIndices.length - 1)
+            break
+          case 'Escape':
+            e.preventDefault()
+            closeMenu()
+            break
+          case 'Enter':
+          case ' ':
+            e.preventDefault()
+            handleSelect(model)
+            break
+        }
+      },
+      [closeMenu, focusItemAtInteractiveIndex, handleSelect, itemIndices.length],
     )
 
     // ---- Trigger button ----
 
     const triggerButton =
-      trigger === 'header' ? (
+                trigger === 'header' ? (
         <button
           ref={triggerRef}
           onClick={() => (isOpen ? closeMenu() : openMenu())}
+          onKeyDown={e => {
+            if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+              e.preventDefault()
+              openMenu('list')
+            }
+          }}
           disabled={disabled || isLoading}
-          aria-haspopup="listbox"
+          aria-haspopup="dialog"
           aria-expanded={isOpen}
           aria-controls={isOpen ? listboxId : undefined}
           className="group flex items-center gap-2 px-2 py-1.5 text-text-200 rounded-lg hover:bg-bg-200 hover:text-text-100 transition-all duration-150 active:scale-95 cursor-pointer text-[length:var(--fs-base)]"
@@ -581,8 +646,14 @@ export const ModelSelector = memo(
         <button
           ref={triggerRef}
           onClick={() => (isOpen ? closeMenu() : openMenu())}
+          onKeyDown={e => {
+            if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+              e.preventDefault()
+              openMenu('list')
+            }
+          }}
           disabled={disabled || isLoading}
-          aria-haspopup="listbox"
+          aria-haspopup="dialog"
           aria-expanded={isOpen}
           aria-controls={isOpen ? listboxId : undefined}
           className="flex items-center px-2 py-1.5 text-[length:var(--fs-base)] rounded-lg transition-all duration-150 hover:bg-bg-200 active:scale-95 cursor-pointer min-w-0 overflow-hidden w-full"
@@ -626,7 +697,8 @@ export const ModelSelector = memo(
             searchQuery={searchQuery}
             setSearchQuery={setSearchQuery}
             setHighlightedIndex={setHighlightedIndex}
-            handleKeyDown={handleKeyDown}
+            handleSearchKeyDown={handleSearchKeyDown}
+            handleItemKeyDown={handleItemKeyDown}
             flatList={flatList}
             itemIndices={itemIndices}
             highlightedIndex={highlightedIndex}

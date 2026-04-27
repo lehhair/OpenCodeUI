@@ -126,6 +126,44 @@ export function InputToolbar({
     target?.focus()
   }, [])
 
+  const handleMenuKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLDivElement>, menu: HTMLDivElement | null, onClose: () => void, trigger: HTMLButtonElement | null) => {
+      const items = Array.from(menu?.querySelectorAll<HTMLButtonElement>('[role="menuitemradio"], button') ?? [])
+      if (items.length === 0) {
+        if (event.key === 'Escape') {
+          event.preventDefault()
+          onClose()
+          trigger?.focus()
+        }
+        return
+      }
+
+      const currentIndex = items.findIndex(item => item === document.activeElement)
+      const focusByIndex = (index: number) => items[index]?.focus()
+
+      if (event.key === 'ArrowDown') {
+        event.preventDefault()
+        const nextIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % items.length
+        focusByIndex(nextIndex)
+      } else if (event.key === 'ArrowUp') {
+        event.preventDefault()
+        const nextIndex = currentIndex === -1 ? items.length - 1 : (currentIndex - 1 + items.length) % items.length
+        focusByIndex(nextIndex)
+      } else if (event.key === 'Home') {
+        event.preventDefault()
+        focusByIndex(0)
+      } else if (event.key === 'End') {
+        event.preventDefault()
+        focusByIndex(items.length - 1)
+      } else if (event.key === 'Escape') {
+        event.preventDefault()
+        onClose()
+        trigger?.focus()
+      }
+    },
+    [],
+  )
+
   // 文件选择器（Tauri 原生 / 浏览器 fallback）
   const handleFileClick = useCallback(async () => {
     if (useBrowserFileInput) {
@@ -276,7 +314,15 @@ export function InputToolbar({
               align="left"
               constrainToRef={inputContainerRef}
             >
-              <div id={agentMenuId} ref={agentMenuRef} role="menu" aria-label={currentAgent?.name || selectedAgent || 'Agent'}>
+              <div
+                id={agentMenuId}
+                ref={agentMenuRef}
+                role="menu"
+                aria-label={currentAgent?.name || selectedAgent || 'Agent'}
+                onKeyDown={event =>
+                  handleMenuKeyDown(event, agentMenuRef.current, () => setAgentMenuOpen(false), agentTriggerRef.current)
+                }
+              >
                 {selectableAgents.map(agent => (
                   <MenuItem
                     key={agent.name}
@@ -351,7 +397,15 @@ export function InputToolbar({
               minWidth="auto"
               constrainToRef={inputContainerRef}
             >
-              <div id={variantMenuId} ref={variantMenuRef} role="menu" aria-label={selectedVariant || t('inputToolbar.default')}>
+              <div
+                id={variantMenuId}
+                ref={variantMenuRef}
+                role="menu"
+                aria-label={selectedVariant || t('inputToolbar.default')}
+                onKeyDown={event =>
+                  handleMenuKeyDown(event, variantMenuRef.current, () => setVariantMenuOpen(false), variantTriggerRef.current)
+                }
+              >
                 <MenuItem
                   label={t('inputToolbar.default')}
                   icon={<ThinkingIcon />}

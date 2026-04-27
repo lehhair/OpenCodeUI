@@ -21,9 +21,9 @@ export function MenuItem({
 }: MenuItemProps) {
   const selectionProps =
     selectionRole === 'menuitemradio'
-      ? { role: selectionRole, 'aria-checked': selected }
+      ? { role: selectionRole, 'aria-checked': selected, tabIndex: selected ? 0 : -1 }
       : selectionRole === 'option'
-        ? { role: selectionRole, 'aria-selected': selected }
+        ? { role: selectionRole, 'aria-selected': selected, tabIndex: selected ? 0 : -1 }
         : {}
 
   return (
