@@ -19,10 +19,11 @@ describe('Dialog', () => {
       </Dialog>,
     )
 
+    expect(screen.getByRole('dialog', { name: 'Test Dialog' })).toBeInTheDocument()
     expect(screen.getByText('Test Dialog')).toBeInTheDocument()
     expect(screen.getByText('dialog body')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByTitle('Close'))
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
     expect(onClose).toHaveBeenCalledTimes(1)
 
     rerender(

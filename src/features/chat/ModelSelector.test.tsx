@@ -74,4 +74,20 @@ describe('ModelSelector', () => {
 
     expect(onSelect).toHaveBeenCalledWith('openai:gpt-4o-mini', expect.objectContaining({ name: 'GPT-4o Mini' }))
   })
+
+  it('exposes accessible combobox-like semantics for search and options', () => {
+    render(<ModelSelector models={MODELS} selectedModelKey={'openai:gpt-4.1'} onSelect={vi.fn()} />)
+
+    fireEvent.click(screen.getByTitle('GPT-4.1'))
+
+    const searchInput = screen.getByRole('textbox', { name: 'Search models...' })
+    const listbox = screen.getByRole('listbox', { name: 'Search models...' })
+    const selectedOption = screen.getByRole('option', { name: /GPT-4.1/i })
+    const pinButtons = screen.getAllByRole('button', { name: /Pin to top|Unpin/ })
+
+    expect(searchInput).toHaveAttribute('aria-controls', listbox.id)
+    expect(searchInput).toHaveAttribute('aria-activedescendant')
+    expect(selectedOption).toHaveAttribute('aria-selected', 'true')
+    expect(pinButtons.length).toBeGreaterThan(0)
+  })
 })

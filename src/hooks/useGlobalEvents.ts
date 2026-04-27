@@ -248,6 +248,8 @@ export function useGlobalEvents(directories?: string[]) {
     // 节流滚动
     let scrollPending = false
     const pendingScrollSessionIds = new Set<string>()
+    let fetchVersion = 0
+    let disposed = false
 
     const scheduleScroll = (sessionId: string) => {
       pendingScrollSessionIds.add(sessionId)
@@ -269,11 +271,17 @@ export function useGlobalEvents(directories?: string[]) {
     // ============================================
 
     const fetchAndInitialize = () => {
-      fetchActiveScopeData(directoriesRef.current).then(({ statusMap, permissions, questions, sessionMetaEntries }) => {
-        activeSessionStore.initialize(statusMap)
-        activeSessionStore.initializePendingRequests(permissions, questions)
-        activeSessionStore.setSessionMetaBulk(sessionMetaEntries)
-      })
+      const currentVersion = ++fetchVersion
+      void fetchActiveScopeData(directoriesRef.current)
+        .then(({ statusMap, permissions, questions, sessionMetaEntries }) => {
+          if (disposed || currentVersion !== fetchVersion) return
+          activeSessionStore.initialize(statusMap)
+          activeSessionStore.initializePendingRequests(permissions, questions)
+          activeSessionStore.setSessionMetaBulk(sessionMetaEntries)
+        })
+        .catch(() => {
+          // best effort: 下次目录切换或 SSE 重连会再拉一次
+        })
     }
 
     refreshRef.current = fetchAndInitialize
@@ -515,6 +523,7 @@ export function useGlobalEvents(directories?: string[]) {
     fetchAndInitialize()
 
     return () => {
+      disposed = true
       if (refreshRef.current === fetchAndInitialize) {
         refreshRef.current = null
       }

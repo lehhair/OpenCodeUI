@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useDelayedRender } from '../../hooks/useDelayedRender'
 
@@ -98,6 +98,12 @@ export function DropdownMenu({
     return { pos, size }
   }, [triggerRef, position, align, width, minWidth, maxWidth, mobileFullWidth, constrainToRef])
 
+  const updateStyles = useCallback(() => {
+    const { pos, size } = calcStyles()
+    setPosStyle(pos)
+    setSizeStyle(size)
+  }, [calcStyles])
+
   // Handle animation lifecycle
   useEffect(() => {
     let frameId: number | null = null
@@ -105,10 +111,7 @@ export function DropdownMenu({
 
     if (shouldRender && isOpen) {
       frameId = requestAnimationFrame(() => {
-        const { pos, size } = calcStyles()
-        posRef.current = pos
-        setPosStyle(pos)
-        setSizeStyle(size)
+        updateStyles()
         nestedFrameId = requestAnimationFrame(() => setIsVisible(true))
       })
     } else {
@@ -121,29 +124,43 @@ export function DropdownMenu({
       if (frameId !== null) cancelAnimationFrame(frameId)
       if (nestedFrameId !== null) cancelAnimationFrame(nestedFrameId)
     }
-  }, [isOpen, shouldRender, calcStyles])
+  }, [isOpen, shouldRender, updateStyles])
 
-  // 打开期间持续跟踪位置
-  const posRef = useRef<React.CSSProperties>({})
+  // 打开期间按需同步位置与宽度，避免常驻 rAF 轮询
   useEffect(() => {
     if (!shouldRender) return
 
-    let rafId: number
-    const tick = () => {
-      const { pos, size } = calcStyles()
-
-      const prev = posRef.current
-      if (prev.top !== pos.top || prev.bottom !== pos.bottom || prev.left !== pos.left || prev.right !== pos.right) {
-        posRef.current = pos
-        setPosStyle(pos)
-        setSizeStyle(size)
-      }
-      rafId = requestAnimationFrame(tick)
+    let rafId: number | null = null
+    const scheduleUpdate = () => {
+      if (rafId !== null) return
+      rafId = requestAnimationFrame(() => {
+        rafId = null
+        updateStyles()
+      })
     }
-    rafId = requestAnimationFrame(tick)
 
-    return () => cancelAnimationFrame(rafId)
-  }, [shouldRender, calcStyles])
+    scheduleUpdate()
+    window.addEventListener('resize', scheduleUpdate)
+    window.addEventListener('scroll', scheduleUpdate, true)
+
+    let resizeObserver: ResizeObserver | null = null
+    if (typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver(() => {
+        scheduleUpdate()
+      })
+      if (triggerRef.current) resizeObserver.observe(triggerRef.current)
+      if (constrainToRef?.current) resizeObserver.observe(constrainToRef.current)
+    }
+
+    return () => {
+      window.removeEventListener('resize', scheduleUpdate)
+      window.removeEventListener('scroll', scheduleUpdate, true)
+      resizeObserver?.disconnect()
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId)
+      }
+    }
+  }, [shouldRender, updateStyles, triggerRef, constrainToRef])
 
   if (!shouldRender) return null
 

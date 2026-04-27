@@ -29,9 +29,8 @@ class MessageStore {
   private protectedSessions = new Set<string>()
   private pendingNotify = false
   private rafId: number | null = null
-  // delta 批量化：追踪被 mutable 修改过的消息，在 notify 前统一做不可变快照
-  private dirtyMessages = new Set<string>() // messageID set
-  private dirtySessionId: string | null = null
+  // delta 批量化：按 session 追踪被 mutable 修改过的消息，在 notify 前统一做不可变快照
+  private dirtyMessagesBySession = new Map<string, Set<string>>()
 
   // ============================================
   // Subscription & Notification
@@ -65,31 +64,28 @@ class MessageStore {
    * 这样一帧内多个 delta 只产生一次数组拷贝，而不是每个 delta 都拷贝。
    */
   private flushDirtyMessages() {
-    if (this.dirtyMessages.size === 0 || !this.dirtySessionId) return
+    if (this.dirtyMessagesBySession.size === 0) return
 
-    const state = this.sessions.get(this.dirtySessionId)
-    if (!state) {
-      this.dirtyMessages.clear()
-      this.dirtySessionId = null
-      return
-    }
+    for (const [sessionId, dirtyMessages] of this.dirtyMessagesBySession) {
+      const state = this.sessions.get(sessionId)
+      if (!state) continue
 
-    // 只对被标记 dirty 的消息生成新引用（包括 parts 内的对象）
-    let changed = false
-    const newMessages = state.messages.map(m => {
-      if (this.dirtyMessages.has(m.info.id)) {
-        changed = true
-        return { ...m, parts: m.parts.map(p => ({ ...p })) }
+      // 只对被标记 dirty 的消息生成新引用（包括 parts 内的对象）
+      let changed = false
+      const newMessages = state.messages.map(m => {
+        if (dirtyMessages.has(m.info.id)) {
+          changed = true
+          return { ...m, parts: m.parts.map(p => ({ ...p })) }
+        }
+        return m
+      })
+
+      if (changed) {
+        state.messages = newMessages
       }
-      return m
-    })
-
-    if (changed) {
-      state.messages = newMessages
     }
 
-    this.dirtyMessages.clear()
-    this.dirtySessionId = null
+    this.dirtyMessagesBySession.clear()
   }
 
   private notifyImmediate() {
@@ -373,6 +369,7 @@ class MessageStore {
   clearAll() {
     this.sessions.clear()
     this.sessionAccessTime.clear()
+    this.dirtyMessagesBySession.clear()
     if (this.rafId !== null) {
       cancelAnimationFrame(this.rafId)
       this.rafId = null
@@ -463,8 +460,12 @@ class MessageStore {
       // flushDirtyMessages() 会在 notify 的 rAF 回调中统一生成新引用。
     ;(part as { text: string }).text += data.delta
 
-    this.dirtyMessages.add(data.messageID)
-    this.dirtySessionId = data.sessionID
+    let dirtyMessages = this.dirtyMessagesBySession.get(data.sessionID)
+    if (!dirtyMessages) {
+      dirtyMessages = new Set<string>()
+      this.dirtyMessagesBySession.set(data.sessionID, dirtyMessages)
+    }
+    dirtyMessages.add(data.messageID)
     this.notify()
   }
 

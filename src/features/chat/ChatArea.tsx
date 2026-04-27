@@ -36,6 +36,45 @@ const STICKY_RENDER_MESSAGE_COUNT = 8
 /** Stable no-op to avoid creating a new closure on every render. */
 const NOOP = () => {}
 
+export function buildTurnDurationMap(messages: Message[], visibleMessages: Message[]): Map<string, number> {
+  const map = new Map<string, number>()
+  const visibleAssistantIds = new Set(
+    visibleMessages.filter(message => message.info.role === 'assistant').map(message => message.info.id),
+  )
+
+  let currentUserCreated: number | null = null
+  let currentVisibleAssistantId: string | null = null
+  let currentLastCompleted: number | null = null
+
+  const commitTurn = () => {
+    if (currentUserCreated == null || currentVisibleAssistantId == null || currentLastCompleted == null) return
+    map.set(currentVisibleAssistantId, currentLastCompleted - currentUserCreated)
+  }
+
+  for (const message of messages) {
+    if (message.info.role === 'user') {
+      commitTurn()
+      currentUserCreated = message.info.time.created
+      currentVisibleAssistantId = null
+      currentLastCompleted = null
+      continue
+    }
+
+    if (currentUserCreated == null || message.info.role !== 'assistant') continue
+
+    if (visibleAssistantIds.has(message.info.id)) {
+      currentVisibleAssistantId = message.info.id
+    }
+    if (message.info.time.completed != null) {
+      currentLastCompleted = message.info.time.completed
+    }
+  }
+
+  commitTurn()
+
+  return map
+}
+
 interface ChatAreaProps {
   messages: Message[]
   sessionId?: string | null
@@ -115,56 +154,7 @@ export const ChatArea = memo(
         [visibleMessageEntries],
       )
 
-      const turnDurationMap = useMemo(() => {
-        const map = new Map<string, number>()
-
-        type Turn = {
-          userCreated: number
-          lastCompleted?: number
-          assistantIds: Set<string>
-        }
-
-        const turns: Turn[] = []
-
-        for (let i = 0; i < messages.length; i++) {
-          const message = messages[i]
-          if (message.info.role !== 'user') continue
-
-          const turn: Turn = {
-            userCreated: message.info.time.created,
-            assistantIds: new Set<string>(),
-          }
-
-          for (let j = i + 1; j < messages.length && messages[j].info.role !== 'user'; j++) {
-            const nextMessage = messages[j]
-            if (nextMessage.info.role !== 'assistant') continue
-
-            turn.assistantIds.add(nextMessage.info.id)
-            if (nextMessage.info.time.completed != null) {
-              turn.lastCompleted = nextMessage.info.time.completed
-            }
-          }
-
-          if (turn.lastCompleted != null) {
-            turns.push(turn)
-          }
-        }
-
-        for (const turn of turns) {
-          let targetId: string | undefined
-          for (const visibleMessage of visibleMessages) {
-            if (visibleMessage.info.role === 'assistant' && turn.assistantIds.has(visibleMessage.info.id)) {
-              targetId = visibleMessage.info.id
-            }
-          }
-
-          if (targetId && turn.lastCompleted != null) {
-            map.set(targetId, turn.lastCompleted - turn.userCreated)
-          }
-        }
-
-        return map
-      }, [messages, visibleMessages])
+      const turnDurationMap = useMemo(() => buildTurnDurationMap(messages, visibleMessages), [messages, visibleMessages])
 
       const messageMaxWidthClass = isWideMode ? 'max-w-[95%] xl:max-w-6xl' : 'max-w-2xl'
       const stickyRenderIds = useMemo(

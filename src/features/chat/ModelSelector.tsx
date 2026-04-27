@@ -128,11 +128,14 @@ interface ModelListPanelProps {
   ignoreMouseRef: React.RefObject<boolean>
   lastMousePosRef: React.RefObject<{ x: number; y: number }>
   idPrefix: string
+  listboxId: string
   maxListHeight: string
   searchPlaceholder: string
   noResultsText: string
   noResultsHint: string
   preferTouchUi: boolean
+  pinLabel: string
+  unpinLabel: string
 }
 
 const ModelListPanel = memo(function ModelListPanel({
@@ -154,21 +157,27 @@ const ModelListPanel = memo(function ModelListPanel({
   ignoreMouseRef,
   lastMousePosRef,
   idPrefix,
+  listboxId,
   maxListHeight,
   searchPlaceholder,
   noResultsText,
   noResultsHint,
   preferTouchUi,
+  pinLabel,
+  unpinLabel,
 }: ModelListPanelProps) {
+  const activeOptionId = itemIndices[highlightedIndex] != null ? `${idPrefix}-${itemIndices[highlightedIndex]}` : undefined
+
   return (
     <div ref={menuRef} onKeyDown={handleKeyDown} className="flex flex-col min-h-0 pt-1.5">
       {/* 搜索栏 */}
       <div className="shrink-0 px-2 pb-1.5">
         <div className="flex items-center gap-2.5 px-3 py-2 rounded-xl bg-bg-200/40 transition-colors focus-within:bg-bg-200/60">
-          <SearchIcon className="w-3.5 h-3.5 text-text-400 flex-shrink-0" />
+          <SearchIcon aria-hidden="true" className="w-3.5 h-3.5 text-text-400 flex-shrink-0" />
           <input
             ref={searchInputRef}
             type="text"
+            name="model-search"
             value={searchQuery}
             onChange={e => {
               setSearchQuery(e.target.value)
@@ -176,15 +185,27 @@ const ModelListPanel = memo(function ModelListPanel({
             }}
             onKeyDown={handleKeyDown}
             placeholder={searchPlaceholder}
+            aria-label={searchPlaceholder}
+            aria-controls={listboxId}
+            aria-expanded={flatList.length > 0}
+            aria-activedescendant={activeOptionId}
+            aria-autocomplete="list"
+            autoComplete="off"
             className="flex-1 bg-transparent border-none outline-none text-[length:var(--fs-base)] text-text-100 placeholder:text-text-400"
           />
         </div>
       </div>
 
       {/* 列表 — 左侧 padding 给内容，右侧留给滚动条不覆盖内容 */}
-      <div ref={listRef} className={`overflow-y-auto custom-scrollbar flex-1 min-h-0 pl-2 pr-1 ${maxListHeight}`}>
+      <div
+        ref={listRef}
+        id={listboxId}
+        role="listbox"
+        aria-label={searchPlaceholder}
+        className={`overflow-y-auto custom-scrollbar flex-1 min-h-0 pl-2 pr-1 ${maxListHeight}`}
+      >
         {flatList.length === 0 ? (
-          <div className="px-4 py-10 text-center">
+          <div className="px-4 py-10 text-center" role="status" aria-live="polite">
             <div className="text-[length:var(--fs-base)] text-text-400">{noResultsText}</div>
             <div className="text-[length:var(--fs-sm)] text-text-500 mt-1">{noResultsHint}</div>
           </div>
@@ -195,6 +216,7 @@ const ModelListPanel = memo(function ModelListPanel({
                 return (
                   <div
                     key={item.key}
+                    aria-hidden="true"
                     className="px-2.5 pt-3 pb-1 first:pt-0.5 text-[length:var(--fs-xxs)] font-semibold text-text-400/60 uppercase tracking-wider select-none"
                   >
                     {item.data.name}
@@ -212,6 +234,8 @@ const ModelListPanel = memo(function ModelListPanel({
                 <div
                   key={item.key}
                   id={`${idPrefix}-${index}`}
+                  role="option"
+                  aria-selected={isSelected}
                   onClick={() => onItemClick(model)}
                   onTouchStart={onTouchStart ? () => onTouchStart(model) : undefined}
                   onTouchEnd={onTouchEnd}
@@ -236,6 +260,7 @@ const ModelListPanel = memo(function ModelListPanel({
                       {model.name}
                     </span>
                     <div
+                      aria-hidden="true"
                       className={`flex items-center gap-1 flex-shrink-0 transition-opacity ${isHL || isSelected ? 'opacity-60' : 'opacity-25'}`}
                     >
                       {model.supportsReasoning && <ThinkingIcon size={12} />}
@@ -266,6 +291,7 @@ const ModelListPanel = memo(function ModelListPanel({
                         ) : (
                           <button
                             onClick={e => onTogglePin(e, model)}
+                            aria-label={pinned ? unpinLabel : pinLabel}
                             className="group/pin p-0.5 rounded transition-all duration-150"
                           >
                             <span className="text-accent-secondary-100 block group-hover/pin:hidden">
@@ -293,6 +319,7 @@ const ModelListPanel = memo(function ModelListPanel({
                         // 鼠标设备：已钉住常驻，未钉住 hover 渐现
                         <button
                           onClick={e => onTogglePin(e, model)}
+                          aria-label={pinned ? unpinLabel : pinLabel}
                           className={`p-0.5 rounded transition-all duration-150 ${
                             pinned
                               ? 'text-accent-main-100 opacity-80 hover:opacity-100'
@@ -355,6 +382,7 @@ export const ModelSelector = memo(
     const lastMousePosRef = useRef({ x: 0, y: 0 })
 
     const idPrefix = trigger === 'header' ? 'ms-item' : 'ms-tb-item'
+    const listboxId = `${idPrefix}-listbox`
 
     // ---- Derived data ----
 
@@ -567,6 +595,9 @@ export const ModelSelector = memo(
           ref={triggerRef}
           onClick={() => (isOpen ? closeMenu() : openMenu())}
           disabled={disabled || isLoading}
+          aria-haspopup="listbox"
+          aria-expanded={isOpen}
+          aria-controls={isOpen ? listboxId : undefined}
           className="group flex items-center gap-2 px-2 py-1.5 text-text-200 rounded-lg hover:bg-bg-200 hover:text-text-100 transition-all duration-150 active:scale-95 cursor-pointer text-[length:var(--fs-base)]"
           title={displayName}
         >
@@ -580,6 +611,9 @@ export const ModelSelector = memo(
           ref={triggerRef}
           onClick={() => (isOpen ? closeMenu() : openMenu())}
           disabled={disabled || isLoading}
+          aria-haspopup="listbox"
+          aria-expanded={isOpen}
+          aria-controls={isOpen ? listboxId : undefined}
           className="flex items-center px-2 py-1.5 text-[length:var(--fs-base)] rounded-lg transition-all duration-150 hover:bg-bg-200 active:scale-95 cursor-pointer min-w-0 overflow-hidden w-full"
           title={selectedModel?.name || t('modelSelector.selectModel')}
         >
@@ -633,11 +667,14 @@ export const ModelSelector = memo(
             ignoreMouseRef={ignoreMouseRef}
             lastMousePosRef={lastMousePosRef}
             idPrefix={idPrefix}
+            listboxId={listboxId}
             maxListHeight={listMaxH}
             searchPlaceholder={t('modelSelector.searchModels')}
             noResultsText={t('modelSelector.noModelsFound')}
             noResultsHint={t('modelSelector.tryDifferentKeyword')}
             preferTouchUi={preferTouchUi}
+            pinLabel={t('modelSelector.pinToTop')}
+            unpinLabel={t('modelSelector.unpin')}
           />
         </DropdownMenu>
       </div>

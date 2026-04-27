@@ -2,10 +2,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ApiMessage, ApiMessageWithParts, ApiPart } from '../api/types'
 import { messageStore } from './messageStore'
 
-function createAssistantMessage(id: string): ApiMessage {
+function createAssistantMessage(id: string, sessionID = 'session-1'): ApiMessage {
   return {
     id,
-    sessionID: 'session-1',
+    sessionID,
     role: 'assistant',
     parentID: 'user-1',
     modelID: 'model-1',
@@ -34,20 +34,21 @@ function createTextPart(
   id: string,
   messageID: string,
   text: string,
+  sessionID = 'session-1',
 ): ApiPart & { sessionID: string; messageID: string } {
   return {
     id,
-    sessionID: 'session-1',
+    sessionID,
     messageID,
     type: 'text',
     text,
   }
 }
 
-function createMessageWithParts(id: string, text: string): ApiMessageWithParts {
+function createMessageWithParts(id: string, text: string, sessionID = 'session-1'): ApiMessageWithParts {
   return {
-    info: createAssistantMessage(id),
-    parts: [createTextPart(`part-${id}`, id, text)],
+    info: createAssistantMessage(id, sessionID),
+    parts: [createTextPart(`part-${id}`, id, text, sessionID)],
   }
 }
 
@@ -133,5 +134,49 @@ describe('messageStore', () => {
     expect(state?.messages).toHaveLength(2)
     expect(state?.messages[0].info.id).toBe('message-1')
     expect(state?.messages[1].info.id).toBe('message-2')
+  })
+
+  it('flushes mutable part deltas for multiple sessions in the same frame', () => {
+    const rafCallbacks: Array<(time: number) => void> = []
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation(cb => {
+      rafCallbacks.push(cb as (time: number) => void)
+      return 1
+    })
+    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => undefined)
+
+    messageStore.setMessages('session-1', [createMessageWithParts('message-1', 'hello')])
+    messageStore.setMessages('session-2', [createMessageWithParts('message-2', 'world', 'session-2')])
+
+    const beforeMessage1 = messageStore.getSessionState('session-1')?.messages[0]
+    const beforeMessage2 = messageStore.getSessionState('session-2')?.messages[0]
+
+    messageStore.handlePartDelta({
+      sessionID: 'session-1',
+      messageID: 'message-1',
+      partID: 'part-message-1',
+      field: 'text',
+      delta: '!',
+    })
+    messageStore.handlePartDelta({
+      sessionID: 'session-2',
+      messageID: 'message-2',
+      partID: 'part-message-2',
+      field: 'text',
+      delta: '?',
+    })
+
+    const scheduledFrame = rafCallbacks[0]
+    if (!scheduledFrame) {
+      throw new Error('Expected requestAnimationFrame callback to be scheduled')
+    }
+    scheduledFrame(0)
+
+    const afterMessage1 = messageStore.getSessionState('session-1')?.messages[0]
+    const afterMessage2 = messageStore.getSessionState('session-2')?.messages[0]
+
+    expect(afterMessage1?.parts[0]).toMatchObject({ text: 'hello!' })
+    expect(afterMessage2?.parts[0]).toMatchObject({ text: 'world?' })
+    expect(afterMessage1).not.toBe(beforeMessage1)
+    expect(afterMessage2).not.toBe(beforeMessage2)
   })
 })

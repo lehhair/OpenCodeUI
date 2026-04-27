@@ -185,47 +185,57 @@ const TaskHeader = memo(function TaskHeader({
   const isCompleted = status === 'completed'
 
   return (
-    <div className="flex items-center gap-2 py-1 cursor-pointer group" onClick={onToggle}>
-      {/* Expand icon */}
-      <span className={`text-text-400 transition-transform ${expanded ? 'rotate-90' : ''}`}>
-        <ChevronRightIcon size={12} />
-      </span>
-
-      {/* Agent type badge */}
-      <span
-        className={`px-1.5 py-0.5 text-[length:var(--fs-xxs)] font-medium rounded-xs ${
-          isRunning
-            ? 'bg-accent-main-100/20 text-accent-main-100'
-            : isError
-              ? 'bg-danger-100/20 text-danger-100'
-              : isCompleted
-                ? 'bg-accent-secondary-100/20 text-accent-secondary-100'
-                : 'bg-bg-300 text-text-300'
-        }`}
+    <div className="flex items-center gap-2 py-1 group">
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={expanded}
+        className="flex min-w-0 flex-1 items-center gap-2 text-left bg-transparent border-none p-0"
       >
-        {agentType}
-      </span>
+        {/* Expand icon */}
+        <span className={`text-text-400 transition-transform ${expanded ? 'rotate-90' : ''}`}>
+          <ChevronRightIcon size={12} />
+        </span>
 
-      {/* Description */}
-      <span className="text-[length:var(--fs-sm)] text-text-300 truncate flex-1 min-w-0">{description}</span>
+        {/* Agent type badge */}
+        <span
+          className={`px-1.5 py-0.5 text-[length:var(--fs-xxs)] font-medium rounded-xs ${
+            isRunning
+              ? 'bg-accent-main-100/20 text-accent-main-100'
+              : isError
+                ? 'bg-danger-100/20 text-danger-100'
+                : isCompleted
+                  ? 'bg-accent-secondary-100/20 text-accent-secondary-100'
+                  : 'bg-bg-300 text-text-300'
+          }`}
+        >
+          {agentType}
+        </span>
+
+        {/* Description */}
+        <span className="text-[length:var(--fs-sm)] text-text-300 truncate flex-1 min-w-0">{description}</span>
+      </button>
 
       {/* Stop button (running) */}
       {onStop && (
-        <div
-          role="button"
+        <button
+          type="button"
           onClick={onStop}
-          className="flex-shrink-0 w-[18px] h-[18px] p-0 flex items-center justify-center text-text-400 hover:text-danger-100 hover:bg-danger-100/10 rounded-sm transition-colors active:scale-90"
+          aria-label={t('task.stop')}
+          className="flex-shrink-0 w-[18px] h-[18px] p-0 flex items-center justify-center text-text-400 hover:text-danger-100 hover:bg-danger-100/10 rounded-sm transition-colors active:scale-90 bg-transparent border-none"
           title={t('task.stop')}
         >
           <StopIcon size={10} />
-        </div>
+        </button>
       )}
 
       {/* Open session */}
       {sessionId && (
         <button
+          type="button"
           onClick={handleOpenSession}
-          className="flex-shrink-0 p-1 text-text-500 hover:text-accent-main-100 transition-all"
+          aria-label={t('task.openSession')}
+          className="flex-shrink-0 p-1 text-text-500 hover:text-accent-main-100 transition-all bg-transparent border-none"
           title={t('task.openSession')}
         >
           <ExternalLinkIcon size={12} />

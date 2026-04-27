@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback } from 'react'
+import { useEffect, useState, useRef, useCallback, useId } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { CloseIcon } from '../Icons'
@@ -34,6 +34,7 @@ export function Dialog({
   const [isVisible, setIsVisible] = useState(false)
   const shouldRender = useDelayedRender(isOpen, 200)
   const dialogRef = useRef<HTMLDivElement>(null)
+  const titleId = useId()
 
   // 拖拽条区域 ref —— 下滑关闭只从这个区域开始
   const dragHandleRef = useRef<HTMLDivElement>(null)
@@ -195,6 +196,7 @@ export function Dialog({
         }}
         role="dialog"
         aria-modal="true"
+        aria-labelledby={!rawContent && title ? titleId : undefined}
         onClick={e => e.stopPropagation()}
       >
         {/* Drag Handle (mobile) - 触摸下滑关闭的唯一触发区域 */}
@@ -213,10 +215,14 @@ export function Dialog({
             {/* Header */}
             {(title || showCloseButton) && (
               <div className="flex items-center justify-between px-5 py-4 border-b border-border-100/50">
-                <div className="text-[length:var(--fs-heading-2)] font-semibold text-text-100">{title}</div>
+                <div id={title ? titleId : undefined} className="text-[length:var(--fs-heading-2)] font-semibold text-text-100">
+                  {title}
+                </div>
                 {showCloseButton && (
                   <button
+                    type="button"
                     onClick={onClose}
+                    aria-label={t('common:close')}
                     className="p-2 text-text-400 hover:text-text-200 hover:bg-bg-100 rounded-md transition-colors"
                     title={t('common:close')}
                   >

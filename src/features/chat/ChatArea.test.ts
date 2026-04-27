@@ -1,8 +1,24 @@
 import { describe, expect, it } from 'vitest'
+import { buildTurnDurationMap } from './ChatArea'
 import { buildVisibleMessageEntries, getVisibleMessageForkTargetId } from './chatAreaVisibility'
 import type { Message, Part, ToolPart, ReasoningPart } from '../../types/message'
 
-function createAssistantMessage(id: string, parts: Part[]): Message {
+function createUserMessage(id: string, created: number): Message {
+  return {
+    info: {
+      id,
+      sessionID: 'session-1',
+      role: 'user',
+      agent: 'build',
+      model: { providerID: 'openai', modelID: 'gpt-4.1' },
+      time: { created },
+    },
+    parts: [],
+    isStreaming: false,
+  }
+}
+
+function createAssistantMessage(id: string, parts: Part[], created = 1, completed?: number): Message {
   return {
     info: {
       id,
@@ -21,7 +37,7 @@ function createAssistantMessage(id: string, parts: Part[]): Message {
         reasoning: 0,
         cache: { read: 0, write: 0 },
       },
-      time: { created: 1 },
+      time: completed == null ? { created } : { created, completed },
     },
     parts,
     isStreaming: false,
@@ -85,5 +101,24 @@ describe('buildVisibleMessageEntries', () => {
 
     expect(entries).toHaveLength(1)
     expect(getVisibleMessageForkTargetId(entries[0])).toBe('assistant-2')
+  })
+})
+
+describe('buildTurnDurationMap', () => {
+  it('assigns each turn duration to the latest visible assistant message in that turn', () => {
+    const messages = [
+      createUserMessage('user-1', 1000),
+      createAssistantMessage('assistant-1', [], 1001, 1200),
+      createAssistantMessage('assistant-2', [], 1201, 1500),
+      createUserMessage('user-2', 2000),
+      createAssistantMessage('assistant-3', [], 2001, 2600),
+    ]
+
+    const visibleMessages = [messages[1], messages[2], messages[4]]
+    const durationMap = buildTurnDurationMap(messages, visibleMessages)
+
+    expect(durationMap.get('assistant-2')).toBe(500)
+    expect(durationMap.get('assistant-3')).toBe(600)
+    expect(durationMap.has('assistant-1')).toBe(false)
   })
 })

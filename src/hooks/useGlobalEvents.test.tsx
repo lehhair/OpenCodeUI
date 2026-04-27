@@ -2,6 +2,14 @@ import { renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useGlobalEvents } from './useGlobalEvents'
 
+function createDeferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>(res => {
+    resolve = res
+  })
+  return { promise, resolve }
+}
+
 const {
   subscribeToEventsMock,
   getSessionStatusMock,
@@ -19,7 +27,7 @@ const {
   getActiveServerIdMock,
 } = vi.hoisted(() => ({
   subscribeToEventsMock: vi.fn(),
-  getSessionStatusMock: vi.fn(() => Promise.resolve({})),
+  getSessionStatusMock: vi.fn<(directory?: string) => Promise<Record<string, { type: string }>>>(() => Promise.resolve({})),
   getPendingPermissionsMock: vi.fn(() => Promise.resolve([])),
   getPendingQuestionsMock: vi.fn(() => Promise.resolve([])),
   replyPermissionMock: vi.fn(() => Promise.resolve()),
@@ -158,6 +166,42 @@ describe('useGlobalEvents', () => {
     callbacks!.onServerConnected?.({ timestamp: '2026-04-22T15:00:00.000Z' })
 
     expect(applyServerConnectedTimestampMock).toHaveBeenCalledWith('local', '2026-04-22T15:00:00.000Z')
+  })
+
+  it('ignores stale initialization responses after directories change', async () => {
+    const statusDeferreds = new Map<string, ReturnType<typeof createDeferred<Record<string, { type: string }>>>>()
+    getPendingPermissionsMock.mockResolvedValue([])
+    getPendingQuestionsMock.mockResolvedValue([])
+    getSessionStatusMock.mockImplementation(directory => {
+      const key = directory || 'root'
+      const deferred = createDeferred<Record<string, { type: string }>>()
+      statusDeferreds.set(key, deferred)
+      return deferred.promise
+    })
+
+    const { rerender } = renderHook(({ directories }) => useGlobalEvents(directories), {
+      initialProps: { directories: ['/one'] as string[] | undefined },
+    })
+
+    await waitFor(() => expect(getSessionStatusMock).toHaveBeenCalledWith('/one'))
+
+    rerender({ directories: ['/two'] })
+
+    await waitFor(() => expect(getSessionStatusMock).toHaveBeenCalledWith('/two'))
+
+    statusDeferreds.get('/two')?.resolve({ 'new-session': { type: 'busy' } })
+
+    await waitFor(() => {
+      expect(activeSessionStoreMock.initialize).toHaveBeenCalledTimes(1)
+      expect(activeSessionStoreMock.initialize).toHaveBeenCalledWith({ 'new-session': { type: 'busy' } })
+    })
+
+    statusDeferreds.get('/one')?.resolve({ 'old-session': { type: 'idle' } })
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(activeSessionStoreMock.initialize).toHaveBeenCalledTimes(1)
+    expect(activeSessionStoreMock.initialize).not.toHaveBeenCalledWith({ 'old-session': { type: 'idle' } })
   })
 
   it('does not play current-session sound for child session events when parent session is focused', async () => {
