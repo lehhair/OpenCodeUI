@@ -94,8 +94,10 @@ export function ProjectSelector({
     <div ref={containerRef} className="relative">
       {/* Trigger Button */}
       <button
+        type="button"
         onClick={() => setIsOpen(!isOpen)}
         disabled={isLoading}
+        aria-expanded={isOpen}
         className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-bg-200/50 transition-colors group text-left"
         title={getPath(currentProject)}
       >
@@ -152,6 +154,7 @@ export function ProjectSelector({
           {/* Add Button */}
           <div className="p-1 border-t border-border-200/50">
             <button
+              type="button"
               onClick={() => {
                 onAddProject()
                 setIsOpen(false)
@@ -200,37 +203,39 @@ function ProjectItem({ project, displayName, path, onSelect, onRemove }: Project
   const isGlobal = project.id === 'global'
 
   return (
-    <button
-      onClick={onSelect}
-      className="group w-full flex items-center gap-2.5 px-2 py-2 rounded-lg hover:bg-bg-100 transition-colors"
-      title={path}
-    >
-      <div
-        className={`
-        w-7 h-7 rounded-lg flex items-center justify-center shrink-0
-        ${isGlobal ? 'bg-accent-main-100/15 text-accent-main-100' : 'bg-bg-200 text-text-400'}
-      `}
+    <div className="group w-full flex items-center gap-2.5 px-2 py-2 rounded-lg hover:bg-bg-100 transition-colors">
+      <button
+        type="button"
+        onClick={onSelect}
+        className="min-w-0 flex flex-1 items-center gap-2.5 text-left bg-transparent border-none p-0"
+        title={path}
       >
-        {isGlobal ? <GlobeIcon className="w-3.5 h-3.5" /> : <FolderIcon className="w-3.5 h-3.5" />}
-      </div>
+        <div
+          className={`
+          w-7 h-7 rounded-lg flex items-center justify-center shrink-0
+          ${isGlobal ? 'bg-accent-main-100/15 text-accent-main-100' : 'bg-bg-200 text-text-400'}
+        `}
+        >
+          {isGlobal ? <GlobeIcon className="w-3.5 h-3.5" /> : <FolderIcon className="w-3.5 h-3.5" />}
+        </div>
 
-      <div className="flex-1 min-w-0 text-left">
-        <div className="text-[length:var(--fs-base)] text-text-200 truncate">{displayName}</div>
-        <div className="text-[length:var(--fs-xxs)] text-text-400/60 truncate font-mono">{path}</div>
-      </div>
+        <div className="flex-1 min-w-0 text-left">
+          <div className="text-[length:var(--fs-base)] text-text-200 truncate">{displayName}</div>
+          <div className="text-[length:var(--fs-xxs)] text-text-400/60 truncate font-mono">{path}</div>
+        </div>
+      </button>
 
       {onRemove && (
-        <div
-          onClick={e => {
-            e.stopPropagation()
-            onRemove()
-          }}
-          className="p-1 rounded text-text-400 hover:text-danger-100 hover:bg-danger-100/10 md:opacity-0 md:group-hover:opacity-100 transition-all"
+        <button
+          type="button"
+          onClick={onRemove}
+          aria-label={t('common:remove')}
+          className="p-1 rounded text-text-400 hover:text-danger-100 hover:bg-danger-100/10 md:opacity-0 md:group-hover:opacity-100 transition-colors"
           title={t('common:remove')}
         >
           <TrashIcon className="w-3 h-3" />
-        </div>
+        </button>
       )}
-    </button>
+    </div>
   )
 }

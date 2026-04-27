@@ -124,22 +124,26 @@ function ServerItem({
         {!server.isDefault && (
           <>
             <button
+              type="button"
               className="p-2 rounded text-text-400 hover:text-accent-main-100 hover:bg-accent-main-100/10 transition-all"
               onClick={e => {
                 e.stopPropagation()
                 setEditing(true)
               }}
               title={t('servers.editServer')}
+              aria-label={t('servers.editServer')}
             >
               <PencilIcon size={12} />
             </button>
             <button
+              type="button"
               className="p-2 rounded text-text-400 hover:text-danger-100 hover:bg-danger-100/10 transition-all"
               onClick={e => {
                 e.stopPropagation()
                 setConfirmDelete(true)
               }}
               title={t('common:remove')}
+              aria-label={t('common:remove')}
             >
               <TrashIcon size={12} />
             </button>

@@ -680,6 +680,7 @@ const PanelTabButton = memo(function PanelTabButton({
           onMouseDown={e => e.stopPropagation()}
           onDragStart={e => e.stopPropagation()}
           draggable={false}
+          aria-label={t('common:close')}
           className={`
             touch-target-sm
             p-1 -mr-0.5 rounded shrink-0

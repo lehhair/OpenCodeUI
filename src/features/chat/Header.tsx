@@ -93,15 +93,15 @@ function SessionTitleControl({
           className={inputClass}
         />
       ) : (
-        <button onClick={handleStartEdit} className={buttonClass} title={clickToRenameTitle}>
-          {sessionTitle}
-        </button>
+          <button type="button" onClick={handleStartEdit} className={buttonClass} title={clickToRenameTitle}>
+            {sessionTitle}
+          </button>
       )}
 
       {!isEditingTitle && (
         <>
           <div className={dividerClass} />
-          <button className={shareButtonClass} title={shareTitle} onClick={onShare}>
+          <button type="button" className={shareButtonClass} title={shareTitle} aria-label={shareTitle} onClick={onShare}>
             <ChevronDownIcon size={12} />
           </button>
         </>

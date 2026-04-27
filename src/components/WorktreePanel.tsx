@@ -252,6 +252,7 @@ export const WorktreePanel = memo(function WorktreePanel({ isResizing: _isResizi
         </div>
         <div className="flex items-center gap-1">
           <button
+            type="button"
             onClick={() => {
               loadWorktrees()
               refreshVcs()
@@ -259,6 +260,7 @@ export const WorktreePanel = memo(function WorktreePanel({ isResizing: _isResizi
             disabled={loading}
             className="p-1 rounded text-text-400 hover:text-text-100 hover:bg-bg-200/50 transition-colors"
             title={t('common:refresh')}
+            aria-label={t('common:refresh')}
           >
             <RetryIcon size={12} className={loading ? 'animate-spin' : ''} />
           </button>
@@ -284,10 +286,12 @@ export const WorktreePanel = memo(function WorktreePanel({ isResizing: _isResizi
           {!loading && <span className="text-text-400">({worktrees.length})</span>}
         </div>
         <button
+          type="button"
           onClick={() => setShowCreateForm(true)}
           disabled={!!actionLoading || !canManageWorktrees}
           className="p-1 rounded text-text-400 hover:text-text-100 hover:bg-bg-200/50 transition-colors"
           title={t('worktreePanel.createWorktree')}
+          aria-label={t('worktreePanel.createWorktree')}
         >
           <PlusIcon size={12} />
         </button>
@@ -300,7 +304,12 @@ export const WorktreePanel = memo(function WorktreePanel({ isResizing: _isResizi
           <div className="flex-1 min-w-0">
             <span className="text-[length:var(--fs-xs)] text-danger-100 break-all">{error}</span>
           </div>
-          <button onClick={() => setError(null)} className="p-0.5 rounded text-text-400 hover:text-text-100 shrink-0">
+          <button
+            type="button"
+            onClick={() => setError(null)}
+            aria-label={t('common:close')}
+            className="p-0.5 rounded text-text-400 hover:text-text-100 shrink-0"
+          >
             <CloseIcon size={10} />
           </button>
         </div>

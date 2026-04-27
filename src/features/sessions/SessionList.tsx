@@ -146,15 +146,20 @@ export function SessionList({
               <input
                 ref={searchInputRef}
                 type="text"
+                name="session-search"
                 value={search}
                 onChange={e => onSearchChange(e.target.value)}
                 placeholder={t('sessions.searchChats')}
+                aria-label={t('sessions.searchChats')}
+                autoComplete="off"
                 className="w-full bg-bg-200/40 hover:bg-bg-200/80 focus:bg-bg-000 border border-transparent focus:border-border-200 rounded-lg py-2 pl-9 pr-3 text-[length:var(--fs-sm)] text-text-100 placeholder:text-text-400/70 focus:outline-none focus:shadow-sm transition-all duration-200"
               />
             </div>
             <button
+              type="button"
               onClick={onNewChat}
               title={t('sessions.newChat')}
+              aria-label={t('sessions.newChat')}
               className="p-2 rounded-lg bg-bg-200/40 hover:bg-bg-200/80 text-text-400 hover:text-text-100 transition-all duration-200"
             >
               <ComposeIcon size={16} />
@@ -617,16 +622,20 @@ export function SessionListItem({
             }`}
           >
             <button
+              type="button"
               onClick={handleStartEdit}
-              className="p-1 rounded hover:bg-bg-300 text-text-500 hover:text-text-200 transition-colors focus:outline-none"
+              className="p-1 rounded hover:bg-bg-300 text-text-500 hover:text-text-200 transition-colors focus-visible:ring-1 focus-visible:ring-border-200 focus-visible:ring-inset"
               title={t('sessions.rename')}
+              aria-label={t('sessions.rename')}
             >
               <PencilIcon className="w-3 h-3" />
             </button>
             <button
+              type="button"
               onClick={handleDelete}
-              className="p-1 rounded hover:bg-danger-bg text-text-500 hover:text-danger-100 transition-colors focus:outline-none"
+              className="p-1 rounded hover:bg-danger-bg text-text-500 hover:text-danger-100 transition-colors focus-visible:ring-1 focus-visible:ring-danger-100/40 focus-visible:ring-inset"
               title={t('common:delete')}
+              aria-label={t('common:delete')}
             >
               <TrashIcon className="w-3 h-3" />
             </button>

@@ -977,9 +977,12 @@ export function SidePanel({
             <SearchIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-400 w-3.5 h-3.5 group-focus-within:text-accent-main-100 transition-colors" />
             <input
               type="text"
+              name="sidebar-chat-search"
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder={t('sidebar.searchChats')}
+              aria-label={t('sidebar.searchChats')}
+              autoComplete="off"
               className="w-full bg-bg-200/40 hover:bg-bg-200/60 focus:bg-bg-000 border border-transparent focus:border-border-200 rounded-lg py-1.5 pl-[30px] pr-8 text-[length:var(--fs-sm)] text-text-100 placeholder:text-text-400/70 focus:outline-none transition-all"
             />
             {search && (
@@ -1033,8 +1036,10 @@ export function SidePanel({
             {/* 编辑按钮 — 只在 Recents tab 显示 */}
             {sidebarTab === 'recents' && (
               <button
+                type="button"
                 onMouseDown={e => e.preventDefault()}
                 onClick={isEditMode ? exitEditMode : enterEditMode}
+                aria-label={isEditMode ? t('common:done') : t('common:edit')}
                 className={`ml-auto p-1 rounded-md transition-colors duration-150 ${
                   isEditMode
                     ? 'text-accent-main-100 hover:bg-accent-main-100/10'

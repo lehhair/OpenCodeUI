@@ -208,9 +208,11 @@ export function QuestionDialog({
                 )}
               </div>
               <button
+                type="button"
                 onClick={() => onCollapsedChange?.(true)}
                 className="p-1 rounded-md text-text-400 hover:text-text-200 hover:bg-bg-200 transition-colors"
                 title={t('questionDialog.minimize')}
+                aria-label={t('questionDialog.minimize')}
               >
                 <ChevronDownIcon size={16} />
               </button>
