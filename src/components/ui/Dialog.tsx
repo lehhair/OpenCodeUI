@@ -167,6 +167,7 @@ export function Dialog({
   const focusDialogContent = useCallback(() => {
     const dialog = dialogRef.current
     if (!dialog) return
+    if (dialog.contains(document.activeElement) && document.activeElement !== dialog) return
     focusFirstFocusable(dialog)
   }, [focusFirstFocusable])
 
@@ -226,6 +227,8 @@ export function Dialog({
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        const topDialog = Array.from(document.querySelectorAll<HTMLElement>('[role="dialog"][aria-modal="true"]')).at(-1)
+        if (topDialog && topDialog !== dialogRef.current) return
         requestClose()
         return
       }

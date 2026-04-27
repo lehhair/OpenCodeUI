@@ -34,6 +34,7 @@ export function NotificationItem({ entry, resolvedSession, onSelect }: Notificat
   const displayTitle = resolvedSession?.title || entry.title || entry.sessionId.slice(0, 12) + '...'
   const directory = resolvedSession?.directory || entry.directory
   const [showActions, setShowActions] = useState(false)
+  const [hasFocusWithin, setHasFocusWithin] = useState(false)
   const itemRef = useRef<HTMLDivElement>(null)
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const touchMoved = useRef(false)
@@ -113,6 +114,16 @@ export function NotificationItem({ entry, resolvedSession, onSelect }: Notificat
   return (
     <div
       ref={itemRef}
+      onFocusCapture={() => {
+        if (!preferTouchUi) setHasFocusWithin(true)
+      }}
+      onBlurCapture={e => {
+        if (preferTouchUi) return
+        const nextTarget = e.relatedTarget as Node | null
+        if (!nextTarget || !itemRef.current?.contains(nextTarget)) {
+          setHasFocusWithin(false)
+        }
+      }}
       className={`group relative flex items-start pl-[6px] pr-3 py-2 rounded-lg cursor-default select-none transition-all duration-200 border border-transparent hover:bg-bg-200/50 ${showActions ? 'bg-bg-200/50' : ''} ${entry.read ? 'opacity-50' : ''}`}
     >
       <button
@@ -177,7 +188,7 @@ export function NotificationItem({ entry, resolvedSession, onSelect }: Notificat
           className="p-1.5 rounded-md hover:bg-danger-bg active:bg-danger-bg text-text-400 hover:text-danger-100 active:text-danger-100 transition-colors focus-visible:ring-1 focus-visible:ring-danger-100/40 focus-visible:ring-inset"
           onClick={handleDismiss}
           aria-label={t('common:dismiss')}
-          tabIndex={preferTouchUi && !actionsVisible ? -1 : 0}
+          tabIndex={preferTouchUi ? (actionsVisible ? 0 : -1) : hasFocusWithin ? 0 : -1}
         >
           <CloseIcon size={10} />
         </button>

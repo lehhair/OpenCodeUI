@@ -119,6 +119,8 @@ export function ProjectSelector({
           transition-all duration-200 origin-top
           ${isOpen ? 'opacity-100 scale-100 pointer-events-auto' : 'opacity-0 scale-95 pointer-events-none'}
         `}
+        aria-hidden={!isOpen}
+        style={{ visibility: isOpen ? 'visible' : 'hidden' }}
       >
         <div className="glass border border-border-200/60 rounded-xl shadow-lg overflow-hidden">
           <div className="max-h-[280px] overflow-y-auto custom-scrollbar p-1">

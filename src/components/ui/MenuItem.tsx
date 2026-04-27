@@ -15,7 +15,7 @@ export function MenuItem({ label, description, icon, disabled = false, selected 
       type="button"
       disabled={disabled}
       onClick={onClick}
-      aria-current={selected ? 'true' : undefined}
+      aria-pressed={selected || undefined}
       className={`
         w-full px-2 py-2 rounded-lg flex items-start gap-2 text-left bg-transparent border-none
         transition-all duration-150 select-none

@@ -188,6 +188,7 @@ const ModelListPanel = memo(function ModelListPanel({
             onKeyDown={handleKeyDown}
             placeholder={searchPlaceholder}
             aria-label={searchPlaceholder}
+            role="combobox"
             aria-controls={listboxId}
             aria-expanded={isOpen}
             aria-activedescendant={activeOptionId}
@@ -291,7 +292,8 @@ const ModelListPanel = memo(function ModelListPanel({
                     <button
                       type="button"
                       onClick={e => onTogglePin(e, model)}
-                      aria-label={pinned ? unpinLabel : pinLabel}
+                      onKeyDown={e => e.stopPropagation()}
+                      aria-label={`${pinned ? unpinLabel : pinLabel}: ${model.name}`}
                       className={`w-5 flex items-center justify-center flex-shrink-0 p-0.5 rounded transition-all duration-150 ${
                         pinned
                           ? 'text-accent-main-100 opacity-80 hover:opacity-100'

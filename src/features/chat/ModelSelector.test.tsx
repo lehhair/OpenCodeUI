@@ -80,7 +80,7 @@ describe('ModelSelector', () => {
 
     fireEvent.click(screen.getByTitle('GPT-4.1'))
 
-    const searchInput = screen.getByRole('textbox', { name: 'Search models...' })
+    const searchInput = screen.getByRole('combobox', { name: 'Search models...' })
     const listbox = screen.getByRole('listbox', { name: 'Search models...' })
     const selectedOption = screen.getByRole('option', { name: /GPT-4.1/i })
     const pinButtons = screen.getAllByRole('button', { name: /Pin to top|Unpin/ })

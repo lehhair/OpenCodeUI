@@ -890,7 +890,10 @@ export function SidePanel({
             maxHeight: showLabels && projectsExpanded ? 300 : 0,
             opacity: showLabels && projectsExpanded ? 1 : 0,
             marginTop: showLabels && projectsExpanded ? 4 : 0,
+            visibility: showLabels && projectsExpanded ? 'visible' : 'hidden',
+            pointerEvents: showLabels && projectsExpanded ? 'auto' : 'none',
           }}
+          aria-hidden={!showLabels || !projectsExpanded}
         >
           <div className="rounded-lg border border-border-200/50 bg-bg-100/80 overflow-hidden">
             <div className="max-h-48 overflow-y-auto custom-scrollbar py-1">
