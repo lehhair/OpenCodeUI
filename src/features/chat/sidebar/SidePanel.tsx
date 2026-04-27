@@ -818,7 +818,9 @@ export function SidePanel({
       <div className="flex flex-col gap-0.5 mx-2">
         {/* New Chat - 图标始终在 padding-left: 6px 位置，收起时刚好居中 */}
         <button
+          type="button"
           onClick={onNewSession}
+          aria-label={t('sidebar.newChat')}
           className="h-8 flex items-center rounded-lg text-text-300 hover:text-text-100 hover:bg-bg-200 active:scale-[0.98] transition-all duration-300 group overflow-hidden"
           style={{
             width: showLabels ? '100%' : 32,
@@ -847,6 +849,7 @@ export function SidePanel({
         {/* Project Selector - 只在展开时显示 */}
         {showLabels && (
           <button
+            type="button"
             onClick={() => setProjectsExpanded(!projectsExpanded)}
             className={`h-8 flex items-center rounded-lg active:scale-[0.98] transition-all duration-300 overflow-hidden ${
               projectsExpanded ? 'bg-bg-200 text-text-100' : 'text-text-300 hover:text-text-100 hover:bg-bg-200'
@@ -983,10 +986,11 @@ export function SidePanel({
               placeholder={t('sidebar.searchChats')}
               aria-label={t('sidebar.searchChats')}
               autoComplete="off"
-              className="w-full bg-bg-200/40 hover:bg-bg-200/60 focus:bg-bg-000 border border-transparent focus:border-border-200 rounded-lg py-1.5 pl-[30px] pr-8 text-[length:var(--fs-sm)] text-text-100 placeholder:text-text-400/70 focus:outline-none transition-all"
+              className="w-full bg-bg-200/40 hover:bg-bg-200/60 focus:bg-bg-000 border border-transparent focus:border-border-200 rounded-lg py-1.5 pl-[30px] pr-8 text-[length:var(--fs-sm)] text-text-100 placeholder:text-text-400/70 focus-visible:ring-1 focus-visible:ring-border-200 focus-visible:ring-inset transition-all"
             />
             {search && (
               <button
+                type="button"
                 onClick={() => setSearch('')}
                 className="absolute right-2 top-1/2 -translate-y-1/2 text-text-400 hover:text-text-100 text-[length:var(--fs-base)]"
                 aria-label={t('sidebar.clearSearch')}

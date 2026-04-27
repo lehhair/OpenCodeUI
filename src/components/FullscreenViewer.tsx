@@ -87,7 +87,9 @@ export const FullscreenViewer = memo(function FullscreenViewer({
               {headerRight}
               {headerRight && <div className="w-px h-4 bg-border-200/30" />}
               <button
+                type="button"
                 onClick={onClose}
+                aria-label={t('closeEsc')}
                 className="p-1.5 text-text-400 hover:text-text-100 hover:bg-bg-200/60 rounded-lg transition-colors"
                 title={t('closeEsc')}
               >
@@ -114,6 +116,8 @@ export function ViewModeSwitch({ viewMode, onChange }: { viewMode: ViewMode; onC
   return (
     <div className="flex items-center bg-bg-300/50 rounded-lg p-0.5 text-[length:var(--fs-xs)]">
       <button
+        type="button"
+        aria-pressed={viewMode === 'split'}
         className={`px-2.5 py-1 rounded-md transition-all ${
           viewMode === 'split' ? 'bg-bg-100 text-text-100 shadow-sm' : 'text-text-400 hover:text-text-200'
         }`}
@@ -122,6 +126,8 @@ export function ViewModeSwitch({ viewMode, onChange }: { viewMode: ViewMode; onC
         {t('sessionChanges.split')}
       </button>
       <button
+        type="button"
+        aria-pressed={viewMode === 'unified'}
         className={`px-2.5 py-1 rounded-md transition-all ${
           viewMode === 'unified' ? 'bg-bg-100 text-text-100 shadow-sm' : 'text-text-400 hover:text-text-200'
         }`}

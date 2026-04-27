@@ -93,7 +93,7 @@ export const SkillPanel = memo(function SkillPanel({ isResizing: _isResizing }: 
               placeholder={t('skillPanel.filterPlaceholder')}
               aria-label={t('skillPanel.filterPlaceholder')}
               autoComplete="off"
-              className="w-full pl-8 pr-2 py-1 text-[length:var(--fs-sm)] bg-bg-200/50 border border-transparent focus:border-border-200 rounded text-text-100 placeholder-text-400 focus:outline-none transition-colors"
+              className="w-full pl-8 pr-2 py-1 text-[length:var(--fs-sm)] bg-bg-200/50 border border-transparent focus:border-border-200 rounded text-text-100 placeholder-text-400 focus-visible:ring-1 focus-visible:ring-border-200 focus-visible:ring-inset transition-colors"
             />
             <SearchIcon size={12} className="absolute left-2.5 top-1.5 text-text-400" />
           </div>

@@ -195,16 +195,20 @@ export const McpPanel = memo(function McpPanel({ isResizing: _isResizing }: McpP
         </div>
         <div className="flex items-center gap-1">
           <button
+            type="button"
             onClick={() => setShowAddForm(true)}
             disabled={showAddForm}
+            aria-label={t('mcpPanel.addServer')}
             className="p-1 hover:bg-bg-200 rounded text-text-300 hover:text-text-100 transition-colors disabled:opacity-50"
             title={t('mcpPanel.addServer')}
           >
             <PlusIcon size={14} />
           </button>
           <button
+            type="button"
             onClick={handleRefresh}
             disabled={loading}
+            aria-label={t('common:refresh')}
             className="p-1 hover:bg-bg-200 rounded text-text-300 hover:text-text-100 transition-colors disabled:opacity-50"
             title={t('common:refresh')}
           >
@@ -234,6 +238,7 @@ export const McpPanel = memo(function McpPanel({ isResizing: _isResizing }: McpP
             <AlertCircleIcon size={20} className="text-danger-100" />
             <span>{error}</span>
             <button
+              type="button"
               onClick={handleRefresh}
               className="px-3 py-1.5 text-[length:var(--fs-sm)] bg-bg-200/50 hover:bg-bg-200 text-text-200 rounded-md transition-colors"
             >
@@ -245,6 +250,7 @@ export const McpPanel = memo(function McpPanel({ isResizing: _isResizing }: McpP
             <PlugIcon size={24} className="opacity-30" />
             <span>{t('mcpPanel.noServers')}</span>
             <button
+              type="button"
               onClick={() => setShowAddForm(true)}
               className="px-3 py-1.5 text-[length:var(--fs-sm)] bg-bg-200/50 hover:bg-bg-200 text-text-200 rounded-md transition-colors"
             >
@@ -370,7 +376,7 @@ const AddServerForm = memo(function AddServerForm({ onSubmit, onCancel, isLoadin
           value={name}
           onChange={e => setName(e.target.value)}
           placeholder={t('mcpPanel.serverName')}
-          className="w-full px-2 py-1.5 text-[length:var(--fs-sm)] bg-bg-100 border border-border-200 rounded text-text-100 placeholder-text-500 focus:outline-none focus:border-accent-main-100"
+          className="w-full px-2 py-1.5 text-[length:var(--fs-sm)] bg-bg-100 border border-border-200 rounded text-text-100 placeholder-text-500 focus:border-accent-main-100 focus-visible:ring-1 focus-visible:ring-accent-main-100/40 focus-visible:ring-inset"
         />
       </div>
 
@@ -382,7 +388,7 @@ const AddServerForm = memo(function AddServerForm({ onSubmit, onCancel, isLoadin
             value={command}
             onChange={e => setCommand(e.target.value)}
             placeholder={t('mcpPanel.commandPlaceholder')}
-            className="w-full px-2 py-1.5 text-[length:var(--fs-sm)] bg-bg-100 border border-border-200 rounded text-text-100 placeholder-text-500 focus:outline-none focus:border-accent-main-100"
+            className="w-full px-2 py-1.5 text-[length:var(--fs-sm)] bg-bg-100 border border-border-200 rounded text-text-100 placeholder-text-500 focus:border-accent-main-100 focus-visible:ring-1 focus-visible:ring-accent-main-100/40 focus-visible:ring-inset"
           />
         </div>
       )}
@@ -395,7 +401,7 @@ const AddServerForm = memo(function AddServerForm({ onSubmit, onCancel, isLoadin
             value={url}
             onChange={e => setUrl(e.target.value)}
             placeholder={t('mcpPanel.urlPlaceholder')}
-            className="w-full px-2 py-1.5 text-[length:var(--fs-sm)] bg-bg-100 border border-border-200 rounded text-text-100 placeholder-text-500 focus:outline-none focus:border-accent-main-100"
+            className="w-full px-2 py-1.5 text-[length:var(--fs-sm)] bg-bg-100 border border-border-200 rounded text-text-100 placeholder-text-500 focus:border-accent-main-100 focus-visible:ring-1 focus-visible:ring-accent-main-100/40 focus-visible:ring-inset"
           />
         </div>
       )}
