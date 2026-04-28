@@ -90,7 +90,7 @@ jobs:
           echo "Artifacts:"
           ls -R release-artifacts
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: artifacts-desktop-${{ matrix.os }}-${{ matrix.arch }}
           path: release-artifacts
@@ -120,7 +120,7 @@ jobs:
           node-version: lts/*
           cache: 'npm'
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
           java-version: '17'
@@ -141,7 +141,7 @@ jobs:
           key: android-${{ matrix.target }}
 
       - name: Gradle cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.gradle/caches
@@ -189,7 +189,7 @@ jobs:
         env:
           NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/29.0.14206865
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: artifacts-android-${{ matrix.label }}
           path: release-artifacts/*
@@ -206,7 +206,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           path: artifacts
           pattern: artifacts-*
