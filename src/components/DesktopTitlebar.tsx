@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo } from 'react'
+import { memo, useCallback, useEffect, useMemo } from 'react'
 import {
   DESKTOP_MACOS_TRAFFIC_LIGHTS_WIDTH,
   DESKTOP_TITLEBAR_CONTROLS_Z_INDEX,
@@ -20,6 +20,16 @@ import { useUpdateStore, hasUpdateAvailable } from '../store/updateStore'
 /* 标题栏图标按钮通用样式 — w-8 (32px) × h-full，和控制按钮等高对齐 */
 const TB_BTN =
   'inline-flex h-full w-8 items-center justify-center text-text-300 transition-colors hover:bg-bg-200/70 hover:text-text-100'
+
+const WindowsControlsHost = memo(function WindowsControlsHost() {
+  return (
+    <div
+      data-tauri-decorum-tb
+      className="desktop-titlebar-controls flex h-full min-w-[138px] shrink-0 items-stretch justify-end"
+      style={{ zIndex: DESKTOP_TITLEBAR_CONTROLS_Z_INDEX }}
+    />
+  )
+})
 
 export function DesktopTitlebar() {
   const { t } = useTranslation('components')
@@ -164,11 +174,7 @@ export function DesktopTitlebar() {
 
       {/* ---- 右侧：Windows 控制按钮 / macOS 留白 ---- */}
       {platform === 'windows' ? (
-        <div
-          data-tauri-decorum-tb
-          className="desktop-titlebar-controls flex h-full min-w-[138px] shrink-0 items-stretch justify-end"
-          style={{ zIndex: DESKTOP_TITLEBAR_CONTROLS_Z_INDEX }}
-        />
+        <WindowsControlsHost />
       ) : (
         <div data-tauri-drag-region className="h-full w-3 shrink-0" />
       )}
