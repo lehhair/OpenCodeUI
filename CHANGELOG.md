@@ -1,5 +1,9 @@
 # Changelog
 
+## [v0.5.15] - 2026-04-28
+
+- fix: restore model selector typography scaling (121b762)
+
 ## [v0.5.14] - 2026-04-28
 
 - fix: close the remaining review regressions (58a03dc)
