@@ -168,6 +168,31 @@ export const SessionChangesPanel = memo(function SessionChangesPanel({
     changeMenuOptionRefs.current[mode]?.focus()
   }, [])
 
+  const focusRelativeToChangeTrigger = useCallback((direction: 1 | -1) => {
+    const trigger = changeMenuTriggerRef.current
+    if (!trigger) return
+
+    const focusables = Array.from(
+      document.body.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), [href], input:not([type="file"]):not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      ),
+    ).filter(element => !element.closest('[aria-hidden="true"]'))
+
+    const currentIndex = focusables.findIndex(item => item === trigger)
+    if (currentIndex === -1) return
+    focusables[currentIndex + direction]?.focus()
+  }, [])
+
+  const isFocusableElement = useCallback((target: EventTarget | null) => {
+    const element = target instanceof Element ? target : target instanceof Node ? target.parentElement : null
+    if (!element) return false
+    return Boolean(
+      element.closest(
+        'button:not([disabled]), [href], input:not([type="hidden"]):not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      ),
+    )
+  }, [])
+
   useEffect(() => {
     openDiffFilesRef.current = openDiffFiles
   }, [openDiffFiles])
@@ -185,6 +210,9 @@ export const SessionChangesPanel = memo(function SessionChangesPanel({
         return
       }
       setChangeMenuOpen(false)
+      if (!isFocusableElement(event.target)) {
+        changeMenuTriggerRef.current?.focus()
+      }
     }
 
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -200,7 +228,7 @@ export const SessionChangesPanel = memo(function SessionChangesPanel({
       document.removeEventListener('mousedown', handlePointerDown)
       document.removeEventListener('keydown', handleKeyDown)
     }
-  }, [changeMenuOpen])
+  }, [changeMenuOpen, isFocusableElement])
 
   useEffect(() => {
     if (!changeMenuOpen) return
@@ -227,13 +255,6 @@ export const SessionChangesPanel = memo(function SessionChangesPanel({
       if (changeOptions.length === 0) return
 
       const currentIndex = changeOptions.findIndex(mode => changeMenuOptionRefs.current[mode] === document.activeElement)
-      const siblingControls = Array.from(changeMenuTriggerRef.current?.parentElement?.querySelectorAll<HTMLButtonElement>('button') ?? [])
-      const triggerIndex = siblingControls.findIndex(button => button === changeMenuTriggerRef.current)
-      const focusSiblingControl = (direction: 1 | -1) => {
-        const nextControl = siblingControls[triggerIndex + direction]
-        ;(nextControl ?? changeMenuTriggerRef.current)?.focus()
-      }
-
       if (event.key === 'Escape') {
         event.preventDefault()
         setChangeMenuOpen(false)
@@ -245,7 +266,7 @@ export const SessionChangesPanel = memo(function SessionChangesPanel({
         event.preventDefault()
         setChangeMenuOpen(false)
         window.setTimeout(() => {
-          focusSiblingControl(event.shiftKey ? -1 : 1)
+          focusRelativeToChangeTrigger(event.shiftKey ? -1 : 1)
         }, 0)
         return
       }
@@ -271,7 +292,7 @@ export const SessionChangesPanel = memo(function SessionChangesPanel({
         focusByIndex(changeOptions.length - 1)
       }
     },
-    [changeOptions, focusChangeMenuOption],
+    [changeOptions, focusChangeMenuOption, focusRelativeToChangeTrigger],
   )
 
   const loadProjectState = useCallback(async () => {

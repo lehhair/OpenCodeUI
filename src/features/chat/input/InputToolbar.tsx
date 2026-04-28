@@ -141,9 +141,12 @@ export function InputToolbar({
   }, [])
 
   const isFocusableElement = useCallback((target: EventTarget | null) => {
-    if (!(target instanceof Element)) return false
+    const element = target instanceof Element ? target : target instanceof Node ? target.parentElement : null
+    if (!element) return false
     return Boolean(
-      target.closest('button, [href], input:not([type="hidden"]), textarea, select, [tabindex]:not([tabindex="-1"])'),
+      element.closest(
+        'button:not([disabled]), [href], input:not([type="hidden"]):not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      ),
     )
   }, [])
 
@@ -239,8 +242,7 @@ export function InputToolbar({
     const handleClickOutside = (e: MouseEvent) => {
       if (
         agentMenuOpen &&
-        agentMenuRef.current &&
-        !agentMenuRef.current.contains(e.target as Node) &&
+        !agentMenuRef.current?.contains(e.target as Node) &&
         !agentTriggerRef.current?.contains(e.target as Node)
       ) {
         setAgentMenuOpen(false)
@@ -250,8 +252,7 @@ export function InputToolbar({
       }
       if (
         variantMenuOpen &&
-        variantMenuRef.current &&
-        !variantMenuRef.current.contains(e.target as Node) &&
+        !variantMenuRef.current?.contains(e.target as Node) &&
         !variantTriggerRef.current?.contains(e.target as Node)
       ) {
         setVariantMenuOpen(false)

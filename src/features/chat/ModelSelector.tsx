@@ -416,9 +416,12 @@ export const ModelSelector = memo(
     }, [])
 
     const isFocusableElement = useCallback((target: EventTarget | null) => {
-      if (!(target instanceof Element)) return false
+      const element = target instanceof Element ? target : target instanceof Node ? target.parentElement : null
+      if (!element) return false
       return Boolean(
-        target.closest('button, [href], input:not([type="hidden"]), textarea, select, [tabindex]:not([tabindex="-1"])'),
+        element.closest(
+          'button:not([disabled]), [href], input:not([type="hidden"]):not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ),
       )
     }, [])
 
@@ -547,8 +550,7 @@ export const ModelSelector = memo(
         if (
           containerRef.current &&
           !containerRef.current.contains(target) &&
-          menuRef.current &&
-          !menuRef.current.contains(target)
+          !menuRef.current?.contains(target)
         ) {
           closeMenu({ focusTrigger: !isFocusableElement(target) })
         }
