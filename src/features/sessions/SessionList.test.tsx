@@ -89,4 +89,25 @@ describe('SessionListItem', () => {
 
     expect(onSelect).toHaveBeenCalledTimes(1)
   })
+
+  it('does not leave the row button focused after mouse selection', () => {
+    const onSelect = vi.fn()
+
+    render(
+      <SessionListItem
+        session={session}
+        isSelected={false}
+        onSelect={onSelect}
+        onDelete={vi.fn()}
+        onRename={vi.fn()}
+        preferTouchUi={false}
+      />,
+    )
+
+    const sessionButton = screen.getByRole('button', { name: /Session One/i })
+
+    fireEvent.click(sessionButton)
+
+    expect(sessionButton).not.toHaveFocus()
+  })
 })

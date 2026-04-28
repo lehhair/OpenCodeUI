@@ -467,6 +467,17 @@ export function SessionListItem({
     onSelect()
   }
 
+  const handleRowButtonClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.stopPropagation()
+    handleClick()
+
+    // Mouse clicks should not leave the row in a persistent focus-within state,
+    // otherwise action buttons stay visible after simple selection.
+    if (e.detail > 0) {
+      e.currentTarget.blur()
+    }
+  }
+
   const handleCheckClick = (e: React.MouseEvent) => {
     e.stopPropagation()
     onToggleCheck?.({ shiftKey: e.shiftKey })
@@ -607,10 +618,7 @@ export function SessionListItem({
             type="button"
             draggable={isDraggable}
             onDragStart={handleDragStart}
-            onClick={e => {
-              e.stopPropagation()
-              handleClick()
-            }}
+            onClick={handleRowButtonClick}
             onTouchStart={handleTouchStart}
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
@@ -774,10 +782,7 @@ export function SessionListItem({
           type="button"
           draggable={isDraggable}
           onDragStart={handleDragStart}
-          onClick={e => {
-            e.stopPropagation()
-            handleClick()
-          }}
+          onClick={handleRowButtonClick}
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
