@@ -168,6 +168,17 @@ export const SessionChangesPanel = memo(function SessionChangesPanel({
     changeMenuOptionRefs.current[mode]?.focus()
   }, [])
 
+  const isVisibleFocusableElement = useCallback((target: EventTarget | null) => {
+    const element = target instanceof Element ? target : target instanceof Node ? target.parentElement : null
+    const candidate = element?.closest<HTMLElement>(
+      'button:not([disabled]), [href], input:not([type="hidden"]):not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    )
+    if (!candidate) return false
+
+    const style = window.getComputedStyle(candidate)
+    return style.visibility !== 'hidden' && style.display !== 'none' && style.opacity !== '0'
+  }, [])
+
   const focusRelativeToChangeTrigger = useCallback((direction: 1 | -1) => {
     const trigger = changeMenuTriggerRef.current
     if (!trigger) return
@@ -181,16 +192,6 @@ export const SessionChangesPanel = memo(function SessionChangesPanel({
     const currentIndex = focusables.findIndex(item => item === trigger)
     if (currentIndex === -1) return
     focusables[currentIndex + direction]?.focus()
-  }, [])
-
-  const isFocusableElement = useCallback((target: EventTarget | null) => {
-    const element = target instanceof Element ? target : target instanceof Node ? target.parentElement : null
-    if (!element) return false
-    return Boolean(
-      element.closest(
-        'button:not([disabled]), [href], input:not([type="hidden"]):not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
-      ),
-    )
   }, [])
 
   useEffect(() => {
@@ -210,7 +211,7 @@ export const SessionChangesPanel = memo(function SessionChangesPanel({
         return
       }
       setChangeMenuOpen(false)
-      if (!isFocusableElement(event.target)) {
+      if (!isVisibleFocusableElement(event.target)) {
         changeMenuTriggerRef.current?.focus()
       }
     }
@@ -228,7 +229,7 @@ export const SessionChangesPanel = memo(function SessionChangesPanel({
       document.removeEventListener('mousedown', handlePointerDown)
       document.removeEventListener('keydown', handleKeyDown)
     }
-  }, [changeMenuOpen, isFocusableElement])
+  }, [changeMenuOpen, isVisibleFocusableElement])
 
   useEffect(() => {
     if (!changeMenuOpen) return
@@ -375,6 +376,12 @@ export const SessionChangesPanel = memo(function SessionChangesPanel({
   )
 
   useEffect(() => {
+    diffRequestIdRef.current = {
+      git: diffRequestIdRef.current.git + 1,
+      branch: diffRequestIdRef.current.branch + 1,
+      session: diffRequestIdRef.current.session + 1,
+      turn: diffRequestIdRef.current.turn + 1,
+    }
     setProject(null)
     setVcsInfo(null)
     setGitDiffs([])

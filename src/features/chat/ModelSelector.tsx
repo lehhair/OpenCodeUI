@@ -409,7 +409,11 @@ export const ModelSelector = memo(
         document.body.querySelectorAll<HTMLElement>(
           'button:not([disabled]), [href], input:not([type="file"]):not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
         ),
-      ).filter(element => !element.closest('[aria-hidden="true"]'))
+      ).filter(element => {
+        if (element.closest('[aria-hidden="true"]')) return false
+        const style = window.getComputedStyle(element)
+        return style.visibility !== 'hidden' && style.display !== 'none' && style.opacity !== '0'
+      })
       const currentIndex = focusables.findIndex(item => item === trigger)
       if (currentIndex === -1) return
       focusables[currentIndex + direction]?.focus()
@@ -418,11 +422,13 @@ export const ModelSelector = memo(
     const isFocusableElement = useCallback((target: EventTarget | null) => {
       const element = target instanceof Element ? target : target instanceof Node ? target.parentElement : null
       if (!element) return false
-      return Boolean(
-        element.closest(
-          'button:not([disabled]), [href], input:not([type="hidden"]):not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
-        ),
+      const candidate = element.closest<HTMLElement>(
+        'button:not([disabled]), [href], input:not([type="hidden"]):not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
       )
+      if (!candidate) return false
+
+      const style = window.getComputedStyle(candidate)
+      return style.visibility !== 'hidden' && style.display !== 'none' && style.opacity !== '0'
     }, [])
 
     const displayName =
