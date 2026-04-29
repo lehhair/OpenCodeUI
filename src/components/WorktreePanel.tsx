@@ -245,9 +245,8 @@ export const WorktreePanel = memo(function WorktreePanel({ isResizing: _isResizi
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-border-200/30">
-        <div className="flex items-center gap-2 text-[length:var(--fs-sm)] text-text-200">
-          <GitWorktreeIcon size={14} className="text-text-400" />
+      <div className="relative flex h-10 items-center justify-between px-3">
+        <div className="flex h-6 min-w-0 items-center gap-1.5 text-[length:var(--fs-xs)] text-text-100">
           <span className="font-medium">{t('worktreePanel.git')}</span>
         </div>
         <div className="flex items-center gap-1">
@@ -258,30 +257,32 @@ export const WorktreePanel = memo(function WorktreePanel({ isResizing: _isResizi
               refreshVcs()
             }}
             disabled={loading}
-            className="p-1 rounded text-text-400 hover:text-text-100 hover:bg-bg-200/50 transition-colors"
+            className="inline-flex h-6 w-6 items-center justify-center rounded-md text-text-400 hover:text-text-100 hover:bg-bg-200/50 transition-colors"
             title={t('common:refresh')}
             aria-label={t('common:refresh')}
           >
             <RetryIcon size={12} className={loading ? 'animate-spin' : ''} />
           </button>
         </div>
+        <div className="pointer-events-none absolute inset-x-3 bottom-0 h-px bg-border-200/30" />
       </div>
 
       {/* VCS Branch */}
       {vcsInfo?.branch && (
-        <div className="px-3 py-2 border-b border-border-200/20">
+        <div className="relative px-3 py-2">
           <div className="flex items-center gap-2">
             <GitBranchIcon size={14} className="text-accent-main-100 shrink-0" />
             <span className="text-[length:var(--fs-sm)] font-mono text-text-100 truncate" title={vcsInfo.branch}>
               {vcsInfo.branch}
             </span>
           </div>
+          <div className="pointer-events-none absolute inset-x-3 bottom-0 h-px bg-border-200/30" />
         </div>
       )}
 
       {/* Worktrees Section Header */}
-      <div className="flex items-center justify-between px-3 py-1.5 border-b border-border-200/20">
-        <div className="flex items-center gap-1.5 text-[length:var(--fs-xs)] text-text-300">
+      <div className="relative flex items-center justify-between px-3 py-1.5">
+        <div className="flex h-6 items-center gap-1.5 text-[length:var(--fs-xs)] text-text-300">
           <span className="font-medium">{t('worktreePanel.worktrees')}</span>
           {!loading && <span className="text-text-400">({worktrees.length})</span>}
         </div>
@@ -289,12 +290,13 @@ export const WorktreePanel = memo(function WorktreePanel({ isResizing: _isResizi
           type="button"
           onClick={() => setShowCreateForm(true)}
           disabled={!!actionLoading || !canManageWorktrees}
-          className="p-1 rounded text-text-400 hover:text-text-100 hover:bg-bg-200/50 transition-colors"
+          className="inline-flex h-6 w-6 items-center justify-center rounded-md text-text-400 hover:text-text-100 hover:bg-bg-200/50 transition-colors"
           title={t('worktreePanel.createWorktree')}
           aria-label={t('worktreePanel.createWorktree')}
         >
           <PlusIcon size={12} />
         </button>
+        <div className="pointer-events-none absolute inset-x-3 bottom-0 h-px bg-border-200/30" />
       </div>
 
       {/* Error */}
@@ -344,7 +346,7 @@ export const WorktreePanel = memo(function WorktreePanel({ isResizing: _isResizi
             </button>
           </div>
         ) : (
-          <div className="p-2 space-y-1">
+          <div className="p-1">
             {worktrees.map(wt => (
               <WorktreeItem
                 key={wt}
@@ -420,7 +422,7 @@ function CreateWorktreeForm({ onSubmit, onCancel, isLoading }: CreateWorktreeFor
   }
 
   return (
-    <form onSubmit={handleSubmit} className="mx-3 mt-2 p-2.5 rounded-lg bg-bg-200/30 border border-border-200/30">
+    <form onSubmit={handleSubmit} className="mx-3 mt-2 p-2.5 rounded-lg bg-bg-100/50 border border-border-200/60">
       <div className="text-[length:var(--fs-xs)] text-text-300 font-medium mb-2">{t('worktreePanel.newWorktree')}</div>
       <input
         type="text"
@@ -446,14 +448,14 @@ function CreateWorktreeForm({ onSubmit, onCancel, isLoading }: CreateWorktreeFor
           type="button"
           onClick={onCancel}
           disabled={isLoading}
-          className="px-2.5 py-1 text-[length:var(--fs-xs)] text-text-300 hover:text-text-100 rounded transition-colors"
+          className="px-2.5 py-1 text-[length:var(--fs-xs)] text-text-300 hover:text-text-100 hover:bg-bg-200/50 rounded-md transition-colors"
         >
           {t('common:cancel')}
         </button>
         <button
           type="submit"
           disabled={!name.trim() || isLoading}
-          className="px-2.5 py-1 text-[length:var(--fs-xs)] bg-accent-main-100 hover:bg-accent-main-200 text-oncolor-100 rounded transition-colors disabled:opacity-50 flex items-center gap-1.5"
+          className="px-2.5 py-1 text-[length:var(--fs-xs)] bg-accent-main-100 hover:bg-accent-main-200 text-oncolor-100 rounded-md transition-colors disabled:opacity-50 flex items-center gap-1.5"
         >
           {isLoading && <SpinnerIcon size={10} className="animate-spin" />}
           {t('common:create')}
@@ -487,7 +489,7 @@ const WorktreeItem = memo(function WorktreeItem({
   const { t } = useTranslation(['components', 'common'])
 
   return (
-    <div className="group flex items-center gap-2.5 px-2.5 py-2 rounded-lg hover:bg-bg-200/40 transition-colors">
+    <div className="group flex items-center gap-2.5 px-2 py-2 rounded-md hover:bg-bg-200/50 transition-colors">
       {/* Icon */}
       <div className="w-7 h-7 rounded-md bg-bg-200/60 flex items-center justify-center shrink-0">
         <FolderIcon size={14} className="text-text-400" />
@@ -508,21 +510,21 @@ const WorktreeItem = memo(function WorktreeItem({
         <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
           <button
             onClick={onOpenSession}
-            className="p-1 rounded text-text-400 hover:text-accent-main-100 hover:bg-accent-main-100/10 transition-colors"
+            className="p-1 rounded-md text-text-400 hover:text-accent-main-100 hover:bg-accent-main-100/10 transition-colors"
             title={t('worktreePanel.openSession')}
           >
             <ExternalLinkIcon size={12} />
           </button>
           <button
             onClick={onReset}
-            className="p-1 rounded text-text-400 hover:text-warning-100 hover:bg-warning-100/10 transition-colors"
+            className="p-1 rounded-md text-text-400 hover:text-warning-100 hover:bg-warning-100/10 transition-colors"
             title={t('worktreePanel.resetWorktreeAction')}
           >
             <RetryIcon size={12} />
           </button>
           <button
             onClick={onDelete}
-            className="p-1 rounded text-text-400 hover:text-danger-100 hover:bg-danger-100/10 transition-colors"
+            className="p-1 rounded-md text-text-400 hover:text-danger-100 hover:bg-danger-100/10 transition-colors"
             title={t('worktreePanel.removeWorktreeAction')}
           >
             <TrashIcon size={12} />

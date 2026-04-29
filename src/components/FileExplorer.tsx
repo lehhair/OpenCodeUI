@@ -171,8 +171,8 @@ export const FileExplorer = memo(function FileExplorer({
         }
       >
         {/* Tree Header */}
-        <div className="flex items-center justify-between px-3 py-1.5 border-b border-border-100/50 shrink-0">
-          <span className="text-[length:var(--fs-xxs)] font-bold text-text-400 uppercase tracking-wider">
+        <div className="relative flex h-10 items-center justify-between px-3 shrink-0">
+          <span className="inline-flex h-6 items-center text-[length:var(--fs-xs)] font-medium text-text-100">
             {t('fileExplorer.explorer')}
           </span>
           <button
@@ -180,11 +180,12 @@ export const FileExplorer = memo(function FileExplorer({
             onClick={refresh}
             disabled={isLoading}
             aria-label={t('common:refresh')}
-            className="p-1 text-text-400 hover:text-text-100 hover:bg-bg-200 rounded transition-colors disabled:opacity-50"
+            className="inline-flex h-6 w-6 items-center justify-center text-text-400 hover:text-text-100 hover:bg-bg-200/50 rounded-md transition-colors disabled:opacity-50"
             title={t('common:refresh')}
           >
             <RetryIcon size={12} className={isLoading ? 'animate-spin' : ''} />
           </button>
+          <div className="pointer-events-none absolute inset-x-3 bottom-0 h-px bg-border-200/30" />
         </div>
 
         {/* Tree Content */}

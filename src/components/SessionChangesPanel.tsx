@@ -598,13 +598,13 @@ export const SessionChangesPanel = memo(function SessionChangesPanel({
         }
       >
         {/* Header */}
-        <div className="flex items-center gap-2 px-3 py-2 border-b border-border-100 bg-bg-100/30 shrink-0 overflow-hidden">
+        <div className="relative flex h-10 items-center gap-2 px-3 shrink-0 overflow-hidden">
           <div
             className="min-w-0 flex flex-1 overflow-hidden"
             title={`+${totalStats.additions} -${totalStats.deletions} ${fullFileCountLabel}`}
             style={statFadeMaskStyle}
           >
-            <div className="inline-flex min-w-max items-center gap-1.5 whitespace-nowrap text-[length:var(--fs-xxs)] font-mono tabular-nums">
+            <div className="inline-flex h-6 min-w-max items-center gap-1.5 whitespace-nowrap text-[length:var(--fs-xxs)] font-mono tabular-nums">
               <span className="text-success-100">+{totalStats.additions}</span>
               <span className="text-danger-100">-{totalStats.deletions}</span>
               <span className="text-text-400">{compactFileCountLabel}</span>
@@ -632,8 +632,8 @@ export const SessionChangesPanel = memo(function SessionChangesPanel({
               aria-controls={changeMenuOpen ? changeMenuId : undefined}
               title={activeChangeModeMeta.label}
               className={`
-                flex items-center rounded p-1 transition-colors
-                ${changeMenuOpen ? 'bg-bg-200 text-text-100' : 'text-text-400 hover:text-text-100 hover:bg-bg-200'}
+                inline-flex h-6 w-6 items-center justify-center rounded-md transition-colors
+                ${changeMenuOpen ? 'bg-bg-200 text-text-100' : 'text-text-400 hover:text-text-100 hover:bg-bg-200/50'}
               `}
             >
               <span className="shrink-0">{activeChangeModeMeta.icon}</span>
@@ -703,7 +703,7 @@ export const SessionChangesPanel = memo(function SessionChangesPanel({
             </DropdownMenu>
 
             {/* List Mode Toggle */}
-            <div className="flex shrink-0 items-center bg-bg-200/50 rounded overflow-hidden border border-border-200/50">
+            <div className="flex shrink-0 items-center bg-bg-200/50 rounded-md overflow-hidden border border-border-200/50">
               <button
                 type="button"
                 onClick={() => setListMode('flat')}
@@ -729,7 +729,7 @@ export const SessionChangesPanel = memo(function SessionChangesPanel({
             </div>
 
             {/* View Mode Toggle */}
-            <div className="flex shrink-0 items-center bg-bg-200/50 rounded overflow-hidden border border-border-200/50">
+            <div className="flex shrink-0 items-center bg-bg-200/50 rounded-md overflow-hidden border border-border-200/50">
               <button
                 type="button"
                 onClick={() => setViewMode('unified')}
@@ -758,12 +758,13 @@ export const SessionChangesPanel = memo(function SessionChangesPanel({
               onClick={handleRefresh}
               disabled={loading}
               aria-label={t('common:refresh')}
-              className="p-1 text-text-400 hover:text-text-100 hover:bg-bg-200 rounded transition-colors disabled:opacity-50"
+              className="inline-flex h-6 w-6 items-center justify-center text-text-400 hover:text-text-100 hover:bg-bg-200/50 rounded-md transition-colors disabled:opacity-50"
               title={t('common:refresh')}
             >
               <RetryIcon size={12} className={loading ? 'animate-spin' : ''} />
             </button>
           </div>
+          <div className="pointer-events-none absolute inset-x-3 bottom-0 h-px bg-border-200/30" />
         </div>
 
         {/* File List */}

@@ -187,11 +187,10 @@ export const McpPanel = memo(function McpPanel({ isResizing: _isResizing }: McpP
   return (
     <div className="flex flex-col h-full bg-bg-100">
       {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-border-100">
-        <div className="flex items-center gap-2 text-text-100 text-[length:var(--fs-base)] font-medium">
-          <PlugIcon size={14} />
+      <div className="relative flex h-10 items-center justify-between px-3">
+        <div className="flex h-6 min-w-0 items-center gap-1.5 text-text-100 text-[length:var(--fs-xs)] font-medium">
           <span>{t('mcpPanel.title')}</span>
-          {!loading && <span className="text-text-400 text-[length:var(--fs-sm)]">({servers.length})</span>}
+          {!loading && <span className="inline-flex h-4 items-center text-[length:var(--fs-xs)] leading-none text-text-400">({servers.length})</span>}
         </div>
         <div className="flex items-center gap-1">
           <button
@@ -199,22 +198,23 @@ export const McpPanel = memo(function McpPanel({ isResizing: _isResizing }: McpP
             onClick={() => setShowAddForm(true)}
             disabled={showAddForm}
             aria-label={t('mcpPanel.addServer')}
-            className="p-1 hover:bg-bg-200 rounded text-text-300 hover:text-text-100 transition-colors disabled:opacity-50"
+            className="inline-flex h-6 w-6 items-center justify-center hover:bg-bg-200/50 rounded-md text-text-300 hover:text-text-100 transition-colors disabled:opacity-50"
             title={t('mcpPanel.addServer')}
           >
-            <PlusIcon size={14} />
+            <PlusIcon size={12} />
           </button>
           <button
             type="button"
             onClick={handleRefresh}
             disabled={loading}
             aria-label={t('common:refresh')}
-            className="p-1 hover:bg-bg-200 rounded text-text-300 hover:text-text-100 transition-colors disabled:opacity-50"
+            className="inline-flex h-6 w-6 items-center justify-center hover:bg-bg-200/50 rounded-md text-text-300 hover:text-text-100 transition-colors disabled:opacity-50"
             title={t('common:refresh')}
           >
-            <RetryIcon size={14} className={loading ? 'animate-spin' : ''} />
+            <RetryIcon size={12} className={loading ? 'animate-spin' : ''} />
           </button>
         </div>
+        <div className="pointer-events-none absolute inset-x-3 bottom-0 h-px bg-border-200/30" />
       </div>
 
       {/* Content */}
@@ -258,7 +258,7 @@ export const McpPanel = memo(function McpPanel({ isResizing: _isResizing }: McpP
             </button>
           </div>
         ) : (
-          <div className="divide-y divide-border-100">
+          <div className="p-1">
             {servers.map(server => (
               <ServerItem
                 key={server.name}
@@ -331,13 +331,13 @@ const AddServerForm = memo(function AddServerForm({ onSubmit, onCancel, isLoadin
   }
 
   return (
-    <form onSubmit={handleSubmit} className="p-3 border-b border-border-100 bg-bg-200/30">
+    <form onSubmit={handleSubmit} className="m-3 rounded-lg border border-border-200/60 bg-bg-100/50 p-3">
       <div className="flex items-center justify-between mb-3">
         <span className="text-[length:var(--fs-base)] font-medium text-text-100">{t('mcpPanel.addMcpServer')}</span>
         <button
           type="button"
           onClick={onCancel}
-          className="p-1 hover:bg-bg-200 rounded text-text-400 hover:text-text-100 transition-colors"
+          className="p-1 hover:bg-bg-200/50 rounded-md text-text-400 hover:text-text-100 transition-colors"
         >
           <CloseIcon size={14} />
         </button>
@@ -348,7 +348,7 @@ const AddServerForm = memo(function AddServerForm({ onSubmit, onCancel, isLoadin
         <button
           type="button"
           onClick={() => setServerType('local')}
-          className={`flex-1 px-3 py-1.5 text-[length:var(--fs-sm)] rounded transition-colors ${
+          className={`flex-1 px-3 py-1.5 text-[length:var(--fs-sm)] rounded-md transition-colors ${
             serverType === 'local'
               ? 'bg-accent-main-100/20 text-accent-main-100 border border-accent-main-100/50'
               : 'bg-bg-200/50 text-text-300 border border-transparent hover:bg-bg-200'
@@ -359,7 +359,7 @@ const AddServerForm = memo(function AddServerForm({ onSubmit, onCancel, isLoadin
         <button
           type="button"
           onClick={() => setServerType('remote')}
-          className={`flex-1 px-3 py-1.5 text-[length:var(--fs-sm)] rounded transition-colors ${
+          className={`flex-1 px-3 py-1.5 text-[length:var(--fs-sm)] rounded-md transition-colors ${
             serverType === 'remote'
               ? 'bg-accent-main-100/20 text-accent-main-100 border border-accent-main-100/50'
               : 'bg-bg-200/50 text-text-300 border border-transparent hover:bg-bg-200'
@@ -376,7 +376,7 @@ const AddServerForm = memo(function AddServerForm({ onSubmit, onCancel, isLoadin
           value={name}
           onChange={e => setName(e.target.value)}
           placeholder={t('mcpPanel.serverName')}
-          className="w-full px-2 py-1.5 text-[length:var(--fs-sm)] bg-bg-100 border border-border-200 rounded text-text-100 placeholder-text-500 focus:border-accent-main-100 focus-visible:ring-1 focus-visible:ring-accent-main-100/40 focus-visible:ring-inset"
+          className="w-full px-2 py-1.5 text-[length:var(--fs-sm)] bg-bg-000 border border-border-200 rounded-md text-text-100 placeholder-text-500 focus:border-accent-main-100 focus-visible:ring-1 focus-visible:ring-accent-main-100/40 focus-visible:ring-inset"
         />
       </div>
 
@@ -388,7 +388,7 @@ const AddServerForm = memo(function AddServerForm({ onSubmit, onCancel, isLoadin
             value={command}
             onChange={e => setCommand(e.target.value)}
             placeholder={t('mcpPanel.commandPlaceholder')}
-            className="w-full px-2 py-1.5 text-[length:var(--fs-sm)] bg-bg-100 border border-border-200 rounded text-text-100 placeholder-text-500 focus:border-accent-main-100 focus-visible:ring-1 focus-visible:ring-accent-main-100/40 focus-visible:ring-inset"
+            className="w-full px-2 py-1.5 text-[length:var(--fs-sm)] bg-bg-000 border border-border-200 rounded-md text-text-100 placeholder-text-500 focus:border-accent-main-100 focus-visible:ring-1 focus-visible:ring-accent-main-100/40 focus-visible:ring-inset"
           />
         </div>
       )}
@@ -401,7 +401,7 @@ const AddServerForm = memo(function AddServerForm({ onSubmit, onCancel, isLoadin
             value={url}
             onChange={e => setUrl(e.target.value)}
             placeholder={t('mcpPanel.urlPlaceholder')}
-            className="w-full px-2 py-1.5 text-[length:var(--fs-sm)] bg-bg-100 border border-border-200 rounded text-text-100 placeholder-text-500 focus:border-accent-main-100 focus-visible:ring-1 focus-visible:ring-accent-main-100/40 focus-visible:ring-inset"
+            className="w-full px-2 py-1.5 text-[length:var(--fs-sm)] bg-bg-000 border border-border-200 rounded-md text-text-100 placeholder-text-500 focus:border-accent-main-100 focus-visible:ring-1 focus-visible:ring-accent-main-100/40 focus-visible:ring-inset"
           />
         </div>
       )}
@@ -413,7 +413,7 @@ const AddServerForm = memo(function AddServerForm({ onSubmit, onCancel, isLoadin
       <button
         type="submit"
         disabled={isLoading}
-        className="w-full px-3 py-1.5 text-[length:var(--fs-sm)] bg-accent-main-100 hover:bg-accent-main-200 text-oncolor-100 rounded transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+        className="w-full px-3 py-1.5 text-[length:var(--fs-sm)] bg-accent-main-100 hover:bg-accent-main-200 text-oncolor-100 rounded-md transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
       >
         {isLoading ? (
           <>
@@ -496,7 +496,7 @@ const ServerItem = memo(function ServerItem({ server, isLoading, onConnect, onDi
               e.stopPropagation()
               onDisconnect(name)
             }}
-            className="px-2 py-0.5 text-[length:var(--fs-sm)] bg-bg-300/50 hover:bg-danger-bg hover:text-danger-100 text-text-300 rounded transition-colors"
+            className="px-2 py-0.5 text-[length:var(--fs-sm)] bg-bg-300/50 hover:bg-danger-bg hover:text-danger-100 text-text-300 rounded-md transition-colors"
           >
             {t('mcpPanel.disconnect')}
           </button>
@@ -509,7 +509,7 @@ const ServerItem = memo(function ServerItem({ server, isLoading, onConnect, onDi
               e.stopPropagation()
               onConnect(name)
             }}
-            className="px-2 py-0.5 text-[length:var(--fs-sm)] bg-bg-300/50 hover:bg-success-bg hover:text-success-100 text-text-300 rounded transition-colors"
+            className="px-2 py-0.5 text-[length:var(--fs-sm)] bg-bg-300/50 hover:bg-success-bg hover:text-success-100 text-text-300 rounded-md transition-colors"
           >
             {t('mcpPanel.connect')}
           </button>
@@ -522,7 +522,7 @@ const ServerItem = memo(function ServerItem({ server, isLoading, onConnect, onDi
               e.stopPropagation()
               onAuth(name)
             }}
-            className="px-2 py-0.5 text-[length:var(--fs-sm)] bg-warning-bg hover:bg-warning-bg/80 text-warning-100 rounded transition-colors flex items-center gap-1"
+            className="px-2 py-0.5 text-[length:var(--fs-sm)] bg-warning-bg hover:bg-warning-bg/80 text-warning-100 rounded-md transition-colors flex items-center gap-1"
           >
             <ExternalLinkIcon size={10} />
             {t('mcpPanel.authenticate')}
@@ -554,7 +554,7 @@ const ServerItem = memo(function ServerItem({ server, isLoading, onConnect, onDi
     <div className="group">
       {/* Main row */}
       <div
-        className="flex items-center gap-2 px-3 py-2 hover:bg-bg-200/50 transition-colors"
+        className="flex items-center gap-2 rounded-md px-2 py-2 hover:bg-bg-200/50 transition-colors"
         onClick={() => errorMessage && setExpanded(!expanded)}
       >
         {/* Expand icon only if there is an error to show details for */}
@@ -589,7 +589,7 @@ const ServerItem = memo(function ServerItem({ server, isLoading, onConnect, onDi
 
       {/* Expanded Error Details */}
       {expanded && errorMessage && (
-        <div className="px-3 py-2 bg-danger-bg border-t border-danger-100/20 ml-5 text-[length:var(--fs-sm)] text-text-200 break-words font-mono">
+        <div className="mx-2 mb-1 ml-7 rounded-md bg-danger-bg px-2 py-2 text-[length:var(--fs-sm)] text-text-200 break-words font-mono">
           {errorMessage}
         </div>
       )}
