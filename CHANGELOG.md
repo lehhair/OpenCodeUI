@@ -1,5 +1,10 @@
 # Changelog
 
+## [v0.5.18] - 2026-04-29
+
+- fix: tighten pane focus and interaction regressions (c800e44)
+- fix: prevent route sync from overwriting focused panes (fa44f13)
+
 ## [v0.5.17] - 2026-04-28
 
 - fix: keep session actions tied to visible focus (0e16597)
