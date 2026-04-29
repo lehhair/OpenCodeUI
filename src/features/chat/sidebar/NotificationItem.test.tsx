@@ -55,4 +55,19 @@ describe('NotificationItem', () => {
     expect(dismissMock).toHaveBeenCalledWith('notif-1')
     expect(onSelect).toHaveBeenCalledTimes(1)
   })
+
+  it('keeps the full notification row clickable outside the inner button', () => {
+    const onSelect = vi.fn()
+    render(<NotificationItem entry={entry} resolvedSession={resolvedSession} onSelect={onSelect} />)
+
+    const rowButton = screen.getByRole('button', { name: /Build finished/i })
+    const row = rowButton.parentElement
+
+    expect(row).not.toBeNull()
+
+    fireEvent.click(row!)
+
+    expect(markReadMock).toHaveBeenCalledWith('notif-1')
+    expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ id: 'session-1' }))
+  })
 })

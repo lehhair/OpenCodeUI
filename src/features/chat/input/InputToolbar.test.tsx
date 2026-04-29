@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { useRef } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ApiAgent } from '../../../api/client'
 import { InputToolbar } from './InputToolbar'
@@ -206,5 +207,34 @@ describe('InputToolbar file selection', () => {
       expect(trigger).toHaveAttribute('aria-expanded', 'false')
       expect(screen.getByRole('button', { name: 'Send message' })).toHaveFocus()
     })
+  })
+
+  it('returns focus to the composer after selecting an agent', async () => {
+    function ToolbarHarness() {
+      const containerRef = useRef<HTMLDivElement>(null)
+
+      return (
+        <div ref={containerRef}>
+          <textarea aria-label="Chat input" />
+          <InputToolbar
+            agents={agents}
+            selectedAgent="build"
+            onAgentChange={vi.fn()}
+            fileCapabilities={{ image: false, pdf: false, audio: false, video: false }}
+            onFilesSelected={vi.fn()}
+            canSend={false}
+            onSend={vi.fn()}
+            inputContainerRef={containerRef}
+          />
+        </div>
+      )
+    }
+
+    render(<ToolbarHarness />)
+
+    fireEvent.click(screen.getByTitle('build: Build things'))
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'Plan' }))
+
+    await waitFor(() => expect(screen.getByRole('textbox', { name: 'Chat input' })).toHaveFocus())
   })
 })

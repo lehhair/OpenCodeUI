@@ -144,4 +144,15 @@ describe('ModelSelector', () => {
     await waitFor(() => expect(screen.getByRole('textbox', { name: 'Chat input' })).toHaveFocus())
     expect(onSelect).toHaveBeenCalledWith('openai:gpt-4o-mini', expect.objectContaining({ name: 'GPT-4o Mini' }))
   })
+
+  it('does not keep mouse-clicked pin controls focused', () => {
+    render(<ModelSelector models={MODELS} selectedModelKey={'openai:gpt-4.1'} onSelect={vi.fn()} />)
+
+    fireEvent.click(screen.getByTitle('GPT-4.1'))
+
+    const pinButton = screen.getByRole('button', { name: /Pin to top: GPT-4.1/i })
+    fireEvent.click(pinButton, { detail: 1 })
+
+    expect(pinButton).not.toHaveFocus()
+  })
 })

@@ -115,6 +115,21 @@ export function InputToolbar({
   const agentMenuId = 'input-toolbar-agent-menu'
   const variantMenuId = 'input-toolbar-variant-menu'
 
+  const focusComposerInput = useCallback(() => {
+    const input = inputContainerRef?.current?.querySelector<HTMLElement>(
+      'textarea, input:not([type="file"]):not([disabled]), [contenteditable="true"]',
+    )
+    input?.focus()
+  }, [inputContainerRef])
+
+  const closeMenuToComposer = useCallback(
+    (close: () => void) => {
+      close()
+      window.setTimeout(focusComposerInput, 0)
+    },
+    [focusComposerInput],
+  )
+
   const focusMenuItem = useCallback((menu: HTMLDivElement | null, mode: 'selected' | 'first' | 'last') => {
     if (!menu) return
 
@@ -379,8 +394,7 @@ export function InputToolbar({
                     selectionRole="menuitemradio"
                     onClick={() => {
                       onAgentChange?.(agent.name)
-                      setAgentMenuOpen(false)
-                      agentTriggerRef.current?.focus()
+                      closeMenuToComposer(() => setAgentMenuOpen(false))
                     }}
                   />
                 ))}
@@ -455,8 +469,7 @@ export function InputToolbar({
                   selectionRole="menuitemradio"
                   onClick={() => {
                     onVariantChange?.(undefined)
-                    setVariantMenuOpen(false)
-                    variantTriggerRef.current?.focus()
+                    closeMenuToComposer(() => setVariantMenuOpen(false))
                   }}
                 />
                 {variants.map(variant => (
@@ -468,8 +481,7 @@ export function InputToolbar({
                     selectionRole="menuitemradio"
                     onClick={() => {
                       onVariantChange?.(variant)
-                      setVariantMenuOpen(false)
-                      variantTriggerRef.current?.focus()
+                      closeMenuToComposer(() => setVariantMenuOpen(false))
                     }}
                   />
                 ))}

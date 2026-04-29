@@ -114,6 +114,10 @@ export function NotificationItem({ entry, resolvedSession, onSelect }: Notificat
   return (
     <div
       ref={itemRef}
+      onClick={handleClick}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
       onFocusCapture={() => {
         setHasFocusWithin(true)
       }}
@@ -127,10 +131,10 @@ export function NotificationItem({ entry, resolvedSession, onSelect }: Notificat
     >
       <button
         type="button"
-        onClick={handleClick}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
+        onClick={e => {
+          e.stopPropagation()
+          handleClick()
+        }}
         className="flex flex-1 min-w-0 bg-transparent border-none p-0 text-left"
       >
         {/* Content */}

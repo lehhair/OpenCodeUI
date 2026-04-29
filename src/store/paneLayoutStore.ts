@@ -112,6 +112,15 @@ function removeLeaf(node: PaneNode, paneId: string): PaneNode | null {
   return node
 }
 
+function findReplacementForRemovedLeaf(node: PaneNode, paneId: string): PaneNode | null {
+  if (node.type === 'leaf') return null
+
+  if (node.first.type === 'leaf' && node.first.id === paneId) return node.second
+  if (node.second.type === 'leaf' && node.second.id === paneId) return node.first
+
+  return findReplacementForRemovedLeaf(node.first, paneId) || findReplacementForRemovedLeaf(node.second, paneId)
+}
+
 /**
  * Swap the sessionIds of two leaves.
  */
@@ -353,6 +362,7 @@ function createPaneLayoutStore() {
         return
       }
 
+      const focusReplacement = _focusedPaneId === paneId ? findReplacementForRemovedLeaf(_root, paneId) : null
       const result = removeLeaf(_root, paneId)
       if (!result) return
 
@@ -363,8 +373,9 @@ function createPaneLayoutStore() {
 
       // Update focus
       if (_focusedPaneId === paneId) {
-        const leaves = allLeaves(_root)
-        _focusedPaneId = leaves.length > 0 ? leaves[0].id : null
+        const replacementLeaves = focusReplacement ? allLeaves(focusReplacement) : []
+        const fallbackLeaves = allLeaves(_root)
+        _focusedPaneId = replacementLeaves[0]?.id ?? fallbackLeaves[0]?.id ?? null
       }
 
       _refreshSnapshot()

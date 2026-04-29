@@ -123,7 +123,7 @@ interface ModelListPanelProps {
   highlightedIndex: number
   selectedModelKey: string | null
   onItemClick: (model: ModelInfo) => void
-  onTogglePin: (e: React.MouseEvent, model: ModelInfo) => void
+  onTogglePin: (e: React.MouseEvent<HTMLButtonElement>, model: ModelInfo) => void
   onTouchStart?: (model: ModelInfo) => void
   onTouchEnd?: () => void
   handlePinKeyDown: (e: React.KeyboardEvent<HTMLButtonElement>, interactiveIndex: number) => void
@@ -496,9 +496,14 @@ export const ModelSelector = memo(
       [onSelect, closeMenu, focusToolbarInput, trigger],
     )
 
-    const handleTogglePin = useCallback((e: React.MouseEvent, model: ModelInfo) => {
+    const handleTogglePin = useCallback((e: React.MouseEvent<HTMLButtonElement>, model: ModelInfo) => {
       e.stopPropagation()
-      pendingFocusRestoreRef.current = { modelKey: getModelKey(model), target: 'pin' }
+      if (e.detail === 0) {
+        pendingFocusRestoreRef.current = { modelKey: getModelKey(model), target: 'pin' }
+      } else {
+        pendingFocusRestoreRef.current = null
+        e.currentTarget.blur()
+      }
       toggleModelPin(model)
       setRefreshTrigger(c => c + 1)
     }, [])
