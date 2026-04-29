@@ -290,9 +290,10 @@ export function Dialog({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-0 transition-all duration-200 ease-out"
+      className="fixed inset-0 z-[300] flex items-center justify-center px-4 pb-4 pt-[calc(var(--desktop-titlebar-height,0px)+16px)]"
       style={{
-        backgroundColor: isVisible ? 'hsl(var(--always-black) / 0.15)' : 'hsl(var(--always-black) / 0)',
+        backgroundColor: isVisible ? 'hsl(var(--always-black) / 0.2)' : 'hsl(var(--always-black) / 0)',
+        transition: 'background-color 150ms ease-out',
       }}
       onPointerDown={handleBackdropPointerDown}
       onClick={handleBackdropClick}
@@ -312,6 +313,7 @@ export function Dialog({
         style={{
           width: typeof width === 'number' ? `${width}px` : width,
           maxWidth: '100%',
+          maxHeight: 'calc(100vh - var(--desktop-titlebar-height, 0px) - 32px)',
           opacity: isVisible ? (dragY > 0 ? Math.max(0.3, 1 - dragY / 300) : 1) : 0,
           transform: isVisible ? `scale(1) translateY(${dragY}px)` : 'scale(0.95) translateY(8px)',
         }}

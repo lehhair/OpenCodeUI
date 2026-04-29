@@ -192,7 +192,7 @@ export function CommandPalette({ isOpen, onClose, commands }: CommandPaletteProp
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[200] flex items-start justify-center px-3 pt-[15vh]"
+      className="fixed inset-0 z-[300] flex items-start justify-center px-3 pt-[15vh]"
       style={{
         backgroundColor: isVisible ? 'hsl(var(--always-black) / 0.2)' : 'hsl(var(--always-black) / 0)',
         transition: 'background-color 150ms ease-out',
