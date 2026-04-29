@@ -192,7 +192,7 @@ export function CommandPalette({ isOpen, onClose, commands }: CommandPaletteProp
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[200] flex items-start justify-center pt-[15vh]"
+      className="fixed inset-0 z-[200] flex items-start justify-center px-3 pt-[15vh]"
       style={{
         backgroundColor: isVisible ? 'hsl(var(--always-black) / 0.2)' : 'hsl(var(--always-black) / 0)',
         transition: 'background-color 150ms ease-out',
@@ -212,7 +212,7 @@ export function CommandPalette({ isOpen, onClose, commands }: CommandPaletteProp
       }}
     >
       <div
-        className="w-full max-w-[560px] glass border border-border-200/60 rounded-xl shadow-lg overflow-hidden flex flex-col"
+        className="w-full max-w-[min(760px,calc(100vw-24px))] sm:max-w-[min(720px,calc(100vw-32px))] lg:max-w-[760px] glass-alt border border-border-200/60 rounded-lg shadow-lg overflow-hidden flex flex-col"
         style={{
           maxHeight: '60vh',
           opacity: isVisible ? 1 : 0,
@@ -222,7 +222,7 @@ export function CommandPalette({ isOpen, onClose, commands }: CommandPaletteProp
         onClick={e => e.stopPropagation()}
       >
         {/* Search Input */}
-        <div className="flex items-center gap-3 px-4 border-b border-border-200/50">
+        <div className="relative flex items-center gap-3 px-4">
           <SearchIcon size={16} className="text-text-400 shrink-0" />
           <input
             ref={inputRef}
@@ -249,10 +249,11 @@ export function CommandPalette({ isOpen, onClose, commands }: CommandPaletteProp
               {t('common:clear')}
             </button>
           )}
+          <div className="pointer-events-none absolute inset-x-3 bottom-0 h-px bg-border-200/30" />
         </div>
 
         {/* Command List */}
-        <div ref={listRef} className="overflow-y-auto custom-scrollbar flex-1 py-1">
+        <div ref={listRef} className="overflow-y-auto custom-scrollbar flex-1 p-1">
           {filteredCommands.length === 0 ? (
             <div className="px-4 py-8 text-center text-text-400 text-[length:var(--fs-base)]">{t('commandPalette.noCommandsFound')}</div>
           ) : (
@@ -263,12 +264,12 @@ export function CommandPalette({ isOpen, onClose, commands }: CommandPaletteProp
                 onClick={() => executeCommand(cmd)}
                 onMouseEnter={() => setSelectedIndex(index)}
                 className={`
-                  w-full flex items-center justify-between px-4 py-2.5 text-left
-                  transition-colors duration-75
-                  ${index === activeIndex ? 'bg-accent-main-100/10 text-text-100' : 'text-text-200 hover:bg-bg-100/50'}
+                  w-full flex items-center justify-between rounded-md px-2 py-2 text-left
+                  transition-colors duration-100
+                  ${index === activeIndex ? 'bg-bg-200/60 text-text-100' : 'text-text-300 hover:bg-bg-200/50 hover:text-text-100'}
                 `}
               >
-                <div className="flex items-center gap-3 min-w-0">
+                <div className="flex items-center gap-2.5 min-w-0">
                   {cmd.icon && <span className="text-text-400 shrink-0">{cmd.icon}</span>}
                   <div className="min-w-0">
                     <div className="text-[length:var(--fs-base)] truncate">{cmd.label}</div>
@@ -286,7 +287,8 @@ export function CommandPalette({ isOpen, onClose, commands }: CommandPaletteProp
         </div>
 
         {/* Footer */}
-        <div className="px-4 py-2 border-t border-border-200/30 flex items-center gap-4 text-[length:var(--fs-xs)] text-text-400">
+        <div className="relative flex items-center gap-4 px-4 py-2 text-[length:var(--fs-xs)] text-text-400">
+          <div className="pointer-events-none absolute inset-x-3 top-0 h-px bg-border-200/30" />
           <span className="flex items-center gap-1">
             <Kbd>↑</Kbd>
             <Kbd>↓</Kbd> {t('common:navigate')}
