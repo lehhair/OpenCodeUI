@@ -202,7 +202,7 @@ export function SidebarFooter({ showLabels, connectionState, stats, hasMessages,
         <div
           ref={menuRef}
           className={`
-        fixed z-[9999] rounded-xl border border-border-200/60 glass-alt shadow-lg overflow-hidden
+        fixed z-[9999] rounded-lg border border-border-200/60 glass-alt shadow-lg overflow-hidden
         transition-all duration-150 ease-out
         ${isVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}
       `}
@@ -214,7 +214,7 @@ export function SidebarFooter({ showLabels, connectionState, stats, hasMessages,
           }}
         >
           {/* Context Stats */}
-          <div className="p-3 border-b border-border-200/30">
+          <div className="relative p-3">
             <div className="flex items-center justify-between mb-2">
               <span className="text-[length:var(--fs-sm)] font-medium text-text-200">{t('sidebar.contextUsage')}</span>
               <div className="flex items-center gap-2">
@@ -251,16 +251,17 @@ export function SidebarFooter({ showLabels, connectionState, stats, hasMessages,
               </span>
               <span>{formatCost(stats.totalCost)}</span>
             </div>
+            <div className="pointer-events-none absolute inset-x-3 bottom-0 h-px bg-border-200/30" />
           </div>
 
           {/* Theme Selector */}
-          <div className="p-2 border-b border-border-200/30">
+          <div className="relative p-2">
             <div className="text-[length:var(--fs-xxs)] font-bold text-text-400 uppercase tracking-wider px-1 mb-1.5">
               {t('sidebar.appearance')}
             </div>
-            <div className="flex bg-bg-200/50 p-1 rounded-lg border border-border-200/30 relative isolate">
+            <div className="flex bg-bg-200/50 p-1 rounded-md border border-border-200/30 relative isolate">
               <div
-                className="absolute top-1 bottom-1 left-1 w-[calc((100%-8px)/3)] bg-bg-000 rounded-md shadow-sm ring-1 ring-border-200/50 transition-transform duration-300 ease-out -z-10"
+                className="absolute top-1 bottom-1 left-1 w-[calc((100%-8px)/3)] bg-bg-000 rounded-sm shadow-sm ring-1 ring-border-200/50 transition-transform duration-300 ease-out -z-10"
                 style={{
                   transform:
                     themeMode === 'system'
@@ -274,7 +275,7 @@ export function SidebarFooter({ showLabels, connectionState, stats, hasMessages,
                 <button
                   key={m}
                   onClick={e => onThemeChange(m, e)}
-                  className={`flex-1 flex items-center justify-center py-1.5 rounded-md text-[length:var(--fs-sm)] font-medium transition-colors duration-200 ${
+                  className={`flex-1 flex items-center justify-center py-1.5 rounded-sm text-[length:var(--fs-sm)] font-medium transition-colors duration-200 ${
                     themeMode === m ? 'text-text-100' : 'text-text-400 hover:text-text-200'
                   }`}
                 >
@@ -284,17 +285,18 @@ export function SidebarFooter({ showLabels, connectionState, stats, hasMessages,
                 </button>
               ))}
             </div>
+            <div className="pointer-events-none absolute inset-x-3 bottom-0 h-px bg-border-200/30" />
           </div>
 
           {/* Menu Items */}
-          <div className="py-1">
+          <div className="p-1">
             {toggleWideMode && (
               <button
                 onClick={() => {
                   toggleWideMode()
                   closeMenu()
                 }}
-                className="w-full flex items-center gap-2.5 px-3 py-2 text-[length:var(--fs-sm)] text-text-300 hover:text-text-100 hover:bg-bg-200/50 transition-colors text-left"
+                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-[length:var(--fs-sm)] text-text-300 hover:text-text-100 hover:bg-bg-200/50 transition-colors text-left"
               >
                 {isWideMode ? <MinimizeIcon size={14} /> : <MaximizeIcon size={14} />}
                 <span>{isWideMode ? t('sidebar.standardWidth') : t('sidebar.wideMode')}</span>
@@ -306,7 +308,7 @@ export function SidebarFooter({ showLabels, connectionState, stats, hasMessages,
                 closeMenu()
                 setShareDialogOpen(true)
               }}
-              className="w-full flex items-center gap-2.5 px-3 py-2 text-[length:var(--fs-sm)] text-text-300 hover:text-text-100 hover:bg-bg-200/50 transition-colors text-left"
+              className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-[length:var(--fs-sm)] text-text-300 hover:text-text-100 hover:bg-bg-200/50 transition-colors text-left"
             >
               <ShareIcon size={14} />
               <span>{t('sidebar.shareChat')}</span>
@@ -317,7 +319,7 @@ export function SidebarFooter({ showLabels, connectionState, stats, hasMessages,
                 closeMenu()
                 onOpenSettings?.()
               }}
-              className="w-full flex items-center gap-2.5 px-3 py-2 text-[length:var(--fs-sm)] text-text-300 hover:text-text-100 hover:bg-bg-200/50 transition-colors text-left"
+              className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-[length:var(--fs-sm)] text-text-300 hover:text-text-100 hover:bg-bg-200/50 transition-colors text-left"
             >
               <CogIcon size={14} />
               <span>{t('sidebar.settings')}</span>
@@ -325,7 +327,8 @@ export function SidebarFooter({ showLabels, connectionState, stats, hasMessages,
           </div>
 
           {/* Connection Status */}
-          <div className="flex items-center gap-2 px-3 py-2 text-[length:var(--fs-xxs)] text-text-400 cursor-default border-t border-border-200/30 bg-bg-200/20">
+          <div className="relative flex items-center gap-2 px-3 py-2 text-[length:var(--fs-xxs)] text-text-300 cursor-default">
+            <div className="pointer-events-none absolute inset-x-3 top-0 h-px bg-border-200/30" />
             <div className={`w-1.5 h-1.5 rounded-full ${statusColorClass}`} />
             <span className="capitalize">{connectionState}</span>
           </div>

@@ -118,6 +118,7 @@
   "sidebar": {
     "allProjects": "全部项目",
     "global": "全局",
+    "globalProjectHint": "非 Git 项目，通常是 opencode 启动目录",
     "collapseSidebar": "收起侧边栏",
     "expandSidebar": "展开侧边栏",
     "newChat": "新对话",

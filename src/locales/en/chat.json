@@ -118,6 +118,7 @@
   "sidebar": {
     "allProjects": "All projects",
     "global": "Global",
+    "globalProjectHint": "Non-Git workspace, usually where opencode started",
     "collapseSidebar": "Collapse sidebar",
     "expandSidebar": "Expand sidebar",
     "newChat": "New chat",

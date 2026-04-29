@@ -897,9 +897,9 @@ export function SidePanel({
         {/* Projects Dropdown */}
         <div
           ref={projectsDropdownRef}
-          className="overflow-hidden transition-all duration-300 ease-out"
+          className="overflow-hidden pb-px transition-all duration-300 ease-out"
           style={{
-            maxHeight: showLabels && projectsExpanded ? 300 : 0,
+            maxHeight: showLabels && projectsExpanded ? 304 : 0,
             opacity: showLabels && projectsExpanded ? 1 : 0,
             marginTop: showLabels && projectsExpanded ? 4 : 0,
             visibility: showLabels && projectsExpanded ? 'visible' : 'hidden',
@@ -907,8 +907,8 @@ export function SidePanel({
           }}
           aria-hidden={!showLabels || !projectsExpanded}
         >
-          <div className="rounded-lg border border-border-200/50 bg-bg-100/80 overflow-hidden">
-            <div className="max-h-48 overflow-y-auto custom-scrollbar py-1">
+          <div className="rounded-lg border border-border-200/60 glass-alt shadow-sm overflow-hidden">
+            <div className="max-h-48 overflow-y-auto custom-scrollbar p-1">
               {projects.map(project => {
                 const isGlobal = project.id === 'global'
                 const isActive = currentProject?.id === project.id
@@ -920,7 +920,7 @@ export function SidePanel({
                   <div
                     key={project.id}
                     onClick={() => handleSelectProject(project.id)}
-                    className={`group w-full flex items-center gap-2 px-2 py-1.5 transition-colors ${
+                    className={`group w-full flex items-center gap-2 px-2 py-1.5 rounded-md transition-colors ${
                       isActive ? 'bg-bg-200/60 text-text-100' : 'text-text-300 hover:text-text-100 hover:bg-bg-200/50'
                     }`}
                   >
@@ -949,11 +949,9 @@ export function SidePanel({
                             {itemLabel}
                           </div>
                         </div>
-                        {!isGlobal && project.worktree && (
-                          <div className="text-[length:var(--fs-xxs)] text-text-400 truncate font-mono opacity-70">
-                            {getParentPath(project.worktree)}
-                          </div>
-                        )}
+                        <div className={`text-[length:var(--fs-xxs)] text-text-400 truncate opacity-70 ${isGlobal ? '' : 'font-mono'}`}>
+                          {isGlobal ? t('sidebar.globalProjectHint') : project.worktree ? getParentPath(project.worktree) : ''}
+                        </div>
                       </div>
                     </button>
                     {!isGlobal && (
@@ -974,11 +972,12 @@ export function SidePanel({
                 )
               })}
             </div>
-            <div className="border-t border-border-200/50 p-1">
+            <div className="relative p-1 pt-1.5">
+              <div className="pointer-events-none absolute inset-x-3 top-0 h-px bg-border-200/30" />
               <button
                 type="button"
                 onClick={onAddProject}
-                className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-[length:var(--fs-sm)] text-text-400 hover:text-text-100 hover:bg-bg-200/50 transition-colors"
+                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-[length:var(--fs-sm)] text-text-300 hover:text-text-100 hover:bg-bg-200/50 transition-colors"
               >
                 <PlusIcon size={14} />
                 {t('sidebar.addProject')}
