@@ -58,13 +58,14 @@ export const BottomPanel = memo(function BottomPanel({ directory }: BottomPanelP
     }
   }, [])
 
-  // 目录变化时（包括首次加载），重新拉取该目录的 PTY 会话
+  // 目录变化时（包括全局模式），重新拉取该目录的 PTY 会话
   const prevDirectoryRef = useRef<string | undefined>(undefined)
+  const hasRestoredDirectoryRef = useRef(false)
   const restoreRequestIdRef = useRef(0)
   useEffect(() => {
-    if (!normalizedDirectory) return
     // 目录没变就不重复拉取
-    if (prevDirectoryRef.current === normalizedDirectory) return
+    if (hasRestoredDirectoryRef.current && prevDirectoryRef.current === normalizedDirectory) return
+    hasRestoredDirectoryRef.current = true
     prevDirectoryRef.current = normalizedDirectory
     const requestId = ++restoreRequestIdRef.current
 

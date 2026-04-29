@@ -74,6 +74,33 @@ describe('LayoutStore panel and terminal layout', () => {
     expect(store.getTerminalTabs('right').map(tab => tab.id)).toEqual(['term-a2'])
   })
 
+  it('removes project terminal tabs when syncing global terminal sessions', () => {
+    const store = new LayoutStore()
+
+    store.syncTerminalSessions('dir-a', [{ id: 'term-a1', title: 'A1', status: 'connected' }])
+    store.syncTerminalSessions(undefined, [])
+
+    expect(store.getTerminalTabs('bottom')).toEqual([])
+    expect(store.getState().panelTabs.some(tab => tab.id === 'term-a1')).toBe(false)
+  })
+
+  it('does not notify when a terminal snapshot is unchanged', () => {
+    const store = new LayoutStore()
+    store.syncTerminalSessions('dir-a', [{ id: 'term-a1', title: 'A1', status: 'connected' }])
+    const snapshot = { buffer: 'pwd\r\n/workspace\r\n', scrollY: 2, cursor: 18, rows: 24, cols: 80 }
+
+    store.updateTerminalSnapshot('term-a1', snapshot)
+    let notifications = 0
+    const unsubscribe = store.subscribe(() => {
+      notifications += 1
+    })
+
+    store.updateTerminalSnapshot('term-a1', snapshot)
+
+    unsubscribe()
+    expect(notifications).toBe(0)
+  })
+
   it('falls back to a valid right tab when a stale terminal active id disappears after sync', () => {
     const store = new LayoutStore()
 

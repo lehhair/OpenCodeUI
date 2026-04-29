@@ -1051,6 +1051,15 @@ export class LayoutStore {
   updateTerminalSnapshot(id: string, snapshot: Pick<PanelTab, 'buffer' | 'scrollY' | 'cursor' | 'rows' | 'cols'>) {
     const tab = this.state.panelTabs.find(item => item.id === id && item.type === 'terminal')
     if (!tab) return
+    if (
+      tab.buffer === snapshot.buffer &&
+      tab.scrollY === snapshot.scrollY &&
+      tab.cursor === snapshot.cursor &&
+      tab.rows === snapshot.rows &&
+      tab.cols === snapshot.cols
+    ) {
+      return
+    }
     tab.buffer = snapshot.buffer
     tab.scrollY = snapshot.scrollY
     tab.cursor = snapshot.cursor

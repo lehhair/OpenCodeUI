@@ -281,6 +281,7 @@ interface TerminalProps {
 
 export const Terminal = memo(function Terminal({ ptyId, directory, isActive }: TerminalProps) {
   const containerRef = useRef<HTMLDivElement>(null)
+  const terminalDirectoryRef = useRef(directory)
   const [isTouchScrolling, setIsTouchScrolling] = useState(false)
   const [stickyModifiers, setStickyModifiers] = useState<StickyModifiers>(() => createStickyModifiers())
   const terminalRef = useRef<XTerm | null>(null)
@@ -370,6 +371,7 @@ export const Terminal = memo(function Terminal({ ptyId, directory, isActive }: T
     let wsConnectTimeout: number | null = null
     let disposeData: { dispose: () => void } | null = null
     let disposeTitle: { dispose: () => void } | null = null
+    const terminalDirectory = terminalDirectoryRef.current
 
     const touchUi = preferTouchUi
     const theme = getTerminalTheme(isDarkMode())
@@ -455,7 +457,7 @@ export const Terminal = memo(function Terminal({ ptyId, directory, isActive }: T
       layoutStore.updateTerminalTab(ptyId, { status: 'connected' })
       const { cols, rows } = terminal
       logger.log('[Terminal] Sending size:', cols, 'x', rows)
-      updatePtySession(ptyId, { size: { cols, rows } }, directory).catch(() => {})
+      updatePtySession(ptyId, { size: { cols, rows } }, terminalDirectory).catch(() => {})
     }
 
     const handleDisconnected = ({ code, reason }: { code?: number; reason?: string }) => {
@@ -501,7 +503,7 @@ export const Terminal = memo(function Terminal({ ptyId, directory, isActive }: T
           .then(({ connectTauriPty }) =>
             connectTauriPty({
               ptyId,
-              directory,
+              directory: terminalDirectory,
               cursor,
               onConnected: handleConnected,
               onMessage: chunk => {
@@ -536,7 +538,7 @@ export const Terminal = memo(function Terminal({ ptyId, directory, isActive }: T
             handleDisconnected({ reason: message })
           })
       } else {
-        const wsUrl = getPtyConnectUrl(ptyId, directory, { cursor })
+        const wsUrl = getPtyConnectUrl(ptyId, terminalDirectory, { cursor })
         logger.log('[Terminal] Connecting to:', wsUrl, reconnectAttempt > 0 ? `(reconnect #${reconnectAttempt})` : '')
         ws = new WebSocket(wsUrl)
         ws.binaryType = 'arraybuffer'
@@ -640,7 +642,6 @@ export const Terminal = memo(function Terminal({ ptyId, directory, isActive }: T
     }
   }, [
     ptyId,
-    directory,
     hasBeenActive,
     clearStickyModifiers,
     sendTerminalData,
@@ -764,7 +765,7 @@ export const Terminal = memo(function Terminal({ ptyId, directory, isActive }: T
         if (fitAddonRef.current && terminalRef.current && !isPanelResizingRef.current) {
           fitAddonRef.current.fit()
           const { cols, rows } = terminalRef.current
-          updatePtySession(ptyId, { size: { cols, rows } }, directory).catch(() => {})
+          updatePtySession(ptyId, { size: { cols, rows } }, terminalDirectoryRef.current).catch(() => {})
         }
       }, 16)
     }
@@ -791,7 +792,7 @@ export const Terminal = memo(function Terminal({ ptyId, directory, isActive }: T
         resizeTimeoutRef.current = null
       }
     }
-  }, [isActive, ptyId, directory])
+  }, [isActive, ptyId])
 
   // 主题变化时更新
   useEffect(() => {
@@ -843,14 +844,14 @@ export const Terminal = memo(function Terminal({ ptyId, directory, isActive }: T
           if (!fitAddonRef.current || !terminalRef.current) return
           fitAddonRef.current.fit()
           const { cols, rows } = terminalRef.current
-          updatePtySession(ptyId, { size: { cols, rows } }, directory).catch(() => {})
+          updatePtySession(ptyId, { size: { cols, rows } }, terminalDirectoryRef.current).catch(() => {})
         })
       }
     }
 
     window.addEventListener('panel-resize-end', handlePanelResizeEnd)
     return () => window.removeEventListener('panel-resize-end', handlePanelResizeEnd)
-  }, [isActive, ptyId, directory])
+  }, [isActive, ptyId])
 
   return (
     <>
