@@ -131,6 +131,7 @@ function App() {
       syncingFromRouteRef.current = false
       return
     }
+    if (paneLayoutStore.getFocusedSessionId() !== paneLayout.focusedSessionId) return
     if (paneLayout.focusedSessionId === routeSessionId && isSameDirectory(routeDirectory, focusedRouteDirectory)) return
     replaceSession(paneLayout.focusedSessionId, focusedRouteDirectory)
   }, [
