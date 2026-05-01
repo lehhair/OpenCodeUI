@@ -1,5 +1,9 @@
 # Changelog
 
+## [v0.5.20] - 2026-05-01
+
+- fix: preserve git subdirectory projects (e9646b9)
+
 ## [v0.5.19] - 2026-04-29
 
 - fix: tighten sidebar search spacing (8b76cb2)
