@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useSyncExternalStore } from 'react'
-import { codeToHtml, codeToTokens, createAdaptiveShikiTheme, type ShikiThemeInput } from '../lib/shiki'
+import { codeToHtml, codeToTokens, type ShikiThemeInput } from '../lib/shiki'
 import { normalizeLanguage } from '../utils/languageUtils'
 import { THEME_SWITCH_DISABLE_MS } from '../constants'
 import { themeStore } from '../store/themeStore'
@@ -164,11 +164,11 @@ function getThemeRevision() {
   return `${state.presetId}|${state.colorMode}|${state.customCSS}`
 }
 
-export function getShikiTheme(isDark: boolean): { theme: ShikiThemeInput; key: string } {
-  const revision = getThemeRevision()
+export function getShikiTheme(isDark: boolean, revision = getThemeRevision()): { theme: ShikiThemeInput; key: string } {
+  const theme = isDark ? 'github-dark-default' : 'github-light-default'
   return {
-    theme: createAdaptiveShikiTheme(isDark),
-    key: `opencodeui:${isDark ? 'dark' : 'light'}:${revision}`,
+    theme,
+    key: `${theme}:${revision}`,
   }
 }
 
@@ -291,10 +291,9 @@ export function useSyntaxHighlight(code: string, options: HighlightOptions & { m
   // 如果没有指定主题，则根据 isDark 自动选择
   const resolvedTheme = useMemo(() => {
     if (theme) {
-      if (typeof theme === 'string') return { theme, key: theme }
-      return { theme, key: theme.name || `custom:${themeRevision}` }
+      return { theme, key: theme }
     }
-    return getShikiTheme(isDark)
+    return getShikiTheme(isDark, themeRevision)
   }, [theme, isDark, themeRevision])
 
   const [output, setOutput] = useState<string | HighlightTokens | null>(null)
@@ -404,10 +403,9 @@ export function useSyntaxHighlightRef(
   const themeRevision = useSyncExternalStore(themeStore.subscribe, getThemeRevision, getThemeRevision)
   const resolvedTheme = useMemo(() => {
     if (theme) {
-      if (typeof theme === 'string') return { theme, key: theme }
-      return { theme, key: theme.name || `custom:${themeRevision}` }
+      return { theme, key: theme }
     }
-    return getShikiTheme(isDark)
+    return getShikiTheme(isDark, themeRevision)
   }, [theme, isDark, themeRevision])
 
   const tokensRef = useRef<HighlightTokens | null>(null)
