@@ -45,6 +45,10 @@ describe('CodePreview', () => {
 
     fireEvent.keyDown(container.firstElementChild as Element, { key: 'f', ctrlKey: true })
 
-    expect(screen.getByPlaceholderText('Find in code')).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('Find')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Match case' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Use regular expression' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Match whole word' })).toBeInTheDocument()
+    expect(screen.getByText('No results')).toBeInTheDocument()
   })
 })

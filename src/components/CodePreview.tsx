@@ -217,91 +217,124 @@ function codePreviewTheme(lineHeight: number): Extension {
       outline: '1px solid hsl(var(--warning-100) / 0.58)',
     },
     '.cm-panels': {
-      backgroundColor: 'hsl(var(--bg-100) / 0.96)',
+      backgroundColor: 'transparent',
       color: 'hsl(var(--text-200))',
-      borderColor: 'hsl(var(--border-100) / 0.55)',
+      border: '0',
       fontFamily: 'inherit',
-      backdropFilter: 'blur(10px)',
+      pointerEvents: 'none',
     },
     '.cm-panels-top': {
-      borderBottom: '1px solid hsl(var(--border-100) / 0.55)',
+      borderBottom: '0',
+      top: '0.6rem',
+      left: 'auto',
+      right: '0.85rem',
+      maxWidth: 'calc(100% - 1.7rem)',
     },
     '.cm-code-search': {
       display: 'flex',
       alignItems: 'center',
-      flexWrap: 'wrap',
-      gap: '0.5rem',
-      padding: '0.5rem',
+      gap: '0.2rem',
+      width: 'max-content',
+      maxWidth: '100%',
+      minHeight: '2.45rem',
+      padding: '0.28rem 0.36rem',
+      border: '1px solid hsl(var(--border-100) / 0.45)',
+      borderRadius: '0.7rem',
+      backgroundColor: 'hsl(var(--bg-200) / 0.92)',
+      boxShadow: '0 12px 32px hsl(var(--bg-000) / 0.28)',
+      backdropFilter: 'blur(14px)',
       fontSize: 'var(--fs-xs)',
-      lineHeight: '1.4',
+      lineHeight: '1',
+      pointerEvents: 'auto',
     },
     '.cm-code-search-inputWrap': {
       position: 'relative',
-      minWidth: '13rem',
-      flex: '1 1 16rem',
-      maxWidth: '22rem',
+      minWidth: '10rem',
+      width: '16rem',
+      maxWidth: 'min(16rem, 38vw)',
     },
     '.cm-code-search-input': {
       width: '100%',
-      height: '2rem',
-      borderRadius: '0.5rem',
-      border: '1px solid hsl(var(--border-200) / 0.65)',
-      backgroundColor: 'hsl(var(--bg-000) / 0.82)',
+      height: '1.85rem',
+      borderRadius: '0.45rem',
+      border: '1px solid transparent',
+      backgroundColor: 'hsl(var(--bg-300) / 0.48)',
       color: 'hsl(var(--text-100))',
-      padding: '0 0.7rem',
+      padding: '0 0.5rem',
       outline: 'none',
       font: 'inherit',
     },
     '.cm-code-search-input:focus': {
-      borderColor: 'hsl(var(--accent-main-100) / 0.72)',
-      boxShadow: '0 0 0 2px hsl(var(--accent-main-100) / 0.14)',
+      borderColor: 'hsl(var(--accent-main-100) / 0.5)',
+      boxShadow: '0 0 0 1px hsl(var(--accent-main-100) / 0.14)',
     },
     '.cm-code-search-nav, .cm-code-search-options': {
       display: 'inline-flex',
       alignItems: 'center',
-      flexWrap: 'wrap',
-      gap: '0.25rem',
+      gap: '0.1rem',
       flex: '0 0 auto',
     },
-    '.cm-code-search-options': {
-      minWidth: 'min-content',
+    '.cm-code-search-divider': {
+      width: '1px',
+      height: '1.05rem',
+      margin: '0 0.22rem',
+      backgroundColor: 'hsl(var(--border-100) / 0.5)',
     },
-    '.cm-code-search-button, .cm-code-search-toggle, .cm-code-search-iconButton': {
-      appearance: 'none',
-      WebkitAppearance: 'none',
-      border: '1px solid hsl(var(--border-200) / 0.55)',
-      backgroundColor: 'hsl(var(--bg-200) / 0.45)',
-      color: 'hsl(var(--text-200))',
-      borderRadius: '0.5rem',
-      font: 'inherit',
-      cursor: 'pointer',
-      transition: 'background-color 120ms ease, color 120ms ease, border-color 120ms ease',
+    '.cm-code-search-count': {
+      minWidth: '4.7rem',
+      padding: '0 0.35rem',
+      color: 'hsl(var(--text-300))',
+      fontFamily: 'var(--font-mono)',
+      fontSize: 'var(--fs-xs)',
+      whiteSpace: 'nowrap',
+      textAlign: 'center',
     },
     '.cm-code-search-button, .cm-code-search-toggle': {
-      height: '1.8rem',
-      padding: '0 0.6rem',
-    },
-    '.cm-code-search-iconButton': {
-      marginLeft: 'auto',
-      width: '1.8rem',
-      minWidth: '1.8rem',
-      height: '1.8rem',
+      appearance: 'none',
+      WebkitAppearance: 'none',
+      display: 'inline-flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      height: '1.85rem',
+      minWidth: '1.85rem',
+      border: '0',
+      backgroundColor: 'transparent',
+      color: 'hsl(var(--text-300))',
+      borderRadius: '0.42rem',
+      font: 'inherit',
+      cursor: 'pointer',
       padding: '0',
-      color: 'hsl(var(--text-400))',
+      transition: 'background-color 120ms ease, color 120ms ease',
     },
-    '.cm-code-search-button:hover, .cm-code-search-toggle:hover, .cm-code-search-iconButton:hover': {
-      backgroundColor: 'hsl(var(--bg-300) / 0.58)',
+    '.cm-code-search-button:hover, .cm-code-search-toggle:hover': {
+      backgroundColor: 'hsl(var(--bg-300) / 0.55)',
       color: 'hsl(var(--text-100))',
     },
+    '.cm-code-search-button': {
+      fontSize: '1rem',
+    },
+    '.cm-code-search-toggle': {
+      padding: '0 0.34rem',
+      fontSize: 'var(--fs-sm)',
+      fontWeight: '500',
+    },
     '.cm-code-search-toggle[aria-pressed="true"]': {
-      borderColor: 'hsl(var(--accent-main-100) / 0.55)',
-      backgroundColor: 'hsl(var(--accent-main-100) / 0.16)',
+      backgroundColor: 'hsl(var(--accent-main-100) / 0.14)',
       color: 'hsl(var(--accent-main-100))',
     },
     '@media (max-width: 640px)': {
+      '.cm-panels-top': {
+        top: '0.45rem',
+        right: '0.45rem',
+        maxWidth: 'calc(100% - 0.9rem)',
+      },
+      '.cm-code-search': {
+        flexWrap: 'wrap',
+        justifyContent: 'flex-end',
+      },
       '.cm-code-search-inputWrap': {
+        width: 'calc(100vw - 2.4rem)',
         maxWidth: 'none',
-        flexBasis: 'calc(100% - 2.35rem)',
       },
     },
   })
@@ -317,7 +350,7 @@ function createCodePreviewSearchPanel(view: EditorView): Panel {
   const input = document.createElement('input')
   input.className = 'cm-code-search-input'
   input.type = 'search'
-  input.placeholder = 'Find in code'
+  input.placeholder = 'Find'
   input.setAttribute('main-field', 'true')
   input.setAttribute('aria-label', 'Find in code')
   input.spellcheck = false
@@ -326,28 +359,32 @@ function createCodePreviewSearchPanel(view: EditorView): Panel {
   const nav = document.createElement('div')
   nav.className = 'cm-code-search-nav'
 
-  const previousButton = createSearchButton('Previous', () => findPrevious(view))
-  const nextButton = createSearchButton('Next', () => findNext(view))
-  const allButton = createSearchButton('All', () => selectMatches(view))
+  const previousButton = createSearchButton('↑', 'Previous match', () => findPrevious(view))
+  const nextButton = createSearchButton('↓', 'Next match', () => findNext(view))
+  const allButton = createSearchButton('≡', 'Select all matches', () => selectMatches(view))
   nav.append(previousButton, nextButton, allButton)
 
   const options = document.createElement('div')
   options.className = 'cm-code-search-options'
 
-  const caseSensitive = createSearchToggle('Case')
-  const regexp = createSearchToggle('Regex')
-  const wholeWord = createSearchToggle('Word')
+  const caseSensitive = createSearchToggle('Aa', 'Match case')
+  const regexp = createSearchToggle('.*', 'Use regular expression')
+  const wholeWord = createSearchToggle('ab', 'Match whole word')
   options.append(caseSensitive.button, regexp.button, wholeWord.button)
 
-  const closeButton = createSearchButton('×', () => {
+  const count = document.createElement('span')
+  count.className = 'cm-code-search-count'
+  count.textContent = 'No results'
+
+  const dividerOne = createSearchDivider()
+  const dividerTwo = createSearchDivider()
+
+  const closeButton = createSearchButton('×', 'Close search', () => {
     closeSearchPanel(view)
     view.focus()
   })
-  closeButton.className = 'cm-code-search-iconButton'
-  closeButton.title = 'Close search'
-  closeButton.setAttribute('aria-label', 'Close search')
 
-  dom.append(inputWrap, nav, options, closeButton)
+  dom.append(inputWrap, options, count, dividerOne, nav, dividerTwo, closeButton)
 
   const syncFromState = () => {
     const query = getSearchQuery(view.state)
@@ -355,6 +392,7 @@ function createCodePreviewSearchPanel(view: EditorView): Panel {
     caseSensitive.setPressed(query.caseSensitive)
     regexp.setPressed(query.regexp)
     wholeWord.setPressed(query.wholeWord)
+    count.textContent = getSearchCountLabel(view.state, query)
   }
 
   const applyQuery = () => {
@@ -409,21 +447,49 @@ function createCodePreviewSearchPanel(view: EditorView): Panel {
   }
 }
 
-function createSearchButton(label: string, action: () => boolean | void): HTMLButtonElement {
+function getSearchCountLabel(state: EditorState, query: SearchQuery): string {
+  if (!query.search) return 'No results'
+
+  const selectionFrom = state.selection.main.from
+  let total = 0
+  let current = 0
+  const cursor = query.getCursor(state)
+
+  for (let next = cursor.next(); !next.done; next = cursor.next()) {
+    total++
+    if (next.value.from <= selectionFrom && next.value.to >= selectionFrom) current = total
+  }
+
+  if (total === 0) return 'No results'
+  return `${current || 1} / ${total}`
+}
+
+function createSearchDivider(): HTMLSpanElement {
+  const divider = document.createElement('span')
+  divider.className = 'cm-code-search-divider'
+  divider.setAttribute('aria-hidden', 'true')
+  return divider
+}
+
+function createSearchButton(label: string, title: string, action: () => boolean | void): HTMLButtonElement {
   const button = document.createElement('button')
   button.className = 'cm-code-search-button'
   button.type = 'button'
   button.textContent = label
+  button.title = title
+  button.setAttribute('aria-label', title)
   button.addEventListener('mousedown', event => event.preventDefault())
   button.addEventListener('click', () => action())
   return button
 }
 
-function createSearchToggle(label: string) {
+function createSearchToggle(label: string, title: string) {
   const button = document.createElement('button')
   button.className = 'cm-code-search-toggle'
   button.type = 'button'
   button.textContent = label
+  button.title = title
+  button.setAttribute('aria-label', title)
   button.setAttribute('aria-pressed', 'false')
 
   return {
