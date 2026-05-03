@@ -72,6 +72,9 @@ interface CollapsedPairedLine {
   count: number
   /** 在原始 lines 数组中的起始索引，用于展开 */
   id: number
+  isFirst: boolean
+  isLast: boolean
+  chunked: boolean
 }
 
 type PairedLineOrCollapsed = PairedLine | CollapsedPairedLine
@@ -85,6 +88,9 @@ interface CollapsedUnifiedLine {
   collapsed: true
   count: number
   id: number
+  isFirst: boolean
+  isLast: boolean
+  chunked: boolean
 }
 
 type UnifiedLineOrCollapsed = UnifiedLine | CollapsedUnifiedLine
@@ -95,11 +101,27 @@ function isCollapsed(
   return 'collapsed' in line && line.collapsed === true
 }
 
+function expandRegion(prev: Map<number, ExpansionRegion>, id: number, direction: ExpandDirection): Map<number, ExpansionRegion> {
+  const next = new Map(prev)
+  const current = next.get(id) ?? { fromStart: 0, fromEnd: 0 }
+  next.set(id, {
+    fromStart: current.fromStart + (direction === 'up' || direction === 'both' ? EXPANSION_LINE_COUNT : 0),
+    fromEnd: current.fromEnd + (direction === 'down' || direction === 'both' ? EXPANSION_LINE_COUNT : 0),
+  })
+  return next
+}
+
 /** 上下文行保留数：变更前后各保留 CONTEXT_LINES 行 */
 const CONTEXT_LINES = 3
+const EXPANSION_LINE_COUNT = 100
+type ExpandDirection = 'up' | 'down' | 'both'
+interface ExpansionRegion {
+  fromStart: number
+  fromEnd: number
+}
 
 /** 将连续 context 行折叠，只保留变更前后各 CONTEXT_LINES 行 */
-function collapseContextPaired(lines: PairedLine[], expandedIds?: ReadonlySet<number>): PairedLineOrCollapsed[] {
+function collapseContextPaired(lines: PairedLine[], expandedRegions?: ReadonlyMap<number, ExpansionRegion>): PairedLineOrCollapsed[] {
   if (lines.length === 0) return []
 
   const result: PairedLineOrCollapsed[] = []
@@ -114,10 +136,28 @@ function collapseContextPaired(lines: PairedLine[], expandedIds?: ReadonlySet<nu
       if (contextStart !== -1) {
         const ctxLen = i - contextStart
         const minToCollapse = CONTEXT_LINES * 2 + 2
-        if (ctxLen > minToCollapse && !expandedIds?.has(contextStart)) {
-          for (let j = contextStart; j < contextStart + CONTEXT_LINES; j++) result.push(lines[j])
-          result.push({ collapsed: true, count: ctxLen - CONTEXT_LINES * 2, id: contextStart })
-          for (let j = i - CONTEXT_LINES; j < i; j++) result.push(lines[j])
+        if (ctxLen > minToCollapse) {
+          const isFirst = contextStart === 0
+          const isLast = i === lines.length
+          const keepBefore = isFirst ? 0 : CONTEXT_LINES
+          const keepAfter = isLast ? 0 : CONTEXT_LINES
+          const expanded = expandedRegions?.get(contextStart) ?? { fromStart: 0, fromEnd: 0 }
+          const prefixCount = Math.min(ctxLen, keepBefore + expanded.fromStart)
+          const suffixStart = Math.max(prefixCount, ctxLen - keepAfter - expanded.fromEnd)
+
+          for (let j = contextStart; j < contextStart + prefixCount; j++) result.push(lines[j])
+          if (suffixStart > prefixCount) {
+            const count = suffixStart - prefixCount
+            result.push({
+              collapsed: true,
+              count,
+              id: contextStart,
+              isFirst,
+              isLast,
+              chunked: count > EXPANSION_LINE_COUNT,
+            })
+          }
+          for (let j = contextStart + suffixStart; j < i; j++) result.push(lines[j])
         } else {
           for (let j = contextStart; j < i; j++) result.push(lines[j])
         }
@@ -130,7 +170,7 @@ function collapseContextPaired(lines: PairedLine[], expandedIds?: ReadonlySet<nu
   return result
 }
 
-function collapseContextUnified(lines: UnifiedLine[], expandedIds?: ReadonlySet<number>): UnifiedLineOrCollapsed[] {
+function collapseContextUnified(lines: UnifiedLine[], expandedRegions?: ReadonlyMap<number, ExpansionRegion>): UnifiedLineOrCollapsed[] {
   if (lines.length === 0) return []
 
   const result: UnifiedLineOrCollapsed[] = []
@@ -145,10 +185,28 @@ function collapseContextUnified(lines: UnifiedLine[], expandedIds?: ReadonlySet<
       if (contextStart !== -1) {
         const ctxLen = i - contextStart
         const minToCollapse = CONTEXT_LINES * 2 + 2
-        if (ctxLen > minToCollapse && !expandedIds?.has(contextStart)) {
-          for (let j = contextStart; j < contextStart + CONTEXT_LINES; j++) result.push(lines[j])
-          result.push({ collapsed: true, count: ctxLen - CONTEXT_LINES * 2, id: contextStart })
-          for (let j = i - CONTEXT_LINES; j < i; j++) result.push(lines[j])
+        if (ctxLen > minToCollapse) {
+          const isFirst = contextStart === 0
+          const isLast = i === lines.length
+          const keepBefore = isFirst ? 0 : CONTEXT_LINES
+          const keepAfter = isLast ? 0 : CONTEXT_LINES
+          const expanded = expandedRegions?.get(contextStart) ?? { fromStart: 0, fromEnd: 0 }
+          const prefixCount = Math.min(ctxLen, keepBefore + expanded.fromStart)
+          const suffixStart = Math.max(prefixCount, ctxLen - keepAfter - expanded.fromEnd)
+
+          for (let j = contextStart; j < contextStart + prefixCount; j++) result.push(lines[j])
+          if (suffixStart > prefixCount) {
+            const count = suffixStart - prefixCount
+            result.push({
+              collapsed: true,
+              count,
+              id: contextStart,
+              isFirst,
+              isLast,
+              chunked: count > EXPANSION_LINE_COUNT,
+            })
+          }
+          for (let j = contextStart + suffixStart; j < i; j++) result.push(lines[j])
         } else {
           for (let j = contextStart; j < i; j++) result.push(lines[j])
         }
@@ -210,22 +268,82 @@ function getChangeBarProps(type: LineType): { className: string; style?: React.C
 }
 
 /** Pierre-like 折叠按钮，放在 gutter 区域 */
+function ExpandIcon({ type }: { type: ExpandDirection }) {
+  if (type === 'both') {
+    return (
+      <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+        <path d="M11.47 9.47a.75.75 0 1 1 1.06 1.06l-4 4a.75.75 0 0 1-1.06 0l-4-4a.75.75 0 1 1 1.06-1.06L8 12.94zM7.526 1.418a.75.75 0 0 1 1.004.052l4 4a.75.75 0 1 1-1.06 1.06L8 3.06 4.53 6.53a.75.75 0 1 1-1.06-1.06l4-4z" />
+      </svg>
+    )
+  }
+
+  return (
+    <svg
+      aria-hidden="true"
+      width="16"
+      height="16"
+      viewBox="0 0 16 16"
+      fill="currentColor"
+      className={type === 'down' ? 'rotate-180' : undefined}
+    >
+      <path d="M3.47 5.47a.75.75 0 0 1 1.06 0L8 8.94l3.47-3.47a.75.75 0 1 1 1.06 1.06l-4 4a.75.75 0 0 1-1.06 0l-4-4a.75.75 0 0 1 0-1.06" />
+    </svg>
+  )
+}
+
 function CollapsedExpandButton({
+  isFirst,
+  isLast,
+  chunked,
   onExpand,
   height = 24,
 }: {
-  onExpand?: () => void
+  isFirst?: boolean
+  isLast?: boolean
+  chunked?: boolean
+  onExpand?: (direction: ExpandDirection) => void
   height?: number
 }) {
+  const buttonClass = 'flex w-full items-center justify-center border-0 border-r-2 border-bg-100 bg-transparent p-0 text-text-500 hover:text-text-100 cursor-pointer select-none'
+  const singleDirection: ExpandDirection = !isFirst && !isLast ? 'both' : isFirst ? 'down' : 'up'
+
+  if (chunked) {
+    return (
+      <div className="flex h-full w-full flex-col">
+        {!isFirst && (
+          <button
+            type="button"
+            className={!isLast ? `${buttonClass} border-b-2 border-bg-100` : buttonClass}
+            style={{ height: isLast ? height : height / 2, borderTopLeftRadius: 6 }}
+            title="Expand upward"
+            onClick={() => onExpand?.('up')}
+          >
+            <ExpandIcon type="up" />
+          </button>
+        )}
+        {!isLast && (
+          <button
+            type="button"
+            className={buttonClass}
+            style={{ height: isFirst ? height : height / 2, borderBottomLeftRadius: 6 }}
+            title="Expand downward"
+            onClick={() => onExpand?.('down')}
+          >
+            <ExpandIcon type="down" />
+          </button>
+        )}
+      </div>
+    )
+  }
   return (
     <button
       type="button"
-      className="flex w-full items-center justify-center border-0 border-r-2 border-bg-100 bg-bg-200/90 p-0 text-text-500 hover:text-text-100 cursor-pointer select-none"
+      className={buttonClass}
       style={{ height, borderTopLeftRadius: 6, borderBottomLeftRadius: 6 }}
       title="Expand hidden lines"
-      onClick={onExpand}
+      onClick={() => onExpand?.(singleDirection)}
     >
-      ↕
+      <ExpandIcon type={singleDirection} />
     </button>
   )
 }
@@ -239,15 +357,15 @@ function CollapsedLabel({
 }: {
   count: number
   t: (key: string, opts?: Record<string, unknown>) => string
-  onExpand?: () => void
+  onExpand?: (direction: ExpandDirection) => void
   height?: number
 }) {
   return (
     <button
       type="button"
-      className="box-border flex w-full items-center justify-start overflow-hidden border-0 bg-bg-200/90 px-[1ch] text-[length:var(--fs-code)] text-text-400 select-none cursor-pointer hover:underline"
+      className="box-border flex w-full items-center justify-start overflow-hidden border-0 bg-transparent px-[1ch] text-[length:var(--fs-code)] text-text-500 select-none cursor-pointer hover:text-text-300 hover:underline"
       style={{ height }}
-      onClick={onExpand}
+      onClick={() => onExpand?.('both')}
     >
       <span className="block min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-mono">
         {t('diffViewer.linesUnchanged', { count })}
@@ -260,7 +378,7 @@ function CollapsedLabel({
 function CollapsedContinuation({ height = 24 }: { height?: number }) {
   return (
     <div
-      className="box-border bg-bg-200/90"
+      className="box-border bg-transparent"
       style={{ height }}
     />
   )
@@ -270,18 +388,24 @@ function CollapsedContinuation({ height = 24 }: { height?: number }) {
 function CollapsedBar({
   count,
   t,
+  isFirst,
+  isLast,
+  chunked,
   onExpand,
   height = 24,
 }: {
   count: number
   t: (key: string, opts?: Record<string, unknown>) => string
-  onExpand?: () => void
+  isFirst?: boolean
+  isLast?: boolean
+  chunked?: boolean
+  onExpand?: (direction: ExpandDirection) => void
   height?: number
 }) {
   return (
-    <div className="box-border flex items-center border-y border-border-100/30 bg-bg-100" style={{ height }}>
+    <div className="box-border flex items-center border-y border-border-100/25 bg-bg-200/45" style={{ height }}>
       <div className="w-[34px] shrink-0 pl-1">
-        <CollapsedExpandButton height={height} onExpand={onExpand} />
+        <CollapsedExpandButton height={height} isFirst={isFirst} isLast={isLast} chunked={chunked} onExpand={onExpand} />
       </div>
       <CollapsedLabel count={count} t={t} onExpand={onExpand} height={height} />
     </div>
@@ -398,14 +522,10 @@ const WrappedSplitDiffView = memo(function WrappedSplitDiffView({
 
   const skipWordDiff = isResizing
   const pairedLines = useMemo(() => computePairedLines(before, after, skipWordDiff), [before, after, skipWordDiff])
-  const [expandedIds, setExpandedIds] = useState<Set<number>>(() => new Set())
-  const displayLines = useMemo(() => collapseContextPaired(pairedLines, expandedIds), [pairedLines, expandedIds])
-  const handleExpand = useCallback((id: number) => {
-    setExpandedIds(prev => {
-      const next = new Set(prev)
-      next.add(id)
-      return next
-    })
+  const [expandedRegions, setExpandedRegions] = useState<Map<number, ExpansionRegion>>(() => new Map())
+  const displayLines = useMemo(() => collapseContextPaired(pairedLines, expandedRegions), [pairedLines, expandedRegions])
+  const handleExpand = useCallback((id: number, direction: ExpandDirection) => {
+    setExpandedRegions(prev => expandRegion(prev, id, direction))
   }, [])
 
   const { containerRef, totalHeight, startIndex, endIndex, offsetY, handleScroll, measureRef } =
@@ -429,7 +549,14 @@ const WrappedSplitDiffView = memo(function WrappedSplitDiffView({
     if (isCollapsed(item)) {
       visibleRows.push(
         <div key={`c-${i}`} ref={el => measureRef(i, el)}>
-          <CollapsedBar count={item.count} t={t} onExpand={() => handleExpand(item.id)} />
+          <CollapsedBar
+            count={item.count}
+            t={t}
+            isFirst={item.isFirst}
+            isLast={item.isLast}
+            chunked={item.chunked}
+            onExpand={direction => handleExpand(item.id, direction)}
+          />
         </div>,
       )
       continue
@@ -583,14 +710,10 @@ const SplitDiffView = memo(function SplitDiffView({
 
   const skipWordDiff = isResizing
   const pairedLines = useMemo(() => computePairedLines(before, after, skipWordDiff), [before, after, skipWordDiff])
-  const [expandedIds, setExpandedIds] = useState<Set<number>>(() => new Set())
-  const displayLines = useMemo(() => collapseContextPaired(pairedLines, expandedIds), [pairedLines, expandedIds])
-  const handleExpand = useCallback((id: number) => {
-    setExpandedIds(prev => {
-      const next = new Set(prev)
-      next.add(id)
-      return next
-    })
+  const [expandedRegions, setExpandedRegions] = useState<Map<number, ExpansionRegion>>(() => new Map())
+  const displayLines = useMemo(() => collapseContextPaired(pairedLines, expandedRegions), [pairedLines, expandedRegions])
+  const handleExpand = useCallback((id: number, direction: ExpandDirection) => {
+    setExpandedRegions(prev => expandRegion(prev, id, direction))
   }, [])
 
   const totalHeight = displayLines.length * lineHeight
@@ -724,28 +847,34 @@ const SplitDiffView = memo(function SplitDiffView({
       leftGutterRows.push(
         <div
           key={i}
-          className="box-border border-y border-border-100/30 bg-bg-100 pl-1"
+          className="box-border border-y border-border-100/25 bg-bg-200/45 pl-1"
           style={{ height: lineHeight }}
         >
-          <CollapsedExpandButton height={lineHeight} onExpand={() => handleExpand(item.id)} />
+          <CollapsedExpandButton
+            height={lineHeight}
+            isFirst={item.isFirst}
+            isLast={item.isLast}
+            chunked={item.chunked}
+            onExpand={direction => handleExpand(item.id, direction)}
+          />
         </div>,
       )
       leftContentRows.push(
-        <div key={i} className="box-border border-y border-border-100/30 bg-bg-200/90" style={{ height: lineHeight }}>
-          <CollapsedLabel count={item.count} t={t} onExpand={() => handleExpand(item.id)} height={lineHeight} />
+        <div key={i} className="box-border border-y border-border-100/25 bg-bg-200/45" style={{ height: lineHeight }}>
+          <CollapsedLabel count={item.count} t={t} onExpand={direction => handleExpand(item.id, direction)} height={lineHeight} />
         </div>,
       )
       rightGutterRows.push(
         <div
           key={i}
-          className="box-border border-y border-border-100/30 bg-bg-200/90"
+          className="box-border border-y border-border-100/25 bg-bg-200/45"
           style={{ height: lineHeight }}
         />,
       )
       rightContentRows.push(
         <div
           key={i}
-          className="box-border border-y border-border-100/30 bg-bg-200/90"
+          className="box-border border-y border-border-100/25 bg-bg-200/45"
           style={{ height: lineHeight }}
         >
           <CollapsedContinuation height={lineHeight} />
@@ -960,14 +1089,10 @@ const UnifiedDiffView = memo(function UnifiedDiffView({
   })
 
   const lines = useMemo(() => computeUnifiedLines(before, after), [before, after])
-  const [expandedIds, setExpandedIds] = useState<Set<number>>(() => new Set())
-  const displayLines = useMemo(() => collapseContextUnified(lines, expandedIds), [lines, expandedIds])
-  const handleExpand = useCallback((id: number) => {
-    setExpandedIds(prev => {
-      const next = new Set(prev)
-      next.add(id)
-      return next
-    })
+  const [expandedRegions, setExpandedRegions] = useState<Map<number, ExpansionRegion>>(() => new Map())
+  const displayLines = useMemo(() => collapseContextUnified(lines, expandedRegions), [lines, expandedRegions])
+  const handleExpand = useCallback((id: number, direction: ExpandDirection) => {
+    setExpandedRegions(prev => expandRegion(prev, id, direction))
   }, [])
 
   const totalHeight = displayLines.length * lineHeight
@@ -1067,15 +1192,21 @@ const UnifiedDiffView = memo(function UnifiedDiffView({
       gutterRows.push(
         <div
           key={i}
-          className="box-border border-y border-border-100/30 bg-bg-100 pl-1"
+          className="box-border border-y border-border-100/25 bg-bg-200/45 pl-1"
           style={{ height: lineHeight }}
         >
-          <CollapsedExpandButton height={lineHeight} onExpand={() => handleExpand(item.id)} />
+          <CollapsedExpandButton
+            height={lineHeight}
+            isFirst={item.isFirst}
+            isLast={item.isLast}
+            chunked={item.chunked}
+            onExpand={direction => handleExpand(item.id, direction)}
+          />
         </div>,
       )
       contentRows.push(
-        <div key={i} className="box-border border-y border-border-100/30 bg-bg-200/90" style={{ height: lineHeight }}>
-          <CollapsedLabel count={item.count} t={t} onExpand={() => handleExpand(item.id)} height={lineHeight} />
+        <div key={i} className="box-border border-y border-border-100/25 bg-bg-200/45" style={{ height: lineHeight }}>
+          <CollapsedLabel count={item.count} t={t} onExpand={direction => handleExpand(item.id, direction)} height={lineHeight} />
         </div>,
       )
       continue
@@ -1203,14 +1334,10 @@ const WrappedUnifiedDiffView = memo(function WrappedUnifiedDiffView({
   })
 
   const lines = useMemo(() => computeUnifiedLines(before, after), [before, after])
-  const [expandedIds, setExpandedIds] = useState<Set<number>>(() => new Set())
-  const displayLines = useMemo(() => collapseContextUnified(lines, expandedIds), [lines, expandedIds])
-  const handleExpand = useCallback((id: number) => {
-    setExpandedIds(prev => {
-      const next = new Set(prev)
-      next.add(id)
-      return next
-    })
+  const [expandedRegions, setExpandedRegions] = useState<Map<number, ExpansionRegion>>(() => new Map())
+  const displayLines = useMemo(() => collapseContextUnified(lines, expandedRegions), [lines, expandedRegions])
+  const handleExpand = useCallback((id: number, direction: ExpandDirection) => {
+    setExpandedRegions(prev => expandRegion(prev, id, direction))
   }, [])
 
   const { containerRef, totalHeight, startIndex, endIndex, offsetY, handleScroll, measureRef } =
@@ -1234,7 +1361,14 @@ const WrappedUnifiedDiffView = memo(function WrappedUnifiedDiffView({
     if (isCollapsed(item)) {
       visibleRows.push(
         <div key={`c-${i}`} ref={el => measureRef(i, el)}>
-          <CollapsedBar count={item.count} t={t} onExpand={() => handleExpand(item.id)} />
+          <CollapsedBar
+            count={item.count}
+            t={t}
+            isFirst={item.isFirst}
+            isLast={item.isLast}
+            chunked={item.chunked}
+            onExpand={direction => handleExpand(item.id, direction)}
+          />
         </div>,
       )
       continue
