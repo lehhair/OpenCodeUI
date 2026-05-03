@@ -789,6 +789,106 @@ body {
   pointer-events: auto;
 }
 
+/* ============================================
+ * Diff separator (ported from @pierre/diffs separator structure)
+ * ============================================ */
+
+.diff-separator-surface {
+  box-sizing: border-box;
+  display: flex;
+  align-items: stretch;
+  min-width: 0;
+  border-block: 1px solid hsl(var(--border-100) / 0.25);
+  background-color: hsl(var(--bg-200) / 0.45);
+  color: hsl(var(--text-500));
+}
+
+.diff-separator-button-group {
+  display: flex;
+  align-items: stretch;
+  height: 100%;
+  flex: 0 0 auto;
+  user-select: none;
+  fill: currentColor;
+}
+
+.diff-separator-button,
+.diff-separator-content {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  border: 0;
+  background-color: transparent;
+  color: hsl(var(--text-500));
+  font: inherit;
+}
+
+.diff-separator-button {
+  justify-content: center;
+  flex: 0 0 32px;
+  width: 32px;
+  min-width: 32px;
+  padding: 0;
+  cursor: pointer;
+  border-right: 2px solid hsl(var(--bg-100));
+}
+
+.diff-separator-button:hover {
+  color: hsl(var(--text-100));
+}
+
+.diff-separator-button[data-expand-both],
+.diff-separator-button[data-expand-up],
+.diff-separator-button[data-expand-down] {
+  border-top-left-radius: 6px;
+  border-bottom-left-radius: 6px;
+}
+
+.diff-separator-button-group .diff-separator-button + .diff-separator-button {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+.diff-separator-button[data-expand-down] .diff-separator-icon {
+  transform: scaleY(-1);
+}
+
+.diff-separator-content-row {
+  display: flex;
+  align-items: stretch;
+  min-width: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.diff-separator-content {
+  flex: 1 1 auto;
+  justify-content: flex-start;
+  min-width: 0;
+  overflow: hidden;
+  padding: 0 1ch;
+  cursor: pointer;
+}
+
+.diff-separator-content:hover {
+  text-decoration: underline;
+}
+
+.diff-separator-content [data-unmodified-lines] {
+  display: block;
+  overflow: hidden;
+  min-width: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 0 1 auto;
+}
+
+.diff-separator-continuation {
+  box-sizing: border-box;
+  height: 100%;
+  background-color: transparent;
+}
+
 @media (prefers-reduced-motion: reduce) {
   [data-input-box],
   [data-floating-actions],

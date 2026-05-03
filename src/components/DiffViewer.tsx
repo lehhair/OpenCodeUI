@@ -271,7 +271,7 @@ function getChangeBarProps(type: LineType): { className: string; style?: React.C
 function ExpandIcon({ type }: { type: ExpandDirection }) {
   if (type === 'both') {
     return (
-      <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+      <svg aria-hidden="true" data-icon="" className="diff-separator-icon" width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
         <path d="M11.47 9.47a.75.75 0 1 1 1.06 1.06l-4 4a.75.75 0 0 1-1.06 0l-4-4a.75.75 0 1 1 1.06-1.06L8 12.94zM7.526 1.418a.75.75 0 0 1 1.004.052l4 4a.75.75 0 1 1-1.06 1.06L8 3.06 4.53 6.53a.75.75 0 1 1-1.06-1.06l4-4z" />
       </svg>
     )
@@ -280,71 +280,51 @@ function ExpandIcon({ type }: { type: ExpandDirection }) {
   return (
     <svg
       aria-hidden="true"
+      data-icon=""
+      className="diff-separator-icon"
       width="16"
       height="16"
       viewBox="0 0 16 16"
       fill="currentColor"
-      className={type === 'down' ? 'rotate-180' : undefined}
     >
       <path d="M3.47 5.47a.75.75 0 0 1 1.06 0L8 8.94l3.47-3.47a.75.75 0 1 1 1.06 1.06l-4 4a.75.75 0 0 1-1.06 0l-4-4a.75.75 0 0 1 0-1.06" />
     </svg>
   )
 }
 
-function CollapsedExpandButton({
-  isFirst,
-  isLast,
-  chunked,
-  onExpand,
-  height = 24,
-}: {
-  isFirst?: boolean
-  isLast?: boolean
-  chunked?: boolean
-  onExpand?: (direction: ExpandDirection) => void
-  height?: number
-}) {
-  const buttonClass = 'flex w-full items-center justify-center border-0 border-r-2 border-bg-100 bg-transparent p-0 text-text-500 hover:text-text-100 cursor-pointer select-none'
-  const singleDirection: ExpandDirection = !isFirst && !isLast ? 'both' : isFirst ? 'down' : 'up'
+function getSeparatorDirections({ isFirst, isLast, chunked }: { isFirst?: boolean; isLast?: boolean; chunked?: boolean }): ExpandDirection[] {
+  if (!chunked) return [!isFirst && !isLast ? 'both' : isFirst ? 'down' : 'up']
+  const directions: ExpandDirection[] = []
+  if (!isFirst) directions.push('up')
+  if (!isLast) directions.push('down')
+  return directions
+}
 
-  if (chunked) {
-    return (
-      <div className="flex h-full w-full flex-col">
-        {!isFirst && (
-          <button
-            type="button"
-            className={!isLast ? `${buttonClass} border-b-2 border-bg-100` : buttonClass}
-            style={{ height: isLast ? height : height / 2, borderTopLeftRadius: 6 }}
-            title="Expand upward"
-            onClick={() => onExpand?.('up')}
-          >
-            <ExpandIcon type="up" />
-          </button>
-        )}
-        {!isLast && (
-          <button
-            type="button"
-            className={buttonClass}
-            style={{ height: isFirst ? height : height / 2, borderBottomLeftRadius: 6 }}
-            title="Expand downward"
-            onClick={() => onExpand?.('down')}
-          >
-            <ExpandIcon type="down" />
-          </button>
-        )}
-      </div>
-    )
-  }
+function CollapsedExpandButton({
+  directions,
+  onExpand,
+}: {
+  directions: ExpandDirection[]
+  onExpand?: (direction: ExpandDirection) => void
+}) {
   return (
-    <button
-      type="button"
-      className={buttonClass}
-      style={{ height, borderTopLeftRadius: 6, borderBottomLeftRadius: 6 }}
-      title="Expand hidden lines"
-      onClick={() => onExpand?.(singleDirection)}
-    >
-      <ExpandIcon type={singleDirection} />
-    </button>
+    <div data-separator-wrapper="" className="diff-separator-button-group">
+      {directions.map(direction => (
+        <button
+          key={direction}
+          type="button"
+          data-expand-button=""
+          data-expand-up={direction === 'up' ? '' : undefined}
+          data-expand-down={direction === 'down' ? '' : undefined}
+          data-expand-both={direction === 'both' ? '' : undefined}
+          className="diff-separator-button"
+          title={direction === 'up' ? 'Expand upward' : direction === 'down' ? 'Expand downward' : 'Expand hidden lines'}
+          onClick={() => onExpand?.(direction)}
+        >
+          <ExpandIcon type={direction} />
+        </button>
+      ))}
+    </div>
   )
 }
 
@@ -352,36 +332,29 @@ function CollapsedExpandButton({
 function CollapsedLabel({
   count,
   t,
+  leadingDirections = [],
   onExpand,
   height = 24,
 }: {
   count: number
   t: (key: string, opts?: Record<string, unknown>) => string
+  leadingDirections?: ExpandDirection[]
   onExpand?: (direction: ExpandDirection) => void
   height?: number
 }) {
   return (
-    <button
-      type="button"
-      className="box-border flex w-full items-center justify-start overflow-hidden border-0 bg-transparent px-[1ch] text-[length:var(--fs-code)] text-text-500 select-none cursor-pointer hover:text-text-300 hover:underline"
-      style={{ height }}
-      onClick={() => onExpand?.('both')}
-    >
-      <span className="block min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-mono">
-        {t('diffViewer.linesUnchanged', { count })}
-      </span>
-    </button>
+    <div className="diff-separator-content-row" style={{ height }}>
+      {leadingDirections.length > 0 && <CollapsedExpandButton directions={leadingDirections} onExpand={onExpand} />}
+      <button type="button" data-separator-content="" className="diff-separator-content" onClick={() => onExpand?.('both')}>
+        <span data-unmodified-lines="">{t('diffViewer.linesUnchanged', { count })}</span>
+      </button>
+    </div>
   )
 }
 
 /** 右侧/续接区域，只显示同一条 separator 的延伸背景 */
 function CollapsedContinuation({ height = 24 }: { height?: number }) {
-  return (
-    <div
-      className="box-border bg-transparent"
-      style={{ height }}
-    />
-  )
+  return <div className="diff-separator-continuation" style={{ height }} />
 }
 
 /** Wrapped 模式直接横跨整行 */
@@ -402,11 +375,10 @@ function CollapsedBar({
   onExpand?: (direction: ExpandDirection) => void
   height?: number
 }) {
+  const directions = getSeparatorDirections({ isFirst, isLast, chunked })
   return (
-    <div className="box-border flex items-center border-y border-border-100/25 bg-bg-200/45" style={{ height }}>
-      <div className="w-[34px] shrink-0 pl-1">
-        <CollapsedExpandButton height={height} isFirst={isFirst} isLast={isLast} chunked={chunked} onExpand={onExpand} />
-      </div>
+    <div data-separator="line-info" data-expand-index="" className="diff-separator-surface" style={{ height }}>
+      <CollapsedExpandButton directions={directions} onExpand={onExpand} />
       <CollapsedLabel count={count} t={t} onExpand={onExpand} height={height} />
     </div>
   )
@@ -844,37 +816,41 @@ const SplitDiffView = memo(function SplitDiffView({
     const item = displayLines[i]
 
     if (isCollapsed(item)) {
+      const directions = getSeparatorDirections(item)
+      const gutterDirections = directions.slice(0, 1)
+      const contentDirections = directions.slice(1)
       leftGutterRows.push(
         <div
           key={i}
-          className="box-border border-y border-border-100/25 bg-bg-200/45 pl-1"
+          data-separator="line-info"
+          data-expand-index=""
+          className="diff-separator-surface"
           style={{ height: lineHeight }}
         >
           <CollapsedExpandButton
-            height={lineHeight}
-            isFirst={item.isFirst}
-            isLast={item.isLast}
-            chunked={item.chunked}
+            directions={gutterDirections}
             onExpand={direction => handleExpand(item.id, direction)}
           />
         </div>,
       )
       leftContentRows.push(
-        <div key={i} className="box-border border-y border-border-100/25 bg-bg-200/45" style={{ height: lineHeight }}>
-          <CollapsedLabel count={item.count} t={t} onExpand={direction => handleExpand(item.id, direction)} height={lineHeight} />
+        <div key={i} data-separator="line-info" data-expand-index="" className="diff-separator-surface" style={{ height: lineHeight }}>
+          <CollapsedLabel count={item.count} t={t} leadingDirections={contentDirections} onExpand={direction => handleExpand(item.id, direction)} height={lineHeight} />
         </div>,
       )
       rightGutterRows.push(
         <div
           key={i}
-          className="box-border border-y border-border-100/25 bg-bg-200/45"
+          data-separator="line-info"
+          className="diff-separator-surface"
           style={{ height: lineHeight }}
         />,
       )
       rightContentRows.push(
         <div
           key={i}
-          className="box-border border-y border-border-100/25 bg-bg-200/45"
+          data-separator="line-info"
+          className="diff-separator-surface"
           style={{ height: lineHeight }}
         >
           <CollapsedContinuation height={lineHeight} />
@@ -1189,23 +1165,23 @@ const UnifiedDiffView = memo(function UnifiedDiffView({
     const item = displayLines[i]
 
     if (isCollapsed(item)) {
+      const directions = getSeparatorDirections(item)
       gutterRows.push(
         <div
           key={i}
-          className="box-border border-y border-border-100/25 bg-bg-200/45 pl-1"
+          data-separator="line-info"
+          data-expand-index=""
+          className="diff-separator-surface"
           style={{ height: lineHeight }}
         >
           <CollapsedExpandButton
-            height={lineHeight}
-            isFirst={item.isFirst}
-            isLast={item.isLast}
-            chunked={item.chunked}
+            directions={directions}
             onExpand={direction => handleExpand(item.id, direction)}
           />
         </div>,
       )
       contentRows.push(
-        <div key={i} className="box-border border-y border-border-100/25 bg-bg-200/45" style={{ height: lineHeight }}>
+        <div key={i} data-separator="line-info" data-expand-index="" className="diff-separator-surface" style={{ height: lineHeight }}>
           <CollapsedLabel count={item.count} t={t} onExpand={direction => handleExpand(item.id, direction)} height={lineHeight} />
         </div>,
       )
