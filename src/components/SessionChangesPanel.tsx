@@ -96,6 +96,7 @@ export const SessionChangesPanel = memo(function SessionChangesPanel({
   // 选中的文件（显示在预览区）
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
   const [openDiffFiles, setOpenDiffFiles] = useState<string[]>([])
+  const [mountedPreviewFiles, setMountedPreviewFiles] = useState<Set<string>>(new Set())
 
   // 展开的目录
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set())
@@ -197,6 +198,16 @@ export const SessionChangesPanel = memo(function SessionChangesPanel({
   useEffect(() => {
     openDiffFilesRef.current = openDiffFiles
   }, [openDiffFiles])
+
+  useEffect(() => {
+    setMountedPreviewFiles(prev => {
+      const openFiles = new Set(openDiffFiles)
+      const next = new Set([...prev].filter(file => openFiles.has(file)))
+      if (selectedFile) next.add(selectedFile)
+      if (next.size === prev.size && [...next].every(file => prev.has(file))) return prev
+      return next
+    })
+  }, [openDiffFiles, selectedFile])
 
   useEffect(() => {
     selectedFileRef.current = selectedFile
@@ -393,6 +404,7 @@ export const SessionChangesPanel = memo(function SessionChangesPanel({
     setError(null)
     setOpenDiffFiles([])
     setSelectedFile(null)
+    setMountedPreviewFiles(new Set())
     setExpandedDirs(new Set())
     setChangeMenuOpen(false)
     resetSplitHeight()
@@ -525,6 +537,10 @@ export const SessionChangesPanel = memo(function SessionChangesPanel({
         .map(file => diffs.find(diff => diff.file === file))
         .filter((diff): diff is FileDiff => Boolean(diff)),
     [diffs, openDiffFiles],
+  )
+  const mountedPreviewDiffs = useMemo(
+    () => previewDiffs.filter(diff => diff.file === selectedFile || mountedPreviewFiles.has(diff.file)),
+    [mountedPreviewFiles, previewDiffs, selectedFile],
   )
   const showPreview = !loading && selectedDiff !== null && !(error && diffs.length === 0)
 
@@ -846,16 +862,20 @@ export const SessionChangesPanel = memo(function SessionChangesPanel({
       {/* Diff 预览区 */}
       {showPreview && selectedDiff && (
         <div className="flex-1 flex flex-col min-h-0" style={{ minHeight: MIN_PREVIEW_HEIGHT }}>
-          <DiffPreviewPanel
-            diff={selectedDiff}
-            previewDiffs={previewDiffs}
-            viewMode={viewMode}
-            isResizing={isAnyResizing}
-            onActivatePreview={handleActivatePreview}
-            onClosePreview={handleClosePreviewTab}
-            onReorderPreview={handleReorderPreviewTabs}
-            onClose={handleClosePreview}
-          />
+          {mountedPreviewDiffs.map(previewDiff => (
+            <div key={previewDiff.file} className={previewDiff.file === selectedFile ? 'h-full min-h-0' : 'hidden'}>
+              <DiffPreviewPanel
+                diff={previewDiff}
+                previewDiffs={previewDiffs}
+                viewMode={viewMode}
+                isResizing={isAnyResizing}
+                onActivatePreview={handleActivatePreview}
+                onClosePreview={handleClosePreviewTab}
+                onReorderPreview={handleReorderPreviewTabs}
+                onClose={handleClosePreview}
+              />
+            </div>
+          ))}
         </div>
       )}
     </div>
@@ -911,7 +931,7 @@ const DiffPreviewPanel = memo(function DiffPreviewPanel({
           iconPath: previewDiff.file,
           label: (
             <>
-              <span className="block min-w-0 flex-1 truncate text-[length:var(--fs-xs)] font-mono">{currentFileName}</span>
+              <span className="block whitespace-nowrap text-[length:var(--fs-xs)] font-mono">{currentFileName}</span>
               <span className="shrink-0 text-[length:var(--fs-xxs)] font-mono text-success-100/90">
                 {previewDiff.additions > 0 ? `+${previewDiff.additions}` : ''}
               </span>
@@ -935,7 +955,7 @@ const DiffPreviewPanel = memo(function DiffPreviewPanel({
         onClose={onClosePreview}
         onCloseAll={onClose}
         onReorder={onReorderPreview}
-        tabWidthClassName="w-44 max-w-44"
+        tabWidthClassName="w-auto max-w-none min-w-max"
         rightActions={
           <button
             onClick={() => {
