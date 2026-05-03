@@ -249,6 +249,11 @@ function getGutterBgClass(type: LineType): string {
   }
 }
 
+function getContentBgClass(type: LineType): string {
+  if (type === 'empty') return 'diff-empty-content-buffer'
+  return getLineBgClass(type)
+}
+
 function getLineNumberColumnWidth(maxLineNo: number): number {
   const digits = String(Math.max(1, maxLineNo)).length
   return Math.max(32, digits * 8 + 16)
@@ -560,7 +565,7 @@ const WrappedSplitDiffView = memo(function WrappedSplitDiffView({
       <div key={i} ref={el => measureRef(i, el)} className="flex items-stretch">
         {/* Left panel */}
         <div
-          className={`flex-1 flex items-stretch min-w-0 border-r border-border-100/30 ${getLineBgClass(pair.left.type)}`}
+          className={`flex-1 flex items-stretch min-w-0 border-r border-border-100/30 ${getContentBgClass(pair.left.type)}`}
         >
           <div className="shrink-0" style={{ width: gutterWidth }}>
             {useChangeBars ? (
@@ -587,7 +592,7 @@ const WrappedSplitDiffView = memo(function WrappedSplitDiffView({
         </div>
 
         {/* Right panel */}
-        <div className={`flex-1 flex items-stretch min-w-0 ${getLineBgClass(pair.right.type)}`}>
+        <div className={`flex-1 flex items-stretch min-w-0 ${getContentBgClass(pair.right.type)}`}>
           <div className="shrink-0" style={{ width: gutterWidth }}>
             {useChangeBars ? (
               <div className="flex items-stretch h-full">
@@ -830,25 +835,37 @@ const SplitDiffView = memo(function SplitDiffView({
 
     if (isCollapsed(item)) {
       const directions = getSeparatorDirections(item)
-      const gutterDirections = directions.slice(0, 1)
-      const contentDirections = directions.slice(1)
+      const contentOffset = Math.max(0, directions.length * 32 - gutterWidth)
+      const labelInset = Math.max(lineNumberWidth, contentOffset)
       leftGutterRows.push(
         <div
           key={i}
           data-separator="line-info"
           data-expand-index=""
-          className="diff-separator-surface"
+          className="diff-separator-surface overflow-visible"
           style={{ height: lineHeight }}
         >
           <CollapsedExpandButton
-            directions={gutterDirections}
+            directions={directions}
             onExpand={direction => handleExpand(item.id, direction)}
           />
         </div>,
       )
       leftContentRows.push(
-        <div key={i} data-separator="line-info" data-expand-index="" className="diff-separator-surface" style={{ height: lineHeight }}>
-          <CollapsedLabel count={item.count} t={t} leadingDirections={contentDirections} onExpand={direction => handleExpand(item.id, direction)} height={lineHeight} />
+        <div
+          key={i}
+          data-separator="line-info"
+          data-expand-index=""
+          className="diff-separator-surface relative"
+          style={{ height: lineHeight, paddingLeft: labelInset }}
+        >
+          {contentOffset > 0 && (
+            <div
+              className="pointer-events-none absolute top-0 bottom-0 w-0.5 bg-bg-100"
+              style={{ left: contentOffset - 2 }}
+            />
+          )}
+          <CollapsedLabel count={item.count} t={t} onExpand={direction => handleExpand(item.id, direction)} height={lineHeight} />
         </div>,
       )
       rightGutterRows.push(
@@ -899,7 +916,7 @@ const SplitDiffView = memo(function SplitDiffView({
     leftContentRows.push(
       <div
         key={i}
-        className={`pr-2 leading-[var(--fs-code-line-height)] text-[length:var(--fs-code)] whitespace-pre ${getLineBgClass(pair.left.type)}`}
+        className={`pr-2 leading-[var(--fs-code-line-height)] text-[length:var(--fs-code)] whitespace-pre ${getContentBgClass(pair.left.type)}`}
         style={{ height: lineHeight }}
       >
         {pair.left.type !== 'empty' && <LineContent line={pair.left} tokens={beforeTokens} />}
@@ -931,7 +948,7 @@ const SplitDiffView = memo(function SplitDiffView({
     rightContentRows.push(
       <div
         key={i}
-        className={`pr-2 leading-[var(--fs-code-line-height)] text-[length:var(--fs-code)] whitespace-pre ${getLineBgClass(pair.right.type)}`}
+        className={`pr-2 leading-[var(--fs-code-line-height)] text-[length:var(--fs-code)] whitespace-pre ${getContentBgClass(pair.right.type)}`}
         style={{ height: lineHeight }}
       >
         {pair.right.type !== 'empty' && <LineContent line={pair.right} tokens={afterTokens} />}
@@ -951,7 +968,7 @@ const SplitDiffView = memo(function SplitDiffView({
           {/* 左面板 */}
           <div className="flex-1 flex min-w-0 border-r border-border-100/30">
             {/* 左 gutter */}
-            <div className="shrink-0 overflow-hidden" style={{ width: gutterWidth }}>
+            <div className="shrink-0 overflow-visible" style={{ width: gutterWidth }}>
               {leftGutterRows}
             </div>
             {/* 左 content — 隐藏自身滚动条，由 proxy 控制 */}
@@ -967,7 +984,7 @@ const SplitDiffView = memo(function SplitDiffView({
           {/* 右面板 */}
           <div className="flex-1 flex min-w-0">
             {/* 右 gutter */}
-            <div className="shrink-0 overflow-hidden" style={{ width: gutterWidth }}>
+            <div className="shrink-0 overflow-visible" style={{ width: gutterWidth }}>
               {rightGutterRows}
             </div>
             {/* 右 content */}
