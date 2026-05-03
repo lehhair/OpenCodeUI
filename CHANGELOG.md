@@ -1,5 +1,13 @@
 # Changelog
 
+## [v0.6.1] - 2026-05-03
+
+- fix: align readonly code gutters with diffs (b9a15d3)
+- fix: polish diff gutter and separators (2568070)
+- fix: keep chat bottom spacing comfortable (bc42873)
+- fix: tighten chat surface bottom spacing (f47dedb)
+- fix: PWA safe-area double padding on iOS (0b4fa33)
+
 ## [v0.6.0] - 2026-05-03
 
 - test: update diff viewer mock for shared data (13d7c04)
