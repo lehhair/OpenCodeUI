@@ -31,6 +31,13 @@ vi.mock('../api/session', () => ({
 
 vi.mock('./DiffViewer', () => ({
   DiffViewer: () => <div data-testid="diff-viewer">diff viewer</div>,
+  useDiffViewerData: () => ({
+    beforeTokens: null,
+    afterTokens: null,
+    pairedLines: [],
+    unifiedLines: [],
+    lineNumberWidth: 1,
+  }),
 }))
 
 describe('SessionChangesPanel', () => {
