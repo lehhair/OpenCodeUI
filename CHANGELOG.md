@@ -1,5 +1,34 @@
 # Changelog
 
+## [v0.6.0] - 2026-05-03
+
+- test: update diff viewer mock for shared data (13d7c04)
+- fix: stabilize preview tab hover width (f2d0564)
+- feat: improve file and change previews (7ae977d)
+- fix: restore scrolling for inline code previews (09d3e96)
+- perf: share diff data with fullscreen viewer (e3ceef8)
+- perf: hoist diff viewer data across view modes (4467730)
+- fix: improve readonly code selection contrast (4955f56)
+- fix: strengthen empty diff buffer texture (849445f)
+- fix: add Pierre-style empty diff buffers (16eec59)
+- fix: adapt line number gutter width (d37f112)
+- fix: center diff separator icons (db857dc)
+- fix: port Pierre diff separator styling (789dcf2)
+- fix: add Pierre-style diff separator expansion (1ce0d3a)
+- fix: refine handwritten diff collapsed separators (ab9c8a6)
+- fix: mask readonly code gutters (0a41e2a)
+- refactor: extract readonly codemirror view (0b81235)
+- fix: refine code search responsive layout (fc12a33)
+- fix: anchor code preview search panel (00244e3)
+- fix: polish code preview search panel (cd4e8d1)
+- fix: smooth syntax theme switching (1f079e1)
+- fix: use complete github shiki themes (2fc89fb)
+- fix: align shiki theme with github syntax colors (e4c171a)
+- feat: add adaptive shiki theme (6cb720e)
+- feat: use codemirror for code previews (487cea3)
+- fix: optimize sidebar transition rendering (06fe9a2)
+- fix: limit message offscreen unmounting to resize (3986e5f)
+
 ## [v0.5.20] - 2026-05-01
 
 - fix: preserve git subdirectory projects (e9646b9)
