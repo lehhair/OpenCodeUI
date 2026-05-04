@@ -1,5 +1,12 @@
 # Changelog
 
+## [v0.6.3] - 2026-05-04
+
+- ui: simplify tool diff result headers (a5889a5)
+- build: reduce bundled asset size (3e4aaa2)
+- fix: align wrapped diff empty textures (d4b187b)
+- fix: smooth split session loading (c4f3bb7)
+
 ## [v0.6.2] - 2026-05-04
 
 - fix: smooth wrapped diff scrolling (e46d0e5)
