@@ -272,6 +272,25 @@ function getEmptyBufferRowStyle(height: number, yOffset = 0, xOffset = 0): CSSPr
   return { height, ...getEmptyBufferBackgroundStyle(yOffset, xOffset) }
 }
 
+function estimateWrappedVisualLineCount(content: string, availableWidth: number): number {
+  if (!content) return 1
+  if (availableWidth <= 0) return 1
+
+  const charWidth = 8
+  const charsPerLine = Math.max(1, Math.floor(availableWidth / charWidth))
+  let visualLines = 0
+
+  for (const segment of content.split('\n')) {
+    visualLines += Math.max(1, Math.ceil(segment.length / charsPerLine))
+  }
+
+  return visualLines
+}
+
+function getWrappedPairContent(pair: PairedLine): string {
+  return pair.left.content.length >= pair.right.content.length ? pair.left.content : pair.right.content
+}
+
 function useDiffLineNumberWidth(before: string, after: string): number {
   return useMemo(
     () => getLineNumberColumnWidth(Math.max(getLineCount(before), getLineCount(after))),
@@ -610,8 +629,21 @@ const WrappedSplitDiffView = memo(function WrappedSplitDiffView({
     setExpandedRegions(prev => expandRegion(prev, id, direction))
   }, [])
 
+  const useChangeBars = diffStyle === 'changeBars'
+  const gutterWidth = useChangeBars ? lineNumberWidth + 4 : lineNumberWidth + 20
+  const estimateRowHeight = useCallback(
+    (index: number, containerWidth: number) => {
+      const item = displayLines[index]
+      if (!item || isCollapsed(item)) return lineHeight
+
+      const panelWidth = Math.max(0, containerWidth / 2 - gutterWidth - 16)
+      return estimateWrappedVisualLineCount(getWrappedPairContent(item as PairedLine), panelWidth) * lineHeight
+    },
+    [displayLines, gutterWidth, lineHeight],
+  )
+
   const { containerRef, totalHeight, startIndex, endIndex, offsetY, handleScroll, measureRef } =
-    useDynamicVirtualScroll({ lineCount: displayLines.length, isResizing, estimateLineHeight: lineHeight })
+    useDynamicVirtualScroll({ lineCount: displayLines.length, isResizing, estimateLineHeight: lineHeight, estimateHeight: estimateRowHeight })
 
   if (pairedLines.length === 0) {
     return (
@@ -620,9 +652,6 @@ const WrappedSplitDiffView = memo(function WrappedSplitDiffView({
       </div>
     )
   }
-
-  const useChangeBars = diffStyle === 'changeBars'
-  const gutterWidth = useChangeBars ? lineNumberWidth + 4 : lineNumberWidth + 20
 
   const visibleRows: React.ReactNode[] = []
   for (let i = startIndex; i < endIndex; i++) {
@@ -1388,8 +1417,21 @@ const WrappedUnifiedDiffView = memo(function WrappedUnifiedDiffView({
     setExpandedRegions(prev => expandRegion(prev, id, direction))
   }, [])
 
+  const useChangeBars = diffStyle === 'changeBars'
+  const gutterWidth = useChangeBars ? lineNumberWidth * 2 + 4 : lineNumberWidth * 2 + 20
+  const estimateRowHeight = useCallback(
+    (index: number, containerWidth: number) => {
+      const item = displayLines[index]
+      if (!item || isCollapsed(item)) return lineHeight
+
+      const availableWidth = Math.max(0, containerWidth - gutterWidth - 16)
+      return estimateWrappedVisualLineCount((item as UnifiedLine).content, availableWidth) * lineHeight
+    },
+    [displayLines, gutterWidth, lineHeight],
+  )
+
   const { containerRef, totalHeight, startIndex, endIndex, offsetY, handleScroll, measureRef } =
-    useDynamicVirtualScroll({ lineCount: displayLines.length, isResizing, estimateLineHeight: lineHeight })
+    useDynamicVirtualScroll({ lineCount: displayLines.length, isResizing, estimateLineHeight: lineHeight, estimateHeight: estimateRowHeight })
 
   if (lines.length === 0) {
     return (
@@ -1398,9 +1440,6 @@ const WrappedUnifiedDiffView = memo(function WrappedUnifiedDiffView({
       </div>
     )
   }
-
-  const useChangeBars = diffStyle === 'changeBars'
-  const gutterWidth = useChangeBars ? lineNumberWidth * 2 + 4 : lineNumberWidth * 2 + 20
 
   const visibleRows: React.ReactNode[] = []
   for (let i = startIndex; i < endIndex; i++) {

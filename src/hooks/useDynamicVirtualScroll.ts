@@ -22,6 +22,8 @@ interface UseDynamicVirtualScrollOptions {
   isResizing?: boolean
   /** 预估行高（用于未测量行），默认 20px */
   estimateLineHeight?: number
+  /** 按当前容器宽度估算指定行高度 */
+  estimateHeight?: (index: number, containerWidth: number) => number
 }
 
 interface UseDynamicVirtualScrollResult {
@@ -45,27 +47,38 @@ export function useDynamicVirtualScroll({
   lineCount,
   isResizing = false,
   estimateLineHeight = DEFAULT_LINE_HEIGHT,
+  estimateHeight,
 }: UseDynamicVirtualScrollOptions): UseDynamicVirtualScrollResult {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const [scrollTop, setScrollTop] = useState(0)
   const [containerHeight, setContainerHeight] = useState(0)
+  const [containerWidth, setContainerWidth] = useState(0)
   const [measuredHeights, setMeasuredHeights] = useState<Float32Array<ArrayBufferLike>>(
-    () => new Float32Array(lineCount).fill(estimateLineHeight),
+    () => new Float32Array(lineCount),
   )
   const pendingMeasureRef = useRef(false)
   const pendingHeightsRef = useRef<Float32Array<ArrayBufferLike> | null>(null)
   const measureFrameRef = useRef<number | null>(null)
 
+  const getEstimatedHeight = useCallback(
+    (index: number) => Math.max(estimateLineHeight, estimateHeight?.(index, containerWidth) ?? estimateLineHeight),
+    [containerWidth, estimateHeight, estimateLineHeight],
+  )
+
   const resolvedHeights = useMemo(() => {
-    const next = new Float32Array(lineCount).fill(estimateLineHeight)
+    const next = new Float32Array(lineCount)
     const copyLen = Math.min(measuredHeights.length, lineCount)
 
     for (let i = 0; i < copyLen; i++) {
-      next[i] = measuredHeights[i] || estimateLineHeight
+      next[i] = measuredHeights[i] || getEstimatedHeight(i)
+    }
+
+    for (let i = copyLen; i < lineCount; i++) {
+      next[i] = getEstimatedHeight(i)
     }
 
     return next
-  }, [estimateLineHeight, lineCount, measuredHeights])
+  }, [getEstimatedHeight, lineCount, measuredHeights])
 
   // 前缀和数组
   const offsets = useMemo(() => {
@@ -104,7 +117,11 @@ export function useDynamicVirtualScroll({
     const container = containerRef.current
     if (!container || isResizing) return
     setContainerHeight(container.clientHeight)
-    const ro = new ResizeObserver(() => setContainerHeight(container.clientHeight))
+    setContainerWidth(container.clientWidth)
+    const ro = new ResizeObserver(() => {
+      setContainerHeight(container.clientHeight)
+      setContainerWidth(container.clientWidth)
+    })
     ro.observe(container)
     return () => ro.disconnect()
   }, [isResizing])
@@ -121,12 +138,12 @@ export function useDynamicVirtualScroll({
       if (Math.abs(w - lastWidthRef.current) > 20) {
         lastWidthRef.current = w
         pendingHeightsRef.current = null
-        setMeasuredHeights(new Float32Array(lineCount).fill(estimateLineHeight))
+        setMeasuredHeights(new Float32Array(lineCount))
       }
     })
     ro.observe(container)
     return () => ro.disconnect()
-  }, [estimateLineHeight, lineCount])
+  }, [lineCount])
 
   useEffect(() => {
     return () => {
@@ -144,10 +161,9 @@ export function useDynamicVirtualScroll({
     if (!el) return
     const h = el.offsetHeight
     if (h <= 0) return
-    const sourceHeights = pendingHeightsRef.current ?? resolvedHeights
-    const current = sourceHeights[index] || estimateLineHeight
-    // 只在差异超过 0.5px 时更新，且取较大值防止振荡
-    const next = Math.max(current, h)
+    const sourceHeights = pendingHeightsRef.current ?? measuredHeights
+    const current = sourceHeights[index] || getEstimatedHeight(index)
+    const next = h
     if (Math.abs(current - next) > 0.5) {
       const nextHeights = new Float32Array(sourceHeights)
       nextHeights[index] = next
@@ -165,7 +181,7 @@ export function useDynamicVirtualScroll({
         })
       }
     }
-  }, [estimateLineHeight, resolvedHeights])
+  }, [getEstimatedHeight, measuredHeights])
 
   return {
     containerRef,
