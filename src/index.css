@@ -822,6 +822,7 @@ body {
   display: flex;
   align-items: center;
   height: 100%;
+  min-height: 0;
   border: 0;
   background-color: transparent;
   color: hsl(var(--text-500));

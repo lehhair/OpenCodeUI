@@ -368,6 +368,7 @@ function CollapsedExpandButton({
         <button
           key={direction}
           type="button"
+          data-compact=""
           data-expand-button=""
           data-expand-up={direction === 'up' ? '' : undefined}
           data-expand-down={direction === 'down' ? '' : undefined}
@@ -402,7 +403,7 @@ function CollapsedLabel({
     <div className="diff-separator-content-row" style={{ height }}>
       {leadingDirections.length > 0 && <CollapsedExpandButton directions={leadingDirections} onExpand={onExpand} />}
       <div data-separator-content="" className="diff-separator-content">
-        <button type="button" data-unmodified-lines="" className="diff-separator-text-button" onClick={() => onExpand?.('both')}>
+        <button type="button" data-compact="" data-unmodified-lines="" className="diff-separator-text-button" onClick={() => onExpand?.('both')}>
           {t('diffViewer.linesUnchanged', { count })}
         </button>
       </div>
