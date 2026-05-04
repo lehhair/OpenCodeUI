@@ -5,13 +5,31 @@ import { readFileSync } from 'node:fs'
 
 const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf-8')) as { version: string }
 
+function katexWoff2Only() {
+  return {
+    name: 'katex-woff2-only',
+    enforce: 'pre' as const,
+    transform(code: string, id: string) {
+      const normalizedId = id.split('?')[0].replace(/\\/g, '/')
+      if (!normalizedId.endsWith('/katex/dist/katex.min.css') && !normalizedId.endsWith('/katex/dist/katex.css')) {
+        return null
+      }
+
+      return code.replace(
+        /,url\(fonts\/KaTeX_[^)]+\.woff\) format\("woff"\),url\(fonts\/KaTeX_[^)]+\.ttf\) format\("truetype"\)/g,
+        '',
+      )
+    },
+  }
+}
+
 // https://vite.dev/config/
 export default defineConfig({
   base: process.env.VITE_BASE_PATH || '/',
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
   },
-  plugins: [react(), tailwindcss()],
+  plugins: [katexWoff2Only(), react(), tailwindcss()],
   build: {
     rollupOptions: {
       output: {

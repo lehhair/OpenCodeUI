@@ -7,6 +7,7 @@
 
 import { createHighlighterCore, type HighlighterCore } from 'shiki/core'
 import { createOnigurumaEngine } from 'shiki/engine/oniguruma'
+import onigWasmUrl from 'shiki/onig.wasm?url'
 import { bundledLanguagesBase, bundledLanguagesAlias } from 'shiki/langs'
 import type { BundledTheme } from 'shiki/themes'
 
@@ -16,6 +17,15 @@ export type ShikiThemeInput = BundledTheme
 
 let highlighter: HighlighterCore | null = null
 let initPromise: Promise<HighlighterCore> | null = null
+let onigWasmPromise: Promise<ArrayBuffer> | null = null
+
+function loadOnigWasm(): Promise<ArrayBuffer> {
+  onigWasmPromise ??= fetch(onigWasmUrl).then(response => {
+    if (!response.ok) throw new Error(`Failed to load Shiki WASM: ${response.status}`)
+    return response.arrayBuffer()
+  })
+  return onigWasmPromise
+}
 
 /**
  * 获取 / 初始化 highlighter 单例。
@@ -26,7 +36,7 @@ export function getHighlighter(): Promise<HighlighterCore> {
   if (initPromise) return initPromise
 
   initPromise = createHighlighterCore({
-    engine: createOnigurumaEngine(() => import('shiki/wasm')),
+    engine: createOnigurumaEngine(loadOnigWasm),
     themes: [import('shiki/themes/github-dark-default.mjs'), import('shiki/themes/github-light-default.mjs')],
     langs: [], // 不预加载任何语言
   }).then(h => {
