@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { ContentBlock } from '../../../../components'
 import { AlertCircleIcon } from '../../../../components/Icons'
 import { detectLanguage } from '../../../../utils/languageUtils'
+import { getMaterialIconUrl } from '../../../../utils/materialIcons'
 import { themeStore } from '../../../../store/themeStore'
 import type { ToolRendererProps, ExtractedToolData } from '../types'
 
@@ -101,6 +102,8 @@ function OutputBlock({ tool, data, isActive, hasError, hasOutput, compact }: Out
             <ContentBlock
               key={idx}
               label={formatLabel(tool, t)}
+              labelIcon={<FileResultIcon filePath={file.filePath} />}
+              hideLabel
               filePath={file.filePath}
               diff={
                 file.diff ||
@@ -122,6 +125,8 @@ function OutputBlock({ tool, data, isActive, hasError, hasOutput, compact }: Out
       return (
         <ContentBlock
           label={t('defaultRenderer.output')}
+          labelIcon={data.filePath ? <FileResultIcon filePath={data.filePath} /> : undefined}
+          hideLabel={!!data.filePath}
           filePath={data.filePath}
           diff={data.diff}
           diffStats={data.diffStats}
@@ -146,6 +151,23 @@ function OutputBlock({ tool, data, isActive, hasError, hasOutput, compact }: Out
 
   // 4. 无输出
   return <ContentBlock label={t('defaultRenderer.output')} compact={compact} />
+}
+
+function FileResultIcon({ filePath }: { filePath: string }) {
+  return (
+    <img
+      src={getMaterialIconUrl(filePath, 'file')}
+      alt=""
+      width={14}
+      height={14}
+      className="block h-3.5 w-3.5 shrink-0"
+      loading="lazy"
+      decoding="async"
+      onError={event => {
+        event.currentTarget.style.visibility = 'hidden'
+      }}
+    />
+  )
 }
 
 // ============================================
