@@ -264,12 +264,12 @@ function getContentBgClass(type: LineType): string {
   return getLineBgClass(type)
 }
 
-function getEmptyBufferBackgroundStyle(rowIndex: number, lineHeight: number, xOffset = 0): CSSProperties {
-  return { backgroundPosition: `${5 + xOffset}px ${-(rowIndex * lineHeight)}px` }
+function getEmptyBufferBackgroundStyle(yOffset: number, xOffset = 0): CSSProperties {
+  return { backgroundPosition: `${5 + xOffset}px ${-yOffset}px` }
 }
 
-function getEmptyBufferRowStyle(rowIndex: number, lineHeight: number, xOffset = 0): CSSProperties {
-  return { height: lineHeight, ...getEmptyBufferBackgroundStyle(rowIndex, lineHeight, xOffset) }
+function getEmptyBufferRowStyle(height: number, yOffset = 0, xOffset = 0): CSSProperties {
+  return { height, ...getEmptyBufferBackgroundStyle(yOffset, xOffset) }
 }
 
 function useDiffLineNumberWidth(before: string, after: string): number {
@@ -300,8 +300,8 @@ function DiffMarkerCell({ type }: { type: LineType }) {
   )
 }
 
-function EmptyContentBuffer({ height, rowIndex, xOffset = 0 }: { height: number; rowIndex: number; xOffset?: number }) {
-  return <div className="diff-empty-content-buffer min-w-full" style={getEmptyBufferRowStyle(rowIndex, height, xOffset)} />
+function EmptyContentBuffer({ height, yOffset = 0, xOffset = 0 }: { height: number; yOffset?: number; xOffset?: number }) {
+  return <div className="diff-empty-content-buffer min-w-full" style={getEmptyBufferRowStyle(height, yOffset, xOffset)} />
 }
 
 /** Change bar 样式 — 行号左侧的 3px 竖条，add 实心 / delete 虚线 */
@@ -645,8 +645,8 @@ const WrappedSplitDiffView = memo(function WrappedSplitDiffView({
     }
 
     const pair = item as PairedLine
-    const leftEmptyStyle = pair.left.type === 'empty' ? getEmptyBufferBackgroundStyle(i, lineHeight) : undefined
-    const rightEmptyStyle = pair.right.type === 'empty' ? getEmptyBufferBackgroundStyle(i, lineHeight) : undefined
+    const leftEmptyStyle = pair.left.type === 'empty' ? getEmptyBufferBackgroundStyle(0) : undefined
+    const rightEmptyStyle = pair.right.type === 'empty' ? getEmptyBufferBackgroundStyle(0) : undefined
     visibleRows.push(
       <div key={i} ref={el => measureRef(i, el)} className="flex items-stretch">
         {/* Left panel */}
@@ -770,6 +770,8 @@ const SplitDiffView = memo(function SplitDiffView({
   const [rightContentWidth, setRightContentWidth] = useState(0)
   const [leftClientWidth, setLeftClientWidth] = useState(0)
   const [rightClientWidth, setRightClientWidth] = useState(0)
+  const [leftScrollLeft, setLeftScrollLeft] = useState(0)
+  const [rightScrollLeft, setRightScrollLeft] = useState(0)
 
   const [expandedRegions, setExpandedRegions] = useState<Map<number, ExpansionRegion>>(() => new Map())
   const displayLines = useMemo(() => collapseContextPaired(pairedLines, expandedRegions), [pairedLines, expandedRegions])
@@ -853,6 +855,7 @@ const SplitDiffView = memo(function SplitDiffView({
   const handleLeftScrollbar = useCallback((e: React.UIEvent<HTMLDivElement>) => {
     if (leftScrollSourceRef.current === 'content') return
     leftScrollSourceRef.current = 'scrollbar'
+    setLeftScrollLeft(e.currentTarget.scrollLeft)
     if (leftContentRef.current) leftContentRef.current.scrollLeft = e.currentTarget.scrollLeft
     requestAnimationFrame(() => {
       leftScrollSourceRef.current = null
@@ -861,6 +864,7 @@ const SplitDiffView = memo(function SplitDiffView({
   const handleRightScrollbar = useCallback((e: React.UIEvent<HTMLDivElement>) => {
     if (rightScrollSourceRef.current === 'content') return
     rightScrollSourceRef.current = 'scrollbar'
+    setRightScrollLeft(e.currentTarget.scrollLeft)
     if (rightContentRef.current) rightContentRef.current.scrollLeft = e.currentTarget.scrollLeft
     requestAnimationFrame(() => {
       rightScrollSourceRef.current = null
@@ -869,6 +873,7 @@ const SplitDiffView = memo(function SplitDiffView({
   const handleLeftContentScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
     if (leftScrollSourceRef.current === 'scrollbar') return
     leftScrollSourceRef.current = 'content'
+    setLeftScrollLeft(e.currentTarget.scrollLeft)
     if (leftScrollbarRef.current) leftScrollbarRef.current.scrollLeft = e.currentTarget.scrollLeft
     requestAnimationFrame(() => {
       leftScrollSourceRef.current = null
@@ -877,6 +882,7 @@ const SplitDiffView = memo(function SplitDiffView({
   const handleRightContentScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
     if (rightScrollSourceRef.current === 'scrollbar') return
     rightScrollSourceRef.current = 'content'
+    setRightScrollLeft(e.currentTarget.scrollLeft)
     if (rightScrollbarRef.current) rightScrollbarRef.current.scrollLeft = e.currentTarget.scrollLeft
     requestAnimationFrame(() => {
       rightScrollSourceRef.current = null
@@ -962,8 +968,9 @@ const SplitDiffView = memo(function SplitDiffView({
     const pair = item as PairedLine
     const leftGutterClass = pair.left.type === 'empty' ? 'diff-empty-content-buffer' : getGutterBgClass(pair.left.type)
     const rightGutterClass = pair.right.type === 'empty' ? 'diff-empty-content-buffer' : getGutterBgClass(pair.right.type)
-    const leftGutterStyle = getEmptyBufferRowStyle(i, lineHeight)
-    const rightGutterStyle = getEmptyBufferRowStyle(i, lineHeight)
+    const rowTop = i * lineHeight
+    const leftGutterStyle = getEmptyBufferRowStyle(lineHeight, rowTop)
+    const rightGutterStyle = getEmptyBufferRowStyle(lineHeight, rowTop)
 
     // Left gutter
     leftGutterRows.push(
@@ -991,7 +998,7 @@ const SplitDiffView = memo(function SplitDiffView({
         className={`pr-2 leading-[var(--fs-code-line-height)] text-[length:var(--fs-code)] whitespace-pre ${pair.left.type === 'empty' ? '' : getContentBgClass(pair.left.type)}`}
         style={{ height: lineHeight }}
       >
-        {pair.left.type === 'empty' ? <EmptyContentBuffer height={lineHeight} rowIndex={i} xOffset={-gutterWidth} /> : <LineContent line={pair.left} tokens={beforeTokens} />}
+        {pair.left.type === 'empty' ? <EmptyContentBuffer height={lineHeight} yOffset={rowTop} xOffset={leftScrollLeft - gutterWidth} /> : <LineContent line={pair.left} tokens={beforeTokens} />}
       </div>,
     )
 
@@ -1021,7 +1028,7 @@ const SplitDiffView = memo(function SplitDiffView({
         className={`pr-2 leading-[var(--fs-code-line-height)] text-[length:var(--fs-code)] whitespace-pre ${pair.right.type === 'empty' ? '' : getContentBgClass(pair.right.type)}`}
         style={{ height: lineHeight }}
       >
-        {pair.right.type === 'empty' ? <EmptyContentBuffer height={lineHeight} rowIndex={i} xOffset={-gutterWidth} /> : <LineContent line={pair.right} tokens={afterTokens} />}
+        {pair.right.type === 'empty' ? <EmptyContentBuffer height={lineHeight} yOffset={rowTop} xOffset={rightScrollLeft - gutterWidth} /> : <LineContent line={pair.right} tokens={afterTokens} />}
       </div>,
     )
   }
