@@ -32,7 +32,6 @@ export const ResizablePanel = memo(function ResizablePanel({
   const { preferTouchUi, hasCoarsePointer, hasTouch } = useInputCapabilities()
   const touchCapable = preferTouchUi || hasCoarsePointer || hasTouch
   const [isResizing, setIsResizing] = useState(false)
-  const safeBottomInset = 'var(--safe-area-inset-bottom, 0px)'
   const panelRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
   const rafRef = useRef<number>(0)
@@ -208,7 +207,6 @@ export const ResizablePanel = memo(function ResizablePanel({
         ? ({
             top: 'calc(var(--safe-area-inset-top, 0px) + var(--desktop-titlebar-height, 0px))',
             height: 'calc(100% - var(--safe-area-inset-top, 0px) - var(--desktop-titlebar-height, 0px))',
-            paddingBottom: safeBottomInset,
           } as React.CSSProperties)
         : ({} as React.CSSProperties)
 
@@ -242,7 +240,7 @@ export const ResizablePanel = memo(function ResizablePanel({
             </div>
           )}
 
-          <div ref={contentRef} className="flex-1 flex flex-col min-h-0 min-w-0 w-full h-full relative bg-bg-100">
+          <div ref={contentRef} className="flex-1 flex flex-col min-h-0 min-w-0 w-full h-full relative bg-bg-100 pb-[var(--safe-area-inset-bottom)]">
             {children}
           </div>
         </div>
@@ -293,7 +291,7 @@ export const ResizablePanel = memo(function ResizablePanel({
 
       {isResizing && <div className="absolute inset-0 z-40 bg-transparent pointer-events-auto" />}
 
-      <div ref={contentRef} className="absolute inset-0 flex flex-col min-h-0 min-w-0 w-full h-full">
+      <div ref={contentRef} className="absolute inset-0 flex flex-col min-h-0 min-w-0 w-full h-full pb-[var(--safe-area-inset-bottom)]">
         {children}
       </div>
     </div>

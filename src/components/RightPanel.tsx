@@ -161,7 +161,6 @@ export const RightPanel = memo(function RightPanel({ directory, sessionId }: Rig
       maxSize={layout.rightPanel.resizeMaxWidth}
       onSizeChange={w => layoutStore.setRightPanelWidth(w)}
       onClose={() => layoutStore.closeRightPanel()}
-      className="pb-[var(--safe-area-inset-bottom)]"
     >
       <PanelContainer
         position="right"
