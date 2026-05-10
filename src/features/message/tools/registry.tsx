@@ -200,10 +200,16 @@ export function defaultExtractData(part: ToolPart): ExtractedToolData {
 function bashExtractData(part: ToolPart): ExtractedToolData {
   const base = defaultExtractData(part)
   const inputObj = part.state.input as Record<string, unknown> | undefined
+  const metadata = part.state.metadata as Record<string, unknown> | undefined
 
   if (inputObj?.command) {
     base.input = String(inputObj.command)
     base.inputLang = 'bash'
+  }
+
+  const cwd = inputObj?.workdir ?? inputObj?.cwd ?? metadata?.workdir ?? metadata?.cwd
+  if (typeof cwd === 'string' && cwd.trim()) {
+    base.cwd = cwd.trim()
   }
 
   return base

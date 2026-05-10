@@ -27,6 +27,7 @@ export interface ExtractedToolData {
 
   // Meta
   filePath?: string
+  cwd?: string
   exitCode?: number
 
   // LSP 诊断
