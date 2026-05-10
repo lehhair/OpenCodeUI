@@ -1,5 +1,10 @@
 # Changelog
 
+## [v0.6.5] - 2026-05-10
+
+- ui: show bash working directory (48d5b28)
+- fix: skip shiki fallback for unsupported languages (d4ea3be)
+
 ## [v0.6.4] - 2026-05-04
 
 - fix: keep delete change bars continuous (843d861)
