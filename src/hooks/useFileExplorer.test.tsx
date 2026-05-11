@@ -76,4 +76,60 @@ describe('useFileExplorer change scope', () => {
     expect(result.current.fileStatus.get('src/session.ts')).toBeUndefined()
     expect(getLastTurnDiff).toHaveBeenCalledWith('session-1', '/repo')
   })
+
+  it('restores expanded folders per directory when switching projects', async () => {
+    listDirectory.mockImplementation(async (parentPath: string, directory: string) => {
+      if (parentPath === '') {
+        return [{ name: 'src', path: 'src', absolute: `${directory}/src`, type: 'directory', ignored: false }]
+      }
+
+      if (parentPath === 'src') {
+        return [
+          {
+            name: directory === '/repo-a' ? 'a.ts' : 'b.ts',
+            path: `src/${directory === '/repo-a' ? 'a.ts' : 'b.ts'}`,
+            absolute: `${directory}/src/${directory === '/repo-a' ? 'a.ts' : 'b.ts'}`,
+            type: 'file',
+            ignored: false,
+          },
+        ]
+      }
+
+      return []
+    })
+
+    const { result, rerender } = renderHook(
+      ({ directory }) => useFileExplorer({ directory, autoLoad: true }),
+      { initialProps: { directory: '/repo-a' } },
+    )
+
+    await waitFor(() => {
+      expect(result.current.tree).toHaveLength(1)
+    })
+
+    act(() => {
+      result.current.toggleExpand('src')
+    })
+
+    await waitFor(() => {
+      expect(result.current.expandedPaths.has('src')).toBe(true)
+      expect(result.current.tree[0]?.children?.[0]?.path).toBe('src/a.ts')
+    })
+
+    rerender({ directory: '/repo-b' })
+
+    await waitFor(() => {
+      expect(result.current.tree[0]?.absolute).toBe('/repo-b/src')
+      expect(result.current.tree[0]?.children?.[0]?.path).toBeUndefined()
+      expect(result.current.expandedPaths.has('src')).toBe(false)
+    })
+
+    rerender({ directory: '/repo-a' })
+
+    await waitFor(() => {
+      expect(result.current.tree[0]?.absolute).toBe('/repo-a/src')
+      expect(result.current.expandedPaths.has('src')).toBe(true)
+      expect(result.current.tree[0]?.children?.[0]?.path).toBe('src/a.ts')
+    })
+  })
 })
