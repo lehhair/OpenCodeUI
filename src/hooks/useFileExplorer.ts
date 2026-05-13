@@ -52,6 +52,8 @@ export function useFileExplorer(options: UseFileExplorerOptions = {}): UseFileEx
   const { directory, autoLoad = true, sessionId } = options
   const { t } = useTranslation(['components'])
   const changeMode = useSessionChangeScope(sessionId ?? null)
+  const directoryRef = useRef(directory)
+  directoryRef.current = directory
 
   // 文件树状态
   const [tree, setTree] = useState<FileTreeNode[]>([])
@@ -74,6 +76,7 @@ export function useFileExplorer(options: UseFileExplorerOptions = {}): UseFileEx
 
   // 用于防止过时请求
   const loadIdRef = useRef(0)
+  const childLoadIdsRef = useRef<Map<string, number>>(new Map())
   const statusLoadIdRef = useRef(0)
 
   // 加载根目录
@@ -157,6 +160,12 @@ export function useFileExplorer(options: UseFileExplorerOptions = {}): UseFileEx
     async (parentPath: string) => {
       if (!directory) return
 
+      const loadKey = `${directory}\0${parentPath}`
+      const loadId = (childLoadIdsRef.current.get(loadKey) ?? 0) + 1
+      childLoadIdsRef.current.set(loadKey, loadId)
+
+      const isCurrentLoad = () => directoryRef.current === directory && childLoadIdsRef.current.get(loadKey) === loadId
+
       // 更新树，标记为加载中
       setTree(prev =>
         updateTreeNode(prev, parentPath, node => ({
@@ -167,6 +176,8 @@ export function useFileExplorer(options: UseFileExplorerOptions = {}): UseFileEx
 
       try {
         const nodes = await listDirectory(parentPath, directory)
+        if (!isCurrentLoad()) return
+
         const sorted = sortNodes(nodes)
 
         setTree(prev =>
@@ -178,6 +189,8 @@ export function useFileExplorer(options: UseFileExplorerOptions = {}): UseFileEx
           })),
         )
       } catch {
+        if (!isCurrentLoad()) return
+
         setTree(prev =>
           updateTreeNode(prev, parentPath, node => ({
             ...node,

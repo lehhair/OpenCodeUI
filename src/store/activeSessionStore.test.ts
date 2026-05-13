@@ -13,12 +13,9 @@ describe('activeSessionStore scoped refresh handling', () => {
       child: { type: 'busy' },
     })
 
-    activeSessionStore.initialize(
-      {
-        root: { type: 'busy' },
-      },
-      { mode: 'merge' },
-    )
+    activeSessionStore.mergeStatusRefresh({
+      root: { type: 'busy' },
+    })
 
     expect(activeSessionStore.getBusySessions().map(entry => entry.sessionId)).toEqual(['root', 'child'])
   })
@@ -39,7 +36,7 @@ describe('activeSessionStore scoped refresh handling', () => {
   it('keeps existing pending child requests during scoped pending refresh merges', () => {
     activeSessionStore.addPendingRequest('req-child', 'child', 'question', 'Need approval')
 
-    activeSessionStore.initializePendingRequests([], [], { mode: 'merge' })
+    activeSessionStore.mergePendingRequests([], [])
 
     expect(activeSessionStore.getBusySessions().map(entry => entry.sessionId)).toEqual(['child'])
     expect(activeSessionStore.getBusySessions()[0]?.pendingAction).toEqual({

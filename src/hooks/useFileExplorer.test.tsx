@@ -132,4 +132,64 @@ describe('useFileExplorer change scope', () => {
       expect(result.current.tree[0]?.children?.[0]?.path).toBe('src/a.ts')
     })
   })
+
+  it('ignores stale child loads after switching directories', async () => {
+    let resolveRepoAChildren: (nodes: Array<{ name: string; path: string; absolute: string; type: 'file'; ignored: boolean }>) => void
+
+    listDirectory.mockImplementation((parentPath: string, directory: string) => {
+      if (parentPath === '') {
+        return Promise.resolve([{ name: 'src', path: 'src', absolute: `${directory}/src`, type: 'directory', ignored: false }])
+      }
+
+      if (parentPath === 'src' && directory === '/repo-a') {
+        return new Promise(resolve => {
+          resolveRepoAChildren = resolve
+        })
+      }
+
+      if (parentPath === 'src' && directory === '/repo-b') {
+        return Promise.resolve([
+          { name: 'b.ts', path: 'src/b.ts', absolute: '/repo-b/src/b.ts', type: 'file', ignored: false },
+        ])
+      }
+
+      return Promise.resolve([])
+    })
+
+    const { result, rerender } = renderHook(
+      ({ directory }) => useFileExplorer({ directory, autoLoad: true }),
+      { initialProps: { directory: '/repo-a' } },
+    )
+
+    await waitFor(() => {
+      expect(result.current.tree[0]?.absolute).toBe('/repo-a/src')
+    })
+
+    act(() => {
+      result.current.toggleExpand('src')
+    })
+
+    rerender({ directory: '/repo-b' })
+
+    await waitFor(() => {
+      expect(result.current.tree[0]?.absolute).toBe('/repo-b/src')
+    })
+
+    act(() => {
+      result.current.toggleExpand('src')
+    })
+
+    await waitFor(() => {
+      expect(result.current.tree[0]?.children?.[0]?.path).toBe('src/b.ts')
+    })
+
+    await act(async () => {
+      resolveRepoAChildren!([
+        { name: 'a.ts', path: 'src/a.ts', absolute: '/repo-a/src/a.ts', type: 'file', ignored: false },
+      ])
+    })
+
+    expect(result.current.tree[0]?.absolute).toBe('/repo-b/src')
+    expect(result.current.tree[0]?.children?.map(child => child.path)).toEqual(['src/b.ts'])
+  })
 })

@@ -44,6 +44,8 @@ const {
   activeSessionStoreMock: {
     initialize: vi.fn(),
     initializePendingRequests: vi.fn(),
+    mergeStatusRefresh: vi.fn(),
+    mergePendingRequests: vi.fn(),
     setSessionMetaBulk: vi.fn(),
     setSessionMeta: vi.fn(),
     getSessionMeta: vi.fn((sessionId?: string) => ({ title: sessionId || 'Child Session', directory: '/workspace' })),
@@ -192,16 +194,16 @@ describe('useGlobalEvents', () => {
     statusDeferreds.get('/two')?.resolve({ 'new-session': { type: 'busy' } })
 
     await waitFor(() => {
-      expect(activeSessionStoreMock.initialize).toHaveBeenCalledTimes(1)
-      expect(activeSessionStoreMock.initialize).toHaveBeenCalledWith({ 'new-session': { type: 'busy' } })
+      expect(activeSessionStoreMock.mergeStatusRefresh).toHaveBeenCalledTimes(1)
+      expect(activeSessionStoreMock.mergeStatusRefresh).toHaveBeenCalledWith({ 'new-session': { type: 'busy' } })
     })
 
     statusDeferreds.get('/one')?.resolve({ 'old-session': { type: 'idle' } })
     await Promise.resolve()
     await Promise.resolve()
 
-    expect(activeSessionStoreMock.initialize).toHaveBeenCalledTimes(1)
-    expect(activeSessionStoreMock.initialize).not.toHaveBeenCalledWith({ 'old-session': { type: 'idle' } })
+    expect(activeSessionStoreMock.mergeStatusRefresh).toHaveBeenCalledTimes(1)
+    expect(activeSessionStoreMock.mergeStatusRefresh).not.toHaveBeenCalledWith({ 'old-session': { type: 'idle' } })
   })
 
   it('replays pending requests that arrive while initialization is in flight', async () => {
@@ -296,7 +298,7 @@ describe('useGlobalEvents', () => {
 
     statusDeferreds.get('/two')?.resolve({})
 
-    await waitFor(() => expect(activeSessionStoreMock.initializePendingRequests).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(activeSessionStoreMock.mergePendingRequests).toHaveBeenCalledTimes(1))
 
     expect(activeSessionStoreMock.addPendingRequest.mock.calls.filter(call => call[0] === 'perm-1')).toHaveLength(1)
     expect(activeSessionStoreMock.addPendingRequest.mock.calls.filter(call => call[0] === 'question-1')).toHaveLength(2)

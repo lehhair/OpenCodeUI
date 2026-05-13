@@ -48,10 +48,6 @@ interface ActiveSessionState {
   initialized: boolean
 }
 
-interface InitializeOptions {
-  mode?: 'replace' | 'merge'
-}
-
 type Subscriber = () => void
 
 // ============================================
@@ -127,8 +123,8 @@ class ActiveSessionStore {
   getBusySessionsSnapshot = (): ActiveSessionEntry[] => this.cachedBusySessions
   getBusyCountSnapshot = (): number => this.cachedBusyCount
 
-  private mergeStatusMap(statusMap: SessionStatusMap, mode: 'replace' | 'merge'): SessionStatusMap {
-    const nextMap = mode === 'merge' ? { ...this.state.statusMap } : {}
+  private applyStatusSnapshot(statusMap: SessionStatusMap, baseMap: SessionStatusMap): SessionStatusMap {
+    const nextMap = { ...baseMap }
 
     for (const [sessionId, status] of Object.entries(statusMap)) {
       if (status.type === 'idle') {
@@ -146,10 +142,21 @@ class ActiveSessionStore {
   // 初始化：从 API 拉取全量状态
   // ============================================
 
-  initialize(statusMap: SessionStatusMap, options: InitializeOptions = {}) {
-    const mode = options.mode ?? 'replace'
+  initialize(statusMap: SessionStatusMap) {
     this.state = {
-      statusMap: this.mergeStatusMap(statusMap, mode),
+      statusMap: this.applyStatusSnapshot(statusMap, {}),
+      initialized: true,
+    }
+    this.notify()
+  }
+
+  // ============================================
+  // 范围刷新：返回值不是全量状态，只更新这次明确返回的 session
+  // ============================================
+
+  mergeStatusRefresh(statusMap: SessionStatusMap) {
+    this.state = {
+      statusMap: this.applyStatusSnapshot(statusMap, this.state.statusMap),
       initialized: true,
     }
     this.notify()
@@ -162,12 +169,27 @@ class ActiveSessionStore {
   initializePendingRequests(
     permissions: Array<{ id: string; sessionID: string; permission: string; patterns?: string[] }>,
     questions: Array<{ id: string; sessionID: string; questions?: Array<{ header?: string }> }>,
-    options: InitializeOptions = {},
   ) {
-    const mode = options.mode ?? 'replace'
-    const pendingRequests = mode === 'merge' ? new Map(this.pendingRequests) : new Map<string, PendingRequest>()
-    const deferredIdleSessions = mode === 'merge' ? new Set(this.deferredIdleSessions) : new Set<string>()
+    this.applyPendingSnapshot(permissions, questions, new Map<string, PendingRequest>(), new Set<string>())
+  }
 
+  // ============================================
+  // 范围刷新：保留这次范围外已知的 pending request
+  // ============================================
+
+  mergePendingRequests(
+    permissions: Array<{ id: string; sessionID: string; permission: string; patterns?: string[] }>,
+    questions: Array<{ id: string; sessionID: string; questions?: Array<{ header?: string }> }>,
+  ) {
+    this.applyPendingSnapshot(permissions, questions, new Map(this.pendingRequests), new Set(this.deferredIdleSessions))
+  }
+
+  private applyPendingSnapshot(
+    permissions: Array<{ id: string; sessionID: string; permission: string; patterns?: string[] }>,
+    questions: Array<{ id: string; sessionID: string; questions?: Array<{ header?: string }> }>,
+    pendingRequests: Map<string, PendingRequest>,
+    deferredIdleSessions: Set<string>,
+  ) {
     let changed = false
     const newMap = { ...this.state.statusMap }
 

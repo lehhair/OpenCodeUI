@@ -262,7 +262,7 @@ function isSessionDirectlyOpen(sessionId: string): boolean {
 
 export function useGlobalEvents(directories?: string[]) {
   const directoriesRef = useRef<string[] | undefined>(directories)
-  const refreshRef = useRef<((mode?: 'replace' | 'merge') => void) | null>(null)
+  const refreshRef = useRef<((strategy?: 'replace' | 'merge') => void) | null>(null)
   const initializedDirectoriesRef = useRef(false)
 
   useEffect(() => {
@@ -303,14 +303,19 @@ export function useGlobalEvents(directories?: string[]) {
     // 拉取 session 状态 + pending requests（初始化 & 重连共用）
     // ============================================
 
-    const fetchAndInitialize = (mode: 'replace' | 'merge' = 'replace') => {
+    const fetchAndInitialize = (strategy: 'replace' | 'merge' = 'replace') => {
       const currentVersion = ++fetchVersion
       activeFetchVersion = currentVersion
       void fetchActiveScopeData(directoriesRef.current)
         .then(({ statusMap, permissions, questions, sessionMetaEntries }) => {
           if (disposed || currentVersion !== fetchVersion) return
-          activeSessionStore.initialize(statusMap, { mode })
-          activeSessionStore.initializePendingRequests(permissions, questions, { mode })
+          if (strategy === 'merge') {
+            activeSessionStore.mergeStatusRefresh(statusMap)
+            activeSessionStore.mergePendingRequests(permissions, questions)
+          } else {
+            activeSessionStore.initialize(statusMap)
+            activeSessionStore.initializePendingRequests(permissions, questions)
+          }
           const currentDirectories = directoriesRef.current
           const currentScopeKey = getScopeKey(directoriesRef.current)
           for (const pending of latePendingRequests.values()) {
