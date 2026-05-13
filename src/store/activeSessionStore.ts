@@ -48,6 +48,10 @@ interface ActiveSessionState {
   initialized: boolean
 }
 
+interface InitializeOptions {
+  mode?: 'replace' | 'merge'
+}
+
 type Subscriber = () => void
 
 // ============================================
@@ -81,7 +85,9 @@ class ActiveSessionStore {
 
   private notify() {
     this.recomputeDerived()
-    this.subscribers.forEach(cb => cb())
+    this.subscribers.forEach(cb => {
+      cb()
+    })
   }
 
   private recomputeDerived() {
@@ -121,12 +127,31 @@ class ActiveSessionStore {
   getBusySessionsSnapshot = (): ActiveSessionEntry[] => this.cachedBusySessions
   getBusyCountSnapshot = (): number => this.cachedBusyCount
 
+  private mergeStatusMap(statusMap: SessionStatusMap, mode: 'replace' | 'merge'): SessionStatusMap {
+    const nextMap = mode === 'merge' ? { ...this.state.statusMap } : {}
+
+    for (const [sessionId, status] of Object.entries(statusMap)) {
+      if (status.type === 'idle') {
+        delete nextMap[sessionId]
+        continue
+      }
+
+      nextMap[sessionId] = status.type === 'retry' ? { ...status } : { type: 'busy' }
+    }
+
+    return nextMap
+  }
+
   // ============================================
   // 初始化：从 API 拉取全量状态
   // ============================================
 
-  initialize(statusMap: SessionStatusMap) {
-    this.state = { statusMap: { ...statusMap }, initialized: true }
+  initialize(statusMap: SessionStatusMap, options: InitializeOptions = {}) {
+    const mode = options.mode ?? 'replace'
+    this.state = {
+      statusMap: this.mergeStatusMap(statusMap, mode),
+      initialized: true,
+    }
     this.notify()
   }
 
@@ -137,16 +162,18 @@ class ActiveSessionStore {
   initializePendingRequests(
     permissions: Array<{ id: string; sessionID: string; permission: string; patterns?: string[] }>,
     questions: Array<{ id: string; sessionID: string; questions?: Array<{ header?: string }> }>,
+    options: InitializeOptions = {},
   ) {
-    this.pendingRequests.clear()
-    this.deferredIdleSessions.clear()
+    const mode = options.mode ?? 'replace'
+    const pendingRequests = mode === 'merge' ? new Map(this.pendingRequests) : new Map<string, PendingRequest>()
+    const deferredIdleSessions = mode === 'merge' ? new Set(this.deferredIdleSessions) : new Set<string>()
 
     let changed = false
     const newMap = { ...this.state.statusMap }
 
     for (const p of permissions) {
       const desc = p.patterns?.length ? `${p.permission}: ${p.patterns[0]}` : p.permission
-      this.pendingRequests.set(p.id, {
+      pendingRequests.set(p.id, {
         requestId: p.id,
         sessionId: p.sessionID,
         type: 'permission',
@@ -154,14 +181,14 @@ class ActiveSessionStore {
       })
       if (!newMap[p.sessionID] || newMap[p.sessionID].type === 'idle') {
         newMap[p.sessionID] = { type: 'busy' }
-        this.deferredIdleSessions.add(p.sessionID)
+        deferredIdleSessions.add(p.sessionID)
         changed = true
       }
     }
 
     for (const q of questions) {
       const desc = q.questions?.[0]?.header || 'Waiting for input'
-      this.pendingRequests.set(q.id, {
+      pendingRequests.set(q.id, {
         requestId: q.id,
         sessionId: q.sessionID,
         type: 'question',
@@ -169,10 +196,13 @@ class ActiveSessionStore {
       })
       if (!newMap[q.sessionID] || newMap[q.sessionID].type === 'idle') {
         newMap[q.sessionID] = { type: 'busy' }
-        this.deferredIdleSessions.add(q.sessionID)
+        deferredIdleSessions.add(q.sessionID)
         changed = true
       }
     }
+
+    this.pendingRequests = pendingRequests
+    this.deferredIdleSessions = deferredIdleSessions
 
     if (changed) {
       this.state = { ...this.state, statusMap: newMap }
