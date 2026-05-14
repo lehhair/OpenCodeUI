@@ -15,15 +15,6 @@ export function ActiveSessionItem({ entry, resolvedSession, isSelected, onSelect
   const isSelfActive = entry.activitySource === 'self'
   const isRetry = isSelfActive && entry.status.type === 'retry'
   const pending = isSelfActive ? entry.pendingAction : undefined
-  const selectableSession =
-    resolvedSession ??
-    (entry.directory
-      ? ({
-          id: entry.sessionId,
-          title: entry.title ?? entry.sessionId,
-          directory: entry.directory,
-        } as ApiSession)
-      : undefined)
   // 标题优先从 resolvedSession 取，然后 fallback 到 entry.title（sessionMeta），最后截取 ID
   const displayTitle = resolvedSession?.title || entry.title || entry.sessionId.slice(0, 12) + '...'
   // 目录优先从 resolvedSession 取
@@ -51,8 +42,8 @@ export function ActiveSessionItem({ entry, resolvedSession, isSelected, onSelect
       }
 
   const handleClick = () => {
-    if (selectableSession) {
-      onSelect(selectableSession)
+    if (resolvedSession) {
+      onSelect(resolvedSession)
     }
   }
 
@@ -77,10 +68,10 @@ export function ActiveSessionItem({ entry, resolvedSession, isSelected, onSelect
       draggable={isDraggable}
       onDragStart={handleDragStart}
       onClick={handleClick}
-      disabled={!selectableSession}
+      disabled={!resolvedSession}
       className={`group relative flex w-full items-start pl-[6px] pr-3 py-2 rounded-lg cursor-default transition-all duration-200 border border-transparent text-left ${
         isSelected ? 'bg-bg-000 shadow-sm ring-1 ring-border-200/50' : 'hover:bg-bg-200/50'
-      } ${!selectableSession ? 'opacity-50 cursor-default' : ''}`}
+      } ${!resolvedSession ? 'opacity-50 cursor-default' : ''}`}
     >
       {/* Content */}
       <div className="flex-1 min-w-0 pr-1">

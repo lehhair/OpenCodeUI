@@ -73,4 +73,28 @@ describe('buildActiveTreeSessionTargets', () => {
       { sessionId: 'root-1', directory: '/workspace/root' },
     ])
   })
+
+  it('skips targets that still have no usable directory anywhere in the branch', () => {
+    const tree: ActiveSessionTree = {
+      rootEntries: [
+        {
+          sessionId: 'root-1',
+          activitySource: 'descendant',
+        },
+      ],
+      childrenByParent: new Map([
+        [
+          'root-1',
+          [
+            {
+              sessionId: 'child-1',
+              activitySource: 'descendant',
+            },
+          ],
+        ],
+      ]),
+    }
+
+    expect(buildActiveTreeSessionTargets(tree)).toEqual([])
+  })
 })

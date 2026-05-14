@@ -392,15 +392,17 @@ export function SidePanel({
     () => buildActiveSessionTree(busySessions, findParentId, resolveActiveTreeEntry),
     [busySessions, findParentId, resolveActiveTreeEntry],
   )
+  const activeTreeSessionTargets = useMemo(
+    () => buildActiveTreeSessionTargets(activeSessionTree),
+    [activeSessionTree],
+  )
 
-  const activeTreeSessionTargets = useMemo(() => buildActiveTreeSessionTargets(activeSessionTree), [activeSessionTree])
-
-  // 异步拉取不在 lookup 中的 active/notification/selected/active-tree-ancestor session
+  // 异步拉取不在 lookup 中的 active/notification/selected session
   useEffect(() => {
     const allNeeded = [
       ...busySessions.map(e => ({ sessionId: e.sessionId, directory: e.directory })),
-      ...notifications.map(e => ({ sessionId: e.sessionId, directory: e.directory })),
       ...activeTreeSessionTargets,
+      ...notifications.map(e => ({ sessionId: e.sessionId, directory: e.directory })),
     ]
     if (selectedSessionId && !sessionLookup.has(selectedSessionId)) {
       allNeeded.push({ sessionId: selectedSessionId, directory: currentDirectory || '' })
@@ -429,7 +431,7 @@ export function SidePanel({
     return () => {
       cancelled = true
     }
-  }, [busySessions, notifications, activeTreeSessionTargets, sessionLookup, selectedSessionId, currentDirectory])
+  }, [busySessions, activeTreeSessionTargets, notifications, sessionLookup, selectedSessionId, currentDirectory])
 
   const buildProjectGroups = useCallback(
     (directories: typeof savedDirectories): ProjectItem[] => {
@@ -693,7 +695,7 @@ export function SidePanel({
       return (
         <div key={entry.sessionId} style={level > 0 ? { marginLeft: level * 12 } : undefined}>
           <ActiveSessionItem
-            entry={entry as Parameters<typeof ActiveSessionItem>[0]['entry']}
+            entry={entry}
             resolvedSession={resolvedSession}
             isSelected={entry.sessionId === selectedSessionId}
             onSelect={handleSelectActive}

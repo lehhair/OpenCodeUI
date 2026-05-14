@@ -18,7 +18,7 @@ function renderItem(entry: ActiveSessionTreeEntry, resolvedSession?: ApiSession)
   const view = render(
     <ActiveSessionItem
       entry={entry}
-      resolvedSession={resolvedSession ?? createResolvedSession()}
+      resolvedSession={resolvedSession}
       isSelected={false}
       onSelect={onSelect}
     />,
@@ -42,7 +42,7 @@ describe('ActiveSessionItem', () => {
     const { container } = renderItem(descendantOnlyEntry, createResolvedSession({ id: 'session-descendant', title: 'Ancestor row' }))
 
     expect(screen.getByText('Ancestor row')).toBeInTheDocument()
-    expect(screen.getByText('Child session active')).toBeInTheDocument()
+    expect(screen.getByText('Active below')).toBeInTheDocument()
     expect(screen.queryByText('Working')).not.toBeInTheDocument()
     expect(screen.queryByText('Retrying')).not.toBeInTheDocument()
     expect(screen.queryByText('Awaiting Permission')).not.toBeInTheDocument()
@@ -66,7 +66,7 @@ describe('ActiveSessionItem', () => {
     expect(container.querySelector('.animate-ping')).toBeInTheDocument()
   })
 
-  it('allows descendant-only rows to be selected without a resolved session when entry metadata is sufficient', () => {
+  it('keeps unresolved descendant-only rows non-interactive without a resolved session', () => {
     const descendantOnlyEntry = {
       sessionId: 'session-descendant',
       title: 'Ancestor row',
@@ -78,17 +78,12 @@ describe('ActiveSessionItem', () => {
     render(<ActiveSessionItem entry={descendantOnlyEntry} isSelected={false} onSelect={onSelect} />)
 
     const button = screen.getByRole('button', { name: /ancestor row/i })
-    expect(button).toBeEnabled()
+    expect(button).toBeDisabled()
+    expect(button.draggable).toBe(false)
 
     fireEvent.click(button)
 
-    expect(onSelect).toHaveBeenCalledWith(
-      expect.objectContaining({
-        id: 'session-descendant',
-        title: 'Ancestor row',
-        directory: '/workspace/project',
-      }),
-    )
+    expect(onSelect).not.toHaveBeenCalled()
   })
 
   it('keeps the pending permission label for self-active entries waiting on user input', () => {
