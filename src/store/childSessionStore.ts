@@ -18,6 +18,7 @@ export interface ChildSessionInfo {
   id: string
   parentID: string
   title: string
+  directory?: string
   agent?: string // 子 agent 名称
   status: 'running' | 'idle' | 'error'
   createdAt: number
@@ -42,11 +43,15 @@ class ChildSessionStore {
 
   subscribe(fn: Subscriber): () => void {
     this.subscribers.add(fn)
-    return () => this.subscribers.delete(fn)
+    return () => {
+      this.subscribers.delete(fn)
+    }
   }
 
   private notify() {
-    this.subscribers.forEach(fn => fn())
+    this.subscribers.forEach(fn => {
+      fn()
+    })
   }
 
   // ============================================
@@ -72,6 +77,7 @@ class ChildSessionStore {
       id: session.id,
       parentID: session.parentID,
       title: session.title || i18n.t('chat:permissionDialog.subtaskFallback'),
+      directory: session.directory,
       status: 'running',
       createdAt: session.time.created,
     })
