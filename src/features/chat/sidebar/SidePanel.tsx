@@ -638,7 +638,9 @@ export function SidePanel({
 
   const handleRemoveProject = useCallback(
     (projectId: string) => {
-      getProjectDirectoriesToRemove(projectId).forEach(directory => removeDirectory(directory))
+      getProjectDirectoriesToRemove(projectId).forEach(directory => {
+        removeDirectory(directory)
+      })
     },
     [getProjectDirectoriesToRemove, removeDirectory],
   )
@@ -795,7 +797,9 @@ export function SidePanel({
   const handleBatchRemoveProjects = useCallback(() => {
     if (selectedProjectIds.size === 0) return
     for (const projectId of selectedProjectIds) {
-      getProjectDirectoriesToRemove(projectId).forEach(directory => removeDirectory(directory))
+      getProjectDirectoriesToRemove(projectId).forEach(directory => {
+        removeDirectory(directory)
+      })
     }
     setSelectedProjectIds(new Set())
     projectSelectionAnchorIdRef.current = null
@@ -862,6 +866,7 @@ export function SidePanel({
           style={{ justifyContent: showLabels ? 'flex-end' : 'center', paddingRight: showLabels ? 8 : 0 }}
         >
           <button
+            type="button"
             onClick={onToggleSidebar}
             aria-label={isExpanded ? t('sidebar.collapseSidebar') : t('sidebar.expandSidebar')}
             className="h-8 w-8 flex items-center justify-center rounded-lg text-text-400 hover:text-text-100 hover:bg-bg-200 active:scale-[0.98] transition-all duration-200"
@@ -966,7 +971,6 @@ export function SidePanel({
                 return (
                   <div
                     key={project.id}
-                    onClick={() => handleSelectProject(project.id)}
                     className={`group w-full flex items-center gap-2 px-2 py-1.5 rounded-md transition-colors ${
                       isActive ? 'bg-bg-200/60 text-text-100' : 'text-text-300 hover:text-text-100 hover:bg-bg-200/50'
                     }`}
@@ -1137,6 +1141,7 @@ export function SidePanel({
               </span>
               {selectedSessionIds.size > 0 && (
                 <button
+                  type="button"
                   onClick={() => setBatchDeleteSessionConfirm(true)}
                   className="shrink-0 flex items-center gap-1 px-2 py-1 rounded-md text-[length:var(--fs-xxs)] font-medium text-danger-100 bg-danger-100/10 hover:bg-danger-100/20 transition-colors"
                 >
@@ -1146,6 +1151,7 @@ export function SidePanel({
               )}
               {selectedProjectIds.size > 0 && (
                 <button
+                  type="button"
                   onClick={() => setBatchRemoveProjectConfirm(true)}
                   className="shrink-0 flex items-center gap-1 px-2 py-1 rounded-md text-[length:var(--fs-xxs)] font-medium text-warning-100 bg-warning-100/10 hover:bg-warning-100/20 transition-colors"
                 >
@@ -1229,6 +1235,7 @@ export function SidePanel({
                       <div className="flex items-center gap-0.5">
                         {notifications.some((n: NotificationEntry) => !n.read) && (
                           <button
+                            type="button"
                             className="text-[length:var(--fs-xxs)] text-text-400 hover:text-text-200 px-1.5 py-0.5 rounded-md hover:bg-bg-200 transition-all duration-150 active:scale-95"
                             onClick={() => notificationStore.markAllRead()}
                           >
@@ -1236,6 +1243,7 @@ export function SidePanel({
                           </button>
                         )}
                         <button
+                          type="button"
                           className="text-[length:var(--fs-xxs)] text-text-400 hover:text-text-200 px-1.5 py-0.5 rounded-md hover:bg-bg-200 transition-all duration-150 active:scale-95"
                           onClick={() => notificationStore.clearAll()}
                         >
