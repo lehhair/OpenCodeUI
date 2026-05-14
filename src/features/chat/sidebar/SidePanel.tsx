@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState, useEffect, useRef, type ReactNode } from 'react'
+import { useCallback, useMemo, useState, useEffect, useRef, useSyncExternalStore, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { SessionList } from '../../sessions'
 import { FolderRecentList } from './FolderRecentList'
@@ -7,7 +7,8 @@ import { ConfirmDialog } from '../../../components/ui/ConfirmDialog'
 import { ActiveSessionItem } from './ActiveSessionItem'
 import { NotificationItem } from './NotificationItem'
 import { SidebarFooter } from './SidebarFooter'
-import { buildActiveSessionTree } from './activeSessionTree'
+import { buildActiveSessionTree, type ActiveSessionTreeEntry } from './activeSessionTree'
+import { buildActiveTreeSessionTargets } from './activeSessionTargets'
 import { getParentPath } from './sidebarUtils'
 import {
   SidebarIcon,
@@ -73,6 +74,27 @@ interface ProjectItem {
   reorderPath?: string
   workspaceDirectories?: string[]
   sectionKind?: 'project' | 'workspace'
+}
+
+let childSessionStoreVersion = 0
+
+function subscribeToChildSessionStoreVersion(onStoreChange: () => void) {
+  return childSessionStore.subscribe(() => {
+    childSessionStoreVersion += 1
+    onStoreChange()
+  })
+}
+
+function getChildSessionStoreVersion() {
+  return childSessionStoreVersion
+}
+
+function useChildSessionStoreVersion() {
+  return useSyncExternalStore(
+    subscribeToChildSessionStoreVersion,
+    getChildSessionStoreVersion,
+    getChildSessionStoreVersion,
+  )
 }
 
 function getSelectionRange(visibleIds: string[], anchorId: string, targetId: string) {
@@ -261,6 +283,7 @@ export function SidePanel({
   // Active sessions
   const busySessions = useBusySessions()
   const busyCount = useBusyCount()
+  const childSessionMetadataVersion = useChildSessionStoreVersion()
   // Notification history
   const notifications = useNotifications()
   const unreadNotificationCount = useUnreadNotificationCount()
@@ -291,51 +314,47 @@ export function SidePanel({
     return map
   }, [sessions, fetchedSessions])
 
-  // 异步拉取不在 lookup 中的 active/notification/selected session
-  useEffect(() => {
-    const allNeeded = [
-      ...busySessions.map(e => ({ sessionId: e.sessionId, directory: e.directory })),
-      ...notifications.map(e => ({ sessionId: e.sessionId, directory: e.directory })),
-    ]
-    if (selectedSessionId && !sessionLookup.has(selectedSessionId)) {
-      allNeeded.push({ sessionId: selectedSessionId, directory: currentDirectory || '' })
-    }
-    const missing = allNeeded.filter(entry => !sessionLookup.has(entry.sessionId))
-    if (missing.length === 0) return
-
-    let cancelled = false
-    const fetchMissing = async () => {
-      const results: Record<string, ApiSession> = {}
-      await Promise.allSettled(
-        missing.map(async entry => {
-          try {
-            const session = await getSession(entry.sessionId, entry.directory)
-            if (!cancelled) results[session.id] = session
-          } catch {
-            /* ignore */
-          }
-        }),
-      )
-      if (!cancelled && Object.keys(results).length > 0) {
-        setFetchedSessions(prev => ({ ...prev, ...results }))
-      }
-    }
-    fetchMissing()
-    return () => {
-      cancelled = true
-    }
-  }, [busySessions, notifications, sessionLookup, selectedSessionId, currentDirectory])
-
   // ---- 子 session 展示数据 ----
   const rootSessionIds = useMemo(() => new Set(sessions.map(s => s.id)), [sessions])
+
+  const getChildSessionInfo = useCallback(
+    (sessionId: string) => {
+      childSessionMetadataVersion
+      return childSessionStore.getSessionInfo(sessionId)
+    },
+    [childSessionMetadataVersion],
+  )
 
   const findParentId = useCallback(
     (id: string) => {
       const s = sessionLookup.get(id)
       if (s?.parentID) return s.parentID
-      return childSessionStore.getSessionInfo(id)?.parentID
+      return getChildSessionInfo(id)?.parentID
     },
-    [sessionLookup],
+    [sessionLookup, getChildSessionInfo],
+  )
+
+  const resolveActiveTreeEntry = useCallback(
+    (sessionId: string) => {
+      const resolvedSession = sessionLookup.get(sessionId)
+      if (resolvedSession) {
+        return {
+          title: resolvedSession.title,
+          directory: resolvedSession.directory,
+        }
+      }
+
+      const childSessionInfo = getChildSessionInfo(sessionId)
+      if (childSessionInfo) {
+        return {
+          title: childSessionInfo.title,
+          directory: childSessionInfo.directory,
+        }
+      }
+
+      return undefined
+    },
+    [sessionLookup, getChildSessionInfo],
   )
 
   // 开关开 → 拉 /children 全量：选中的 root 或选中子 session 时保持其父展开
@@ -387,9 +406,47 @@ export function SidePanel({
   ])
 
   const activeSessionTree = useMemo(
-    () => buildActiveSessionTree(busySessions, findParentId),
-    [busySessions, findParentId],
+    () => buildActiveSessionTree(busySessions, findParentId, resolveActiveTreeEntry),
+    [busySessions, findParentId, resolveActiveTreeEntry],
   )
+
+  const activeTreeSessionTargets = useMemo(() => buildActiveTreeSessionTargets(activeSessionTree), [activeSessionTree])
+
+  // 异步拉取不在 lookup 中的 active/notification/selected/active-tree-ancestor session
+  useEffect(() => {
+    const allNeeded = [
+      ...busySessions.map(e => ({ sessionId: e.sessionId, directory: e.directory })),
+      ...notifications.map(e => ({ sessionId: e.sessionId, directory: e.directory })),
+      ...activeTreeSessionTargets,
+    ]
+    if (selectedSessionId && !sessionLookup.has(selectedSessionId)) {
+      allNeeded.push({ sessionId: selectedSessionId, directory: currentDirectory || '' })
+    }
+    const missing = allNeeded.filter(entry => !sessionLookup.has(entry.sessionId))
+    if (missing.length === 0) return
+
+    let cancelled = false
+    const fetchMissing = async () => {
+      const results: Record<string, ApiSession> = {}
+      await Promise.allSettled(
+        missing.map(async entry => {
+          try {
+            const session = await getSession(entry.sessionId, entry.directory)
+            if (!cancelled) results[session.id] = session
+          } catch {
+            /* ignore */
+          }
+        }),
+      )
+      if (!cancelled && Object.keys(results).length > 0) {
+        setFetchedSessions(prev => ({ ...prev, ...results }))
+      }
+    }
+    fetchMissing()
+    return () => {
+      cancelled = true
+    }
+  }, [busySessions, notifications, activeTreeSessionTargets, sessionLookup, selectedSessionId, currentDirectory])
 
   const buildProjectGroups = useCallback(
     (directories: typeof savedDirectories): ProjectItem[] => {
@@ -644,14 +701,14 @@ export function SidePanel({
   )
 
   const renderActiveSessionNode = useCallback(
-    function renderActiveSessionNode(entry: (typeof busySessions)[number], level = 0): ReactNode {
+    function renderActiveSessionNode(entry: ActiveSessionTreeEntry, level = 0): ReactNode {
       const resolvedSession = sessionLookup.get(entry.sessionId)
       const childEntries = activeSessionTree.childrenByParent.get(entry.sessionId) ?? []
 
       return (
         <div key={entry.sessionId} style={level > 0 ? { marginLeft: level * 12 } : undefined}>
           <ActiveSessionItem
-            entry={entry}
+            entry={entry as Parameters<typeof ActiveSessionItem>[0]['entry']}
             resolvedSession={resolvedSession}
             isSelected={entry.sessionId === selectedSessionId}
             onSelect={handleSelectActive}
