@@ -163,7 +163,8 @@
     "awaitingAnswer": "Awaiting Answer",
     "retrying": "Retrying",
     "working": "Working",
-    "attempt": "attempt {{count}}"
+    "attempt": "attempt {{count}}",
+    "activeBelow": "Child session active"
   },
   "notification": {
     "completed": "Completed",
