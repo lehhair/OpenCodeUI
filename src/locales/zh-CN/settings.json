@@ -207,6 +207,12 @@
     "layoutDesc": "工作区布局、阅读舒适度和代码查看偏好",
     "manualTerminalTitles": "手动终端标签",
     "manualTerminalTitlesDesc": "开启后，终端标签不再跟随 shell 自动更新，可手动重命名。关闭后，终端标签会继续按 shell 或进程标题自动变化。",
+    "terminal": "终端",
+    "terminalDesc": "终端复制、粘贴和鼠标行为。基础粘贴与有选区时 Ctrl+C 复制始终可用。",
+    "terminalCopyOnSelect": "选中即复制",
+    "terminalCopyOnSelectDesc": "松开鼠标时自动复制终端选区。关闭时只在有选区并按 Ctrl/Cmd+C 时复制。",
+    "terminalRightClickPaste": "智能右键复制/粘贴",
+    "terminalRightClickPasteDesc": "终端有选区时右键复制选区，没有选区时右键读取剪贴板并粘贴。开启后会替代浏览器默认右键菜单。",
     "sidebar": "侧边栏",
     "sidebarDesc": "侧边栏布局和最近对话的组织方式"
   },

@@ -207,6 +207,12 @@
     "layoutDesc": "Workspace layout, reading comfort, and code viewing preferences",
     "manualTerminalTitles": "Manual Terminal Labels",
     "manualTerminalTitlesDesc": "When enabled, terminal tabs stop following shell title changes and can be renamed manually. When disabled, terminal tabs continue to follow shell or process titles automatically.",
+    "terminal": "Terminal",
+    "terminalDesc": "Terminal copy, paste, and mouse behavior. Basic paste and Ctrl/Cmd+C copy with a selection are always available.",
+    "terminalCopyOnSelect": "Copy On Selection",
+    "terminalCopyOnSelectDesc": "Automatically copy the terminal selection when the mouse is released. When off, selections are copied only with Ctrl/Cmd+C.",
+    "terminalRightClickPaste": "Smart Right Click Copy/Paste",
+    "terminalRightClickPasteDesc": "Right click copies the terminal selection when one exists, otherwise it reads clipboard text and pastes it. When enabled, this replaces the browser context menu.",
     "sidebar": "Sidebar",
     "sidebarDesc": "Sidebar layout and recent chat organization"
   },

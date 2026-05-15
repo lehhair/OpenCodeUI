@@ -15,7 +15,14 @@ export function WorkspaceSettings() {
     manualTerminalTitles,
     setManualTerminalTitles,
   } = useTheme()
-  const { sidebarFolderRecents, sidebarFolderRecentsShowDiff, sidebarShowChildSessions, wakeLock } = useLayoutStore()
+  const {
+    sidebarFolderRecents,
+    sidebarFolderRecentsShowDiff,
+    sidebarShowChildSessions,
+    terminalCopyOnSelect,
+    terminalRightClickPaste,
+    wakeLock,
+  } = useLayoutStore()
 
   return (
     <div>
@@ -77,6 +84,32 @@ export function WorkspaceSettings() {
             onChange={v => setDiffStyle(v as 'markers' | 'changeBars')}
           />
         </div>
+      </SettingsSection>
+
+      <SettingsSection title={t('workspace.terminal')}>
+        <p className="text-[length:var(--fs-sm)] text-text-400">{t('workspace.terminalDesc')}</p>
+
+        <SettingRow
+          label={t('workspace.terminalCopyOnSelect')}
+          description={t('workspace.terminalCopyOnSelectDesc')}
+          onClick={() => layoutStore.setTerminalCopyOnSelect(!terminalCopyOnSelect)}
+        >
+          <Toggle
+            enabled={terminalCopyOnSelect}
+            onChange={() => layoutStore.setTerminalCopyOnSelect(!terminalCopyOnSelect)}
+          />
+        </SettingRow>
+
+        <SettingRow
+          label={t('workspace.terminalRightClickPaste')}
+          description={t('workspace.terminalRightClickPasteDesc')}
+          onClick={() => layoutStore.setTerminalRightClickPaste(!terminalRightClickPaste)}
+        >
+          <Toggle
+            enabled={terminalRightClickPaste}
+            onChange={() => layoutStore.setTerminalRightClickPaste(!terminalRightClickPaste)}
+          />
+        </SettingRow>
       </SettingsSection>
 
       <SettingsSection title={t('workspace.sidebar')}>

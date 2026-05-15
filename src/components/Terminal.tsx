@@ -16,6 +16,8 @@ import { useInputCapabilities } from '../hooks/useInputCapabilities'
 import { logger } from '../utils/logger'
 import { parsePtyFrame } from '../utils/ptyProtocol'
 import { isTauri } from '../utils/tauri'
+import { copyTextToClipboard, readTextFromClipboard } from '../utils/clipboard'
+import { keybindingStore } from '../store/keybindingStore'
 
 // ============================================
 // 终端主题 - 与应用主题配合
@@ -191,6 +193,10 @@ function hasStickyModifier(sticky: StickyModifiers): boolean {
   return sticky.ctrl || sticky.alt
 }
 
+function isNativePasteShortcut(event: KeyboardEvent) {
+  return (event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && event.key.toLowerCase() === 'v'
+}
+
 function applyStickyModifiers(data: string, sticky: StickyModifiers): string {
   let output = data
   if (sticky.ctrl) output = toCtrlSequence(output)
@@ -296,9 +302,11 @@ export const Terminal = memo(function Terminal({ ptyId, directory, isActive }: T
   const [hasBeenActive, setHasBeenActive] = useState(isActive)
   const { preferTouchUi, hasTouch, hasCoarsePointer } = useInputCapabilities()
   const { manualTerminalTitles } = useTheme()
-  const { panelTabs } = useLayoutStore()
+  const { panelTabs, terminalCopyOnSelect, terminalRightClickPaste } = useLayoutStore()
   const touchCapable = hasTouch || hasCoarsePointer
   const manualTerminalTitlesRef = useRef(manualTerminalTitles)
+  const terminalCopyOnSelectRef = useRef(terminalCopyOnSelect)
+  const terminalRightClickPasteRef = useRef(terminalRightClickPaste)
   const terminalTab = panelTabs.find(tab => tab.id === ptyId && tab.type === 'terminal')
   const restoreBuffer = typeof terminalTab?.buffer === 'string' ? terminalTab.buffer : ''
   const restoreScrollY = typeof terminalTab?.scrollY === 'number' ? terminalTab.scrollY : undefined
@@ -350,6 +358,14 @@ export const Terminal = memo(function Terminal({ ptyId, directory, isActive }: T
   useEffect(() => {
     manualTerminalTitlesRef.current = manualTerminalTitles
   }, [manualTerminalTitles])
+
+  useEffect(() => {
+    terminalCopyOnSelectRef.current = terminalCopyOnSelect
+  }, [terminalCopyOnSelect])
+
+  useEffect(() => {
+    terminalRightClickPasteRef.current = terminalRightClickPaste
+  }, [terminalRightClickPaste])
 
   // 当 tab 第一次变为活动状态时，标记它
   useEffect(() => {
@@ -424,6 +440,80 @@ export const Terminal = memo(function Terminal({ ptyId, directory, isActive }: T
 
     const textarea = terminal.textarea
     const handleTextareaBlur = () => clearStickyModifiers()
+    const handleTextareaPaste = (event: ClipboardEvent) => {
+      const text = event.clipboardData?.getData('text/plain')
+      if (!text) return
+
+      event.preventDefault()
+      sendTerminalData(text)
+    }
+
+    terminal.attachCustomKeyEventHandler(event => {
+      if (event.type !== 'keydown') return true
+
+      const action = keybindingStore.findMatchingAction(event, 'terminal')
+      if (action === 'terminal.paste') {
+        if (isNativePasteShortcut(event)) {
+          return false
+        }
+
+        event.preventDefault()
+        void readTextFromClipboard()
+          .then(text => {
+            if (!text || !mountedRef.current) return
+            sendTerminalData(text)
+          })
+          .catch(() => {})
+        return false
+      }
+
+      if (action !== 'terminal.copySelection' || !terminal.hasSelection()) return true
+
+      const selected = terminal.getSelection()
+      if (!selected) return true
+
+      event.preventDefault()
+      void copyTextToClipboard(selected).catch(() => {})
+      terminal.clearSelection()
+      return false
+    })
+
+    const terminalElement = terminal.element
+    const handleSelectionCopy = (event: MouseEvent) => {
+      if (event.button !== 0) return
+      if (!terminalCopyOnSelectRef.current || !terminal.hasSelection()) return
+
+      const selected = terminal.getSelection()
+      if (!selected) return
+
+      void copyTextToClipboard(selected).catch(() => {})
+    }
+
+    const handleContextMenuPaste = (event: MouseEvent) => {
+      if (!terminalRightClickPasteRef.current) return
+
+      event.preventDefault()
+      if (terminal.hasSelection()) {
+        const selected = terminal.getSelection()
+        if (selected) {
+          void copyTextToClipboard(selected).catch(() => {})
+          terminal.clearSelection()
+        }
+        return
+      }
+
+      void readTextFromClipboard()
+        .then(text => {
+          if (!text || !mountedRef.current) return
+          sendTerminalData(text)
+          terminal.focus()
+        })
+        .catch(() => {})
+    }
+
+    textarea?.addEventListener('paste', handleTextareaPaste)
+    terminalElement?.addEventListener('mouseup', handleSelectionCopy)
+    terminalElement?.addEventListener('contextmenu', handleContextMenuPaste)
     if (touchUi && textarea) {
       textarea.setAttribute('autocapitalize', 'none')
       textarea.setAttribute('autocomplete', 'off')
@@ -630,7 +720,10 @@ export const Terminal = memo(function Terminal({ ptyId, directory, isActive }: T
       transportDisconnectRef.current?.()
       disposeData?.dispose()
       disposeTitle?.dispose()
+      textarea?.removeEventListener('paste', handleTextareaPaste)
       textarea?.removeEventListener('blur', handleTextareaBlur)
+      terminalElement?.removeEventListener('mouseup', handleSelectionCopy)
+      terminalElement?.removeEventListener('contextmenu', handleContextMenuPaste)
       resetTransport()
       // 显式 dispose addons
       fitAddon.dispose()

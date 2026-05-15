@@ -23,6 +23,8 @@ const ACTION_TRANSLATION_KEYS: Record<KeybindingAction, { label: string; descrip
   nextSession: { label: 'nextSession', description: 'nextSessionDesc' },
   toggleTerminal: { label: 'toggleTerminal', description: 'toggleTerminalDesc' },
   newTerminal: { label: 'newTerminal', description: 'newTerminalDesc' },
+  'terminal.copySelection': { label: 'terminalCopySelection', description: 'terminalCopySelectionDesc' },
+  'terminal.paste': { label: 'terminalPaste', description: 'terminalPasteDesc' },
   selectModel: { label: 'selectModel', description: 'selectModelDesc' },
   toggleAgent: { label: 'toggleAgent', description: 'toggleAgentDesc' },
   sendMessage: { label: 'sendMessage', description: 'sendMessageDesc' },
@@ -75,7 +77,7 @@ interface KeybindingRowProps {
   config: KeybindingConfig
   onEdit: (action: KeybindingAction, newKey: string) => void
   onReset: (action: KeybindingAction) => void
-  isKeyUsed: (key: string, exclude?: KeybindingAction) => boolean
+  isKeyUsed: (key: string, exclude?: KeybindingAction, scope?: KeybindingConfig['scope']) => boolean
   t: (key: string) => string
 }
 
@@ -98,9 +100,9 @@ function KeybindingRow({ config, onEdit, onReset, isKeyUsed, t }: KeybindingRowP
 
       const newKey = keyEventToString(e)
       setTempKey(newKey)
-      setError(isKeyUsed(newKey, config.action) ? t('keybindings.alreadyInUse') : '')
+      setError(isKeyUsed(newKey, config.action, config.scope) ? t('keybindings.alreadyInUse') : '')
     },
-    [isKeyUsed, config.action, t],
+    [isKeyUsed, config.action, config.scope, t],
   )
 
   const confirm = useCallback(() => {

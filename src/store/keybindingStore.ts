@@ -21,6 +21,8 @@ export type KeybindingAction =
   // Terminal
   | 'toggleTerminal'
   | 'newTerminal'
+  | 'terminal.copySelection'
+  | 'terminal.paste'
   // Model
   | 'selectModel'
   | 'toggleAgent'
@@ -48,6 +50,7 @@ export interface KeybindingConfig {
   defaultKey: string // 默认快捷键
   currentKey: string // 当前快捷键（用户可修改）
   category: 'general' | 'session' | 'terminal' | 'model' | 'message' | 'permission' | 'pane'
+  scope: 'global' | 'terminal'
 }
 
 /**
@@ -83,6 +86,7 @@ const DEFAULT_KEYBINDINGS: KeybindingConfig[] = [
     defaultKey: 'Alt+,',
     currentKey: 'Alt+,',
     category: 'general',
+    scope: 'global',
   },
   {
     action: 'openProject',
@@ -91,6 +95,7 @@ const DEFAULT_KEYBINDINGS: KeybindingConfig[] = [
     defaultKey: 'Alt+O',
     currentKey: 'Alt+O',
     category: 'general',
+    scope: 'global',
   },
   {
     action: 'commandPalette',
@@ -99,6 +104,7 @@ const DEFAULT_KEYBINDINGS: KeybindingConfig[] = [
     defaultKey: 'Ctrl+Shift+P',
     currentKey: 'Ctrl+Shift+P',
     category: 'general',
+    scope: 'global',
   },
   {
     action: 'toggleSidebar',
@@ -107,6 +113,7 @@ const DEFAULT_KEYBINDINGS: KeybindingConfig[] = [
     defaultKey: 'Alt+B',
     currentKey: 'Alt+B',
     category: 'general',
+    scope: 'global',
   },
   {
     action: 'toggleRightPanel',
@@ -115,6 +122,7 @@ const DEFAULT_KEYBINDINGS: KeybindingConfig[] = [
     defaultKey: 'Alt+\\',
     currentKey: 'Alt+\\',
     category: 'general',
+    scope: 'global',
   },
   {
     action: 'focusInput',
@@ -123,6 +131,7 @@ const DEFAULT_KEYBINDINGS: KeybindingConfig[] = [
     defaultKey: 'Alt+I',
     currentKey: 'Alt+I',
     category: 'general',
+    scope: 'global',
   },
 
   // Session
@@ -133,6 +142,7 @@ const DEFAULT_KEYBINDINGS: KeybindingConfig[] = [
     defaultKey: 'Alt+N',
     currentKey: 'Alt+N',
     category: 'session',
+    scope: 'global',
   },
   {
     action: 'archiveSession',
@@ -141,6 +151,7 @@ const DEFAULT_KEYBINDINGS: KeybindingConfig[] = [
     defaultKey: 'Alt+Backspace',
     currentKey: 'Alt+Backspace',
     category: 'session',
+    scope: 'global',
   },
   {
     action: 'previousSession',
@@ -149,6 +160,7 @@ const DEFAULT_KEYBINDINGS: KeybindingConfig[] = [
     defaultKey: 'Alt+ArrowUp',
     currentKey: 'Alt+ArrowUp',
     category: 'session',
+    scope: 'global',
   },
   {
     action: 'nextSession',
@@ -157,6 +169,7 @@ const DEFAULT_KEYBINDINGS: KeybindingConfig[] = [
     defaultKey: 'Alt+ArrowDown',
     currentKey: 'Alt+ArrowDown',
     category: 'session',
+    scope: 'global',
   },
 
   // Terminal
@@ -167,6 +180,7 @@ const DEFAULT_KEYBINDINGS: KeybindingConfig[] = [
     defaultKey: 'Alt+`',
     currentKey: 'Alt+`',
     category: 'terminal',
+    scope: 'global',
   },
   {
     action: 'newTerminal',
@@ -175,6 +189,25 @@ const DEFAULT_KEYBINDINGS: KeybindingConfig[] = [
     defaultKey: 'Alt+T',
     currentKey: 'Alt+T',
     category: 'terminal',
+    scope: 'global',
+  },
+  {
+    action: 'terminal.copySelection',
+    label: 'Copy Terminal Selection',
+    description: 'Copy the current terminal selection',
+    defaultKey: 'Ctrl+C',
+    currentKey: 'Ctrl+C',
+    category: 'terminal',
+    scope: 'terminal',
+  },
+  {
+    action: 'terminal.paste',
+    label: 'Paste Into Terminal',
+    description: 'Paste clipboard text into the terminal',
+    defaultKey: 'Ctrl+V',
+    currentKey: 'Ctrl+V',
+    category: 'terminal',
+    scope: 'terminal',
   },
 
   // Model
@@ -185,6 +218,7 @@ const DEFAULT_KEYBINDINGS: KeybindingConfig[] = [
     defaultKey: 'Alt+M',
     currentKey: 'Alt+M',
     category: 'model',
+    scope: 'global',
   },
   {
     action: 'toggleAgent',
@@ -193,6 +227,7 @@ const DEFAULT_KEYBINDINGS: KeybindingConfig[] = [
     defaultKey: 'Alt+.',
     currentKey: 'Alt+.',
     category: 'model',
+    scope: 'global',
   },
 
   // Message
@@ -203,6 +238,7 @@ const DEFAULT_KEYBINDINGS: KeybindingConfig[] = [
     defaultKey: 'Ctrl+Enter',
     currentKey: 'Ctrl+Enter',
     category: 'message',
+    scope: 'global',
   },
   {
     action: 'cancelMessage',
@@ -211,6 +247,7 @@ const DEFAULT_KEYBINDINGS: KeybindingConfig[] = [
     defaultKey: 'Escape',
     currentKey: 'Escape',
     category: 'message',
+    scope: 'global',
   },
   {
     action: 'copyLastResponse',
@@ -219,6 +256,7 @@ const DEFAULT_KEYBINDINGS: KeybindingConfig[] = [
     defaultKey: 'Alt+C',
     currentKey: 'Alt+C',
     category: 'message',
+    scope: 'global',
   },
 
   // Permission
@@ -229,6 +267,7 @@ const DEFAULT_KEYBINDINGS: KeybindingConfig[] = [
     defaultKey: 'Alt+Y',
     currentKey: 'Alt+Y',
     category: 'permission',
+    scope: 'global',
   },
 
   // Pane
@@ -239,6 +278,7 @@ const DEFAULT_KEYBINDINGS: KeybindingConfig[] = [
     defaultKey: 'Alt+ArrowRight',
     currentKey: 'Alt+ArrowRight',
     category: 'pane',
+    scope: 'global',
   },
   {
     action: 'focusPrevPane',
@@ -247,6 +287,7 @@ const DEFAULT_KEYBINDINGS: KeybindingConfig[] = [
     defaultKey: 'Alt+ArrowLeft',
     currentKey: 'Alt+ArrowLeft',
     category: 'pane',
+    scope: 'global',
   },
   {
     action: 'splitRight',
@@ -255,6 +296,7 @@ const DEFAULT_KEYBINDINGS: KeybindingConfig[] = [
     defaultKey: 'Alt+Shift+ArrowRight',
     currentKey: 'Alt+Shift+ArrowRight',
     category: 'pane',
+    scope: 'global',
   },
   {
     action: 'splitDown',
@@ -263,6 +305,7 @@ const DEFAULT_KEYBINDINGS: KeybindingConfig[] = [
     defaultKey: 'Alt+Shift+ArrowDown',
     currentKey: 'Alt+Shift+ArrowDown',
     category: 'pane',
+    scope: 'global',
   },
   {
     action: 'closePane',
@@ -271,6 +314,7 @@ const DEFAULT_KEYBINDINGS: KeybindingConfig[] = [
     defaultKey: 'Alt+Shift+Backspace',
     currentKey: 'Alt+Shift+Backspace',
     category: 'pane',
+    scope: 'global',
   },
   {
     action: 'togglePaneFullscreen',
@@ -279,6 +323,7 @@ const DEFAULT_KEYBINDINGS: KeybindingConfig[] = [
     defaultKey: 'Alt+Enter',
     currentKey: 'Alt+Enter',
     category: 'pane',
+    scope: 'global',
   },
 ]
 
@@ -648,19 +693,29 @@ class KeybindingStore {
   /**
    * 检查快捷键是否已被使用 (使用规范化比较)
    */
-  isKeyUsed(keyStr: string, excludeAction?: KeybindingAction): boolean {
+  isKeyUsed(keyStr: string, excludeAction?: KeybindingAction, scope?: KeybindingConfig['scope']): boolean {
     const normalizedInput = normalizeKeybindingString(keyStr)
     return this.keybindings.some(
-      kb => normalizeKeybindingString(kb.currentKey) === normalizedInput && kb.action !== excludeAction,
+      kb =>
+        normalizeKeybindingString(kb.currentKey) === normalizedInput &&
+        kb.action !== excludeAction &&
+        (scope === undefined || kb.scope === scope),
     )
   }
 
   /**
    * 根据快捷键查找动作 (使用规范化比较)
    */
-  findActionByKey(keyStr: string): KeybindingAction | null {
+  findActionByKey(keyStr: string, scope?: KeybindingConfig['scope']): KeybindingAction | null {
     const normalizedInput = normalizeKeybindingString(keyStr)
-    const kb = this.keybindings.find(k => normalizeKeybindingString(k.currentKey) === normalizedInput)
+    const kb = this.keybindings.find(
+      k => normalizeKeybindingString(k.currentKey) === normalizedInput && (scope === undefined || k.scope === scope),
+    )
+    return kb?.action ?? null
+  }
+
+  findMatchingAction(event: KeyboardEvent, scope: KeybindingConfig['scope']): KeybindingAction | null {
+    const kb = this.keybindings.find(k => k.scope === scope && matchesKeybinding(event, k.currentKey))
     return kb?.action ?? null
   }
 

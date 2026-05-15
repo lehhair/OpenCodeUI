@@ -145,4 +145,18 @@ describe('LayoutStore panel and terminal layout', () => {
       cols: 80,
     })
   })
+
+  it('persists terminal clipboard interaction preferences', () => {
+    const store = new LayoutStore()
+
+    store.setTerminalCopyOnSelect(true)
+    store.setTerminalRightClickPaste(true)
+
+    expect(localStorage.getItem('opencode-terminal-copy-on-select')).toBe('true')
+    expect(localStorage.getItem('opencode-terminal-right-click-paste')).toBe('true')
+
+    const restored = new LayoutStore().getState()
+    expect(restored.terminalCopyOnSelect).toBe(true)
+    expect(restored.terminalRightClickPaste).toBe(true)
+  })
 })
