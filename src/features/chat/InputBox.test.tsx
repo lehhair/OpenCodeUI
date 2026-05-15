@@ -100,9 +100,9 @@ vi.mock('../../store/messageStoreHooks', () => ({
 
 vi.mock('../../store/keybindingStore', () => ({
   keybindingStore: {
-    getKey: () => null,
+    getKey: (action: string) => (action === 'sendMessage' ? 'Enter' : null),
   },
-  matchesKeybinding: () => false,
+  matchesKeybinding: (event: KeyboardEvent, key: string) => key === 'Enter' && event.key === 'Enter',
 }))
 
 describe('InputBox slash command selection', () => {
@@ -270,6 +270,43 @@ describe('InputBox slash command selection', () => {
     await waitFor(() => {
       expect(textarea.value).toBe('/review ')
     })
+  })
+
+  it('does not send when Enter confirms IME composition', async () => {
+    const onSend = vi.fn()
+
+    render(<InputBox paneId="pane-test" onSend={onSend} />)
+
+    const textarea = screen.getByRole('textbox') as HTMLTextAreaElement
+    fireEvent.change(textarea, { target: { value: '这是一个 test' } })
+
+    fireEvent.compositionStart(textarea)
+    fireEvent.compositionEnd(textarea)
+    fireEvent.keyDown(textarea, { key: 'Enter' })
+
+    expect(onSend).not.toHaveBeenCalled()
+
+    await act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 0))
+    })
+
+    fireEvent.keyDown(textarea, { key: 'Enter' })
+
+    await waitFor(() => {
+      expect(onSend).toHaveBeenCalledWith('这是一个 test', [], { agent: undefined, variant: undefined })
+    })
+  })
+
+  it('does not send keydown events marked as IME composition', () => {
+    const onSend = vi.fn()
+
+    render(<InputBox paneId="pane-test" onSend={onSend} />)
+
+    const textarea = screen.getByRole('textbox') as HTMLTextAreaElement
+    fireEvent.change(textarea, { target: { value: '正在输入' } })
+    fireEvent.keyDown(textarea, { key: 'Enter', isComposing: true })
+
+    expect(onSend).not.toHaveBeenCalled()
   })
 
   it('keeps navigating multiline history entries with ArrowUp', async () => {

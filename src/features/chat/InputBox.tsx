@@ -175,6 +175,8 @@ function InputBoxComponent({
   const latestDraftRef = useRef<HistoryEntry>({ text: '', attachments: [] })
   const contentWrapRef = useRef<HTMLDivElement>(null)
   const footerRef = useRef<HTMLDivElement>(null)
+  const isComposingRef = useRef(false)
+  const compositionEndTimerRef = useRef<number | null>(null)
 
   // 附件横向轨道
   const {
@@ -241,6 +243,15 @@ function InputBoxComponent({
       }
     }
   }, [revertedText, revertedAttachments, isSubmitting])
+
+  useEffect(
+    () => () => {
+      if (compositionEndTimerRef.current !== null) {
+        clearTimeout(compositionEndTimerRef.current)
+      }
+    },
+    [],
+  )
 
   // 自动调整 textarea 高度
   useEffect(() => {
@@ -424,6 +435,11 @@ function InputBoxComponent({
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      const nativeEvent = e.nativeEvent
+      const isImeComposing = isComposingRef.current || nativeEvent.isComposing || nativeEvent.keyCode === 229
+
+      if (isImeComposing && (e.key === 'Enter' || e.key === 'Tab')) return
+
       // Slash Command 菜单打开时，拦截导航键
       if (slashOpen && slashMenuRef.current) {
         switch (e.key) {
@@ -519,7 +535,7 @@ function InputBoxComponent({
 
       // 发送消息（读取 keybinding 配置）
       const sendKey = keybindingStore.getKey('sendMessage')
-      if (sendKey && matchesKeybinding(e.nativeEvent, sendKey)) {
+      if (sendKey && !isImeComposing && matchesKeybinding(nativeEvent, sendKey)) {
         e.preventDefault()
         handleSend()
       }
@@ -573,6 +589,25 @@ function InputBoxComponent({
     },
     [handleHistoryChange],
   )
+
+  const handleCompositionStart = useCallback(() => {
+    if (compositionEndTimerRef.current !== null) {
+      clearTimeout(compositionEndTimerRef.current)
+      compositionEndTimerRef.current = null
+    }
+    isComposingRef.current = true
+  }, [])
+
+  const handleCompositionEnd = useCallback(() => {
+    if (compositionEndTimerRef.current !== null) {
+      clearTimeout(compositionEndTimerRef.current)
+    }
+
+    compositionEndTimerRef.current = window.setTimeout(() => {
+      isComposingRef.current = false
+      compositionEndTimerRef.current = null
+    }, 0)
+  }, [])
 
   // @ Mention 选择处理
   const handleMentionSelect = useCallback(
@@ -1045,6 +1080,8 @@ function InputBoxComponent({
                           value={text}
                           onChange={handleChange}
                           onKeyDown={handleKeyDown}
+                          onCompositionStart={handleCompositionStart}
+                          onCompositionEnd={handleCompositionEnd}
                           onPaste={handlePaste}
                           onScroll={handleScroll}
                           onFocus={handleFocus}
