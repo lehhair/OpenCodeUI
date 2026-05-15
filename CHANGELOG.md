@@ -1,5 +1,10 @@
 # Changelog
 
+## [v0.6.7] - 2026-05-15
+
+- fix(input): prevent IME confirmation from sending messages (5f4e0bb)
+- feat(terminal): add scoped clipboard keybindings (2f8a933)
+
 ## [v0.6.6] - 2026-05-13
 
 - fix(session): 修复 PR #90 的子目录加载竞态并理顺范围刷新语义 (5360b59)
