@@ -16,6 +16,7 @@ import { useInputCapabilities } from '../hooks/useInputCapabilities'
 import { logger } from '../utils/logger'
 import { parsePtyFrame } from '../utils/ptyProtocol'
 import { isTauri } from '../utils/tauri'
+import { copyTextToClipboard, readTextFromClipboard } from '../utils/clipboard'
 
 // ============================================
 // 终端主题 - 与应用主题配合
@@ -422,6 +423,54 @@ export const Terminal = memo(function Terminal({ ptyId, directory, isActive }: T
 
     terminal.open(containerRef.current)
 
+    // ---- 选中自动复制 + Ctrl+V / 右键粘贴 ----
+
+    // 拦截 Ctrl+V / Cmd+V，改为从剪贴板粘贴而非发送 ^V
+    terminal.attachCustomKeyEventHandler(ev => {
+      if (ev.type !== 'keydown') return true
+      const isPaste = (ev.ctrlKey || ev.metaKey) && ev.code === 'KeyV' && !ev.altKey
+      if (isPaste) {
+        ev.preventDefault() // 阻止浏览器原生粘贴到 textarea，避免重复
+        readTextFromClipboard()
+          .then(text => {
+            if (text && mountedRef.current) {
+              sendTerminalData(text)
+            }
+          })
+          .catch(() => {})
+        return false // 阻止 xterm 处理该按键
+      }
+      return true
+    })
+
+    // 鼠标释放时，若有选中内容则自动复制到剪贴板
+    const handleSelectionCopy = () => {
+      if (terminal.hasSelection()) {
+        const selected = terminal.getSelection()
+        if (selected) {
+          copyTextToClipboard(selected).catch(() => {})
+        }
+      }
+    }
+    const terminalElement = terminal.element
+    terminalElement?.addEventListener('mouseup', handleSelectionCopy)
+
+    // 右键粘贴
+    const handleContextMenuPaste = (e: MouseEvent) => {
+      e.preventDefault()
+      readTextFromClipboard()
+        .then(text => {
+          if (text && mountedRef.current) {
+            sendTerminalData(text)
+            terminal.focus()
+          }
+        })
+        .catch(() => {})
+    }
+    terminalElement?.addEventListener('contextmenu', handleContextMenuPaste)
+
+    // ---- end clipboard ----
+
     const textarea = terminal.textarea
     const handleTextareaBlur = () => clearStickyModifiers()
     if (touchUi && textarea) {
@@ -631,6 +680,8 @@ export const Terminal = memo(function Terminal({ ptyId, directory, isActive }: T
       disposeData?.dispose()
       disposeTitle?.dispose()
       textarea?.removeEventListener('blur', handleTextareaBlur)
+      terminalElement?.removeEventListener('mouseup', handleSelectionCopy)
+      terminalElement?.removeEventListener('contextmenu', handleContextMenuPaste)
       resetTransport()
       // 显式 dispose addons
       fitAddon.dispose()

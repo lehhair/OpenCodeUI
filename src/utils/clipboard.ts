@@ -55,3 +55,10 @@ export async function copyTextToClipboard(text: string): Promise<void> {
 
   throw clipboardError instanceof Error ? clipboardError : new Error('Failed to copy text to clipboard')
 }
+
+export async function readTextFromClipboard(): Promise<string> {
+  if (typeof navigator !== 'undefined' && navigator.clipboard?.readText) {
+    return navigator.clipboard.readText()
+  }
+  throw new Error('Clipboard read API is not available')
+}
