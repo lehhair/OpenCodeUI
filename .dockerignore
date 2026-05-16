@@ -1,6 +1,9 @@
 node_modules
 dist
 dist-ssr
+root
+workspace
+.opencode
 .git
 .gitignore
 .vscode

@@ -75,6 +75,19 @@ services:
       - XAI_API_KEY=${XAI_API_KEY:-}
       - OPENCODE_SERVER_PASSWORD=${OPENCODE_SERVER_PASSWORD:-}
       - OPENCODE_SERVER_USERNAME=${OPENCODE_SERVER_USERNAME:-opencode}
+      - DOCKER_API_VERSION=${DOCKER_API_VERSION:-1.40}
+      - NPM_CONFIG_REGISTRY=${NPM_CONFIG_REGISTRY:-https://registry.npmmirror.com}
+      - NODEJS_ORG_MIRROR=${NODEJS_ORG_MIRROR:-https://npmmirror.com/mirrors/node}
+      - PIP_INDEX_URL=${PIP_INDEX_URL:-https://pypi.tuna.tsinghua.edu.cn/simple}
+      - PIP_TRUSTED_HOST=${PIP_TRUSTED_HOST:-pypi.tuna.tsinghua.edu.cn}
+      - LANG=C.UTF-8
+      - LC_ALL=C.UTF-8
+      - TERM=xterm-256color
+      - COLORTERM=truecolor
+      - MISE_DATA_DIR=/root/.local/share/mise
+      - MISE_CONFIG_DIR=/root/.config/mise
+      - MISE_STATE_DIR=/root/.local/state/mise
+      - PATH=/root/.local/bin:/root/.cargo/bin:/root/.local/share/mise/shims:/root/.local/share/mise/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
     networks:
       - opencode-net
 

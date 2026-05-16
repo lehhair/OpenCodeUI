@@ -1,0 +1,15 @@
+# ============================================
+# 宿主机能力 override（可选）
+# ============================================
+# 用法:
+#   docker compose -f docker-compose.yml -f docker-compose.host.yml up -d
+#
+# 开启后 backend 可以访问宿主机 Docker daemon 和宿主机文件系统。
+# 只在确实需要容器内构建/管理 Docker、访问宿主机路径时使用。
+
+services:
+  backend:
+    privileged: true
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /:/host

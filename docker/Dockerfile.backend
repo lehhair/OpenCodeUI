@@ -1,34 +1,94 @@
 # ============================================
 # OpenCode WebUI - Backend
 # ============================================
-# Ubuntu + opencode serve
+# Debian slim + opencode serve + agent tooling
 
-FROM ubuntu:24.04
+FROM docker:29-cli AS docker-cli
 
-ENV DEBIAN_FRONTEND=noninteractive
+FROM debian:bookworm-slim
 
-# 基础依赖
+ARG USE_CHINA_MIRROR=0
+ARG APT_MIRROR=http://mirrors.tuna.tsinghua.edu.cn/debian
+ARG APT_SECURITY_MIRROR=http://mirrors.tuna.tsinghua.edu.cn/debian-security
+ARG NPM_CONFIG_REGISTRY=https://registry.npmmirror.com
+ARG NODEJS_ORG_MIRROR=https://npmmirror.com/mirrors/node
+ARG MISE_INSTALL_URL=https://mise.run
+ARG OPENCODE_INSTALL_URL=https://opencode.ai/install
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    LANG=C.UTF-8 \
+    LC_ALL=C.UTF-8 \
+    TERM=xterm-256color \
+    COLORTERM=truecolor \
+    EDITOR=vim \
+    NPM_CONFIG_REGISTRY=${NPM_CONFIG_REGISTRY} \
+    NODEJS_ORG_MIRROR=${NODEJS_ORG_MIRROR}
+
+RUN if [ "${USE_CHINA_MIRROR}" = "1" ] && [ -f /etc/apt/sources.list.d/debian.sources ]; then \
+      sed -i \
+        -e "s|http://deb.debian.org/debian|${APT_MIRROR}|g" \
+        -e "s|http://security.debian.org/debian-security|${APT_SECURITY_MIRROR}|g" \
+        /etc/apt/sources.list.d/debian.sources; \
+    fi
+
+# Agent 常用基础环境。语言运行时交给 mise，安装到持久化的 /root。
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    bash \
     ca-certificates \
     curl \
+    dnsutils \
+    fd-find \
+    file \
+    fonts-dejavu-core \
+    fonts-liberation \
+    fonts-noto-cjk \
+    fonts-noto-color-emoji \
+    g++ \
     git \
+    git-lfs \
+    gnupg \
+    jq \
+    less \
+    make \
+    nano \
+    openssh-client \
+    patch \
+    procps \
+    python3 \
+    python3-venv \
+    ripgrep \
+    rsync \
+    tini \
+    tzdata \
     unzip \
+    vim-tiny \
+    wget \
     xz-utils \
+    zip \
     && rm -rf /var/lib/apt/lists/*
 
-# 安装 mise（用于持久化管理 Node/Python 等运行时）
-RUN curl https://mise.run | sh \
-    && MISE_BIN=$(find /root -name mise -type f 2>/dev/null | head -1) \
-    && if [ -z "$MISE_BIN" ]; then echo "mise binary not found" >&2; exit 1; fi \
-    && cp "$MISE_BIN" /usr/local/bin/mise \
+# Docker CLI + Compose/Buildx plugin，只复制客户端，不安装 dockerd/containerd/runc。
+RUN mkdir -p /usr/local/libexec/docker/cli-plugins
+COPY --from=docker-cli /usr/local/bin/docker /usr/local/bin/docker
+COPY --from=docker-cli /usr/local/libexec/docker/cli-plugins/docker-compose /usr/local/libexec/docker/cli-plugins/docker-compose
+COPY --from=docker-cli /usr/local/libexec/docker/cli-plugins/docker-buildx /usr/local/libexec/docker/cli-plugins/docker-buildx
+
+# Debian 的 fd 二进制叫 fdfind，补一个常见命令名。
+RUN ln -sf /usr/bin/fdfind /usr/local/bin/fd
+
+# 安装 mise。GitHub Actions 等 CI 环境会在构建时下载，运行时安装的工具仍落在持久化 /root。
+RUN curl -fsSL "${MISE_INSTALL_URL}" | sh \
+    && MISE_BIN="$(find /root -name mise -type f 2>/dev/null | head -1)" \
+    && if [ -z "${MISE_BIN}" ]; then echo "mise binary not found" >&2; exit 1; fi \
+    && cp "${MISE_BIN}" /usr/local/bin/mise \
     && chmod +x /usr/local/bin/mise \
     && mise --version
 
-# 安装 opencode
-RUN curl -fsSL https://opencode.ai/install | bash \
-    && OPENCODE_BIN=$(find /root -name opencode -type f 2>/dev/null | head -1) \
-    && if [ -z "$OPENCODE_BIN" ]; then echo "opencode binary not found" >&2; exit 1; fi \
-    && cp "$OPENCODE_BIN" /usr/local/bin/opencode \
+# 安装 opencode。
+RUN curl -fsSL "${OPENCODE_INSTALL_URL}" | bash \
+    && OPENCODE_BIN="$(find /root -name opencode -type f 2>/dev/null | head -1)" \
+    && if [ -z "${OPENCODE_BIN}" ]; then echo "opencode binary not found" >&2; exit 1; fi \
+    && cp "${OPENCODE_BIN}" /usr/local/bin/opencode \
     && chmod +x /usr/local/bin/opencode \
     && opencode --version
 
@@ -50,5 +110,5 @@ RUN chmod +x /usr/local/bin/backend-entrypoint.sh
 
 EXPOSE 4096
 
-ENTRYPOINT ["/usr/local/bin/backend-entrypoint.sh"]
+ENTRYPOINT ["tini", "--", "/usr/local/bin/backend-entrypoint.sh"]
 CMD ["opencode", "serve", "--port", "4096", "--hostname", "0.0.0.0"]

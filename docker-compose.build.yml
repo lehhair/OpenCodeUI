@@ -21,3 +21,11 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile.backend
+      args:
+        USE_CHINA_MIRROR: ${USE_CHINA_MIRROR:-1}
+        APT_MIRROR: ${APT_MIRROR:-http://mirrors.tuna.tsinghua.edu.cn/debian}
+        APT_SECURITY_MIRROR: ${APT_SECURITY_MIRROR:-http://mirrors.tuna.tsinghua.edu.cn/debian-security}
+        NPM_CONFIG_REGISTRY: ${NPM_CONFIG_REGISTRY:-https://registry.npmmirror.com}
+        NODEJS_ORG_MIRROR: ${NODEJS_ORG_MIRROR:-https://npmmirror.com/mirrors/node}
+        MISE_INSTALL_URL: ${MISE_INSTALL_URL:-https://mise.run}
+        OPENCODE_INSTALL_URL: ${OPENCODE_INSTALL_URL:-https://opencode.ai/install}

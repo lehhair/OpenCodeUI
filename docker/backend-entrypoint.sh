@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/env bash
 set -eu
 
 ensure_mise() {
@@ -13,7 +13,7 @@ ensure_mise() {
     return
   fi
 
-  curl -fsSL https://mise.run | sh
+  curl -fsSL "${MISE_INSTALL_URL:-https://mise.run}" | sh
 
   MISE_BIN="$(find /root -name mise -type f 2>/dev/null | head -1)"
   if [ -z "${MISE_BIN}" ]; then
@@ -41,7 +41,7 @@ ensure_opencode() {
     fi
   fi
 
-  curl -fsSL https://opencode.ai/install | bash
+  curl -fsSL "${OPENCODE_INSTALL_URL:-https://opencode.ai/install}" | bash
 
   OPENCODE_BIN="$(find /root -name opencode -type f 2>/dev/null | head -1)"
   if [ -z "${OPENCODE_BIN}" ]; then
@@ -54,8 +54,30 @@ ensure_opencode() {
   chmod +x /usr/local/bin/opencode
 }
 
+ensure_package_mirrors() {
+  mkdir -p /root/.config/pip
+
+  if [ ! -f /root/.npmrc ]; then
+    cat > /root/.npmrc <<EOF
+registry=${NPM_CONFIG_REGISTRY:-https://registry.npmmirror.com}
+fund=false
+audit=false
+EOF
+  fi
+
+  if [ ! -f /root/.config/pip/pip.conf ]; then
+    cat > /root/.config/pip/pip.conf <<EOF
+[global]
+index-url = ${PIP_INDEX_URL:-https://pypi.tuna.tsinghua.edu.cn/simple}
+trusted-host = ${PIP_TRUSTED_HOST:-pypi.tuna.tsinghua.edu.cn}
+timeout = 120
+EOF
+  fi
+}
+
 ensure_mise
 ensure_opencode
+ensure_package_mirrors
 
 if [ "$#" -eq 0 ]; then
   set -- opencode serve --port 4096 --hostname 0.0.0.0
