@@ -64,4 +64,19 @@ describe('DiffViewer', () => {
       expect(updatedX - initialX).toBe(37)
     })
   })
+
+  it('keeps split word-diff changed text themed when syntax highlighting is unavailable', () => {
+    const { container } = render(
+      <DiffViewer before={['node_modules', '.git', '.gitignore'].join('\n')} after={['node_modules', 'root', '.gitignore'].join('\n')} language="text" viewMode="split" wordWrap={true} />,
+    )
+
+    const changedSegments = Array.from(container.querySelectorAll('span')).filter(
+      segment => segment.classList.contains('bg-danger-100/30') || segment.classList.contains('bg-success-100/30'),
+    )
+
+    expect(changedSegments.length).toBeGreaterThan(0)
+    for (const segment of changedSegments) {
+      expect(segment.closest('.text-text-100')).not.toBeNull()
+    }
+  })
 })
