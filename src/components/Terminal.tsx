@@ -197,6 +197,12 @@ function isNativePasteShortcut(event: KeyboardEvent) {
   return (event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && event.key.toLowerCase() === 'v'
 }
 
+function canReadClipboardText() {
+  // Ctrl/Cmd+V uses ClipboardEvent.clipboardData, but smart right-click paste must actively call
+  // navigator.clipboard.readText(), which browsers only expose in secure contexts.
+  return typeof window !== 'undefined' && window.isSecureContext && typeof navigator !== 'undefined' && !!navigator.clipboard?.readText
+}
+
 function applyStickyModifiers(data: string, sticky: StickyModifiers): string {
   let output = data
   if (sticky.ctrl) output = toCtrlSequence(output)
@@ -440,13 +446,6 @@ export const Terminal = memo(function Terminal({ ptyId, directory, isActive }: T
 
     const textarea = terminal.textarea
     const handleTextareaBlur = () => clearStickyModifiers()
-    const handleTextareaPaste = (event: ClipboardEvent) => {
-      const text = event.clipboardData?.getData('text/plain')
-      if (!text) return
-
-      event.preventDefault()
-      sendTerminalData(text)
-    }
 
     terminal.attachCustomKeyEventHandler(event => {
       if (event.type !== 'keydown') return true
@@ -486,14 +485,16 @@ export const Terminal = memo(function Terminal({ ptyId, directory, isActive }: T
       const selected = terminal.getSelection()
       if (!selected) return
 
-      void copyTextToClipboard(selected).catch(() => {})
+      void copyTextToClipboard(selected)
+        .then(() => terminal.clearSelection())
+        .catch(() => {})
     }
 
     const handleContextMenuPaste = (event: MouseEvent) => {
       if (!terminalRightClickPasteRef.current) return
 
-      event.preventDefault()
       if (terminal.hasSelection()) {
+        event.preventDefault()
         const selected = terminal.getSelection()
         if (selected) {
           void copyTextToClipboard(selected).catch(() => {})
@@ -502,6 +503,12 @@ export const Terminal = memo(function Terminal({ ptyId, directory, isActive }: T
         return
       }
 
+      if (!canReadClipboardText()) {
+        terminal.focus()
+        return
+      }
+
+      event.preventDefault()
       void readTextFromClipboard()
         .then(text => {
           if (!text || !mountedRef.current) return
@@ -511,7 +518,6 @@ export const Terminal = memo(function Terminal({ ptyId, directory, isActive }: T
         .catch(() => {})
     }
 
-    textarea?.addEventListener('paste', handleTextareaPaste)
     terminalElement?.addEventListener('mouseup', handleSelectionCopy)
     terminalElement?.addEventListener('contextmenu', handleContextMenuPaste)
     if (touchUi && textarea) {
@@ -720,7 +726,6 @@ export const Terminal = memo(function Terminal({ ptyId, directory, isActive }: T
       transportDisconnectRef.current?.()
       disposeData?.dispose()
       disposeTitle?.dispose()
-      textarea?.removeEventListener('paste', handleTextareaPaste)
       textarea?.removeEventListener('blur', handleTextareaBlur)
       terminalElement?.removeEventListener('mouseup', handleSelectionCopy)
       terminalElement?.removeEventListener('contextmenu', handleContextMenuPaste)
