@@ -1,5 +1,11 @@
 # Changelog
 
+## [v0.6.9] - 2026-05-16
+
+- fix(terminal): correct clipboard paste behavior (bf6f902)
+- ci(docker): add image workflow guardrails (da80d45)
+- fix(docker): avoid qemu frontend builds (2d4d00b)
+
 ## [v0.6.8] - 2026-05-16
 
 - fix(diff): keep split word diff text themed (53e1d9a)
