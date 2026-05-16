@@ -4,7 +4,9 @@
 # 纯前端静态文件 + Caddy 反向代理 API
 
 # ---- Stage 1: 构建前端 ----
-FROM node:22-alpine AS builder
+# 前端产物是静态文件，和目标 CPU 架构无关。
+# 多架构镜像构建时让 Node builder 始终跑在构建机原生平台，避免 arm64 通过 QEMU 重跑 npm/vite 构建。
+FROM --platform=$BUILDPLATFORM node:22-alpine AS builder
 
 ARG NPM_REGISTRY=https://registry.npmjs.org/
 ARG NPM_REGISTRY_FALLBACK=https://registry.npmmirror.com/

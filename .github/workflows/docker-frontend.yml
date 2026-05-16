@@ -16,6 +16,10 @@ on:
       - 'docker/Caddyfile.standalone'
   workflow_dispatch:
 
+concurrency:
+  group: docker-frontend-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository_owner }}/opencodeui-frontend
@@ -23,6 +27,7 @@ env:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: read
       packages: write
