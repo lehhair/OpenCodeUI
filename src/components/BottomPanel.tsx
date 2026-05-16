@@ -223,7 +223,6 @@ export const BottomPanel = memo(function BottomPanel({ directory }: BottomPanelP
       maxSize={layout.bottomPanel.maxHeight}
       onSizeChange={h => layoutStore.setBottomPanelHeight(h)}
       onClose={() => layoutStore.closeBottomPanel()}
-      className="pb-[var(--safe-area-inset-bottom)]"
     >
       <PanelContainer
         position="bottom"
