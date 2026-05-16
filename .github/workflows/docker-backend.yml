@@ -11,6 +11,10 @@ on:
     - cron: '0 4 * * *'
   workflow_dispatch:
 
+concurrency:
+  group: docker-backend-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository_owner }}/opencodeui-backend
@@ -18,6 +22,7 @@ env:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
+    timeout-minutes: 120
     permissions:
       contents: read
       packages: write
