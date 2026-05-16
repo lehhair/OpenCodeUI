@@ -18,7 +18,7 @@
 
 import { memo, useMemo, useRef, useEffect, useCallback, useState } from 'react'
 import type { Message } from '../types/message'
-import { getMessageText, isUserMessage } from '../types/message'
+import { getMessageText, hasRenderableParts, isAbortedMessage, isUserMessage } from '../types/message'
 import { useChatViewport } from '../features/chat/chatViewport'
 
 // ─── Types ──────────────────────────────────
@@ -217,27 +217,12 @@ function normalizeWhitespace(s: string): string {
 }
 
 function messageHasContent(msg: Message): boolean {
-  if (msg.parts.length === 0) {
-    if (msg.info.role === 'assistant' && 'error' in msg.info && msg.info.error) {
-      return msg.info.error.name !== 'MessageAbortedError'
-    }
-    return true
+  const hasRenderable = hasRenderableParts(msg)
+  if (msg.info.role === 'assistant' && 'error' in msg.info && msg.info.error) {
+    return isAbortedMessage(msg.info) ? hasRenderable : true
   }
-  return msg.parts.some(part => {
-    switch (part.type) {
-      case 'text':
-      case 'reasoning':
-        return part.text?.trim().length > 0
-      case 'tool':
-      case 'file':
-      case 'agent':
-      case 'step-finish':
-      case 'subtask':
-        return true
-      default:
-        return false
-    }
-  })
+  if (msg.parts.length === 0) return true
+  return hasRenderable
 }
 
 function extractEntries(messages: Message[], visual: VisualConfig): OutlineEntry[] {

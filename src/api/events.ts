@@ -7,6 +7,7 @@ import { createSseTextParser } from './sse'
 import { normalizeTodoItems } from './todo'
 import { isTauri } from '../utils/tauri'
 import type {
+  ApiMessage,
   EventCallbacks,
   EventType,
   GlobalEvent,
@@ -474,6 +475,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object'
 }
 
+function getMessageInfo(properties: unknown): ApiMessage | undefined {
+  if (!isRecord(properties)) return undefined
+  const message = properties.info ?? properties.message
+  return isRecord(message) ? (message as ApiMessage) : undefined
+}
+
 // ============================================
 // Background Keepalive
 // ============================================
@@ -684,7 +691,8 @@ function broadcastEvent(globalEvent: GlobalEvent) {
 function handleEventForSubscriber(payload: GlobalEvent['payload'], callbacks: EventCallbacks) {
   switch (payload.type) {
     case EventTypes.MESSAGE_UPDATED: {
-      callbacks.onMessageUpdated?.(payload.properties.info)
+      const message = getMessageInfo(payload.properties)
+      if (message) callbacks.onMessageUpdated?.(message)
       break
     }
     case EventTypes.MESSAGE_PART_UPDATED: {

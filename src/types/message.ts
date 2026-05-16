@@ -338,27 +338,37 @@ export function isVisibleReasoningPart(part: Part): part is ReasoningPart {
   return part.type === 'reasoning' && !!part.text.trim()
 }
 
+/** 检查 part 是否会在信息流里产生实际内容 */
+export function isRenderablePart(part: Part): boolean {
+  switch (part.type) {
+    case 'text':
+      return isVisibleTextPart(part)
+    case 'reasoning':
+      return isVisibleReasoningPart(part)
+    case 'tool':
+    case 'file':
+    case 'agent':
+    case 'step-finish':
+    case 'subtask':
+    case 'retry':
+    case 'compaction':
+      return true
+    default:
+      return false
+  }
+}
+
+export function isAbortedMessage(info: MessageInfo): boolean {
+  return info.role === 'assistant' && info.error?.name === 'MessageAbortedError'
+}
+
+export function hasRenderableParts(message: Message): boolean {
+  return message.parts.some(isRenderablePart)
+}
+
 /** 检查消息是否有可见内容 */
 export function hasVisibleContent(message: Message): boolean {
-  return message.parts.some(part => {
-    switch (part.type) {
-      case 'text':
-        return part.text.trim().length > 0
-      case 'reasoning':
-        return part.text.trim().length > 0
-      case 'tool':
-        return true
-      case 'file':
-      case 'agent':
-        return true
-      case 'step-finish':
-        return true // 显示 token 信息
-      case 'subtask':
-        return true
-      default:
-        return false
-    }
-  })
+  return hasRenderableParts(message)
 }
 
 /** 获取消息的纯文本内容 */

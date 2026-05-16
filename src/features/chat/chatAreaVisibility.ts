@@ -1,35 +1,19 @@
 import type { Message, Part } from '../../types/message'
-import { isVisibleReasoningPart, isVisibleTextPart } from '../../types/message'
+import { hasRenderableParts, isAbortedMessage, isVisibleReasoningPart, isVisibleTextPart } from '../../types/message'
 
 function messageHasContent(message: Message): boolean {
-  // 有非 abort 错误的助手消息始终可见（展示错误信息）
-  // 不论 parts 是否为空——error 消息可能只带 step-start 等基础设施 part
+  const hasRenderable = hasRenderableParts(message)
+  // 有非 abort 错误的助手消息始终可见（展示错误信息）。
+  // abort 只有在已经产生可见内容时才显示；空 abort 不占信息流位置。
   if (message.info.role === 'assistant' && 'error' in message.info && message.info.error) {
-    return message.info.error.name !== 'MessageAbortedError'
+    return isAbortedMessage(message.info) ? hasRenderable : true
   }
   if (message.parts.length === 0) {
     // 任何角色的空消息都不可见：没有内容可展示
     // part 到达后自动进入可见列表；abort 后永远不会有 part → 永远不可见
     return false
   }
-  return message.parts.some(part => {
-    switch (part.type) {
-      case 'text':
-        return isVisibleTextPart(part)
-      case 'reasoning':
-        return isVisibleReasoningPart(part)
-      case 'tool':
-      case 'file':
-      case 'agent':
-      case 'step-finish':
-      case 'subtask':
-      case 'retry':
-      case 'compaction':
-        return true
-      default:
-        return false
-    }
-  })
+  return hasRenderable
 }
 
 function isVisibleThinking(part: Part): boolean {

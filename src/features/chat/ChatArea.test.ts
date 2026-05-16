@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { buildTurnDurationMap } from './ChatArea'
 import { buildVisibleMessageEntries, getVisibleMessageForkTargetId } from './chatAreaVisibility'
-import type { Message, Part, ToolPart, ReasoningPart } from '../../types/message'
+import type { Message, MessageError, Part, ToolPart, ReasoningPart } from '../../types/message'
 
 function createUserMessage(id: string, created: number): Message {
   return {
@@ -18,7 +18,7 @@ function createUserMessage(id: string, created: number): Message {
   }
 }
 
-function createAssistantMessage(id: string, parts: Part[], created = 1, completed?: number): Message {
+function createAssistantMessage(id: string, parts: Part[], created = 1, completed?: number, error?: MessageError): Message {
   return {
     info: {
       id,
@@ -38,6 +38,7 @@ function createAssistantMessage(id: string, parts: Part[], created = 1, complete
         cache: { read: 0, write: 0 },
       },
       time: completed == null ? { created } : { created, completed },
+      error,
     },
     parts,
     isStreaming: false,
@@ -101,6 +102,40 @@ describe('buildVisibleMessageEntries', () => {
 
     expect(entries).toHaveLength(1)
     expect(getVisibleMessageForkTargetId(entries[0])).toBe('assistant-2')
+  })
+
+  it('keeps aborted assistant messages that already have renderable parts', () => {
+    const message = createAssistantMessage(
+      'assistant-aborted-with-tool',
+      [createToolPart('tool-1', 'assistant-aborted-with-tool')],
+      1,
+      2,
+      { name: 'MessageAbortedError', data: { message: 'Aborted' } },
+    )
+
+    const entries = buildVisibleMessageEntries([message])
+
+    expect(entries).toHaveLength(1)
+    expect(entries[0].message.info.id).toBe('assistant-aborted-with-tool')
+  })
+
+  it('hides aborted assistant messages without renderable parts', () => {
+    const emptyReasoning: ReasoningPart = {
+      id: 'reasoning-empty',
+      sessionID: 'session-1',
+      messageID: 'assistant-empty-abort',
+      type: 'reasoning',
+      text: '',
+      time: { start: 1, end: 2 },
+    }
+    const message = createAssistantMessage('assistant-empty-abort', [emptyReasoning], 1, 2, {
+      name: 'MessageAbortedError',
+      data: { message: 'Aborted' },
+    })
+
+    const entries = buildVisibleMessageEntries([message])
+
+    expect(entries).toHaveLength(0)
   })
 })
 

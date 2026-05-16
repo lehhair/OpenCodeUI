@@ -178,8 +178,11 @@ export function defaultExtractData(part: ToolPart): ExtractedToolData {
   }
 
   // Output
-  if (!result.files && !result.diff && state.output) {
-    result.output = typeof state.output === 'string' ? state.output : JSON.stringify(state.output, null, 2)
+  const stateOutput = 'output' in state ? state.output : undefined
+  const interruptedOutput = metadata?.interrupted === true && typeof metadata.output === 'string' ? metadata.output : undefined
+  const output = stateOutput ?? interruptedOutput
+  if (!result.files && !result.diff && output) {
+    result.output = typeof output === 'string' ? output : JSON.stringify(output, null, 2)
 
     // 推断语言
     if (!result.outputLang && result.output) {

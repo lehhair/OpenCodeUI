@@ -89,6 +89,20 @@ describe('messageStore', () => {
     expect(messageStore.isSessionStale('session-1')).toBe(false)
   })
 
+  it('accepts exported message envelopes that use message instead of info', () => {
+    messageStore.setMessages('session-1', [
+      {
+        message: createAssistantMessage('message-1'),
+        parts: [createTextPart('part-message-1', 'message-1', 'hello')],
+      } as unknown as ApiMessageWithParts,
+    ])
+
+    const state = messageStore.getSessionState('session-1')
+    expect(state?.messages).toHaveLength(1)
+    expect(state?.messages[0].info.id).toBe('message-1')
+    expect(state?.messages[0].parts[0]).toMatchObject({ id: 'part-message-1', type: 'text', text: 'hello' })
+  })
+
   it('truncates messages after revert point', () => {
     messageStore.setMessages('session-1', [
       createMessageWithParts('message-1', 'one'),

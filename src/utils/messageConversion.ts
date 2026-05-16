@@ -2,9 +2,15 @@ import type { ApiMessage, ApiMessageWithParts, ApiPart } from '../api/types'
 import type { Message, MessageInfo, Part, UserMessageInfo } from '../types/message'
 import { isUserMessage } from '../types/message'
 
-export function toUIMessage(apiMessage: ApiMessageWithParts): Message {
+type ApiMessageEnvelope = ApiMessageWithParts | { message: ApiMessageWithParts['info']; parts: ApiMessageWithParts['parts'] }
+
+function getEnvelopeInfo(apiMessage: ApiMessageEnvelope): ApiMessageWithParts['info'] {
+  return 'info' in apiMessage ? apiMessage.info : apiMessage.message
+}
+
+export function toUIMessage(apiMessage: ApiMessageEnvelope): Message {
   return {
-    info: apiMessage.info as MessageInfo,
+    info: getEnvelopeInfo(apiMessage) as MessageInfo,
     parts: apiMessage.parts as Part[],
     isStreaming: false,
   }
