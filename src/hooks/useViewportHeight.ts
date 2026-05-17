@@ -47,8 +47,10 @@ export function useViewportHeight() {
       const viewport = window.visualViewport
       if (!viewport) return
       const rawInset = window.innerHeight - viewport.height - viewport.offsetTop
-      // 减掉 safe-area phantom，剩下的才是真实键盘高度。
-      const keyboardInset = Math.max(0, rawInset - safeAreaBottomPx)
+      // 减掉 safe-area phantom，再用阈值区分键盘与 iOS Safari 底部工具栏。
+      // 真实软键盘通常远高于 100px，工具栏/phantom 误差一般低于这个值。
+      const candidateInset = rawInset - safeAreaBottomPx
+      const keyboardInset = candidateInset >= 100 ? candidateInset : 0
       root.style.setProperty('--keyboard-inset-bottom', `${Math.round(keyboardInset)}px`)
     }
 
