@@ -2,7 +2,13 @@ import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTheme } from '../../../hooks/useTheme'
 import type { StepFinishPart } from '../../../types/message'
-import { formatNumber, formatCost, formatDuration, formatCompletedAt } from '../../../utils/formatUtils'
+import {
+  formatNumber,
+  formatCost,
+  formatDuration,
+  formatCompletedAt,
+  formatDetailedDateTime,
+} from '../../../utils/formatUtils'
 
 interface StepFinishPartViewProps {
   part: StepFinishPart
@@ -68,7 +74,9 @@ export const StepFinishPartView = memo(function StepFinishPartView({
       {show.turnDuration && turnDuration != null && turnDuration > 0 && (
         <span>{t('stepFinish.totalDuration', { duration: formatDuration(turnDuration) })}</span>
       )}
-      {show.completedAt && completedAt != null && <span>{formatCompletedAt(completedAt, completedAtFormat)}</span>}
+      {show.completedAt && completedAt != null && (
+        <span title={formatDetailedDateTime(completedAt)}>{formatCompletedAt(completedAt, completedAtFormat)}</span>
+      )}
     </div>
   )
 })
