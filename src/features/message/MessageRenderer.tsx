@@ -37,7 +37,7 @@ import type {
   AssistantMessageInfo,
 } from '../../types/message'
 import { isToolPart, isVisibleReasoningPart, isVisibleTextPart } from '../../types/message'
-import { formatDuration, formatCompletedAt } from '../../utils/formatUtils'
+import { formatDuration, formatCompletedAt, formatDetailedDateTime } from '../../utils/formatUtils'
 
 interface MessageRendererProps {
   message: Message
@@ -376,6 +376,7 @@ const AssistantMessageView = memo(function AssistantMessageView({
   forkMessageId?: string
   onEnsureParts?: (messageId: string) => void
 }) {
+  const { t } = useTranslation('message')
   const { parts, isStreaming, info } = message
   const { stepFinishDisplay, completedAtFormat } = useTheme()
 
@@ -513,9 +514,13 @@ const AssistantMessageView = memo(function AssistantMessageView({
       {messageError && <MessageErrorView error={messageError} />}
 
       {(showTurnDurationFooter || showCompletedAtFooter) && (
-        <div className="flex items-center gap-3 text-[length:var(--fs-xxs)] text-text-500 pl-5 py-0.5">
-          {showTurnDurationFooter && <span>{formatDuration(turnDuration!)} total</span>}
-          {showCompletedAtFooter && <span>{formatCompletedAt(completed!, completedAtFormat)}</span>}
+        <div className="flex items-center gap-3 py-0.5 text-[length:var(--fs-xxs)] text-text-500">
+          {showTurnDurationFooter && (
+            <span>{t('stepFinish.totalDuration', { duration: formatDuration(turnDuration!) })}</span>
+          )}
+          {showCompletedAtFooter && (
+            <span title={formatDetailedDateTime(completed!)}>{formatCompletedAt(completed!, completedAtFormat)}</span>
+          )}
         </div>
       )}
 
