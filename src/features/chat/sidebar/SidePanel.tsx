@@ -7,6 +7,7 @@ import { ConfirmDialog } from '../../../components/ui/ConfirmDialog'
 import { ActiveSessionItem } from './ActiveSessionItem'
 import { NotificationItem } from './NotificationItem'
 import { SidebarFooter } from './SidebarFooter'
+import { ServerQuickPanel } from './ServerQuickPanel'
 import { buildActiveSessionTree } from './activeSessionTree'
 import { getParentPath } from './sidebarUtils'
 import {
@@ -30,7 +31,8 @@ import {
   useVcsInfo,
 } from '../../../hooks'
 import { useSessionContext } from '../../../contexts/useSessionContext'
-import { useLayoutStore, useMessageStore, childSessionStore } from '../../../store'
+import { useLayoutStore, useMessageStore, childSessionStore, messageStore } from '../../../store'
+import { serverStore } from '../../../store/serverStore'
 import { useBusySessions, useBusyCount } from '../../../store/activeSessionStore'
 import { notificationStore, useNotifications, useUnreadNotificationCount } from '../../../store/notificationStore'
 import type { NotificationEntry } from '../../../store/notificationStore'
@@ -153,6 +155,8 @@ export function SidePanel({
   const [projectsExpanded, setProjectsExpanded] = useState(false)
   const [sidebarTab, setSidebarTab] = useState<'recents' | 'active'>('recents')
   const [expandedRecentProjectIds, setExpandedRecentProjectIds] = useState<string[]>([])
+  const [serverPanelOpen, setServerPanelOpen] = useState(false)
+  const serverPanelTriggerRef = useRef<HTMLButtonElement>(null)
 
   // ---- 编辑模式状态 ----
   const [isEditMode, setIsEditMode] = useState(false)
@@ -762,6 +766,25 @@ export function SidePanel({
     setBatchRemoveProjectConfirm(false)
   }, [getProjectDirectoriesToRemove, selectedProjectIds, removeDirectory])
 
+  const handleQuickPanelSelectSession = useCallback(
+    (session: { id: string; title: string; directory?: string }, serverId: string) => {
+      const activeServer = serverStore.getActiveServer()
+      if (activeServer?.id !== serverId) {
+        messageStore.clearSession(selectedSessionId ?? '')
+        serverStore.setActiveServer(serverId)
+      }
+      if (session.directory) {
+        addDirectory(session.directory)
+      }
+      getSession(session.id, session.directory)
+        .then(apiSession => {
+          onSelectSession(apiSession)
+        })
+        .catch(() => {})
+    },
+    [selectedSessionId, addDirectory, onSelectSession],
+  )
+
   const commonFolderRecentListProps = {
     currentDirectory,
     selectedSessionId,
@@ -809,12 +832,13 @@ export function SidePanel({
             opacity: showLabels ? 1 : 0,
           }}
         >
-          <a href="/" className="flex items-center whitespace-nowrap">
-            <span className="text-[length:var(--fs-heading-3)] font-semibold text-text-100 tracking-tight">
-              {t('header.openCode')}
-            </span>
-          </a>
-        </div>
+          <button
+            ref={serverPanelTriggerRef}
+            onClick={() => setServerPanelOpen(true)}
+            className="text-base font-semibold text-text-100 tracking-tight bg-transparent border-none cursor-pointer hover:opacity-80 transition-opacity"
+          >
+            {t('header.openCode')}
+          </button>        </div>
 
         {/* Toggle Button - 桌面端和移动端都显示 */}
         <div
@@ -1235,6 +1259,14 @@ export function SidePanel({
         hasMessages={hasMessages}
         onOpenSettings={onOpenSettings}
       />
+
+      {serverPanelOpen && (
+        <ServerQuickPanel
+          triggerRef={serverPanelTriggerRef}
+          onClose={() => setServerPanelOpen(false)}
+          onSelectSession={handleQuickPanelSelectSession}
+        />
+      )}
 
       {/* Confirm Dialog */}
       <ConfirmDialog

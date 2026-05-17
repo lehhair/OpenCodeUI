@@ -156,7 +156,10 @@
     "batchDeleteSessionsConfirm": "确定要删除 {{count}} 个会话？此操作无法撤销。",
     "batchDeleteIncludesCurrent": "包含当前打开的会话，删除后将切换到新会话。",
     "batchRemoveProjects": "移除 {{count}} 个项目",
-    "batchRemoveProjectsConfirm": "确定从列表中移除 {{count}} 个项目？这只会从侧边栏中移除，不会删除任何会话，也不会删除磁盘上的文件。"
+    "batchRemoveProjectsConfirm": "确定从列表中移除 {{count}} 个项目？这只会从侧边栏中移除，不会删除任何会话，也不会删除磁盘上的文件。",
+    "servers": "服务器",
+    "sessions": "会话",
+    "noProjects": "暂无项目"
   },
   "activeSession": {
     "awaitingPermission": "等待权限",
