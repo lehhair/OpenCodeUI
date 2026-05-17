@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState, useEffect, useRef, type ReactNode } from 'react'
+import { useCallback, useMemo, useState, useEffect, useRef, useSyncExternalStore, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { SessionList } from '../../sessions'
 import { FolderRecentList } from './FolderRecentList'
@@ -261,6 +261,11 @@ export function SidePanel({
   // Active sessions
   const busySessions = useBusySessions()
   const busyCount = useBusyCount()
+  const childSessionVersion = useSyncExternalStore(
+    childSessionStore.subscribe.bind(childSessionStore),
+    childSessionStore.getVersion,
+    childSessionStore.getVersion,
+  )
   // Notification history
   const notifications = useNotifications()
   const unreadNotificationCount = useUnreadNotificationCount()
@@ -335,7 +340,7 @@ export function SidePanel({
       if (s?.parentID) return s.parentID
       return childSessionStore.getSessionInfo(id)?.parentID
     },
-    [sessionLookup],
+    [sessionLookup, childSessionVersion],
   )
 
   // 开关开 → 拉 /children 全量：选中的 root 或选中子 session 时保持其父展开
