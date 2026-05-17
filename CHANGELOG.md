@@ -1,5 +1,14 @@
 # Changelog
 
+## [v0.6.10] - 2026-05-17
+
+- fix: refresh sidebar child session links (a49908a)
+- ci: deploy pages from dev (bc50843)
+- fix: route permission replies through session (75bd8ac)
+- fix: avoid iOS toolbar bottom gap (d880fac)
+- fix: keep provider enabled for visible models (2462adf)
+- fix: show detailed completion time on hover (9ca1ab6)
+
 ## [v0.6.9] - 2026-05-16
 
 - fix(terminal): correct clipboard paste behavior (bf6f902)
