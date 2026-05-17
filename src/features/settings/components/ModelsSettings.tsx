@@ -83,11 +83,10 @@ export function ModelsSettings() {
           ) : (
             groups.map(group => {
               const providerModels = models.filter(model => model.providerName === group.providerName)
-              const providerVisible =
-                providerModels.length > 0 && providerModels.every(model => !hiddenModelKeySet.has(getModelKey(model)))
               const providerVisibleCount = providerModels.filter(
                 model => !hiddenModelKeySet.has(getModelKey(model)),
               ).length
+              const providerVisible = providerVisibleCount > 0
 
               return (
                 <div

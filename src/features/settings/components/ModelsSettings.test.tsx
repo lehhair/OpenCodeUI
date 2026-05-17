@@ -101,4 +101,17 @@ describe('ModelsSettings', () => {
 
     expect(setVisibleMock).toHaveBeenCalledWith(MODELS[0], false)
   })
+
+  it('keeps the provider switch enabled when only some models are hidden', () => {
+    useHiddenModelKeysMock.mockReturnValue(['openai:gpt-4.1'])
+
+    render(<ModelsSettings />)
+
+    const switches = screen.getAllByRole('switch')
+
+    expect(switches[0]).toHaveAttribute('aria-label', 'Model Visibility: OpenAI')
+    expect(switches[0]).toHaveAttribute('aria-checked', 'true')
+    expect(switches[1]).toHaveAttribute('aria-checked', 'false')
+    expect(switches[2]).toHaveAttribute('aria-checked', 'true')
+  })
 })
