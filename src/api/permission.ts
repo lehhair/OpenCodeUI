@@ -28,8 +28,22 @@ export async function replyPermission(
   reply: PermissionReply,
   message?: string,
   directory?: string,
+  sessionId?: string,
 ): Promise<boolean> {
   const sdk = getSDKClient()
+
+  if (sessionId) {
+    unwrap(
+      await sdk.permission.respond({
+        sessionID: sessionId,
+        permissionID: requestId,
+        directory: formatPathForApi(directory),
+        response: reply,
+      }),
+    )
+    return true
+  }
+
   unwrap(
     await sdk.permission.reply({
       requestID: requestId,

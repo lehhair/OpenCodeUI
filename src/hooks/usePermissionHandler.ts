@@ -25,7 +25,12 @@ export interface UsePermissionHandlerResult {
   setPendingPermissionRequests: React.Dispatch<React.SetStateAction<ApiPermissionRequest[]>>
   setPendingQuestionRequests: React.Dispatch<React.SetStateAction<ApiQuestionRequest[]>>
   // Handlers
-  handlePermissionReply: (requestId: string, reply: PermissionReply, directory?: string) => Promise<boolean>
+  handlePermissionReply: (
+    requestId: string,
+    reply: PermissionReply,
+    directory?: string,
+    sessionId?: string,
+  ) => Promise<boolean>
   handleQuestionReply: (requestId: string, answers: QuestionAnswer[], directory?: string) => Promise<boolean>
   handleQuestionReject: (requestId: string, directory?: string) => Promise<boolean>
   // Refresh (fallback sync for pending requests) - 支持单个或多个 session IDs
@@ -67,7 +72,7 @@ export function usePermissionHandler(): UsePermissionHandlerResult {
   const replyingIdsRef = useRef<Set<string>>(new Set())
 
   const handlePermissionReply = useCallback(
-    async (requestId: string, reply: PermissionReply, directory?: string): Promise<boolean> => {
+    async (requestId: string, reply: PermissionReply, directory?: string, sessionId?: string): Promise<boolean> => {
       // 防止重复回复
       if (replyingIdsRef.current.has(requestId)) {
         console.warn(`[Permission] Already replying to ${requestId}`)
@@ -78,19 +83,14 @@ export function usePermissionHandler(): UsePermissionHandlerResult {
       setIsReplying(true)
 
       try {
-        await withRetry(() => replyPermission(requestId, reply, undefined, directory))
+        await withRetry(() => replyPermission(requestId, reply, undefined, directory, sessionId))
 
-        // 成功后从列表移除
-        setPendingPermissionRequests(prev => prev.filter(r => r.id !== requestId))
-        activeSessionStore.resolvePendingRequest(requestId)
+        // 等待 permission.replied SSE 再移除。部分后端路径会在找不到 pending 时
+        // 仍返回 200/true，提前移除会让真实未处理的权限请求从 UI 消失。
         return true
       } catch (error) {
         permissionErrorHandler('reply after retries', error)
 
-        // 即使失败也从列表移除，避免卡住 UI
-        // 用户可以通过刷新重新获取
-        setPendingPermissionRequests(prev => prev.filter(r => r.id !== requestId))
-        activeSessionStore.resolvePendingRequest(requestId)
         return false
       } finally {
         replyingIdsRef.current.delete(requestId)
@@ -165,12 +165,23 @@ export function usePermissionHandler(): UsePermissionHandlerResult {
         getPendingQuestions(undefined, directory).catch(() => []),
       ])
 
-      // 用 sessionFamily 过滤，然后直接替换本地状态（与 session 加载时一致）
-      setPendingPermissionRequests(
+      const nextPermissions =
         familySet.size > 0
           ? allPermissions.filter(p => familySet.has(p.sessionID) && !replyingIdsRef.current.has(p.id))
-          : allPermissions.filter(p => !replyingIdsRef.current.has(p.id)),
-      )
+          : allPermissions.filter(p => !replyingIdsRef.current.has(p.id))
+
+      // OMO background subagents can emit permission.asked over SSE before /permission
+      // exposes the request for the routed instance. Keep SSE-known requests until a
+      // permission.replied event removes them.
+      setPendingPermissionRequests(prev => {
+        const merged = new Map(nextPermissions.map(p => [p.id, p]))
+        for (const request of prev) {
+          if (replyingIdsRef.current.has(request.id)) continue
+          if (familySet.size > 0 && !familySet.has(request.sessionID)) continue
+          if (!merged.has(request.id)) merged.set(request.id, request)
+        }
+        return Array.from(merged.values())
+      })
       setPendingQuestionRequests(
         familySet.size > 0
           ? allQuestions.filter(q => familySet.has(q.sessionID) && !replyingIdsRef.current.has(q.id))

@@ -667,7 +667,10 @@ export const ChatPane = memo(function ChatPane({
     () => ({
       pendingPermissions: pendingPermissionRequests,
       pendingQuestions: pendingQuestionRequests,
-      onPermissionReply: (requestId, reply) => handlePermissionReply(requestId, reply, effectiveDirectory),
+      onPermissionReply: (requestId, reply) => {
+        const request = pendingPermissionRequests.find(r => r.id === requestId)
+        return handlePermissionReply(requestId, reply, effectiveDirectory, request?.sessionID)
+      },
       onQuestionReply: (requestId, answers) => handleQuestionReply(requestId, answers, effectiveDirectory),
       onQuestionReject: requestId => handleQuestionReject(requestId, effectiveDirectory),
       isReplying,
@@ -832,7 +835,14 @@ export const ChatPane = memo(function ChatPane({
       {!inlineToolRequests && pendingPermissionRequests.length > 0 && (
         <PermissionDialog
           request={pendingPermissionRequests[0]}
-          onReply={reply => handlePermissionReply(pendingPermissionRequests[0].id, reply, effectiveDirectory)}
+          onReply={reply =>
+            handlePermissionReply(
+              pendingPermissionRequests[0].id,
+              reply,
+              effectiveDirectory,
+              pendingPermissionRequests[0].sessionID,
+            )
+          }
           queueLength={pendingPermissionRequests.length}
           isReplying={isReplying}
           currentSessionId={routeSessionId}

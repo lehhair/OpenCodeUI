@@ -294,7 +294,7 @@ export function useChatSession({
         // Full Auto 会话级：当前 session 的 handler 天然只处理当前 session 的请求
         const effectiveFullAutoMode = autoApproveStore.getPaneFullAutoMode(paneId)
         if (effectiveFullAutoMode === 'session') {
-          handlePermissionReply(request.id, 'once', effectiveDirectory)
+          handlePermissionReply(request.id, 'once', effectiveDirectory, request.sessionID)
           return
         }
 
@@ -304,7 +304,7 @@ export function useChatSession({
           autoApproveStore.shouldAutoApprove(request.sessionID, request.permission, request.patterns)
         ) {
           // 匹配规则，自动用 once 批准，不弹框
-          handlePermissionReply(request.id, 'once', effectiveDirectory)
+          handlePermissionReply(request.id, 'once', effectiveDirectory, request.sessionID)
           return
         }
 
@@ -515,8 +515,18 @@ export function useChatSession({
 
       if (cancelled) return
 
-      // 只保留属于当前 session family 的请求
-      setPendingPermissionRequests(allPerms.filter(p => family.has(p.sessionID)))
+      // 只保留属于当前 session family 的请求。
+      // OMO background subagents may publish permission.asked over SSE before
+      // /permission can list it for this routed instance, so do not drop
+      // SSE-known requests just because the snapshot is missing them.
+      const nextPerms = allPerms.filter(p => family.has(p.sessionID))
+      setPendingPermissionRequests(prev => {
+        const merged = new Map(nextPerms.map(p => [p.id, p]))
+        for (const request of prev) {
+          if (family.has(request.sessionID) && !merged.has(request.id)) merged.set(request.id, request)
+        }
+        return Array.from(merged.values())
+      })
       setPendingQuestionRequests(allQuestions.filter(q => family.has(q.sessionID)))
     }
 

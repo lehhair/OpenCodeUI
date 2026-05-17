@@ -450,9 +450,7 @@ export function useGlobalEvents(directories?: string[]) {
         // Full Auto 全局模式拦截 — 所有会话的权限请求直接放行
         if (autoApproveStore.fullAutoMode === 'global') {
           const dir = activeSessionStore.getSessionMeta(request.sessionID)?.directory
-          replyPermission(request.id, 'once', undefined, dir).then(() => {
-            activeSessionStore.resolvePendingRequest(request.id)
-          })
+          replyPermission(request.id, 'once', undefined, dir, request.sessionID).catch(() => {})
           return
         }
 
