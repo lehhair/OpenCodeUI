@@ -8,6 +8,7 @@ export type PanelPosition = 'bottom' | 'right'
 // 面板内容类型
 export type PanelTabType = 'terminal' | 'files' | 'changes' | 'mcp' | 'skill' | 'worktree'
 type PersistedPanelTabType = Exclude<PanelTabType, 'terminal'>
+export type SidebarSubSessionSortOrder = 'createdAsc' | 'createdDesc'
 
 // 统一的面板标签
 export interface PanelTab {
@@ -93,6 +94,7 @@ interface LayoutState {
   sidebarFolderRecents: boolean
   sidebarFolderRecentsShowDiff: boolean
   sidebarShowChildSessions: boolean
+  sidebarSubSessionSortOrder: SidebarSubSessionSortOrder
 
   // 右侧栏
   rightPanelOpen: boolean
@@ -117,6 +119,7 @@ const STORAGE_KEY_SIDEBAR = 'opencode-sidebar-expanded'
 const STORAGE_KEY_SIDEBAR_FOLDER_RECENTS = 'opencode-sidebar-folder-recents'
 const STORAGE_KEY_SIDEBAR_FOLDER_RECENTS_SHOW_DIFF = 'opencode-sidebar-folder-recents-show-diff'
 const STORAGE_KEY_SIDEBAR_SHOW_CHILD_SESSIONS = 'opencode-sidebar-show-child-sessions'
+const STORAGE_KEY_SIDEBAR_SUB_SESSION_SORT_ORDER = 'opencode-sidebar-sub-session-sort-order'
 const STORAGE_KEY_PANEL_LAYOUT = 'opencode-panel-layout'
 const STORAGE_KEY_TERMINAL_LAYOUT = 'opencode-terminal-layout'
 const STORAGE_KEY_RIGHT_PANEL_WIDTH = 'opencode-right-panel-width'
@@ -164,6 +167,7 @@ export interface PersistedTerminalLayoutMap {
 
 const PANEL_POSITIONS: PanelPosition[] = ['bottom', 'right']
 const PERSISTED_PANEL_TAB_TYPES: PersistedPanelTabType[] = ['files', 'changes', 'mcp', 'skill', 'worktree']
+const SIDEBAR_SUB_SESSION_SORT_ORDERS: SidebarSubSessionSortOrder[] = ['createdAsc', 'createdDesc']
 
 function isPanelPosition(value: unknown): value is PanelPosition {
   return typeof value === 'string' && PANEL_POSITIONS.includes(value as PanelPosition)
@@ -171,6 +175,17 @@ function isPanelPosition(value: unknown): value is PanelPosition {
 
 function isPersistedPanelTabType(value: unknown): value is PersistedPanelTabType {
   return typeof value === 'string' && PERSISTED_PANEL_TAB_TYPES.includes(value as PersistedPanelTabType)
+}
+
+function isSidebarSubSessionSortOrder(value: unknown): value is SidebarSubSessionSortOrder {
+  return (
+    typeof value === 'string' &&
+    SIDEBAR_SUB_SESSION_SORT_ORDERS.includes(value as SidebarSubSessionSortOrder)
+  )
+}
+
+function parseSidebarSubSessionSortOrder(value: unknown): SidebarSubSessionSortOrder {
+  return isSidebarSubSessionSortOrder(value) ? value : 'createdAsc'
 }
 
 function normalizePersistedPanelTab(tab: PersistedPanelTab): PanelTab {
@@ -305,6 +320,7 @@ export class LayoutStore {
     sidebarFolderRecents: false,
     sidebarFolderRecentsShowDiff: true,
     sidebarShowChildSessions: false,
+    sidebarSubSessionSortOrder: 'createdAsc',
     rightPanelOpen: false,
     rightPanelWidth: 450,
     bottomPanelOpen: false,
@@ -405,6 +421,11 @@ export class LayoutStore {
         this.state.sidebarShowChildSessions = savedShowChildSessions === 'true'
       }
 
+      const savedSubSessionSortOrder = localStorage.getItem(STORAGE_KEY_SIDEBAR_SUB_SESSION_SORT_ORDER)
+      if (savedSubSessionSortOrder !== null) {
+        this.state.sidebarSubSessionSortOrder = parseSidebarSubSessionSortOrder(savedSubSessionSortOrder)
+      }
+
       const savedWakeLock = localStorage.getItem(STORAGE_KEY_WAKE_LOCK)
       if (savedWakeLock !== null) {
         this.state.wakeLock = savedWakeLock === 'true'
@@ -465,7 +486,9 @@ export class LayoutStore {
   private notify() {
     this.persistPanelLayout()
     this.persistTerminalLayout()
-    this.subscribers.forEach(fn => fn())
+    this.subscribers.forEach(fn => {
+      fn()
+    })
   }
 
   // ============================================
@@ -514,6 +537,17 @@ export class LayoutStore {
     this.state.sidebarShowChildSessions = enabled
     try {
       localStorage.setItem(STORAGE_KEY_SIDEBAR_SHOW_CHILD_SESSIONS, String(enabled))
+    } catch {
+      /* ignore */
+    }
+    this.notify()
+  }
+
+  setSidebarSubSessionSortOrder(order: SidebarSubSessionSortOrder) {
+    if (this.state.sidebarSubSessionSortOrder === order) return
+    this.state.sidebarSubSessionSortOrder = order
+    try {
+      localStorage.setItem(STORAGE_KEY_SIDEBAR_SUB_SESSION_SORT_ORDER, order)
     } catch {
       /* ignore */
     }
@@ -1158,6 +1192,7 @@ export interface LayoutBackup {
   sidebarFolderRecents: boolean
   sidebarFolderRecentsShowDiff: boolean
   sidebarShowChildSessions: boolean
+  sidebarSubSessionSortOrder: SidebarSubSessionSortOrder
   wakeLock: boolean
   rightPanelWidth: number
   bottomPanelHeight: number
@@ -1202,6 +1237,7 @@ export function exportLayoutBackup(): LayoutBackup {
     sidebarFolderRecents: state.sidebarFolderRecents,
     sidebarFolderRecentsShowDiff: state.sidebarFolderRecentsShowDiff,
     sidebarShowChildSessions: state.sidebarShowChildSessions,
+    sidebarSubSessionSortOrder: state.sidebarSubSessionSortOrder,
     wakeLock: state.wakeLock,
     rightPanelWidth: state.rightPanelWidth,
     bottomPanelHeight: state.bottomPanelHeight,
@@ -1236,6 +1272,10 @@ export function importLayoutBackup(raw: unknown): void {
     String(parsed?.sidebarFolderRecentsShowDiff !== false),
   )
   localStorage.setItem(STORAGE_KEY_SIDEBAR_SHOW_CHILD_SESSIONS, String(parsed?.sidebarShowChildSessions === true))
+  localStorage.setItem(
+    STORAGE_KEY_SIDEBAR_SUB_SESSION_SORT_ORDER,
+    parseSidebarSubSessionSortOrder(parsed?.sidebarSubSessionSortOrder),
+  )
   localStorage.setItem(STORAGE_KEY_WAKE_LOCK, String(parsed?.wakeLock === true))
   localStorage.setItem(STORAGE_KEY_RIGHT_PANEL_WIDTH, String(rightPanelWidth))
   localStorage.setItem(STORAGE_KEY_BOTTOM_PANEL_HEIGHT, String(bottomPanelHeight))
