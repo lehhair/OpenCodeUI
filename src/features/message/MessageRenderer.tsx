@@ -4,7 +4,7 @@ import { diffLines } from 'diff'
 import { animate } from 'motion/mini'
 import { ChevronDownIcon, ChevronRightIcon, SplitIcon, SpinnerIcon, UndoIcon } from '../../components/Icons'
 import { CopyButton, SmoothHeight } from '../../components/ui'
-import { useDelayedRender } from '../../hooks'
+import { useDelayedRender, useModels } from '../../hooks'
 import { useTheme } from '../../hooks/useTheme'
 import {
   useInlineToolRequests,
@@ -378,7 +378,8 @@ const AssistantMessageView = memo(function AssistantMessageView({
 }) {
   const { t } = useTranslation('message')
   const { parts, isStreaming, info } = message
-  const { stepFinishDisplay, completedAtFormat } = useTheme()
+  const { models } = useModels()
+  const { stepFinishDisplay, completedAtFormat, modelLabelFormat } = useTheme()
 
   const wrapperRef = useEntryGrowAnimation(info.time.created)
 
@@ -427,7 +428,16 @@ const AssistantMessageView = memo(function AssistantMessageView({
   // agent / model（仅 assistant 消息）
   const assistantInfo = info.role === 'assistant' ? (info as AssistantMessageInfo) : null
   const agent = assistantInfo?.agent || undefined
-  const modelLabel = assistantInfo?.modelID || undefined
+  const modelLabel = useMemo(() => {
+    if (!assistantInfo?.modelID) return undefined
+    if (modelLabelFormat === 'code') return assistantInfo.modelID
+
+    const matchedModel = models.find(
+      model => model.providerId === assistantInfo.providerID && model.id === assistantInfo.modelID,
+    )
+
+    return matchedModel?.name || assistantInfo.modelID
+  }, [assistantInfo, modelLabelFormat, models])
 
   const hasStepFinishPart = parts.some(part => part.type === 'step-finish')
   const showTurnDurationFooter =
