@@ -1,0 +1,172 @@
+import { fireEvent, render, screen } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { ChatSettings } from './ChatSettings'
+
+const {
+  useTranslationMock,
+  usePathModeMock,
+  useIsMobileMock,
+  setModelLabelFormatMock,
+  setStepFinishDisplayMock,
+  setCompletedAtFormatMock,
+  setCollapseUserMessagesMock,
+  setReasoningDisplayModeMock,
+} = vi.hoisted(() => ({
+  useTranslationMock: vi.fn(),
+  usePathModeMock: vi.fn(),
+  useIsMobileMock: vi.fn(),
+  setModelLabelFormatMock: vi.fn(),
+  setStepFinishDisplayMock: vi.fn(),
+  setCompletedAtFormatMock: vi.fn(),
+  setCollapseUserMessagesMock: vi.fn(),
+  setReasoningDisplayModeMock: vi.fn(),
+}))
+
+vi.mock('react-i18next', () => ({
+  useTranslation: useTranslationMock,
+}))
+
+vi.mock('../../../hooks', () => ({
+  usePathMode: usePathModeMock,
+  useIsMobile: useIsMobileMock,
+}))
+
+vi.mock('../../../store/themeStore', () => ({
+  themeStore: {
+    get stepFinishDisplay() {
+      return stepFinishDisplayValue
+    },
+    get completedAtFormat() {
+      return 'time'
+    },
+    get modelLabelFormat() {
+      return modelLabelFormatValue
+    },
+    get collapseUserMessages() {
+      return true
+    },
+    get reasoningDisplayMode() {
+      return 'capsule' as const
+    },
+    setStepFinishDisplay: setStepFinishDisplayMock,
+    setCompletedAtFormat: setCompletedAtFormatMock,
+    setModelLabelFormat: setModelLabelFormatMock,
+    setCollapseUserMessages: setCollapseUserMessagesMock,
+    setReasoningDisplayMode: setReasoningDisplayModeMock,
+  },
+}))
+
+let stepFinishDisplayValue = {
+  agent: false,
+  model: false,
+  tokens: true,
+  cache: true,
+  cost: true,
+  duration: true,
+  turnDuration: true,
+  completedAt: false,
+}
+
+let modelLabelFormatValue: 'code' | 'name' = 'code'
+
+describe('ChatSettings', () => {
+  beforeEach(() => {
+    useTranslationMock.mockReturnValue({
+      t: (key: string) => key,
+    })
+
+    usePathModeMock.mockReturnValue({
+      pathMode: 'auto' as const,
+      setPathMode: vi.fn(),
+      effectiveStyle: 'unix' as const,
+      detectedStyle: null,
+      isAutoMode: true,
+    })
+
+    useIsMobileMock.mockReturnValue(false)
+
+    stepFinishDisplayValue = {
+      agent: false,
+      model: false,
+      tokens: true,
+      cache: true,
+      cost: true,
+      duration: true,
+      turnDuration: true,
+      completedAt: false,
+    }
+
+    modelLabelFormatValue = 'code'
+
+    setModelLabelFormatMock.mockReset()
+    setStepFinishDisplayMock.mockReset()
+    setCompletedAtFormatMock.mockReset()
+    setCollapseUserMessagesMock.mockReset()
+    setReasoningDisplayModeMock.mockReset()
+  })
+
+  it('hides the model label format control when stepFinishDisplay.model is false', () => {
+    render(<ChatSettings />)
+
+    expect(screen.queryByRole('tab', { name: 'chat.modelLabelCode' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: 'chat.modelLabelName' })).not.toBeInTheDocument()
+  })
+
+  it('shows the model label format control when stepFinishDisplay.model is true', () => {
+    stepFinishDisplayValue = {
+      ...stepFinishDisplayValue,
+      model: true,
+    }
+
+    render(<ChatSettings />)
+
+    expect(screen.getByRole('tab', { name: 'chat.modelLabelCode' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'chat.modelLabelName' })).toBeInTheDocument()
+  })
+
+  it('reflects the selected model label format and updates both state and store on interaction', () => {
+    stepFinishDisplayValue = {
+      ...stepFinishDisplayValue,
+      model: true,
+    }
+
+    render(<ChatSettings />)
+
+    const codeTab = screen.getByRole('tab', { name: 'chat.modelLabelCode' })
+    const nameTab = screen.getByRole('tab', { name: 'chat.modelLabelName' })
+
+    expect(codeTab).toHaveAttribute('aria-selected', 'true')
+    expect(nameTab).toHaveAttribute('aria-selected', 'false')
+
+    fireEvent.click(nameTab)
+
+    expect(setModelLabelFormatMock).toHaveBeenCalledWith('name')
+
+    fireEvent.click(codeTab)
+
+    expect(setModelLabelFormatMock).toHaveBeenCalledWith('code')
+  })
+
+  it('shows model label format directly below the Model row and before completed-at format when both toggles are on', () => {
+    stepFinishDisplayValue = {
+      ...stepFinishDisplayValue,
+      model: true,
+      completedAt: true,
+    }
+
+    render(<ChatSettings />)
+
+    const section = screen.getByRole('heading', { name: 'chat.stepFinishInfo' }).closest('section')
+    expect(section).not.toBeNull()
+
+    const html = section!.innerHTML
+    const modelDescIndex = html.indexOf('chat.showModel')
+    const modelLabelFormatIndex = html.indexOf('chat.modelLabelFormat')
+    const tokensDescIndex = html.indexOf('chat.showTokenUsage')
+    const completedAtFormatIndex = html.indexOf('chat.completedAtFormat')
+
+    expect(modelLabelFormatIndex).toBeGreaterThan(modelDescIndex)
+    expect(modelLabelFormatIndex).toBeLessThan(tokensDescIndex)
+    expect(completedAtFormatIndex).toBeGreaterThan(modelLabelFormatIndex)
+  })
+})

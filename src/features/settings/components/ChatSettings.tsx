@@ -1,8 +1,8 @@
-import { useState } from 'react'
+import { Fragment, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { PathAutoIcon, PathUnixIcon, PathWindowsIcon } from '../../../components/Icons'
 import { usePathMode, useIsMobile } from '../../../hooks'
-import { themeStore, type ReasoningDisplayMode, type CompletedAtFormat } from '../../../store/themeStore'
+import { themeStore, type ReasoningDisplayMode, type CompletedAtFormat, type ModelLabelFormat } from '../../../store/themeStore'
 import { Toggle, SegmentedControl, SettingRow, SettingsSection } from './SettingsUI'
 import type { PathMode } from '../../../utils/directoryUtils'
 
@@ -12,6 +12,7 @@ export function ChatSettings() {
   const [collapseUserMessages, setCollapseUserMessages] = useState(themeStore.collapseUserMessages)
   const [stepFinishDisplay, setStepFinishDisplay] = useState(themeStore.stepFinishDisplay)
   const [completedAtFormat, setCompletedAtFormat] = useState(themeStore.completedAtFormat)
+  const [modelLabelFormat, setModelLabelFormat] = useState(themeStore.modelLabelFormat)
   const [reasoningDisplayMode, setReasoningDisplayMode] = useState(themeStore.reasoningDisplayMode)
   const isMobile = useIsMobile()
   void isMobile
@@ -92,25 +93,44 @@ export function ChatSettings() {
             { key: 'completedAt', label: t('chat.completedAt'), desc: t('chat.showCompletedAt') },
           ] as const
         ).map(({ key, label, desc }) => (
-          <SettingRow
-            key={key}
-            label={label}
-            description={desc}
-            onClick={() => {
-              const next = { [key]: !stepFinishDisplay[key] }
-              setStepFinishDisplay(prev => ({ ...prev, ...next }))
-              themeStore.setStepFinishDisplay(next)
-            }}
-          >
-            <Toggle
-              enabled={stepFinishDisplay[key]}
-              onChange={() => {
+          <Fragment key={key}>
+            <SettingRow
+              label={label}
+              description={desc}
+              onClick={() => {
                 const next = { [key]: !stepFinishDisplay[key] }
                 setStepFinishDisplay(prev => ({ ...prev, ...next }))
                 themeStore.setStepFinishDisplay(next)
               }}
-            />
-          </SettingRow>
+            >
+              <Toggle
+                enabled={stepFinishDisplay[key]}
+                onChange={() => {
+                  const next = { [key]: !stepFinishDisplay[key] }
+                  setStepFinishDisplay(prev => ({ ...prev, ...next }))
+                  themeStore.setStepFinishDisplay(next)
+                }}
+              />
+            </SettingRow>
+            {key === 'model' && stepFinishDisplay.model && (
+              <div>
+                <p className="text-[length:var(--fs-md)] text-text-100 mb-1.5">{t('chat.modelLabelFormat')}</p>
+                <p className="text-[length:var(--fs-sm)] text-text-400 mb-3">{t('chat.modelLabelFormatDesc')}</p>
+                <SegmentedControl
+                  value={modelLabelFormat}
+                  options={[
+                    { value: 'code', label: t('chat.modelLabelCode') },
+                    { value: 'name', label: t('chat.modelLabelName') },
+                  ]}
+                  onChange={v => {
+                    const next = v as ModelLabelFormat
+                    setModelLabelFormat(next)
+                    themeStore.setModelLabelFormat(next)
+                  }}
+                />
+              </div>
+            )}
+          </Fragment>
         ))}
 
         {stepFinishDisplay.completedAt && (
