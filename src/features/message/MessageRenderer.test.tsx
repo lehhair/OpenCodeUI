@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { MessageRenderer } from './MessageRenderer'
-import type { Message } from '../../types/message'
+import type { Message, UserMessageInfo } from '../../types/message'
 
 const { useModelsMock, useThemeMock } = vi.hoisted(() => ({
   useModelsMock: vi.fn(),
@@ -58,6 +58,7 @@ function createThemeOverrides(overrides?: Record<string, unknown>) {
     },
     completedAtFormat: 'absolute',
     modelLabelFormat: 'code',
+    showModelVariant: false,
     descriptiveToolSteps: false,
     inlineToolRequests: false,
     immersiveMode: false,
@@ -150,6 +151,14 @@ function createUserMessage(): Message {
   }
 }
 
+function createUserMessageWithVariant(variant?: string): Message {
+  const message = createUserMessage()
+  if (variant !== undefined) {
+    ;(message.info as UserMessageInfo).model.variant = variant
+  }
+  return message
+}
+
 describe('MessageRenderer assistant fork', () => {
   beforeEach(() => {
     useModelsMock.mockReset()
@@ -239,6 +248,33 @@ describe('MessageRenderer assistant fork', () => {
     expect(screen.getByText('step-finish-model:model-1')).toBeInTheDocument()
   })
 
+  it('keeps the existing model label unchanged when showModelVariant is disabled', () => {
+    const message = createAssistantMessage()
+    message.parts = [createStepFinishPart()]
+
+    useThemeMock.mockImplementation(() =>
+      createThemeOverrides({
+        stepFinishDisplay: {
+          agent: false,
+          model: true,
+          tokens: false,
+          cache: false,
+          cost: false,
+          duration: false,
+          turnDuration: false,
+          completedAt: false,
+        },
+        modelLabelFormat: 'code',
+        showModelVariant: false,
+      }),
+    )
+
+    render(<MessageRenderer message={message} parentMessage={createUserMessageWithVariant('x_high')} />)
+
+    expect(screen.getByText('step-finish-model:model-1')).toBeInTheDocument()
+    expect(screen.queryByText('step-finish-model:model-1 · X High')).toBeNull()
+  })
+
   it('uses resolved model.name for step-finish model label in name mode', () => {
     const message = createAssistantMessage()
     message.parts = [createStepFinishPart()]
@@ -270,6 +306,64 @@ describe('MessageRenderer assistant fork', () => {
     expect(screen.getByText('step-finish-model:Resolved Name')).toBeInTheDocument()
   })
 
+  it('appends the formatted requested variant in code mode when enabled', () => {
+    const message = createAssistantMessage()
+    message.parts = [createStepFinishPart()]
+
+    useThemeMock.mockImplementation(() =>
+      createThemeOverrides({
+        stepFinishDisplay: {
+          agent: false,
+          model: true,
+          tokens: false,
+          cache: false,
+          cost: false,
+          duration: false,
+          turnDuration: false,
+          completedAt: false,
+        },
+        modelLabelFormat: 'code',
+        showModelVariant: true,
+      }),
+    )
+
+    render(<MessageRenderer message={message} parentMessage={createUserMessageWithVariant('x-high')} />)
+
+    expect(screen.getByText('step-finish-model:model-1 · X High')).toBeInTheDocument()
+  })
+
+  it('appends the formatted requested variant in name mode when enabled', () => {
+    const message = createAssistantMessage()
+    message.parts = [createStepFinishPart()]
+
+    useThemeMock.mockImplementation(() =>
+      createThemeOverrides({
+        stepFinishDisplay: {
+          agent: false,
+          model: true,
+          tokens: false,
+          cache: false,
+          cost: false,
+          duration: false,
+          turnDuration: false,
+          completedAt: false,
+        },
+        modelLabelFormat: 'name',
+        showModelVariant: true,
+      }),
+    )
+    useModelsMock.mockReturnValue({
+      models: [{ id: 'model-1', providerId: 'provider-1', name: 'Resolved Name' }],
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    })
+
+    render(<MessageRenderer message={message} parentMessage={createUserMessageWithVariant('XHIGH')} />)
+
+    expect(screen.getByText('step-finish-model:Resolved Name · Xhigh')).toBeInTheDocument()
+  })
+
   it('passes the resolved model label through the grouped tool footer step-finish path', () => {
     const message = createAssistantMessage()
     message.parts = [createToolPart(), createStepFinishPart()]
@@ -287,6 +381,7 @@ describe('MessageRenderer assistant fork', () => {
           completedAt: false,
         },
         modelLabelFormat: 'name',
+        showModelVariant: true,
       }),
     )
     useModelsMock.mockReturnValue({
@@ -296,9 +391,9 @@ describe('MessageRenderer assistant fork', () => {
       refetch: vi.fn(),
     })
 
-    render(<MessageRenderer message={message} />)
+    render(<MessageRenderer message={message} parentMessage={createUserMessageWithVariant('x_high')} />)
 
-    expect(screen.getByText('step-finish-model:Grouped Tool Model')).toBeInTheDocument()
+    expect(screen.getByText('step-finish-model:Grouped Tool Model · X High')).toBeInTheDocument()
   })
 
   it('uses the provider-specific model name when duplicate model ids exist in name mode', () => {
@@ -360,5 +455,32 @@ describe('MessageRenderer assistant fork', () => {
     render(<MessageRenderer message={message} />)
 
     expect(screen.getByText('step-finish-model:model-1')).toBeInTheDocument()
+  })
+
+  it('leaves the model label unchanged when the parent message has no variant', () => {
+    const message = createAssistantMessage()
+    message.parts = [createStepFinishPart()]
+
+    useThemeMock.mockImplementation(() =>
+      createThemeOverrides({
+        stepFinishDisplay: {
+          agent: false,
+          model: true,
+          tokens: false,
+          cache: false,
+          cost: false,
+          duration: false,
+          turnDuration: false,
+          completedAt: false,
+        },
+        modelLabelFormat: 'code',
+        showModelVariant: true,
+      }),
+    )
+
+    render(<MessageRenderer message={message} parentMessage={createUserMessage()} />)
+
+    expect(screen.getByText('step-finish-model:model-1')).toBeInTheDocument()
+    expect(screen.queryByText(/step-finish-model:model-1 ·/)).toBeNull()
   })
 })

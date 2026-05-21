@@ -96,6 +96,10 @@ export function buildTurnDurationMap(messages: Message[], visibleMessages: Messa
   return map
 }
 
+export function buildMessageIdMap(messages: Message[]): Map<string, Message> {
+  return new Map(messages.map(message => [message.info.id, message]))
+}
+
 interface ChatAreaProps {
   messages: Message[]
   sessionId?: string | null
@@ -169,6 +173,8 @@ export const ChatArea = memo(
       // ---- Data ----
       const visibleMessageEntries = useMemo(() => buildVisibleMessageEntries(messages), [messages])
       const visibleMessages = useMemo(() => visibleMessageEntries.map(e => e.message), [visibleMessageEntries])
+      const visibleMessageCount = visibleMessages.length
+      const messageIdMap = useMemo(() => buildMessageIdMap(messages), [messages])
       const forkTargetIdMap = useMemo(
         () =>
           new Map(visibleMessageEntries.map(entry => [entry.message.info.id, getVisibleMessageForkTargetId(entry)])),
@@ -282,7 +288,7 @@ export const ChatArea = memo(
 
         observer.observe(sentinel)
         return () => observer.disconnect()
-      }, [sessionId, visibleMessages])
+      }, [sessionId])
 
       // column-reverse 下 prepend 在负方向远端，scrollTop 不变，视口自然不跳。
       // 不需要手动补偿。
@@ -299,6 +305,10 @@ export const ChatArea = memo(
       useEffect(() => {
         const root = scrollRef.current
         if (!root) return
+        if (visibleMessageCount === 0) {
+          onVisibleIdsChangeRef.current?.([])
+          return
+        }
 
         const visibleIds = new Set<string>()
         const observer = new IntersectionObserver(
@@ -326,10 +336,12 @@ export const ChatArea = memo(
 
         // Observe all current message elements
         const elements = root.querySelectorAll<HTMLElement>('[data-message-id]')
-        elements.forEach(el => observer.observe(el))
+        elements.forEach(el => {
+          observer.observe(el)
+        })
 
         return () => observer.disconnect()
-      }, [visibleMessages])
+      }, [visibleMessageCount])
 
       // ============================================
       // Imperative Handle
@@ -415,6 +427,9 @@ export const ChatArea = memo(
                     >
                       <MessageRenderer
                         message={msg}
+                        parentMessage={
+                          msg.info.role === 'assistant' ? messageIdMap.get(msg.info.parentID) : undefined
+                        }
                         allowStreamingLayoutAnimation={allowStreamingLayoutAnimation}
                         turnDuration={turnDurationMap.get(msg.info.id)}
                         onUndo={onUndo}
@@ -440,6 +455,7 @@ export const ChatArea = memo(
           canUndo,
           messageMaxWidthClass,
           messagePaddingClass,
+          messageIdMap,
           turnDurationMap,
           forkTargetIdMap,
           allowStreamingLayoutAnimation,

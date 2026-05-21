@@ -41,6 +41,7 @@ import { formatDuration, formatCompletedAt, formatDetailedDateTime } from '../..
 
 interface MessageRendererProps {
   message: Message
+  parentMessage?: Message
   allowStreamingLayoutAnimation?: boolean
   /** 回合总时长（毫秒），仅在回合最后一条 assistant 消息上有值 */
   turnDuration?: number
@@ -53,6 +54,7 @@ interface MessageRendererProps {
 
 export const MessageRenderer = memo(function MessageRenderer({
   message,
+  parentMessage,
   allowStreamingLayoutAnimation = true,
   turnDuration,
   onUndo,
@@ -79,6 +81,7 @@ export const MessageRenderer = memo(function MessageRenderer({
   return (
     <AssistantMessageView
       message={message}
+      parentMessage={parentMessage}
       allowStreamingLayoutAnimation={allowStreamingLayoutAnimation}
       turnDuration={turnDuration}
       onFork={onFork}
@@ -104,7 +107,7 @@ function useEntryGrowAnimation(created: number) {
       el.style.height = ''
       el.style.clipPath = ''
     })
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [created])
   return ref
 }
 
@@ -157,7 +160,7 @@ const CollapsibleUserText = memo(function CollapsibleUserText({
       disposed = true
       resizeObserver.disconnect()
     }
-  }, [text, messageId])
+  }, [messageId])
 
   const showCollapse = collapseEnabled && isOverflow
   const isCollapsed = collapseEnabled && !expanded
@@ -181,6 +184,7 @@ const CollapsibleUserText = memo(function CollapsibleUserText({
       </div>
       {showCollapse && (
         <button
+          type="button"
           onClick={() => {
             setExpanded(prev => {
               const next = !prev
@@ -227,6 +231,7 @@ const ForkActionButton = memo(function ForkActionButton({ message, onFork, forkM
 
   return (
     <button
+      type="button"
       onClick={() => void handleFork()}
       disabled={isForking}
       className="p-1.5 rounded-md transition-colors duration-150 text-text-400 hover:text-text-200 disabled:cursor-default disabled:text-text-500"
@@ -299,6 +304,7 @@ const UserMessageView = memo(function UserMessageView({
         {hasSystemContext && (
           <div className="flex flex-col items-end mt-1 w-full">
             <button
+              type="button"
               onClick={() => setShowSystemContext(!showSystemContext)}
               className="flex items-center gap-1 text-[length:var(--fs-sm)] text-text-400 hover:text-text-300 transition-colors py-1 px-2 rounded hover:bg-bg-200"
             >
@@ -341,6 +347,7 @@ const UserMessageView = memo(function UserMessageView({
           {/* Undo button */}
           {canUndo && onUndo && (
             <button
+              type="button"
               onClick={() => onUndo(info.id)}
               className="p-1.5 rounded-md transition-colors duration-150 text-text-400 hover:text-text-200"
               title={t('undoFromHere')}
@@ -363,6 +370,7 @@ const UserMessageView = memo(function UserMessageView({
 
 const AssistantMessageView = memo(function AssistantMessageView({
   message,
+  parentMessage,
   allowStreamingLayoutAnimation = true,
   turnDuration,
   onFork,
@@ -370,6 +378,7 @@ const AssistantMessageView = memo(function AssistantMessageView({
   onEnsureParts,
 }: {
   message: Message
+  parentMessage?: Message
   allowStreamingLayoutAnimation?: boolean
   turnDuration?: number
   onFork?: (message: Message, forkMessageId?: string) => Promise<void> | void
@@ -379,7 +388,7 @@ const AssistantMessageView = memo(function AssistantMessageView({
   const { t } = useTranslation('message')
   const { parts, isStreaming, info } = message
   const { models } = useModels()
-  const { stepFinishDisplay, completedAtFormat, modelLabelFormat } = useTheme()
+  const { stepFinishDisplay, completedAtFormat, modelLabelFormat, showModelVariant } = useTheme()
 
   const wrapperRef = useEntryGrowAnimation(info.time.created)
 
@@ -438,6 +447,11 @@ const AssistantMessageView = memo(function AssistantMessageView({
 
     return matchedModel?.name || assistantInfo.modelID
   }, [assistantInfo, modelLabelFormat, models])
+  const requestedVariant = parentMessage?.info.role === 'user' ? parentMessage.info.model.variant : undefined
+  const displayModelLabel =
+    showModelVariant && requestedVariant && modelLabel
+      ? `${modelLabel} · ${formatVariantLabel(requestedVariant)}`
+      : modelLabel
 
   const hasStepFinishPart = parts.some(part => part.type === 'step-finish')
   const showTurnDurationFooter =
@@ -481,7 +495,7 @@ const AssistantMessageView = memo(function AssistantMessageView({
                   turnDuration={isLastStepFinish ? turnDuration : undefined}
                   isStreaming={isStreaming}
                   agent={agent}
-                  modelLabel={modelLabel}
+                  displayModelLabel={displayModelLabel}
                   completedAt={isLastStepFinish ? completed : undefined}
                 />
               )
@@ -503,7 +517,7 @@ const AssistantMessageView = memo(function AssistantMessageView({
                     duration={isLastStepFinish ? duration : undefined}
                     turnDuration={isLastStepFinish ? turnDuration : undefined}
                     agent={agent}
-                    modelLabel={modelLabel}
+                      modelLabel={displayModelLabel}
                     completedAt={isLastStepFinish ? completed : undefined}
                   />
                 )
@@ -555,7 +569,7 @@ interface ToolGroupProps {
   turnDuration?: number
   isStreaming?: boolean
   agent?: string
-  modelLabel?: string
+  displayModelLabel?: string
   completedAt?: number
 }
 
@@ -573,7 +587,7 @@ const ToolGroup = memo(function ToolGroup({
   turnDuration,
   isStreaming,
   agent,
-  modelLabel,
+  displayModelLabel,
   completedAt,
 }: ToolGroupProps) {
   const { t } = useTranslation('message')
@@ -669,9 +683,9 @@ const ToolGroup = memo(function ToolGroup({
               className="flex w-full items-baseline rounded-md py-1 text-left hover:bg-bg-200/30 transition-colors"
             >
               <span className="text-[length:var(--fs-sm)] leading-5">
-                {stepsSummary?.map((seg, i) => (
+                {stepsSummary?.map(seg => (
                   <span
-                    key={i}
+                    key={`${seg.type}:${seg.text}`}
                     className={
                       seg.type === 'error'
                         ? 'text-danger-100'
@@ -695,6 +709,7 @@ const ToolGroup = memo(function ToolGroup({
             </button>
           ) : (
             <button
+              type="button"
               onClick={() => setExpanded(!expanded)}
               className="flex items-center gap-1.5 py-1.5 text-text-400 text-[length:var(--fs-base)] hover:text-text-200 hover:bg-bg-200/30 rounded-md transition-colors"
             >
@@ -749,7 +764,7 @@ const ToolGroup = memo(function ToolGroup({
               duration={duration}
               turnDuration={turnDuration}
               agent={agent}
-              modelLabel={modelLabel}
+              modelLabel={displayModelLabel}
               completedAt={completedAt}
             />
           </div>
@@ -772,6 +787,14 @@ function formatTokens(
     return t('tokensK', { count: (total / 1000).toFixed(1) })
   }
   return `${total} ${t('tokens')}`
+}
+
+function formatVariantLabel(variant: string): string {
+  return variant
+    .trim()
+    .split(/[-_\s]+/)
+    .map(segment => segment.charAt(0).toUpperCase() + segment.slice(1).toLowerCase())
+    .join(' ')
 }
 
 type ToolSummaryCategory =
