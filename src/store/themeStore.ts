@@ -145,6 +145,8 @@ export interface ThemeState {
   completedAtFormat: CompletedAtFormat
   /** 模型标签显示格式 */
   modelLabelFormat: ModelLabelFormat
+  /** 是否显示模型 variant 信息 */
+  showModelVariant: boolean
   /** 思考内容展示样式 */
   reasoningDisplayMode: ReasoningDisplayMode
   /** 宽模式 */
@@ -190,6 +192,7 @@ const STORAGE_KEY_COLLAPSE_USER_MESSAGES = 'collapse-user-messages'
 const STORAGE_KEY_STEP_FINISH_DISPLAY = 'step-finish-display'
 const STORAGE_KEY_COMPLETED_AT_FORMAT = 'completed-at-format'
 const STORAGE_KEY_MODEL_LABEL_FORMAT = 'model-label-format'
+const STORAGE_KEY_SHOW_MODEL_VARIANT = 'show-model-variant'
 const STORAGE_KEY_REASONING_DISPLAY_MODE = 'reasoning-display-mode'
 const STORAGE_KEY_WIDE_MODE = 'chat-wide-mode'
 const STORAGE_KEY_DIFF_STYLE = 'diff-style'
@@ -276,6 +279,9 @@ class ThemeStore {
     const modelLabelFormat: ModelLabelFormat =
       savedModelLabelFormat === 'name' ? 'name' : DEFAULT_MODEL_LABEL_FORMAT
 
+    const savedShowModelVariant = localStorage.getItem(STORAGE_KEY_SHOW_MODEL_VARIANT)
+    const showModelVariant = savedShowModelVariant === 'true'
+
     const savedWideMode = localStorage.getItem(STORAGE_KEY_WIDE_MODE) === 'true'
     const savedDiffStyle = localStorage.getItem(STORAGE_KEY_DIFF_STYLE) as DiffStyle | null
     const diffStyle: DiffStyle = savedDiffStyle === 'changeBars' ? 'changeBars' : DEFAULT_DIFF_STYLE
@@ -334,6 +340,7 @@ class ThemeStore {
       stepFinishDisplay,
       completedAtFormat,
       modelLabelFormat,
+      showModelVariant,
       reasoningDisplayMode,
       wideMode: savedWideMode,
       diffStyle,
@@ -383,6 +390,9 @@ class ThemeStore {
   }
   get modelLabelFormat() {
     return this.state.modelLabelFormat
+  }
+  get showModelVariant() {
+    return this.state.showModelVariant
   }
   get reasoningDisplayMode() {
     return this.state.reasoningDisplayMode
@@ -571,6 +581,13 @@ class ThemeStore {
     if (this.state.modelLabelFormat === format) return
     this.state = { ...this.state, modelLabelFormat: format }
     localStorage.setItem(STORAGE_KEY_MODEL_LABEL_FORMAT, format)
+    this.emit()
+  }
+
+  setShowModelVariant(enabled: boolean) {
+    if (this.state.showModelVariant === enabled) return
+    this.state = { ...this.state, showModelVariant: enabled }
+    localStorage.setItem(STORAGE_KEY_SHOW_MODEL_VARIANT, String(enabled))
     this.emit()
   }
 
@@ -903,6 +920,7 @@ function normalizeThemeBackup(raw: unknown): ThemeBackup {
         : DEFAULT_STEP_FINISH_DISPLAY,
     completedAtFormat: parsed?.completedAtFormat === 'dateTime' ? 'dateTime' : DEFAULT_COMPLETED_AT_FORMAT,
     modelLabelFormat: parsed?.modelLabelFormat === 'name' ? 'name' : DEFAULT_MODEL_LABEL_FORMAT,
+    showModelVariant: parsed?.showModelVariant === true,
     reasoningDisplayMode:
       parsed?.reasoningDisplayMode === 'italic' || parsed?.reasoningDisplayMode === 'markdown'
         ? parsed.reasoningDisplayMode
@@ -963,6 +981,7 @@ export function importThemeBackup(raw: unknown): void {
   localStorage.setItem(STORAGE_KEY_STEP_FINISH_DISPLAY, JSON.stringify(backup.stepFinishDisplay))
   localStorage.setItem(STORAGE_KEY_COMPLETED_AT_FORMAT, backup.completedAtFormat)
   localStorage.setItem(STORAGE_KEY_MODEL_LABEL_FORMAT, backup.modelLabelFormat)
+  localStorage.setItem(STORAGE_KEY_SHOW_MODEL_VARIANT, String(backup.showModelVariant))
   localStorage.setItem(STORAGE_KEY_REASONING_DISPLAY_MODE, backup.reasoningDisplayMode)
   localStorage.setItem(STORAGE_KEY_WIDE_MODE, String(backup.wideMode))
   localStorage.setItem(STORAGE_KEY_DIFF_STYLE, backup.diffStyle)
