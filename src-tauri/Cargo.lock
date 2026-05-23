@@ -2728,6 +2728,7 @@ name = "opencodeui"
 version = "0.6.10"
 dependencies = [
  "futures-util",
+ "libc",
  "log",
  "papaya",
  "rapidhash",

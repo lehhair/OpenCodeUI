@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { buildTurnDurationMap } from './ChatArea'
+import { buildMessageIdMap, buildTurnDurationMap } from './ChatArea'
 import { buildVisibleMessageEntries, getVisibleMessageForkTargetId } from './chatAreaVisibility'
 import type { Message, MessageError, Part, ToolPart, ReasoningPart } from '../../types/message'
+import { isAssistantMessage } from '../../types/message'
 
 function createUserMessage(id: string, created: number): Message {
   return {
@@ -155,5 +156,30 @@ describe('buildTurnDurationMap', () => {
     expect(durationMap.get('assistant-2')).toBe(500)
     expect(durationMap.get('assistant-3')).toBe(600)
     expect(durationMap.has('assistant-1')).toBe(false)
+  })
+})
+
+describe('buildMessageIdMap', () => {
+  it('resolves assistant parent user messages without relying on adjacency', () => {
+    const parentUser = createUserMessage('user-1', 1000)
+    const otherUser = createUserMessage('user-2', 2000)
+    const assistant = createAssistantMessage('assistant-1', [], 2001)
+    expect(isAssistantMessage(assistant.info)).toBe(true)
+    if (!isAssistantMessage(assistant.info)) throw new Error('Expected assistant message')
+
+    const messageIdMap = buildMessageIdMap([parentUser, otherUser, assistant])
+
+    expect(messageIdMap.get(assistant.info.parentID)).toBe(parentUser)
+  })
+
+  it('returns undefined safely when an assistant parent message is missing', () => {
+    const assistant = createAssistantMessage('assistant-missing-parent', [], 2001)
+    expect(isAssistantMessage(assistant.info)).toBe(true)
+    if (!isAssistantMessage(assistant.info)) throw new Error('Expected assistant message')
+    assistant.info.parentID = 'missing-user'
+
+    const messageIdMap = buildMessageIdMap([assistant])
+
+    expect(messageIdMap.get(assistant.info.parentID)).toBeUndefined()
   })
 })

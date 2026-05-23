@@ -139,6 +139,11 @@ export function SidebarFooter({ showLabels, connectionState, stats, hasMessages,
     closeTimeoutIdRef.current = closeTimeoutId
   }, [])
 
+  const handleOpenSettings = useCallback(() => {
+    onOpenSettings?.()
+    closeMenu()
+  }, [closeMenu, onOpenSettings])
+
   // 切换菜单
   const toggleMenu = useCallback(() => {
     if (isOpen) closeMenu()
@@ -274,6 +279,7 @@ export function SidebarFooter({ showLabels, connectionState, stats, hasMessages,
               {(['system', 'light', 'dark'] as const).map(m => (
                 <button
                   key={m}
+                  type="button"
                   onClick={e => onThemeChange(m, e)}
                   className={`flex-1 flex items-center justify-center py-1.5 rounded-sm text-[length:var(--fs-sm)] font-medium transition-colors duration-200 ${
                     themeMode === m ? 'text-text-100' : 'text-text-400 hover:text-text-200'
@@ -292,6 +298,7 @@ export function SidebarFooter({ showLabels, connectionState, stats, hasMessages,
           <div className="p-1">
             {toggleWideMode && (
               <button
+                type="button"
                 onClick={() => {
                   toggleWideMode()
                   closeMenu()
@@ -304,6 +311,7 @@ export function SidebarFooter({ showLabels, connectionState, stats, hasMessages,
             )}
 
             <button
+              type="button"
               onClick={() => {
                 closeMenu()
                 setShareDialogOpen(true)
@@ -315,10 +323,8 @@ export function SidebarFooter({ showLabels, connectionState, stats, hasMessages,
             </button>
 
             <button
-              onClick={() => {
-                closeMenu()
-                onOpenSettings?.()
-              }}
+              type="button"
+              onClick={handleOpenSettings}
               className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-[length:var(--fs-sm)] text-text-300 hover:text-text-100 hover:bg-bg-200/50 transition-colors text-left"
             >
               <CogIcon size={14} />
@@ -340,45 +346,47 @@ export function SidebarFooter({ showLabels, connectionState, stats, hasMessages,
   return (
     <div className="shrink-0 pb-[var(--safe-area-inset-bottom)]">
       <div ref={containerRef} className="flex flex-col gap-0.5 mx-2 py-2">
-        {/* 状态/设置触发按钮 */}
+        <div className="flex items-center gap-1">
+          {/* 状态/设置触发按钮 */}
         <button
           ref={buttonRef}
+          type="button"
           onClick={toggleMenu}
           className={`
             h-8 flex items-center rounded-lg transition-all duration-300 group overflow-hidden
-            ${isOpen ? 'bg-bg-200 text-text-100' : 'text-text-300 hover:text-text-100 hover:bg-bg-200'}
-          `}
-          style={{
-            width: showLabels ? '100%' : 32,
-            paddingLeft: showLabels ? 6 : 4, // 收起时为了对齐中心线(16px)，24px圆环需要4px padding (4+12=16)
-            paddingRight: showLabels ? 8 : 4,
-          }}
-          title={`Context: ${formatTokens(hasMessages ? stats.contextUsed : 0)} tokens • ${Math.round(stats.contextPercent)}% • ${formatCost(stats.totalCost)}`}
-        >
-          {/* 状态指示器 */}
-          <StatusIndicator percent={stats.contextPercent} connectionState={connectionState} size={24} />
-
-          {/* 展开时显示详细信息 */}
-          <span
-            className="ml-2 flex-1 flex items-center justify-between min-w-0 transition-opacity duration-300"
-            style={{ opacity: showLabels ? 1 : 0 }}
+              ${isOpen ? 'bg-bg-200 text-text-100' : 'text-text-300 hover:text-text-100 hover:bg-bg-200'}
+            `}
+            style={{
+              width: showLabels ? '100%' : 32,
+              paddingLeft: showLabels ? 6 : 4,
+              paddingRight: showLabels ? 8 : 4,
+            }}
+            title={`Context: ${formatTokens(hasMessages ? stats.contextUsed : 0)} tokens • ${Math.round(stats.contextPercent)}% • ${formatCost(stats.totalCost)}`}
           >
-            <span className="text-[length:var(--fs-sm)] font-mono text-text-300 truncate">
-              {hasMessages ? formatTokens(stats.contextUsed) : '0'} / {formatTokens(stats.contextLimit)}
-            </span>
+            <StatusIndicator percent={stats.contextPercent} connectionState={connectionState} size={24} />
+
             <span
-              className={`text-[length:var(--fs-sm)] font-medium ml-2 ${
-                stats.contextPercent >= 90
-                  ? 'text-danger-100'
-                  : stats.contextPercent >= 70
-                    ? 'text-warning-100'
-                    : 'text-text-400'
-              }`}
+              className="ml-2 flex-1 flex items-center justify-between min-w-0 transition-opacity duration-300"
+              style={{ opacity: showLabels ? 1 : 0 }}
             >
-              {Math.round(stats.contextPercent)}%
+              <span className="text-[length:var(--fs-sm)] font-mono text-text-300 truncate">
+                {hasMessages ? formatTokens(stats.contextUsed) : '0'} / {formatTokens(stats.contextLimit)}
+              </span>
+              <span
+                className={`text-[length:var(--fs-sm)] font-medium ml-2 ${
+                  stats.contextPercent >= 90
+                    ? 'text-danger-100'
+                    : stats.contextPercent >= 70
+                      ? 'text-warning-100'
+                      : 'text-text-400'
+                }`}
+              >
+                {Math.round(stats.contextPercent)}%
+              </span>
             </span>
-          </span>
-        </button>
+          </button>
+
+        </div>
       </div>
 
       {floatingMenu}

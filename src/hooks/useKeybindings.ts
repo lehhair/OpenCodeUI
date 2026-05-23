@@ -72,9 +72,12 @@ export function useGlobalKeybindings(handlers: KeybindingHandlers, enabled = tru
 
     const handleKeyDown = (e: KeyboardEvent) => {
       // 忽略在输入框中的快捷键 (除了特定的如 Escape)
-      const target = e.target as HTMLElement
-      const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable
-      if (target.closest('.xterm')) return
+      const target = e.target
+      const isInput =
+        target instanceof HTMLElement &&
+        (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)
+
+      if (target instanceof Element && target.closest('.xterm')) return
 
       // 检查是否有模态框/对话框/下拉菜单打开
       // 如果有，只允许特定的快捷键通过

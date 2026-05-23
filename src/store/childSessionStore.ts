@@ -18,6 +18,7 @@ export interface ChildSessionInfo {
   id: string
   parentID: string
   title: string
+  directory?: string
   agent?: string // 子 agent 名称
   status: 'running' | 'idle' | 'error'
   createdAt: number
@@ -35,7 +36,6 @@ class ChildSessionStore {
   // sessionID -> ChildSessionInfo
   private sessionInfo = new Map<string, ChildSessionInfo>()
   private subscribers = new Set<Subscriber>()
-  private version = 0
 
   // ============================================
   // Subscription
@@ -43,12 +43,15 @@ class ChildSessionStore {
 
   subscribe(fn: Subscriber): () => void {
     this.subscribers.add(fn)
-    return () => this.subscribers.delete(fn)
+    return () => {
+      this.subscribers.delete(fn)
+    }
   }
 
   private notify() {
-    this.version++
-    this.subscribers.forEach(fn => fn())
+    this.subscribers.forEach(fn => {
+      fn()
+    })
   }
 
   // ============================================
@@ -74,6 +77,7 @@ class ChildSessionStore {
       id: session.id,
       parentID: session.parentID,
       title: session.title || i18n.t('chat:permissionDialog.subtaskFallback'),
+      directory: session.directory,
       status: 'running',
       createdAt: session.time.created,
     })
@@ -132,8 +136,6 @@ class ChildSessionStore {
   getSessionInfo(sessionId: string): ChildSessionInfo | undefined {
     return this.sessionInfo.get(sessionId)
   }
-
-  getVersion = (): number => this.version
 
   /**
    * 检查 sessionId 是否是 parentId 的子 session（或子孙 session）

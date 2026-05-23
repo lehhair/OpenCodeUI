@@ -13,6 +13,7 @@ import { childSessionStore } from './store/childSessionStore'
 import { todoStore } from './store/todoStore'
 import { autoApproveStore } from './store/autoApproveStore'
 import { serviceStore } from './store/serviceStore'
+import type { StartOpencodeServiceResult } from './store/serviceStore'
 import { reconnectSSE } from './api/events'
 import { getSDKClientAsync, invalidateSDKClient } from './api/sdk'
 import { resetPathModeCache } from './utils/directoryUtils'
@@ -102,15 +103,21 @@ if (isNativeTauri) {
     const binaryPath = serviceStore.effectiveBinaryPath
     import('@tauri-apps/api/core').then(({ invoke }) => {
       serviceStore.setStarting(true)
-      invoke<boolean>('start_opencode_service', { url: serverUrl, binaryPath, envVars: serviceStore.envVarsRecord })
-        .then(weStarted => {
-          serviceStore.setStartedByUs(weStarted)
+      invoke<StartOpencodeServiceResult>('start_opencode_service', {
+        url: serverUrl,
+        binaryPath,
+        envVars: serviceStore.envVarsRecord,
+      })
+        .then(result => {
+          serviceStore.setStartedByUs(result.appOwned)
           serviceStore.setRunning(true)
           serviceStore.setStarting(false)
-          if (weStarted) {
+          if (result.spawnedNow) {
             console.info('[Service] opencode serve started by app')
+          } else if (result.appOwned) {
+            console.info('[Service] opencode serve remains app-owned from a previous app session')
           } else {
-            console.info('[Service] opencode serve already running')
+            console.info('[Service] opencode serve already running externally')
           }
         })
         .catch(err => {

@@ -163,7 +163,8 @@
     "awaitingAnswer": "Awaiting Answer",
     "retrying": "Retrying",
     "working": "Working",
-    "attempt": "attempt {{count}}"
+    "attempt": "attempt {{count}}",
+    "activeBelow": "Active below"
   },
   "notification": {
     "completed": "Completed",

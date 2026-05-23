@@ -22,6 +22,11 @@ export interface ServiceSettingsBackup {
   envVars: EnvVar[]
 }
 
+export interface StartOpencodeServiceResult {
+  spawnedNow: boolean
+  appOwned: boolean
+}
+
 interface ServiceStoreSnapshot {
   autoStart: boolean
   /** opencode 可执行文件路径，空字符串表示使用默认 "opencode" */
@@ -175,7 +180,9 @@ class ServiceStore {
 
   private _notify() {
     this._snapshot = this._buildSnapshot()
-    this._listeners.forEach(fn => fn())
+    this._listeners.forEach(fn => {
+      fn()
+    })
   }
 }
 

@@ -1,9 +1,10 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '../../../components/ui/Button'
 import { TrashIcon, WifiIcon, WifiOffIcon, SpinnerIcon, StopIcon } from '../../../components/Icons'
 import { useServerStore, useIsMobile } from '../../../hooks'
 import { serviceStore, useServiceStore } from '../../../store/serviceStore'
+import type { StartOpencodeServiceResult } from '../../../store/serviceStore'
 import { isTauri } from '../../../utils/tauri'
 import { apiErrorHandler } from '../../../utils'
 import { Toggle, SettingRow, SettingsCard } from './SettingsUI'
@@ -33,13 +34,6 @@ export function ServiceSettings() {
     setLocalBinaryPath(binaryPath)
   }, [binaryPath])
 
-  // 打开设置页时自动检测一次服务状态
-  useEffect(() => {
-    if (!isTauriDesktop) return
-    handleCheckService()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isTauriDesktop])
-
   const handleAutoStartToggle = () => {
     serviceStore.setAutoStart(!autoStartService)
   }
@@ -50,19 +44,19 @@ export function ServiceSettings() {
     pathDebounceRef.current = setTimeout(() => serviceStore.setBinaryPath(v), 400)
   }
 
-  const getServerUrl = () => activeServer?.url || 'http://127.0.0.1:4096'
+  const getServerUrl = useCallback(() => activeServer?.url || 'http://127.0.0.1:4096', [activeServer])
 
   const handleStartService = async () => {
     setServiceError('')
     try {
       const { invoke } = await import('@tauri-apps/api/core')
       serviceStore.setStarting(true)
-      const weStarted = await invoke<boolean>('start_opencode_service', {
+      const result = await invoke<StartOpencodeServiceResult>('start_opencode_service', {
         url: getServerUrl(),
         binaryPath: serviceStore.effectiveBinaryPath,
         envVars: serviceStore.envVarsRecord,
       })
-      serviceStore.setStartedByUs(weStarted)
+      serviceStore.setStartedByUs(result.appOwned)
       serviceStore.setRunning(true)
     } catch (e) {
       const msg = String(e)
@@ -85,7 +79,7 @@ export function ServiceSettings() {
     }
   }
 
-  const handleCheckService = async () => {
+  const handleCheckService = useCallback(async () => {
     try {
       const { invoke } = await import('@tauri-apps/api/core')
       const running = await invoke<boolean>('check_opencode_service', { url: getServerUrl() })
@@ -99,7 +93,13 @@ export function ServiceSettings() {
     } catch (e) {
       apiErrorHandler('check service', e)
     }
-  }
+  }, [getServerUrl])
+
+  // 打开设置页时自动检测一次服务状态
+  useEffect(() => {
+    if (!isTauriDesktop) return
+    void handleCheckService()
+  }, [handleCheckService, isTauriDesktop])
 
   if (!isTauriDesktop) {
     return (

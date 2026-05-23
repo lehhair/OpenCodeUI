@@ -102,7 +102,13 @@
     "agent": "Agent",
     "showAgent": "显示 Agent 名称",
     "model": "Model",
-    "showModel": "显示模型名称",
+    "showModel": "显示模型信息",
+    "showModelVariant": "Model 变体",
+    "showModelVariantDesc": "显示请求的模型变体",
+    "modelLabelFormat": "Model 名称格式",
+    "modelLabelFormatDesc": "选择显示模型代码还是模型名称",
+    "modelLabelCode": "Model 代码",
+    "modelLabelName": "Model 名称",
     "tokens": "Token",
     "showTokenUsage": "显示 Token 用量",
     "cache": "Cache",
@@ -200,7 +206,11 @@
     "folderStyleRecentsShowDiff": "文件夹模式显示 Diff",
     "folderStyleRecentsShowDiffDesc": "在文件夹式最近记录中显示会话的增删和文件统计",
     "showChildSessions": "始终显示子会话",
-    "showChildSessionsDesc": "始终在父会话下列出子会话。关闭时仅显示活跃或正在查看的子会话"
+    "showChildSessionsDesc": "始终在父会话下列出子会话。关闭时仅显示活跃或正在查看的子会话",
+    "subSessionSort": "子会话排序",
+    "subSessionSortDesc": "控制最近面板中的子会话按活跃时间正序或倒序显示；对于同属“刚刚”的会话保持稳定顺序，避免频繁跳动",
+    "subSessionSortActiveAsc": "活跃时间正序排序",
+    "subSessionSortActiveDesc": "活跃时间倒序排序"
   },
   "workspace": {
     "layout": "布局和阅读",

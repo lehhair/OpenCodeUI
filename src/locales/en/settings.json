@@ -102,7 +102,13 @@
     "agent": "Agent",
     "showAgent": "Show agent name",
     "model": "Model",
-    "showModel": "Show model name",
+    "showModel": "Show model info",
+    "showModelVariant": "Model variant",
+    "showModelVariantDesc": "Show the requested model variant",
+    "modelLabelFormat": "Model label format",
+    "modelLabelFormatDesc": "Choose whether step finish info shows the model code or model name",
+    "modelLabelCode": "Model Code",
+    "modelLabelName": "Model Name",
     "tokens": "Tokens",
     "showTokenUsage": "Show token usage",
     "cache": "Cache",
@@ -200,7 +206,11 @@
     "folderStyleRecentsShowDiff": "Show Diff In Folder View",
     "folderStyleRecentsShowDiffDesc": "Show additions, deletions, and file counts for sessions in folder-style recents",
     "showChildSessions": "Always Show Child Sessions",
-    "showChildSessionsDesc": "Always list child sessions under their parent. When off, only active or selected children are shown."
+    "showChildSessionsDesc": "Always list child sessions under their parent. When off, only active or selected children are shown.",
+    "subSessionSort": "Sub-session sort",
+    "subSessionSortDesc": "Control whether child sessions in Recents are shown by active time ascending or descending, while keeping a stable order for sessions that still fall into the Just now bucket.",
+    "subSessionSortActiveAsc": "Active time ascending",
+    "subSessionSortActiveDesc": "Active time descending"
   },
   "workspace": {
     "layout": "Layout & Reading",

@@ -1,9 +1,9 @@
 import { useTranslation } from 'react-i18next'
-import type { ActiveSessionEntry } from '../../../store/activeSessionStore'
 import type { ApiSession } from '../../../api'
+import type { ActiveSessionTreeEntry } from './activeSessionTree'
 
 interface ActiveSessionItemProps {
-  entry: ActiveSessionEntry
+  entry: ActiveSessionTreeEntry
   /** 从 sessions 列表或 API 拉取到的完整 session 对象 */
   resolvedSession?: ApiSession
   isSelected: boolean
@@ -12,16 +12,17 @@ interface ActiveSessionItemProps {
 
 export function ActiveSessionItem({ entry, resolvedSession, isSelected, onSelect }: ActiveSessionItemProps) {
   const { t } = useTranslation(['chat', 'common'])
-  const isRetry = entry.status.type === 'retry'
-  const pending = entry.pendingAction
+  const isSelfActive = entry.activitySource === 'self'
+  const isRetry = isSelfActive && entry.status.type === 'retry'
+  const pending = isSelfActive ? entry.pendingAction : undefined
   // 标题优先从 resolvedSession 取，然后 fallback 到 entry.title（sessionMeta），最后截取 ID
   const displayTitle = resolvedSession?.title || entry.title || entry.sessionId.slice(0, 12) + '...'
   // 目录优先从 resolvedSession 取
   const directory = resolvedSession?.directory || entry.directory
 
   // 状态显示：permission > question > retry > working
-  const statusConfig =
-    pending?.type === 'permission'
+  const statusConfig = isSelfActive
+    ? pending?.type === 'permission'
       ? {
           label: t('activeSession.awaitingPermission'),
           color: 'text-warning-100',
@@ -33,13 +34,17 @@ export function ActiveSessionItem({ entry, resolvedSession, isSelected, onSelect
         : isRetry
           ? { label: t('activeSession.retrying'), color: 'text-warning-100', dotColor: 'bg-warning-100', pulse: false }
           : { label: t('activeSession.working'), color: 'text-success-100', dotColor: 'bg-success-100', pulse: true }
+    : {
+        label: t('activeSession.activeBelow'),
+        color: 'text-text-400',
+        dotColor: 'bg-text-400',
+        pulse: false,
+      }
 
   const handleClick = () => {
     if (resolvedSession) {
       onSelect(resolvedSession)
     }
-    // 如果没有 resolvedSession（极端情况：API 拉取失败），不做任何事
-    // 用户可以等 session 数据加载完，或从 Recents tab 找到
   }
 
   // 拖拽到主信息流进行分屏 / 替换会话
@@ -58,11 +63,13 @@ export function ActiveSessionItem({ entry, resolvedSession, isSelected, onSelect
   }
 
   return (
-    <div
+    <button
+      type="button"
       draggable={isDraggable}
       onDragStart={handleDragStart}
       onClick={handleClick}
-      className={`group relative flex items-start pl-[6px] pr-3 py-2 rounded-lg cursor-default transition-all duration-200 border border-transparent ${
+      disabled={!resolvedSession}
+      className={`group relative flex w-full items-start pl-[6px] pr-3 py-2 rounded-lg cursor-default transition-all duration-200 border border-transparent text-left ${
         isSelected ? 'bg-bg-000 shadow-sm ring-1 ring-border-200/50' : 'hover:bg-bg-200/50'
       } ${!resolvedSession ? 'opacity-50 cursor-default' : ''}`}
     >
@@ -91,7 +98,7 @@ export function ActiveSessionItem({ entry, resolvedSession, isSelected, onSelect
               <span className="truncate min-w-0 flex-1 opacity-60">{pending.description}</span>
             </>
           )}
-          {isRetry && entry.status.type === 'retry' && (
+          {isSelfActive && isRetry && entry.status.type === 'retry' && (
             <>
               <span className="opacity-30 shrink-0">·</span>
               <span className="text-text-400 opacity-60 shrink-0 whitespace-nowrap">
@@ -109,6 +116,6 @@ export function ActiveSessionItem({ entry, resolvedSession, isSelected, onSelect
           )}
         </div>
       </div>
-    </div>
+    </button>
   )
 }

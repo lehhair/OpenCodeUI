@@ -1,7 +1,13 @@
 import { useTranslation } from 'react-i18next'
 import { useTheme } from '../../../hooks'
 import { layoutStore, useLayoutStore } from '../../../store'
+import type { SidebarSubSessionSortOrder } from '../../../store/layoutStore'
 import { Toggle, SegmentedControl, SettingRow, SettingsSection } from './SettingsUI'
+
+const SUB_SESSION_SORT_OPTIONS: { value: SidebarSubSessionSortOrder; labelKey: string }[] = [
+  { value: 'activeAsc', labelKey: 'appearance.subSessionSortActiveAsc' },
+  { value: 'activeDesc', labelKey: 'appearance.subSessionSortActiveDesc' },
+]
 
 export function WorkspaceSettings() {
   const { t } = useTranslation(['settings'])
@@ -19,6 +25,7 @@ export function WorkspaceSettings() {
     sidebarFolderRecents,
     sidebarFolderRecentsShowDiff,
     sidebarShowChildSessions,
+    sidebarSubSessionSortOrder,
     terminalCopyOnSelect,
     terminalRightClickPaste,
     wakeLock,
@@ -147,6 +154,19 @@ export function WorkspaceSettings() {
             onChange={() => layoutStore.setSidebarShowChildSessions(!sidebarShowChildSessions)}
           />
         </SettingRow>
+
+        <div>
+          <p className="text-[length:var(--fs-md)] text-text-100 mb-1.5">{t('appearance.subSessionSort')}</p>
+          <p className="text-[length:var(--fs-sm)] text-text-400 mb-3">{t('appearance.subSessionSortDesc')}</p>
+          <SegmentedControl
+            value={sidebarSubSessionSortOrder}
+            options={SUB_SESSION_SORT_OPTIONS.map(option => ({
+              value: option.value,
+              label: t(option.labelKey),
+            }))}
+            onChange={value => layoutStore.setSidebarSubSessionSortOrder(value)}
+          />
+        </div>
       </SettingsSection>
     </div>
   )

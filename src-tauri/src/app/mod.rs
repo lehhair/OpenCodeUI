@@ -188,6 +188,9 @@ pub fn run() {
 
             #[cfg(not(target_os = "android"))]
             {
+                let service_state_path = app.path().app_data_dir()?.join("owned-opencode-service.json");
+                app.manage(service::ServiceState::new(service_state_path));
+
                 let main_window = create_main_window(&app.handle())?;
                 finish_desktop_window_setup(&main_window);
 
@@ -221,7 +224,6 @@ pub fn run() {
     // Desktop: 注册 service management commands + 窗口关闭拦截
     #[cfg(not(target_os = "android"))]
     let builder = builder
-        .manage(service::ServiceState::default())
         .on_window_event(|window, event| {
             match event {
                 tauri::WindowEvent::CloseRequested { api, .. } => {

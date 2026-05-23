@@ -2,12 +2,15 @@
 // fetchAll=true → /children 拉全量，children 有值 → 直接渲染
 // 删除/重命名自己管自己的状态，和主列表行为完全一致
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
+import { MS_PER_MINUTE } from '../../../constants'
 import { getSessionChildren, updateSession, deleteSession as apiDeleteSession, type ApiSession } from '../../../api'
 import { SpinnerIcon } from '../../../components/Icons'
 import { ConfirmDialog } from '../../../components/ui/ConfirmDialog'
 import { useInputCapabilities } from '../../../hooks/useInputCapabilities'
+import { useNow } from '../../../hooks/useNow'
+import { useBusySessions, useLayoutStore } from '../../../store'
 import { uiErrorHandler } from '../../../utils'
 import { SessionListItem } from '../../sessions'
 
@@ -38,6 +41,9 @@ export function SessionChildrenSlot({
 }: SessionChildrenSlotProps) {
   const { t } = useTranslation(['chat', 'common'])
   const { preferTouchUi } = useInputCapabilities()
+  const { sidebarSubSessionSortOrder } = useLayoutStore()
+  const busySessions = useBusySessions()
+  const now = useNow(MS_PER_MINUTE)
   const [fetched, setFetched] = useState<ApiSession[]>([])
   const [loading, setLoading] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; sessionId: string | null }>({
@@ -92,7 +98,34 @@ export function SessionChildrenSlot({
     }
   }, [deleteConfirm.sessionId, selectedSessionId, onDeleteSelected])
 
-  const list = fetchAll ? fetched : givenChildren
+  const list = useMemo(() => {
+    const source = fetchAll ? fetched : givenChildren
+    if (!source) return source
+    const busySessionIds = new Set(busySessions.map(entry => entry.sessionId))
+
+    return [...source].sort((left, right) => {
+      const leftActive = left.time.updated ?? left.time.created
+      const rightActive = right.time.updated ?? right.time.created
+      const leftIsJustNow = now - leftActive < MS_PER_MINUTE
+      const rightIsJustNow = now - rightActive < MS_PER_MINUTE
+      const leftIsBusy = busySessionIds.has(left.id)
+      const rightIsBusy = busySessionIds.has(right.id)
+
+      if (leftIsJustNow && rightIsJustNow) {
+        if (leftIsBusy !== rightIsBusy) {
+          return leftIsBusy ? -1 : 1
+        }
+
+        return 0
+      }
+
+      if (sidebarSubSessionSortOrder === 'activeDesc') {
+        return rightActive - leftActive
+      }
+
+      return leftActive - rightActive
+    })
+  }, [busySessions, fetchAll, fetched, givenChildren, now, sidebarSubSessionSortOrder])
 
   if (!list?.length && !loading) return null
 

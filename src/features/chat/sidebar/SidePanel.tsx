@@ -7,7 +7,8 @@ import { ConfirmDialog } from '../../../components/ui/ConfirmDialog'
 import { ActiveSessionItem } from './ActiveSessionItem'
 import { NotificationItem } from './NotificationItem'
 import { SidebarFooter } from './SidebarFooter'
-import { buildActiveSessionTree } from './activeSessionTree'
+import { buildActiveSessionTree, type ActiveSessionTreeEntry } from './activeSessionTree'
+import { buildActiveTreeSessionTargets } from './activeSessionTargets'
 import { getParentPath } from './sidebarUtils'
 import {
   SidebarIcon,
@@ -73,6 +74,27 @@ interface ProjectItem {
   reorderPath?: string
   workspaceDirectories?: string[]
   sectionKind?: 'project' | 'workspace'
+}
+
+let childSessionStoreVersion = 0
+
+function subscribeToChildSessionStoreVersion(onStoreChange: () => void) {
+  return childSessionStore.subscribe(() => {
+    childSessionStoreVersion += 1
+    onStoreChange()
+  })
+}
+
+function getChildSessionStoreVersion() {
+  return childSessionStoreVersion
+}
+
+function useChildSessionStoreVersion() {
+  return useSyncExternalStore(
+    subscribeToChildSessionStoreVersion,
+    getChildSessionStoreVersion,
+    getChildSessionStoreVersion,
+  )
 }
 
 function getSelectionRange(visibleIds: string[], anchorId: string, targetId: string) {
@@ -261,11 +283,7 @@ export function SidePanel({
   // Active sessions
   const busySessions = useBusySessions()
   const busyCount = useBusyCount()
-  const childSessionVersion = useSyncExternalStore(
-    childSessionStore.subscribe.bind(childSessionStore),
-    childSessionStore.getVersion,
-    childSessionStore.getVersion,
-  )
+  const childSessionMetadataVersion = useChildSessionStoreVersion()
   // Notification history
   const notifications = useNotifications()
   const unreadNotificationCount = useUnreadNotificationCount()
@@ -296,51 +314,47 @@ export function SidePanel({
     return map
   }, [sessions, fetchedSessions])
 
-  // 异步拉取不在 lookup 中的 active/notification/selected session
-  useEffect(() => {
-    const allNeeded = [
-      ...busySessions.map(e => ({ sessionId: e.sessionId, directory: e.directory })),
-      ...notifications.map(e => ({ sessionId: e.sessionId, directory: e.directory })),
-    ]
-    if (selectedSessionId && !sessionLookup.has(selectedSessionId)) {
-      allNeeded.push({ sessionId: selectedSessionId, directory: currentDirectory || '' })
-    }
-    const missing = allNeeded.filter(entry => !sessionLookup.has(entry.sessionId))
-    if (missing.length === 0) return
-
-    let cancelled = false
-    const fetchMissing = async () => {
-      const results: Record<string, ApiSession> = {}
-      await Promise.allSettled(
-        missing.map(async entry => {
-          try {
-            const session = await getSession(entry.sessionId, entry.directory)
-            if (!cancelled) results[session.id] = session
-          } catch {
-            /* ignore */
-          }
-        }),
-      )
-      if (!cancelled && Object.keys(results).length > 0) {
-        setFetchedSessions(prev => ({ ...prev, ...results }))
-      }
-    }
-    fetchMissing()
-    return () => {
-      cancelled = true
-    }
-  }, [busySessions, notifications, sessionLookup, selectedSessionId, currentDirectory])
-
   // ---- 子 session 展示数据 ----
   const rootSessionIds = useMemo(() => new Set(sessions.map(s => s.id)), [sessions])
+
+  const getChildSessionInfo = useCallback(
+    (sessionId: string) => {
+      void childSessionMetadataVersion
+      return childSessionStore.getSessionInfo(sessionId)
+    },
+    [childSessionMetadataVersion],
+  )
 
   const findParentId = useCallback(
     (id: string) => {
       const s = sessionLookup.get(id)
       if (s?.parentID) return s.parentID
-      return childSessionStore.getSessionInfo(id)?.parentID
+      return getChildSessionInfo(id)?.parentID
     },
-    [sessionLookup, childSessionVersion],
+    [sessionLookup, getChildSessionInfo],
+  )
+
+  const resolveActiveTreeEntry = useCallback(
+    (sessionId: string) => {
+      const resolvedSession = sessionLookup.get(sessionId)
+      if (resolvedSession) {
+        return {
+          title: resolvedSession.title,
+          directory: resolvedSession.directory,
+        }
+      }
+
+      const childSessionInfo = getChildSessionInfo(sessionId)
+      if (childSessionInfo) {
+        return {
+          title: childSessionInfo.title,
+          directory: childSessionInfo.directory,
+        }
+      }
+
+      return undefined
+    },
+    [sessionLookup, getChildSessionInfo],
   )
 
   // 开关开 → 拉 /children 全量：选中的 root 或选中子 session 时保持其父展开
@@ -392,9 +406,49 @@ export function SidePanel({
   ])
 
   const activeSessionTree = useMemo(
-    () => buildActiveSessionTree(busySessions, findParentId),
-    [busySessions, findParentId],
+    () => buildActiveSessionTree(busySessions, findParentId, resolveActiveTreeEntry),
+    [busySessions, findParentId, resolveActiveTreeEntry],
   )
+  const activeTreeSessionTargets = useMemo(
+    () => buildActiveTreeSessionTargets(activeSessionTree),
+    [activeSessionTree],
+  )
+
+  // 异步拉取不在 lookup 中的 active/notification/selected session
+  useEffect(() => {
+    const allNeeded = [
+      ...busySessions.map(e => ({ sessionId: e.sessionId, directory: e.directory })),
+      ...activeTreeSessionTargets,
+      ...notifications.map(e => ({ sessionId: e.sessionId, directory: e.directory })),
+    ]
+    if (selectedSessionId && !sessionLookup.has(selectedSessionId)) {
+      allNeeded.push({ sessionId: selectedSessionId, directory: currentDirectory || '' })
+    }
+    const missing = allNeeded.filter(entry => !sessionLookup.has(entry.sessionId))
+    if (missing.length === 0) return
+
+    let cancelled = false
+    const fetchMissing = async () => {
+      const results: Record<string, ApiSession> = {}
+      await Promise.allSettled(
+        missing.map(async entry => {
+          try {
+            const session = await getSession(entry.sessionId, entry.directory)
+            if (!cancelled) results[session.id] = session
+          } catch {
+            /* ignore */
+          }
+        }),
+      )
+      if (!cancelled && Object.keys(results).length > 0) {
+        setFetchedSessions(prev => ({ ...prev, ...results }))
+      }
+    }
+    fetchMissing()
+    return () => {
+      cancelled = true
+    }
+  }, [busySessions, activeTreeSessionTargets, notifications, sessionLookup, selectedSessionId, currentDirectory])
 
   const buildProjectGroups = useCallback(
     (directories: typeof savedDirectories): ProjectItem[] => {
@@ -603,7 +657,9 @@ export function SidePanel({
 
   const handleRemoveProject = useCallback(
     (projectId: string) => {
-      getProjectDirectoriesToRemove(projectId).forEach(directory => removeDirectory(directory))
+      getProjectDirectoriesToRemove(projectId).forEach(directory => {
+        removeDirectory(directory)
+      })
     },
     [getProjectDirectoriesToRemove, removeDirectory],
   )
@@ -649,7 +705,7 @@ export function SidePanel({
   )
 
   const renderActiveSessionNode = useCallback(
-    function renderActiveSessionNode(entry: (typeof busySessions)[number], level = 0): ReactNode {
+    function renderActiveSessionNode(entry: ActiveSessionTreeEntry, level = 0): ReactNode {
       const resolvedSession = sessionLookup.get(entry.sessionId)
       const childEntries = activeSessionTree.childrenByParent.get(entry.sessionId) ?? []
 
@@ -760,7 +816,9 @@ export function SidePanel({
   const handleBatchRemoveProjects = useCallback(() => {
     if (selectedProjectIds.size === 0) return
     for (const projectId of selectedProjectIds) {
-      getProjectDirectoriesToRemove(projectId).forEach(directory => removeDirectory(directory))
+      getProjectDirectoriesToRemove(projectId).forEach(directory => {
+        removeDirectory(directory)
+      })
     }
     setSelectedProjectIds(new Set())
     projectSelectionAnchorIdRef.current = null
@@ -827,6 +885,7 @@ export function SidePanel({
           style={{ justifyContent: showLabels ? 'flex-end' : 'center', paddingRight: showLabels ? 8 : 0 }}
         >
           <button
+            type="button"
             onClick={onToggleSidebar}
             aria-label={isExpanded ? t('sidebar.collapseSidebar') : t('sidebar.expandSidebar')}
             className="h-8 w-8 flex items-center justify-center rounded-lg text-text-400 hover:text-text-100 hover:bg-bg-200 active:scale-[0.98] transition-all duration-200"
@@ -931,7 +990,6 @@ export function SidePanel({
                 return (
                   <div
                     key={project.id}
-                    onClick={() => handleSelectProject(project.id)}
                     className={`group w-full flex items-center gap-2 px-2 py-1.5 rounded-md transition-colors ${
                       isActive ? 'bg-bg-200/60 text-text-100' : 'text-text-300 hover:text-text-100 hover:bg-bg-200/50'
                     }`}
@@ -1102,6 +1160,7 @@ export function SidePanel({
               </span>
               {selectedSessionIds.size > 0 && (
                 <button
+                  type="button"
                   onClick={() => setBatchDeleteSessionConfirm(true)}
                   className="shrink-0 flex items-center gap-1 px-2 py-1 rounded-md text-[length:var(--fs-xxs)] font-medium text-danger-100 bg-danger-100/10 hover:bg-danger-100/20 transition-colors"
                 >
@@ -1111,6 +1170,7 @@ export function SidePanel({
               )}
               {selectedProjectIds.size > 0 && (
                 <button
+                  type="button"
                   onClick={() => setBatchRemoveProjectConfirm(true)}
                   className="shrink-0 flex items-center gap-1 px-2 py-1 rounded-md text-[length:var(--fs-xxs)] font-medium text-warning-100 bg-warning-100/10 hover:bg-warning-100/20 transition-colors"
                 >
@@ -1194,6 +1254,7 @@ export function SidePanel({
                       <div className="flex items-center gap-0.5">
                         {notifications.some((n: NotificationEntry) => !n.read) && (
                           <button
+                            type="button"
                             className="text-[length:var(--fs-xxs)] text-text-400 hover:text-text-200 px-1.5 py-0.5 rounded-md hover:bg-bg-200 transition-all duration-150 active:scale-95"
                             onClick={() => notificationStore.markAllRead()}
                           >
@@ -1201,6 +1262,7 @@ export function SidePanel({
                           </button>
                         )}
                         <button
+                          type="button"
                           className="text-[length:var(--fs-xxs)] text-text-400 hover:text-text-200 px-1.5 py-0.5 rounded-md hover:bg-bg-200 transition-all duration-150 active:scale-95"
                           onClick={() => notificationStore.clearAll()}
                         >

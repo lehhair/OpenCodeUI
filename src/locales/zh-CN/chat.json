@@ -163,7 +163,8 @@
     "awaitingAnswer": "等待回答",
     "retrying": "重试中",
     "working": "工作中",
-    "attempt": "第 {{count}} 次"
+    "attempt": "第 {{count}} 次",
+    "activeBelow": "下方有活动会话"
   },
   "notification": {
     "completed": "已完成",
