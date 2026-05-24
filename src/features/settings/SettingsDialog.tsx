@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef, Fragment } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Dialog } from '../../components/ui/Dialog'
 import {
@@ -28,6 +28,7 @@ import { NotificationSettings } from './components/NotificationSettings'
 import { ServiceSettings } from './components/ServiceSettings'
 import { ServersSettings } from './components/ServersSettings'
 import { WorkspaceSettings } from './components/WorkspaceSettings'
+import { SettingsHighlightProvider, highlightText } from './components/SettingsUI'
 
 // ============================================
 // Types
@@ -190,21 +191,6 @@ const SETTINGS_SEARCH_INDEX: SettingsSearchItem[] = [
   { tab: 'about', sectionKey: 'about.backupCardTitle', itemKey: 'about.importBackup' },
 ]
 
-function highlightText(text: string, query: string): React.ReactNode {
-  if (!query.trim()) return text
-  const lower = text.toLowerCase()
-  const q = query.toLowerCase()
-  const idx = lower.indexOf(q)
-  if (idx === -1) return text
-  return (
-    <>
-      {text.slice(0, idx)}
-      <mark className="bg-accent-main-100/20 text-accent-main-100 rounded-sm px-0.5">{text.slice(idx, idx + q.length)}</mark>
-      {text.slice(idx + q.length)}
-    </>
-  )
-}
-
 // ============================================
 // Tab Content Router
 // ============================================
@@ -328,6 +314,7 @@ export function SettingsDialog({ isOpen, onClose, initialTab = 'servers' }: Sett
   }, [])
   const [tab, setTab] = useState<SettingsTab>(normalizeTab(initialTab))
   const [searchQuery, setSearchQuery] = useState('')
+  const [showSearchResults, setShowSearchResults] = useState(false)
 
   const searchResults = useMemo(() => {
     const q = searchQuery.trim().toLowerCase()
@@ -509,14 +496,14 @@ export function SettingsDialog({ isOpen, onClose, initialTab = 'servers' }: Sett
                 <input
                   type="text"
                   value={searchQuery}
-                  onChange={e => setSearchQuery(e.target.value)}
+                  onChange={e => { setSearchQuery(e.target.value); setShowSearchResults(true) }}
                   placeholder={t('searchPlaceholder')}
                   className="w-full h-8 pl-8 pr-7 bg-bg-100 text-text-200 text-[length:var(--fs-sm)] rounded-md outline-none placeholder:text-text-400/50 border border-border-100/40 focus:border-border-100/70"
                 />
                 {searchQuery && (
                   <button
                     type="button"
-                    onClick={() => setSearchQuery('')}
+                    onClick={() => { setSearchQuery(''); setShowSearchResults(false) }}
                     className="absolute right-1.5 top-1/2 -translate-y-1/2 text-text-400 hover:text-text-100"
                   >
                     <CloseIcon size={12} />
@@ -534,7 +521,7 @@ export function SettingsDialog({ isOpen, onClose, initialTab = 'servers' }: Sett
             ref={scrollRef}
             className="flex-1 min-h-0 py-4 px-4 overflow-y-auto custom-scrollbar overscroll-contain"
           >
-            {searchQuery.trim() ? (
+            {showSearchResults && searchQuery.trim() ? (
               <SettingsSearchResults
                 query={searchQuery}
                 results={searchResults?.items ?? []}
@@ -543,12 +530,15 @@ export function SettingsDialog({ isOpen, onClose, initialTab = 'servers' }: Sett
                 tabLabels={visibleTabs}
                 onSelect={(item) => {
                   switchTab(item.tab)
-                  setSearchQuery('')
+                  setShowSearchResults(false)
                 }}
               />
             ) : (
-              <TabContent tab={tab} />
+              <SettingsHighlightProvider query={searchQuery}>
+                <TabContent tab={tab} />
+              </SettingsHighlightProvider>
             )}
+          </div>
         </div>
       </Dialog>
     )
@@ -658,7 +648,7 @@ export function SettingsDialog({ isOpen, onClose, initialTab = 'servers' }: Sett
             ref={scrollRef}
             className="flex-1 min-h-0 py-5 px-5 xl:px-6 overflow-y-auto custom-scrollbar"
           >
-            {searchQuery.trim() ? (
+            {showSearchResults && searchQuery.trim() ? (
               <SettingsSearchResults
                 query={searchQuery}
                 results={searchResults?.items ?? []}
@@ -667,7 +657,7 @@ export function SettingsDialog({ isOpen, onClose, initialTab = 'servers' }: Sett
                 tabLabels={visibleTabs}
                 onSelect={(item) => {
                   switchTab(item.tab)
-                  setSearchQuery('')
+                  setShowSearchResults(false)
                   if (item.anchorId) {
                     requestAnimationFrame(() => {
                       document.getElementById(item.anchorId)?.scrollIntoView({ block: 'center' })
@@ -676,7 +666,9 @@ export function SettingsDialog({ isOpen, onClose, initialTab = 'servers' }: Sett
                 }}
               />
             ) : (
-              <TabContent tab={tab} />
+              <SettingsHighlightProvider query={searchQuery}>
+                <TabContent tab={tab} />
+              </SettingsHighlightProvider>
             )}
           </div>
         </div>
