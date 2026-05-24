@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef, Fragment } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Dialog } from '../../components/ui/Dialog'
 import {
@@ -13,6 +13,8 @@ import {
   MessageSquareIcon,
   LayersIcon,
   QuestionIcon,
+  SearchIcon,
+  ChevronRightIcon,
 } from '../../components/Icons'
 import { useIsMobile } from '../../hooks'
 import { isTauri } from '../../utils/tauri'
@@ -111,6 +113,99 @@ const GROUP_DEFS: { labelKey: string; tabs: SettingsTab[] }[] = [
 ]
 
 // ============================================
+// Settings Search Index
+// ============================================
+
+interface SettingsSearchItem {
+  tab: SettingsTab
+  sectionKey?: string
+  itemKey: string
+  descKey?: string
+  anchorId?: string
+}
+
+const SETTINGS_SEARCH_INDEX: SettingsSearchItem[] = [
+  // Servers
+  { tab: 'servers', sectionKey: 'servers.connections', itemKey: 'servers.connections', descKey: 'servers.connectionsDesc' },
+  // Models
+  { tab: 'models', sectionKey: 'models.visibility', itemKey: 'models.visibility', descKey: 'models.visibilityDesc' },
+  // Agent
+  { tab: 'agent', sectionKey: 'agent.behavior', itemKey: 'agent.behavior', descKey: 'agent.behaviorDesc' },
+  { tab: 'agent', sectionKey: 'agent.toolInteraction', itemKey: 'agent.toolInteraction', descKey: 'agent.toolInteractionDesc' },
+  // Chat
+  { tab: 'chat', sectionKey: 'chat.agentBehavior', itemKey: 'chat.autoApprove', descKey: 'chat.autoApproveDesc' },
+  { tab: 'chat', sectionKey: 'chat.agentBehavior', itemKey: 'chat.queueFollowupMessages', descKey: 'chat.queueFollowupMessagesDesc' },
+  { tab: 'chat', sectionKey: 'chat.conversationExperience', itemKey: 'chat.conversationExperience', descKey: 'chat.conversationExperienceDesc' },
+  { tab: 'chat', sectionKey: 'chat.conversationExperience', itemKey: 'chat.collapseLongMessages', descKey: 'chat.collapseLongMessagesDesc' },
+  { tab: 'chat', sectionKey: 'chat.conversationExperience', itemKey: 'chat.descriptiveToolSteps', descKey: 'chat.descriptiveToolStepsDesc' },
+  { tab: 'chat', sectionKey: 'chat.conversationExperience', itemKey: 'chat.inlineToolRequests', descKey: 'chat.inlineToolRequestsDesc' },
+  { tab: 'chat', sectionKey: 'chat.conversationExperience', itemKey: 'chat.compactInlinePermission', descKey: 'chat.compactInlinePermissionDesc' },
+  { tab: 'chat', sectionKey: 'chat.conversationExperience', itemKey: 'chat.toolCardStyle', descKey: 'chat.toolCardStyleDesc' },
+  { tab: 'chat', sectionKey: 'chat.conversationExperience', itemKey: 'chat.immersiveMode', descKey: 'chat.immersiveModeDesc' },
+  { tab: 'chat', sectionKey: 'chat.conversationExperience', itemKey: 'chat.thinkingDisplay', descKey: 'chat.thinkingDisplayDesc' },
+  { tab: 'chat', sectionKey: 'chat.stepFinishInfo', itemKey: 'chat.stepFinishInfo' },
+  { tab: 'chat', sectionKey: 'chat.stepFinishInfo', itemKey: 'chat.showAgent' },
+  { tab: 'chat', sectionKey: 'chat.stepFinishInfo', itemKey: 'chat.showModel' },
+  { tab: 'chat', sectionKey: 'chat.stepFinishInfo', itemKey: 'chat.showTokenUsage' },
+  { tab: 'chat', sectionKey: 'chat.stepFinishInfo', itemKey: 'chat.showCacheHit' },
+  { tab: 'chat', sectionKey: 'chat.stepFinishInfo', itemKey: 'chat.showApiCost' },
+  { tab: 'chat', sectionKey: 'chat.stepFinishInfo', itemKey: 'chat.showResponseTime' },
+  { tab: 'chat', sectionKey: 'chat.stepFinishInfo', itemKey: 'chat.showTurnElapsed' },
+  { tab: 'chat', sectionKey: 'chat.stepFinishInfo', itemKey: 'chat.showCompletedAt' },
+  { tab: 'chat', sectionKey: 'chat.stepFinishInfo', itemKey: 'chat.completedAtFormat', descKey: 'chat.completedAtFormatDesc' },
+  { tab: 'chat', sectionKey: 'chat.sidebarRecents', itemKey: 'chat.sidebarRecents', descKey: 'chat.sidebarRecentsDesc' },
+  { tab: 'chat', sectionKey: 'chat.sidebarRecents', itemKey: 'chat.folderStyleRecents', descKey: 'chat.folderStyleRecentsDesc' },
+  // Workspace
+  { tab: 'workspace', sectionKey: 'workspace.layout', itemKey: 'appearance.wideMode', descKey: 'appearance.wideModeDesc' },
+  { tab: 'workspace', sectionKey: 'workspace.layout', itemKey: 'appearance.wakeLock', descKey: 'appearance.wakeLockDesc', anchorId: 'setting-wakeLock' },
+  { tab: 'workspace', sectionKey: 'workspace.layout', itemKey: 'appearance.codeWordWrap', descKey: 'appearance.codeWordWrapDesc', anchorId: 'setting-codeWordWrap' },
+  { tab: 'workspace', sectionKey: 'workspace.layout', itemKey: 'workspace.manualTerminalTitles', descKey: 'workspace.manualTerminalTitlesDesc' },
+  { tab: 'workspace', sectionKey: 'workspace.layout', itemKey: 'appearance.diffStyle', descKey: 'appearance.diffStyleDesc' },
+  { tab: 'workspace', sectionKey: 'workspace.terminal', itemKey: 'workspace.terminalCopyOnSelect', descKey: 'workspace.terminalCopyOnSelectDesc' },
+  { tab: 'workspace', sectionKey: 'workspace.terminal', itemKey: 'workspace.terminalRightClickPaste', descKey: 'workspace.terminalRightClickPasteDesc' },
+  { tab: 'workspace', sectionKey: 'workspace.sidebar', itemKey: 'appearance.folderStyleRecents', descKey: 'appearance.folderStyleRecentsDesc' },
+  { tab: 'workspace', sectionKey: 'workspace.sidebar', itemKey: 'appearance.folderStyleRecentsShowDiff', descKey: 'appearance.folderStyleRecentsShowDiffDesc' },
+  { tab: 'workspace', sectionKey: 'workspace.sidebar', itemKey: 'appearance.showChildSessions', descKey: 'appearance.showChildSessionsDesc' },
+  // Appearance
+  { tab: 'appearance', sectionKey: 'appearance.themePresets', itemKey: 'appearance.themePresets', descKey: 'appearance.themePresetsDesc' },
+  { tab: 'appearance', sectionKey: 'appearance.customCss', itemKey: 'appearance.customCss', descKey: 'appearance.customCssDesc' },
+  { tab: 'appearance', sectionKey: 'appearance.display', itemKey: 'appearance.colorMode' },
+  { tab: 'appearance', sectionKey: 'appearance.display', itemKey: 'appearance.glassEffect', descKey: 'appearance.glassEffectDesc' },
+  { tab: 'appearance', sectionKey: 'appearance.display', itemKey: 'appearance.uiFontScale', descKey: 'appearance.uiFontScaleDesc' },
+  { tab: 'appearance', sectionKey: 'appearance.display', itemKey: 'appearance.codeFontScale', descKey: 'appearance.codeFontScaleDesc' },
+  { tab: 'appearance', sectionKey: 'appearance.display', itemKey: 'appearance.language', descKey: 'appearance.languageDesc' },
+  // Notifications
+  { tab: 'notifications', sectionKey: 'notifications.systemNotifications', itemKey: 'notifications.notificationsLabel', descKey: 'notifications.systemNotificationsDesc' },
+  { tab: 'notifications', sectionKey: 'notifications.systemNotifications', itemKey: 'notifications.notifyWhenComplete' },
+  { tab: 'notifications', sectionKey: 'notifications.inAppAlerts', itemKey: 'notifications.toastNotifications', descKey: 'notifications.toastDesc' },
+  { tab: 'notifications', sectionKey: 'notifications.soundSettings', itemKey: 'notifications.soundEnabled', descKey: 'notifications.soundEnabledDesc' },
+  { tab: 'notifications', sectionKey: 'notifications.soundSettings', itemKey: 'notifications.currentSessionSound', descKey: 'notifications.currentSessionSoundDesc' },
+  { tab: 'notifications', sectionKey: 'notifications.soundSettings', itemKey: 'notifications.volume', descKey: 'notifications.volumeDesc' },
+  // Service
+  { tab: 'service', sectionKey: 'service.localService', itemKey: 'service.autoStart', descKey: 'service.autoStartDesc' },
+  { tab: 'service', sectionKey: 'service.localService', itemKey: 'service.serviceStatus' },
+  // About
+  { tab: 'about', sectionKey: 'about.versionCardTitle', itemKey: 'about.checkNow' },
+  { tab: 'about', sectionKey: 'about.backupCardTitle', itemKey: 'about.exportBackup' },
+  { tab: 'about', sectionKey: 'about.backupCardTitle', itemKey: 'about.importBackup' },
+]
+
+function highlightText(text: string, query: string): React.ReactNode {
+  if (!query.trim()) return text
+  const lower = text.toLowerCase()
+  const q = query.toLowerCase()
+  const idx = lower.indexOf(q)
+  if (idx === -1) return text
+  return (
+    <>
+      {text.slice(0, idx)}
+      <mark className="bg-accent-main-100/20 text-accent-main-100 rounded-sm px-0.5">{text.slice(idx, idx + q.length)}</mark>
+      {text.slice(idx + q.length)}
+    </>
+  )
+}
+
+// ============================================
 // Tab Content Router
 // ============================================
 
@@ -142,6 +237,83 @@ function TabContent({ tab }: { tab: SettingsTab }) {
 }
 
 // ============================================
+// Search Results
+// ============================================
+
+function SettingsSearchResults({
+  query,
+  results,
+  t,
+  tabIcons,
+  tabLabels,
+  onSelect,
+}: {
+  query: string
+  results: SettingsSearchItem[]
+  t: (key: string) => string
+  tabIcons: Record<SettingsTab, React.ReactNode>
+  tabLabels: { id: SettingsTab; label: string }[]
+  onSelect: (item: SettingsSearchItem) => void
+}) {
+  const groups = useMemo(() => {
+    const map = new Map<SettingsTab, SettingsSearchItem[]>()
+    for (const item of results) {
+      const list = map.get(item.tab) || []
+      list.push(item)
+      map.set(item.tab, list)
+    }
+    return [...map.entries()]
+  }, [results])
+
+  if (results.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-32 text-text-400 text-[length:var(--fs-sm)]">
+        {t('models.noResults')}
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-5">
+      {groups.map(([tabId, items]) => {
+        const tabLabel = tabLabels.find(vt => vt.id === tabId)
+        return (
+          <div key={tabId}>
+            <div className="flex items-center gap-2 mb-2 px-1">
+              <span className="text-text-400">{tabIcons[tabId]}</span>
+              <span className="text-[length:var(--fs-sm)] font-semibold text-text-200">
+                {tabLabel?.label ?? tabId}
+              </span>
+            </div>
+            <div className="space-y-0.5">
+              {items.map((item, idx) => (
+                <button
+                  key={`${item.tab}-${item.itemKey}-${idx}`}
+                  onClick={() => onSelect(item)}
+                  className="w-full text-left px-3 py-2 rounded-lg hover:bg-bg-100/70 transition-colors flex items-start gap-3"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[length:var(--fs-sm)] text-text-200">
+                      {highlightText(t(item.itemKey), query)}
+                    </div>
+                    {item.descKey && (
+                      <div className="text-[length:var(--fs-xs)] text-text-400 mt-0.5 leading-relaxed line-clamp-2">
+                        {highlightText(t(item.descKey), query)}
+                      </div>
+                    )}
+                  </div>
+                  <ChevronRightIcon size={12} className="text-text-400 mt-0.5 shrink-0" />
+                </button>
+              ))}
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+// ============================================
 // Main Settings Dialog
 // ============================================
 
@@ -155,10 +327,38 @@ export function SettingsDialog({ isOpen, onClose, initialTab = 'servers' }: Sett
     return next
   }, [])
   const [tab, setTab] = useState<SettingsTab>(normalizeTab(initialTab))
+  const [searchQuery, setSearchQuery] = useState('')
+
+  const searchResults = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase()
+    if (!q) return null
+    const matchedTabs = new Set<SettingsTab>()
+    const items: SettingsSearchItem[] = []
+    for (const item of SETTINGS_SEARCH_INDEX) {
+      const tabLabel = t(TAB_LABEL_KEYS[item.tab]).toLowerCase()
+      const tabDesc = t(TAB_DESC_KEYS[item.tab]).toLowerCase()
+      const itemLabel = t(item.itemKey).toLowerCase()
+      const itemDesc = item.descKey ? t(item.descKey).toLowerCase() : ''
+      const sectionLabel = item.sectionKey ? t(item.sectionKey).toLowerCase() : ''
+      if (
+        tabLabel.includes(q) || tabDesc.includes(q) ||
+        itemLabel.includes(q) || itemDesc.includes(q) ||
+        sectionLabel.includes(q)
+      ) {
+        matchedTabs.add(item.tab)
+        items.push(item)
+      }
+    }
+    return { items, matchedTabs }
+  }, [searchQuery, t])
 
   const visibleTabIds = useMemo(
-    () => (isTauriDesktop ? TAB_IDS : TAB_IDS.filter(id => id !== 'service')),
-    [isTauriDesktop],
+    () => {
+      const ids = isTauriDesktop ? TAB_IDS : TAB_IDS.filter(id => id !== 'service')
+      if (!searchResults) return ids
+      return ids.filter(id => searchResults.matchedTabs.has(id))
+    },
+    [isTauriDesktop, searchResults],
   )
 
   const visibleTabs = useMemo(
@@ -301,6 +501,29 @@ export function SettingsDialog({ isOpen, onClose, initialTab = 'servers' }: Sett
               </div>
               <div className="absolute bottom-0 left-0 right-0 border-b border-border-100/40" />
             </div>
+
+            {/* Search */}
+            <div className="px-4 pb-2">
+              <div className="relative">
+                <SearchIcon size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-400 pointer-events-none" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  placeholder={t('searchPlaceholder')}
+                  className="w-full h-8 pl-8 pr-7 bg-bg-100 text-text-200 text-[length:var(--fs-sm)] rounded-md outline-none placeholder:text-text-400/50 border border-border-100/40 focus:border-border-100/70"
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-1.5 top-1/2 -translate-y-1/2 text-text-400 hover:text-text-100"
+                  >
+                    <CloseIcon size={12} />
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
 
           {/* Content - single scroll container */}
@@ -311,8 +534,21 @@ export function SettingsDialog({ isOpen, onClose, initialTab = 'servers' }: Sett
             ref={scrollRef}
             className="flex-1 min-h-0 py-4 px-4 overflow-y-auto custom-scrollbar overscroll-contain"
           >
-            <TabContent tab={tab} />
-          </div>
+            {searchQuery.trim() ? (
+              <SettingsSearchResults
+                query={searchQuery}
+                results={searchResults?.items ?? []}
+                t={t}
+                tabIcons={TAB_ICONS}
+                tabLabels={visibleTabs}
+                onSelect={(item) => {
+                  switchTab(item.tab)
+                  setSearchQuery('')
+                }}
+              />
+            ) : (
+              <TabContent tab={tab} />
+            )}
         </div>
       </Dialog>
     )
@@ -385,23 +621,36 @@ export function SettingsDialog({ isOpen, onClose, initialTab = 'servers' }: Sett
         {/* Right Content */}
         <div className="flex-1 min-w-0 flex flex-col">
           {/* Content Header - sticky at top */}
-          <div className="shrink-0 border-b border-border-100/60 px-5 xl:px-6 py-3.5 flex items-center justify-between gap-4">
-            <div className="min-w-0">
-              <div className="text-[length:var(--fs-heading-3)] font-semibold text-text-100">{activeTabMeta.label}</div>
-              <div className="text-[length:var(--fs-xs)] text-text-400 mt-0.5 leading-relaxed truncate">
-                {activeTabMeta.description}
-              </div>
+          <div className="shrink-0 border-b border-border-100/60 px-5 xl:px-6 py-3 flex items-center gap-3">
+            <div className="relative flex-1 min-w-0">
+              <SearchIcon size={13} className="absolute left-2 top-1/2 -translate-y-1/2 text-text-400 pointer-events-none" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                placeholder={t('searchPlaceholder')}
+                className="w-full h-8 pl-7 pr-7 bg-bg-100 text-text-200 text-[length:var(--fs-sm)] rounded-md outline-none placeholder:text-text-400/50 border border-border-100/40 focus:border-border-100/70"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 text-text-400 hover:text-text-100"
+                >
+                  <CloseIcon size={12} />
+                </button>
+              )}
             </div>
             <button
               onClick={onClose}
-              className="p-2 text-text-400 hover:text-text-200 hover:bg-bg-100 rounded-md transition-colors -mr-1 shrink-0"
+              className="p-1.5 text-text-400 hover:text-text-200 hover:bg-bg-100 rounded-md transition-colors shrink-0"
               aria-label={t('closeSettings')}
             >
-              <CloseIcon size={18} />
+              <CloseIcon size={16} />
             </button>
           </div>
 
-          {/* Scroll area - single scroll container for all tab content */}
+          {/* Scroll area */}
           <div
             id={activePanelId}
             role="tabpanel"
@@ -409,7 +658,26 @@ export function SettingsDialog({ isOpen, onClose, initialTab = 'servers' }: Sett
             ref={scrollRef}
             className="flex-1 min-h-0 py-5 px-5 xl:px-6 overflow-y-auto custom-scrollbar"
           >
-            <TabContent tab={tab} />
+            {searchQuery.trim() ? (
+              <SettingsSearchResults
+                query={searchQuery}
+                results={searchResults?.items ?? []}
+                t={t}
+                tabIcons={TAB_ICONS}
+                tabLabels={visibleTabs}
+                onSelect={(item) => {
+                  switchTab(item.tab)
+                  setSearchQuery('')
+                  if (item.anchorId) {
+                    requestAnimationFrame(() => {
+                      document.getElementById(item.anchorId)?.scrollIntoView({ block: 'center' })
+                    })
+                  }
+                }}
+              />
+            ) : (
+              <TabContent tab={tab} />
+            )}
           </div>
         </div>
       </div>

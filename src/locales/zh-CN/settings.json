@@ -3,6 +3,7 @@
   "subtitle": "自定义界面、行为和服务器配置",
   "closeSettings": "关闭设置",
   "version": "OpenCodeUI v{{version}}",
+  "searchPlaceholder": "搜索设置...",
   "tabs": {
     "servers": "服务器",
     "serversDesc": "后端连接和快速切换活跃端点",

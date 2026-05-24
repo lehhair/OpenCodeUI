@@ -110,11 +110,13 @@ export interface SettingRowProps {
   children: React.ReactNode
   onClick?: () => void
   className?: string
+  id?: string
 }
 
-export function SettingRow({ label, description, icon, children, onClick, className }: SettingRowProps) {
+export function SettingRow({ label, description, icon, children, onClick, className, id }: SettingRowProps) {
   return (
     <div
+      id={id}
       className={`w-full flex flex-row gap-x-8 gap-y-3 justify-between items-center
         ${onClick ? 'cursor-pointer' : ''}
         ${className || ''}`}
