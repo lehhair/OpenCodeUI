@@ -11,7 +11,8 @@
     "failedToLoadFile": "Failed to load file",
     "binaryFile": "Binary file — preview not available",
     "fit": "Fit",
-    "oneToOne": "1:1"
+    "oneToOne": "1:1",
+    "filterFile": "Filter files..."
   },
   "terminal": {
     "terminal": "Terminal",
