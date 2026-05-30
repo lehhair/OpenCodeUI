@@ -29,6 +29,7 @@ export function WorkspaceSettings() {
     terminalCopyOnSelect,
     terminalRightClickPaste,
     wakeLock,
+    omoConversationNavSimplify,
   } = useLayoutStore()
 
   return (
@@ -76,6 +77,17 @@ export function WorkspaceSettings() {
               setManualTerminalTitles(next)
               layoutStore.syncTerminalTitleMode(next)
             }}
+          />
+        </SettingRow>
+
+        <SettingRow
+          label={t('workspace.omoConversationNavSimplify')}
+          description={t('workspace.omoConversationNavSimplifyDesc')}
+          onClick={() => layoutStore.setOmoConversationNavSimplify(!omoConversationNavSimplify)}
+        >
+          <Toggle
+            enabled={omoConversationNavSimplify}
+            onChange={() => layoutStore.setOmoConversationNavSimplify(!omoConversationNavSimplify)}
           />
         </SettingRow>
 

@@ -13,6 +13,7 @@ const {
   setTerminalCopyOnSelectMock,
   setTerminalRightClickPasteMock,
   setWakeLockMock,
+  setOmoConversationNavSimplifyMock,
   syncTerminalTitleModeMock,
 } = vi.hoisted(() => ({
   useTranslationMock: vi.fn(),
@@ -25,6 +26,7 @@ const {
   setTerminalCopyOnSelectMock: vi.fn(),
   setTerminalRightClickPasteMock: vi.fn(),
   setWakeLockMock: vi.fn(),
+  setOmoConversationNavSimplifyMock: vi.fn(),
   syncTerminalTitleModeMock: vi.fn(),
 }))
 
@@ -45,6 +47,7 @@ vi.mock('../../../store', () => ({
     setTerminalCopyOnSelect: setTerminalCopyOnSelectMock,
     setTerminalRightClickPaste: setTerminalRightClickPasteMock,
     setWakeLock: setWakeLockMock,
+    setOmoConversationNavSimplify: setOmoConversationNavSimplifyMock,
     syncTerminalTitleMode: syncTerminalTitleModeMock,
   },
   useLayoutStore: useLayoutStoreMock,
@@ -75,6 +78,7 @@ describe('WorkspaceSettings', () => {
       terminalCopyOnSelect: false,
       terminalRightClickPaste: false,
       wakeLock: false,
+      omoConversationNavSimplify: false,
     })
 
     setSidebarShowChildSessionsMock.mockReset()
@@ -84,6 +88,7 @@ describe('WorkspaceSettings', () => {
     setTerminalCopyOnSelectMock.mockReset()
     setTerminalRightClickPasteMock.mockReset()
     setWakeLockMock.mockReset()
+    setOmoConversationNavSimplifyMock.mockReset()
     syncTerminalTitleModeMock.mockReset()
   })
 
@@ -121,6 +126,7 @@ describe('WorkspaceSettings', () => {
       terminalCopyOnSelect: false,
       terminalRightClickPaste: false,
       wakeLock: false,
+      omoConversationNavSimplify: false,
     })
 
     render(<WorkspaceSettings />)
@@ -134,5 +140,68 @@ describe('WorkspaceSettings', () => {
     fireEvent.click(ascending)
 
     expect(setSidebarSubSessionSortOrderMock).toHaveBeenCalledWith('activeAsc')
+  })
+
+  it('renders omoConversationNavSimplify between manualTerminalTitles and diffStyle in the layout section', () => {
+    render(<WorkspaceSettings />)
+
+    const layoutSection = screen.getByRole('heading', { name: 'workspace.layout' }).closest('section')
+
+    expect(layoutSection).not.toBeNull()
+    expect(layoutSection).toHaveTextContent(
+      /workspace\.manualTerminalTitles.*workspace\.omoConversationNavSimplify.*appearance\.diffStyle/,
+    )
+  })
+
+  it('calls setOmoConversationNavSimplify(true) when the row is clicked while false', () => {
+    render(<WorkspaceSettings />)
+
+    const label = screen.getByText('workspace.omoConversationNavSimplify')
+    fireEvent.click(label)
+
+    expect(setOmoConversationNavSimplifyMock).toHaveBeenCalledWith(true)
+  })
+
+  it('calls setOmoConversationNavSimplify(false) when the toggle is clicked while true', () => {
+    useLayoutStoreMock.mockReturnValue({
+      sidebarFolderRecents: false,
+      sidebarFolderRecentsShowDiff: false,
+      sidebarShowChildSessions: false,
+      sidebarSubSessionSortOrder: 'activeAsc',
+      terminalCopyOnSelect: false,
+      terminalRightClickPaste: false,
+      wakeLock: false,
+      omoConversationNavSimplify: true,
+    })
+
+    render(<WorkspaceSettings />)
+
+    const toggle = screen.getByRole('switch', { checked: true })
+    fireEvent.click(toggle)
+
+    expect(setOmoConversationNavSimplifyMock).toHaveBeenCalledWith(false)
+  })
+
+  it('calls setOmoConversationNavSimplify(false) when the toggle is clicked while true', () => {
+    useLayoutStoreMock.mockReturnValue({
+      sidebarFolderRecents: false,
+      sidebarFolderRecentsShowDiff: false,
+      sidebarShowChildSessions: true,
+      sidebarSubSessionSortOrder: 'activeAsc',
+      terminalCopyOnSelect: false,
+      terminalRightClickPaste: false,
+      wakeLock: false,
+      omoConversationNavSimplify: true,
+    })
+
+    render(<WorkspaceSettings />)
+
+    const row = screen.getByText('workspace.omoConversationNavSimplify').closest('div[class*="cursor-pointer"]') as HTMLElement
+    const toggle = row.querySelector('button[role="switch"]')
+    expect(toggle).not.toBeNull()
+
+    fireEvent.click(toggle!)
+
+    expect(setOmoConversationNavSimplifyMock).toHaveBeenCalledWith(false)
   })
 })

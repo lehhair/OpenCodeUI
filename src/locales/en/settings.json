@@ -217,6 +217,8 @@
     "layoutDesc": "Workspace layout, reading comfort, and code viewing preferences",
     "manualTerminalTitles": "Manual Terminal Labels",
     "manualTerminalTitlesDesc": "When enabled, terminal tabs stop following shell title changes and can be renamed manually. When disabled, terminal tabs continue to follow shell or process titles automatically.",
+    "omoConversationNavSimplify": "omo 对话导航精简",
+    "omoConversationNavSimplifyDesc": "开启后将隐藏 omo 的提示词",
     "terminal": "Terminal",
     "terminalDesc": "Terminal copy, paste, and mouse behavior. Basic paste and Ctrl/Cmd+C copy with a selection are always available.",
     "terminalCopyOnSelect": "Copy On Selection",
