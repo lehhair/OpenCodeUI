@@ -20,6 +20,8 @@ import { memo, useMemo, useRef, useEffect, useCallback, useState } from 'react'
 import type { Message } from '../types/message'
 import { getMessageText, hasRenderableParts, isAbortedMessage, isUserMessage } from '../types/message'
 import { useChatViewport } from '../features/chat/chatViewport'
+import { useLayoutStore } from '../store'
+import { outlineIndexCleanupOmoTitle } from './OutlineIndex.helpers'
 
 // ─── Types ──────────────────────────────────
 
@@ -225,19 +227,34 @@ function messageHasContent(msg: Message): boolean {
   return hasRenderable
 }
 
-function extractEntries(messages: Message[], visual: VisualConfig): OutlineEntry[] {
+interface ExtractEntriesOptions {
+  omoConversationNavSimplify?: boolean
+}
+
+function extractEntries(messages: Message[], visual: VisualConfig, options?: ExtractEntriesOptions): OutlineEntry[] {
   const entries: OutlineEntry[] = []
+  const omoConversationNavSimplify = options?.omoConversationNavSimplify ?? false
   for (const msg of messages.filter(messageHasContent)) {
     if (!isUserMessage(msg.info)) continue
-    const raw =
-      msg.info.summary?.title?.trim() ||
-      getMessageText(msg)
-        .trim()
-        .split(/\r?\n/)
-        .map(l => l.trim())
-        .find(Boolean)
-    if (!raw) continue
-    const n = normalizeWhitespace(raw)
+    const rawText = getMessageText(msg)
+    let titleSource: string | undefined
+    if (omoConversationNavSimplify) {
+      const cleanedTitle = outlineIndexCleanupOmoTitle(rawText)
+      if (!cleanedTitle) continue
+      if (cleanedTitle !== rawText) titleSource = cleanedTitle
+    }
+    if (!titleSource) {
+      titleSource =
+        msg.info.summary?.title?.trim() ||
+        rawText
+          .trim()
+          .split(/\r?\n/)
+          .map(l => l.trim())
+          .find(Boolean)
+    }
+    if (!titleSource) continue
+    const n = normalizeWhitespace(titleSource)
+    if (!n) continue
     entries.push({
       messageId: msg.info.id,
       fullTitle: truncate(n, FULL_TITLE_MAX),
@@ -325,8 +342,12 @@ export const OutlineIndex = memo(function OutlineIndex({
   onScrollToMessageId,
 }: OutlineIndexProps) {
   const { interaction, presentation } = useChatViewport()
+  const { omoConversationNavSimplify } = useLayoutStore()
   const visual = presentation.isCompact ? COMPACT_VISUAL : DESKTOP_VISUAL
-  const allEntries = useMemo(() => extractEntries(messages, visual), [messages, visual])
+  const allEntries = useMemo(
+    () => extractEntries(messages, visual, { omoConversationNavSimplify }),
+    [messages, visual, omoConversationNavSimplify],
+  )
   const entries = useMemo(
     () => sliceAroundVisible(allEntries, visibleMessageIds ?? [], visual.maxEntries),
     [allEntries, visibleMessageIds, visual.maxEntries],
