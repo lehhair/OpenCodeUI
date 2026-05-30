@@ -106,6 +106,7 @@ interface LayoutState {
 
   // 屏幕常亮
   wakeLock: boolean
+  omoConversationNavSimplify: boolean
 
   // 终端交互
   terminalCopyOnSelect: boolean
@@ -125,6 +126,7 @@ const STORAGE_KEY_TERMINAL_LAYOUT = 'opencode-terminal-layout'
 const STORAGE_KEY_RIGHT_PANEL_WIDTH = 'opencode-right-panel-width'
 const STORAGE_KEY_BOTTOM_PANEL_HEIGHT = 'opencode-bottom-panel-height'
 const STORAGE_KEY_VIEWPORT_SIDEBAR_WIDTH = 'sidebar-width'
+const STORAGE_KEY_OMO_CONVERSATION_NAV_SIMPLIFY = 'opencode-omo-conversation-nav-simplify'
 const STORAGE_KEY_TERMINAL_COPY_ON_SELECT = 'opencode-terminal-copy-on-select'
 const STORAGE_KEY_TERMINAL_RIGHT_CLICK_PASTE = 'opencode-terminal-right-click-paste'
 
@@ -328,6 +330,7 @@ export class LayoutStore {
     bottomPanelOpen: false,
     bottomPanelHeight: 250,
     wakeLock: false,
+    omoConversationNavSimplify: false,
     terminalCopyOnSelect: false,
     terminalRightClickPaste: false,
   }
@@ -431,6 +434,11 @@ export class LayoutStore {
       const savedWakeLock = localStorage.getItem(STORAGE_KEY_WAKE_LOCK)
       if (savedWakeLock !== null) {
         this.state.wakeLock = savedWakeLock === 'true'
+      }
+
+      const savedOmoConversationNavSimplify = localStorage.getItem(STORAGE_KEY_OMO_CONVERSATION_NAV_SIMPLIFY)
+      if (savedOmoConversationNavSimplify !== null) {
+        this.state.omoConversationNavSimplify = savedOmoConversationNavSimplify === 'true'
       }
 
       const savedTerminalCopyOnSelect = localStorage.getItem(STORAGE_KEY_TERMINAL_COPY_ON_SELECT)
@@ -561,6 +569,17 @@ export class LayoutStore {
     this.state.wakeLock = enabled
     try {
       localStorage.setItem(STORAGE_KEY_WAKE_LOCK, String(enabled))
+    } catch {
+      /* ignore */
+    }
+    this.notify()
+  }
+
+  setOmoConversationNavSimplify(enabled: boolean) {
+    if (this.state.omoConversationNavSimplify === enabled) return
+    this.state.omoConversationNavSimplify = enabled
+    try {
+      localStorage.setItem(STORAGE_KEY_OMO_CONVERSATION_NAV_SIMPLIFY, String(enabled))
     } catch {
       /* ignore */
     }
@@ -1196,6 +1215,7 @@ export interface LayoutBackup {
   sidebarShowChildSessions: boolean
   sidebarSubSessionSortOrder: SidebarSubSessionSortOrder
   wakeLock: boolean
+  omoConversationNavSimplify: boolean
   rightPanelWidth: number
   bottomPanelHeight: number
   panelLayout: PersistedPanelLayout
@@ -1241,6 +1261,7 @@ export function exportLayoutBackup(): LayoutBackup {
     sidebarShowChildSessions: state.sidebarShowChildSessions,
     sidebarSubSessionSortOrder: state.sidebarSubSessionSortOrder,
     wakeLock: state.wakeLock,
+    omoConversationNavSimplify: state.omoConversationNavSimplify,
     rightPanelWidth: state.rightPanelWidth,
     bottomPanelHeight: state.bottomPanelHeight,
     panelLayout: buildPersistedPanelLayout(state),
@@ -1279,6 +1300,7 @@ export function importLayoutBackup(raw: unknown): void {
     parseSidebarSubSessionSortOrder(parsed?.sidebarSubSessionSortOrder),
   )
   localStorage.setItem(STORAGE_KEY_WAKE_LOCK, String(parsed?.wakeLock === true))
+  localStorage.setItem(STORAGE_KEY_OMO_CONVERSATION_NAV_SIMPLIFY, String(parsed?.omoConversationNavSimplify === true))
   localStorage.setItem(STORAGE_KEY_RIGHT_PANEL_WIDTH, String(rightPanelWidth))
   localStorage.setItem(STORAGE_KEY_BOTTOM_PANEL_HEIGHT, String(bottomPanelHeight))
   localStorage.setItem(STORAGE_KEY_PANEL_LAYOUT, JSON.stringify(panelLayout))

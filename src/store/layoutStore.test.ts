@@ -3,6 +3,7 @@ import { exportLayoutBackup, importLayoutBackup, LayoutStore, layoutStore } from
 
 const STORAGE_KEY_PANEL_LAYOUT = 'opencode-panel-layout'
 const STORAGE_KEY_SIDEBAR_SUB_SESSION_SORT_ORDER = 'opencode-sidebar-sub-session-sort-order'
+const STORAGE_KEY_OMO_CONVERSATION_NAV_SIMPLIFY = 'opencode-omo-conversation-nav-simplify'
 
 describe('LayoutStore panel and terminal layout', () => {
   beforeEach(() => {
@@ -161,6 +162,49 @@ describe('LayoutStore panel and terminal layout', () => {
     expect(restored.terminalRightClickPaste).toBe(true)
   })
 
+  it('defaults OMO conversation nav simplify to disabled', () => {
+    const store = new LayoutStore()
+
+    expect(store.getState().omoConversationNavSimplify).toBe(false)
+  })
+
+  it('persists and restores OMO conversation nav simplify', () => {
+    const store = new LayoutStore()
+
+    store.setOmoConversationNavSimplify(true)
+
+    expect(localStorage.getItem(STORAGE_KEY_OMO_CONVERSATION_NAV_SIMPLIFY)).toBe('true')
+
+    const restored = new LayoutStore().getState()
+    expect(restored.omoConversationNavSimplify).toBe(true)
+
+    store.setOmoConversationNavSimplify(false)
+
+    expect(localStorage.getItem(STORAGE_KEY_OMO_CONVERSATION_NAV_SIMPLIFY)).toBe('false')
+  })
+
+  it('does not notify when OMO conversation nav simplify is unchanged', () => {
+    const store = new LayoutStore()
+    let notifications = 0
+    const unsubscribe = store.subscribe(() => {
+      notifications += 1
+    })
+
+    store.setOmoConversationNavSimplify(false)
+
+    unsubscribe()
+    expect(notifications).toBe(0)
+    expect(localStorage.getItem(STORAGE_KEY_OMO_CONVERSATION_NAV_SIMPLIFY)).toBeNull()
+  })
+
+  it('falls back to disabled when persisted OMO conversation nav simplify is invalid', () => {
+    localStorage.setItem(STORAGE_KEY_OMO_CONVERSATION_NAV_SIMPLIFY, 'garbage')
+
+    const store = new LayoutStore()
+
+    expect(store.getState().omoConversationNavSimplify).toBe(false)
+  })
+
   it('defaults sub-session sort order to ascending', () => {
     const store = new LayoutStore()
 
@@ -200,6 +244,22 @@ describe('LayoutStore panel and terminal layout', () => {
 
     const restored = new LayoutStore().getState()
     expect(restored.sidebarSubSessionSortOrder).toBe('activeDesc')
+  })
+
+  it('includes OMO conversation nav simplify in layout backup export and import', () => {
+    layoutStore.setOmoConversationNavSimplify(true)
+
+    const backup = exportLayoutBackup()
+
+    expect(backup.omoConversationNavSimplify).toBe(true)
+
+    localStorage.clear()
+    importLayoutBackup(backup)
+
+    expect(localStorage.getItem(STORAGE_KEY_OMO_CONVERSATION_NAV_SIMPLIFY)).toBe('true')
+
+    const restored = new LayoutStore().getState()
+    expect(restored.omoConversationNavSimplify).toBe(true)
   })
 
   it('maps legacy created-time sort values to active-time values when restoring persisted state', () => {
@@ -243,5 +303,43 @@ describe('LayoutStore panel and terminal layout', () => {
 
     const restored = new LayoutStore().getState()
     expect(restored.sidebarSubSessionSortOrder).toBe('activeAsc')
+  })
+
+  it('keeps old layout backups without OMO conversation nav simplify compatible', () => {
+    expect(() =>
+      importLayoutBackup({
+        sidebarExpanded: false,
+        sidebarFolderRecents: true,
+        sidebarFolderRecentsShowDiff: false,
+        sidebarShowChildSessions: true,
+        sidebarSubSessionSortOrder: 'activeDesc',
+        wakeLock: true,
+        rightPanelWidth: 600,
+        bottomPanelHeight: 280,
+        panelLayout: {
+          version: 1,
+          panelTabs: [
+            { id: 'files', type: 'files', position: 'right' },
+            { id: 'changes', type: 'changes', position: 'right' },
+          ],
+          activeTabId: {
+            bottom: null,
+            right: 'files',
+          },
+          rightPanelOpen: false,
+          bottomPanelOpen: false,
+        },
+        terminalLayout: {
+          version: 1,
+          directories: {},
+        },
+        sidebarWidth: null,
+      }),
+    ).not.toThrow()
+
+    expect(localStorage.getItem(STORAGE_KEY_OMO_CONVERSATION_NAV_SIMPLIFY)).toBe('false')
+
+    const restored = new LayoutStore().getState()
+    expect(restored.omoConversationNavSimplify).toBe(false)
   })
 })
