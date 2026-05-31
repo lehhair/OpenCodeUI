@@ -107,6 +107,7 @@ interface LayoutState {
   // 屏幕常亮
   wakeLock: boolean
   omoConversationNavSimplify: boolean
+  alwaysLoadFullConversationNavigation: boolean
 
   // 终端交互
   terminalCopyOnSelect: boolean
@@ -127,6 +128,7 @@ const STORAGE_KEY_RIGHT_PANEL_WIDTH = 'opencode-right-panel-width'
 const STORAGE_KEY_BOTTOM_PANEL_HEIGHT = 'opencode-bottom-panel-height'
 const STORAGE_KEY_VIEWPORT_SIDEBAR_WIDTH = 'sidebar-width'
 const STORAGE_KEY_OMO_CONVERSATION_NAV_SIMPLIFY = 'opencode-omo-conversation-nav-simplify'
+const STORAGE_KEY_ALWAYS_LOAD_FULL_CONVERSATION_NAVIGATION = 'opencode-always-load-full-conversation-navigation'
 const STORAGE_KEY_TERMINAL_COPY_ON_SELECT = 'opencode-terminal-copy-on-select'
 const STORAGE_KEY_TERMINAL_RIGHT_CLICK_PASTE = 'opencode-terminal-right-click-paste'
 
@@ -331,6 +333,7 @@ export class LayoutStore {
     bottomPanelHeight: 250,
     wakeLock: false,
     omoConversationNavSimplify: false,
+    alwaysLoadFullConversationNavigation: false,
     terminalCopyOnSelect: false,
     terminalRightClickPaste: false,
   }
@@ -439,6 +442,13 @@ export class LayoutStore {
       const savedOmoConversationNavSimplify = localStorage.getItem(STORAGE_KEY_OMO_CONVERSATION_NAV_SIMPLIFY)
       if (savedOmoConversationNavSimplify !== null) {
         this.state.omoConversationNavSimplify = savedOmoConversationNavSimplify === 'true'
+      }
+
+      const savedAlwaysLoadFullConversationNavigation = localStorage.getItem(
+        STORAGE_KEY_ALWAYS_LOAD_FULL_CONVERSATION_NAVIGATION,
+      )
+      if (savedAlwaysLoadFullConversationNavigation !== null) {
+        this.state.alwaysLoadFullConversationNavigation = savedAlwaysLoadFullConversationNavigation === 'true'
       }
 
       const savedTerminalCopyOnSelect = localStorage.getItem(STORAGE_KEY_TERMINAL_COPY_ON_SELECT)
@@ -580,6 +590,17 @@ export class LayoutStore {
     this.state.omoConversationNavSimplify = enabled
     try {
       localStorage.setItem(STORAGE_KEY_OMO_CONVERSATION_NAV_SIMPLIFY, String(enabled))
+    } catch {
+      /* ignore */
+    }
+    this.notify()
+  }
+
+  setAlwaysLoadFullConversationNavigation(enabled: boolean) {
+    if (this.state.alwaysLoadFullConversationNavigation === enabled) return
+    this.state.alwaysLoadFullConversationNavigation = enabled
+    try {
+      localStorage.setItem(STORAGE_KEY_ALWAYS_LOAD_FULL_CONVERSATION_NAVIGATION, String(enabled))
     } catch {
       /* ignore */
     }
@@ -1216,6 +1237,7 @@ export interface LayoutBackup {
   sidebarSubSessionSortOrder: SidebarSubSessionSortOrder
   wakeLock: boolean
   omoConversationNavSimplify: boolean
+  alwaysLoadFullConversationNavigation: boolean
   rightPanelWidth: number
   bottomPanelHeight: number
   panelLayout: PersistedPanelLayout
@@ -1262,6 +1284,7 @@ export function exportLayoutBackup(): LayoutBackup {
     sidebarSubSessionSortOrder: state.sidebarSubSessionSortOrder,
     wakeLock: state.wakeLock,
     omoConversationNavSimplify: state.omoConversationNavSimplify,
+    alwaysLoadFullConversationNavigation: state.alwaysLoadFullConversationNavigation,
     rightPanelWidth: state.rightPanelWidth,
     bottomPanelHeight: state.bottomPanelHeight,
     panelLayout: buildPersistedPanelLayout(state),
@@ -1301,6 +1324,10 @@ export function importLayoutBackup(raw: unknown): void {
   )
   localStorage.setItem(STORAGE_KEY_WAKE_LOCK, String(parsed?.wakeLock === true))
   localStorage.setItem(STORAGE_KEY_OMO_CONVERSATION_NAV_SIMPLIFY, String(parsed?.omoConversationNavSimplify === true))
+  localStorage.setItem(
+    STORAGE_KEY_ALWAYS_LOAD_FULL_CONVERSATION_NAVIGATION,
+    String(parsed?.alwaysLoadFullConversationNavigation === true),
+  )
   localStorage.setItem(STORAGE_KEY_RIGHT_PANEL_WIDTH, String(rightPanelWidth))
   localStorage.setItem(STORAGE_KEY_BOTTOM_PANEL_HEIGHT, String(bottomPanelHeight))
   localStorage.setItem(STORAGE_KEY_PANEL_LAYOUT, JSON.stringify(panelLayout))

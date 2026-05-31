@@ -4,6 +4,7 @@ import { exportLayoutBackup, importLayoutBackup, LayoutStore, layoutStore } from
 const STORAGE_KEY_PANEL_LAYOUT = 'opencode-panel-layout'
 const STORAGE_KEY_SIDEBAR_SUB_SESSION_SORT_ORDER = 'opencode-sidebar-sub-session-sort-order'
 const STORAGE_KEY_OMO_CONVERSATION_NAV_SIMPLIFY = 'opencode-omo-conversation-nav-simplify'
+const STORAGE_KEY_ALWAYS_LOAD_FULL_CONVERSATION_NAVIGATION = 'opencode-always-load-full-conversation-navigation'
 
 describe('LayoutStore panel and terminal layout', () => {
   beforeEach(() => {
@@ -205,6 +206,49 @@ describe('LayoutStore panel and terminal layout', () => {
     expect(store.getState().omoConversationNavSimplify).toBe(false)
   })
 
+  it('defaults always load full conversation navigation to disabled', () => {
+    const store = new LayoutStore()
+
+    expect(store.getState().alwaysLoadFullConversationNavigation).toBe(false)
+  })
+
+  it('persists and restores always load full conversation navigation', () => {
+    const store = new LayoutStore()
+
+    store.setAlwaysLoadFullConversationNavigation(true)
+
+    expect(localStorage.getItem(STORAGE_KEY_ALWAYS_LOAD_FULL_CONVERSATION_NAVIGATION)).toBe('true')
+
+    const restored = new LayoutStore().getState()
+    expect(restored.alwaysLoadFullConversationNavigation).toBe(true)
+
+    store.setAlwaysLoadFullConversationNavigation(false)
+
+    expect(localStorage.getItem(STORAGE_KEY_ALWAYS_LOAD_FULL_CONVERSATION_NAVIGATION)).toBe('false')
+  })
+
+  it('does not notify when always load full conversation navigation is unchanged', () => {
+    const store = new LayoutStore()
+    let notifications = 0
+    const unsubscribe = store.subscribe(() => {
+      notifications += 1
+    })
+
+    store.setAlwaysLoadFullConversationNavigation(false)
+
+    unsubscribe()
+    expect(notifications).toBe(0)
+    expect(localStorage.getItem(STORAGE_KEY_ALWAYS_LOAD_FULL_CONVERSATION_NAVIGATION)).toBeNull()
+  })
+
+  it('falls back to disabled when persisted always load full conversation navigation is invalid', () => {
+    localStorage.setItem(STORAGE_KEY_ALWAYS_LOAD_FULL_CONVERSATION_NAVIGATION, 'garbage')
+
+    const store = new LayoutStore()
+
+    expect(store.getState().alwaysLoadFullConversationNavigation).toBe(false)
+  })
+
   it('defaults sub-session sort order to ascending', () => {
     const store = new LayoutStore()
 
@@ -260,6 +304,22 @@ describe('LayoutStore panel and terminal layout', () => {
 
     const restored = new LayoutStore().getState()
     expect(restored.omoConversationNavSimplify).toBe(true)
+  })
+
+  it('includes always load full conversation navigation in layout backup export and import', () => {
+    layoutStore.setAlwaysLoadFullConversationNavigation(true)
+
+    const backup = exportLayoutBackup()
+
+    expect(backup.alwaysLoadFullConversationNavigation).toBe(true)
+
+    localStorage.clear()
+    importLayoutBackup(backup)
+
+    expect(localStorage.getItem(STORAGE_KEY_ALWAYS_LOAD_FULL_CONVERSATION_NAVIGATION)).toBe('true')
+
+    const restored = new LayoutStore().getState()
+    expect(restored.alwaysLoadFullConversationNavigation).toBe(true)
   })
 
   it('maps legacy created-time sort values to active-time values when restoring persisted state', () => {
@@ -341,5 +401,44 @@ describe('LayoutStore panel and terminal layout', () => {
 
     const restored = new LayoutStore().getState()
     expect(restored.omoConversationNavSimplify).toBe(false)
+  })
+
+  it('keeps old layout backups without always load full conversation navigation compatible', () => {
+    expect(() =>
+      importLayoutBackup({
+        sidebarExpanded: false,
+        sidebarFolderRecents: true,
+        sidebarFolderRecentsShowDiff: false,
+        sidebarShowChildSessions: true,
+        sidebarSubSessionSortOrder: 'activeDesc',
+        wakeLock: true,
+        omoConversationNavSimplify: true,
+        rightPanelWidth: 600,
+        bottomPanelHeight: 280,
+        panelLayout: {
+          version: 1,
+          panelTabs: [
+            { id: 'files', type: 'files', position: 'right' },
+            { id: 'changes', type: 'changes', position: 'right' },
+          ],
+          activeTabId: {
+            bottom: null,
+            right: 'files',
+          },
+          rightPanelOpen: false,
+          bottomPanelOpen: false,
+        },
+        terminalLayout: {
+          version: 1,
+          directories: {},
+        },
+        sidebarWidth: null,
+      }),
+    ).not.toThrow()
+
+    expect(localStorage.getItem(STORAGE_KEY_ALWAYS_LOAD_FULL_CONVERSATION_NAVIGATION)).toBe('false')
+
+    const restored = new LayoutStore().getState()
+    expect(restored.alwaysLoadFullConversationNavigation).toBe(false)
   })
 })
