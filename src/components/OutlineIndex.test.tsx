@@ -38,6 +38,16 @@ const defaultChatViewport = {
   },
 }
 
+function layoutSnapshot({
+  omoConversationNavSimplify = false,
+  alwaysLoadFullConversationNavigation = false,
+}: {
+  omoConversationNavSimplify?: boolean
+  alwaysLoadFullConversationNavigation?: boolean
+} = {}) {
+  return { omoConversationNavSimplify, alwaysLoadFullConversationNavigation }
+}
+
 function textPart(messageId: string, text: string, synthetic = false): TextPart {
   return {
     id: `${messageId}-text-${synthetic ? 'synthetic' : 'visible'}`,
@@ -302,10 +312,10 @@ ordinary note`
 describe('OutlineIndex default extraction', () => {
   beforeEach(() => {
     useChatViewportMock.mockReturnValue(defaultChatViewport)
-    useLayoutStoreMock.mockReturnValue({ omoConversationNavSimplify: false })
+    useLayoutStoreMock.mockReturnValue(layoutSnapshot())
   })
 
-  it('preserves current disabled behavior without reading layout store', () => {
+  it('preserves current disabled title derivation behavior', () => {
     const messages = [
       userMessage('user-summary', 'raw text should not win', 'Summary wins'),
       userMessage('user-raw', '\n\nFirst raw line\nsecond line', undefined, 'synthetic prefix'),
@@ -343,7 +353,7 @@ describe('OutlineIndex default extraction', () => {
 describe('OutlineIndex enabled OMO simplification', () => {
   beforeEach(() => {
     useChatViewportMock.mockReturnValue(defaultChatViewport)
-    useLayoutStoreMock.mockReturnValue({ omoConversationNavSimplify: true })
+    useLayoutStoreMock.mockReturnValue(layoutSnapshot({ omoConversationNavSimplify: true }))
   })
 
   it('hides legacy wrapped OMO internal reminder even when summary.title exists', () => {
@@ -549,7 +559,7 @@ describe('OutlineIndex enabled OMO simplification', () => {
     expect(enabledTitles).toHaveLength(40)
     expect(enabledTitles).not.toContain('<system-reminder>')
 
-    useLayoutStoreMock.mockReturnValue({ omoConversationNavSimplify: false })
+    useLayoutStoreMock.mockReturnValue(layoutSnapshot())
     const { container: disabledContainer } = render(
       <OutlineIndex messages={messages} visibleMessageIds={[]} onScrollToMessageId={vi.fn()} />,
     )
@@ -574,5 +584,44 @@ describe('OutlineIndex enabled OMO simplification', () => {
 
     expect(titles(container)).toEqual(['Cleaned Body', 'Actual request', 'Normal text'])
     expect(messages).toEqual(originalMessages)
+  })
+})
+
+describe('OutlineIndex full conversation navigation entry cap', () => {
+  beforeEach(() => {
+    useChatViewportMock.mockReturnValue(defaultChatViewport)
+    useLayoutStoreMock.mockReturnValue(layoutSnapshot())
+  })
+
+  it('keeps max-entry slicing unchanged when full navigation loading is disabled', () => {
+    const messages = Array.from({ length: 45 }, (_, index) =>
+      userMessage(`user-${index + 1}`, `older user message ${String(index + 1).padStart(3, '0')}`),
+    )
+
+    const { container } = render(
+      <OutlineIndex messages={messages} visibleMessageIds={[]} onScrollToMessageId={vi.fn()} />,
+    )
+
+    const renderedTitles = titles(container)
+    expect(renderedTitles).toHaveLength(40)
+    expect(renderedTitles).not.toContain('older user message 001')
+    expect(renderedTitles).toContain('older user message 006')
+    expect(renderedTitles).toContain('older user message 045')
+  })
+
+  it('bypasses max-entry slicing when full navigation loading is enabled', () => {
+    useLayoutStoreMock.mockReturnValue(layoutSnapshot({ alwaysLoadFullConversationNavigation: true }))
+    const messages = Array.from({ length: 45 }, (_, index) =>
+      userMessage(`user-${index + 1}`, `older user message ${String(index + 1).padStart(3, '0')}`),
+    )
+
+    const { container } = render(
+      <OutlineIndex messages={messages} visibleMessageIds={[]} onScrollToMessageId={vi.fn()} />,
+    )
+
+    const renderedTitles = titles(container)
+    expect(renderedTitles).toHaveLength(45)
+    expect(renderedTitles).toContain('older user message 001')
+    expect(renderedTitles).toContain('older user message 045')
   })
 })

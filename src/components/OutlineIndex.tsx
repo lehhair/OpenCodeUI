@@ -342,15 +342,18 @@ export const OutlineIndex = memo(function OutlineIndex({
   onScrollToMessageId,
 }: OutlineIndexProps) {
   const { interaction, presentation } = useChatViewport()
-  const { omoConversationNavSimplify } = useLayoutStore()
+  const { omoConversationNavSimplify, alwaysLoadFullConversationNavigation } = useLayoutStore()
   const visual = presentation.isCompact ? COMPACT_VISUAL : DESKTOP_VISUAL
   const allEntries = useMemo(
     () => extractEntries(messages, visual, { omoConversationNavSimplify }),
     [messages, visual, omoConversationNavSimplify],
   )
   const entries = useMemo(
-    () => sliceAroundVisible(allEntries, visibleMessageIds ?? [], visual.maxEntries),
-    [allEntries, visibleMessageIds, visual.maxEntries],
+    () =>
+      alwaysLoadFullConversationNavigation
+        ? allEntries
+        : sliceAroundVisible(allEntries, visibleMessageIds ?? [], visual.maxEntries),
+    [allEntries, alwaysLoadFullConversationNavigation, visibleMessageIds, visual.maxEntries],
   )
 
   if (entries.length < 2) return null

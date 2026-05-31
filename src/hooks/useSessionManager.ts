@@ -7,10 +7,10 @@
 // 2. 处理 undo/redo（调用 API + 更新 store）
 // 3. 只管理单个 session 的加载状态，不再承担全局当前 session 同步
 
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react'
 import { logger } from '../utils/logger'
 import { isUserUIMessage, toApiMessageWithParts } from '../utils/messageConversion'
-import { messageStore, type RevertState, type SessionState } from '../store'
+import { layoutStore, messageStore, type RevertState, type SessionState } from '../store'
 import {
   getSessionMessages,
   getSession,
@@ -52,6 +52,11 @@ export function useSessionManager({ sessionId, directory, onLoadComplete, onErro
   /** 每个 session 当前已请求的消息 limit（cursor），loadMore 时递增 */
   const cursorRef = useRef<Map<string, number>>(new Map())
   const loadSessionRef = useRef<(sid: string, options?: { force?: boolean }) => Promise<void>>(async () => {})
+  const alwaysLoadFullConversationNavigation = useSyncExternalStore(
+    cb => layoutStore.subscribe(cb),
+    () => layoutStore.getState().alwaysLoadFullConversationNavigation,
+    () => layoutStore.getState().alwaysLoadFullConversationNavigation,
+  )
 
   // 使用 ref 保存 directory，避免依赖变化
   const directoryRef = useRef(directory)
@@ -73,6 +78,7 @@ export function useSessionManager({ sessionId, directory, onLoadComplete, onErro
       const isStale = () => loadSequenceRef.current.get(sid) !== seq
 
       const dir = directoryRef.current
+      const messageLimit = alwaysLoadFullConversationNavigation ? undefined : INITIAL_MESSAGE_LIMIT
 
       // 检查是否已有消息（SSE 可能已经推送了）
       const existingState = messageStore.getSessionState(sid)
@@ -88,7 +94,7 @@ export function useSessionManager({ sessionId, directory, onLoadComplete, onErro
         const dir = directoryRef.current
         Promise.all([
           getSession(sid, dir).catch(() => null),
-          getSessionMessages(sid, INITIAL_MESSAGE_LIMIT, dir)
+          getSessionMessages(sid, messageLimit, dir)
             .then(messages => ({ ok: true as const, messages }))
             .catch(() => ({ ok: false as const, messages: [] as ApiMessageWithParts[] })),
         ])
@@ -100,7 +106,13 @@ export function useSessionManager({ sessionId, directory, onLoadComplete, onErro
             }
 
             messageStore.updateSessionMetadata(sid, {
-              ...(messagesResult.ok ? { hasMoreHistory: messagesResult.messages.length >= INITIAL_MESSAGE_LIMIT } : {}),
+              ...(messagesResult.ok
+                ? {
+                    hasMoreHistory: alwaysLoadFullConversationNavigation
+                      ? false
+                      : messagesResult.messages.length >= INITIAL_MESSAGE_LIMIT,
+                  }
+                : {}),
               directory: sessionInfo?.directory ?? dir ?? '',
               title: sessionInfo?.title,
               shareUrl: sessionInfo?.share?.url,
@@ -121,7 +133,7 @@ export function useSessionManager({ sessionId, directory, onLoadComplete, onErro
         // 并行加载 session 信息和消息（传递 directory）
         const [sessionInfo, apiMessages] = await Promise.all([
           getSession(sid, dir).catch(() => null),
-          getSessionMessages(sid, INITIAL_MESSAGE_LIMIT, dir),
+          getSessionMessages(sid, messageLimit, dir),
         ])
 
         if (isStale()) return
@@ -140,7 +152,7 @@ export function useSessionManager({ sessionId, directory, onLoadComplete, onErro
           // SSE 推送的消息比 API 返回的多，说明有新消息，跳过覆盖
           // 但仍需更新元数据，否则 hasMoreHistory 等状态可能停留在默认值
           messageStore.updateSessionMetadata(sid, {
-            hasMoreHistory: apiMessages.length >= INITIAL_MESSAGE_LIMIT,
+            hasMoreHistory: alwaysLoadFullConversationNavigation ? false : apiMessages.length >= INITIAL_MESSAGE_LIMIT,
             directory: sessionInfo?.directory ?? dir ?? '',
             title: sessionInfo?.title,
             loadState: 'loaded',
@@ -157,7 +169,7 @@ export function useSessionManager({ sessionId, directory, onLoadComplete, onErro
         messageStore.setMessages(sid, mergedMessages, {
           directory: sessionInfo?.directory ?? dir ?? '',
           title: sessionInfo?.title,
-          hasMoreHistory: apiMessages.length >= INITIAL_MESSAGE_LIMIT,
+          hasMoreHistory: alwaysLoadFullConversationNavigation ? false : apiMessages.length >= INITIAL_MESSAGE_LIMIT,
           revertState: sessionInfo?.revert ?? null,
           shareUrl: sessionInfo?.share?.url,
         })
@@ -175,7 +187,7 @@ export function useSessionManager({ sessionId, directory, onLoadComplete, onErro
         onError?.(error instanceof Error ? error : new Error(String(error)))
       }
     },
-    [onLoadComplete, onError],
+    [alwaysLoadFullConversationNavigation, onLoadComplete, onError],
   )
 
   // 保持 ref 同步，避免 effect 依赖 loadSession 导致重复触发
@@ -341,9 +353,18 @@ export function useSessionManager({ sessionId, directory, onLoadComplete, onErro
   // focused pane / URL 的同步由 App 顶层统一负责，
   // 这里不再写任何“全局当前 session”状态。
   useEffect(() => {
-    if (sessionId) {
+    if (!sessionId) return
+
+    const activeSessionId = sessionId
+    const loadSequences = loadSequenceRef.current
+    if (activeSessionId) {
       const cached = messageStore.getSessionState(sessionId)
-      const canUseCached = !!cached && cached.loadState === 'loaded' && !cached.isStale && cached.messages.length > 0
+      const canUseCached =
+        !!cached &&
+        cached.loadState === 'loaded' &&
+        !cached.isStale &&
+        cached.messages.length > 0 &&
+        (!alwaysLoadFullConversationNavigation || !cached.hasMoreHistory)
 
       if (canUseCached) {
         const cachedCursor = Math.max(INITIAL_MESSAGE_LIMIT, cached.messages.length)
@@ -362,7 +383,12 @@ export function useSessionManager({ sessionId, directory, onLoadComplete, onErro
       logger.log('[SessionManager] switch:fetch-session', { sessionId })
       void loadSessionRef.current(sessionId)
     }
-  }, [sessionId])
+
+    return () => {
+      const currentSeq = loadSequences.get(activeSessionId) ?? 0
+      loadSequences.set(activeSessionId, currentSeq + 1)
+    }
+  }, [alwaysLoadFullConversationNavigation, sessionId])
 
   return {
     loadSession,
