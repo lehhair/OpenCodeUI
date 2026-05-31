@@ -1,4 +1,5 @@
-const OMO_INTERNAL_INITIATOR_MARKER_PATTERN = /<!--\s*OMO_INTERNAL_INITIATOR\s*-->/
+import { hasOmoInternalInitiatorMarker } from '../utils/omo'
+
 const USER_REQUEST_OPEN_TAG = '<user-request>'
 const USER_REQUEST_CLOSE_TAG = '</user-request>'
 const USER_TASK_OPEN_TAG = '<user-task>'
@@ -15,7 +16,7 @@ interface TaggedContent {
 }
 
 export function outlineIndexHasOmoInternalInitiatorMarker(rawText: string): boolean {
-  return OMO_INTERNAL_INITIATOR_MARKER_PATTERN.test(rawText.normalize('NFC'))
+  return hasOmoInternalInitiatorMarker(rawText)
 }
 
 export function outlineIndexIsOmoInternalReminder(rawText: string): boolean {
