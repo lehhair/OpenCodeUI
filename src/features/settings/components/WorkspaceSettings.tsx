@@ -30,6 +30,7 @@ export function WorkspaceSettings() {
     terminalRightClickPaste,
     wakeLock,
     omoConversationNavSimplify,
+    alwaysLoadFullConversationNavigation,
   } = useLayoutStore()
 
   return (
@@ -88,6 +89,18 @@ export function WorkspaceSettings() {
           <Toggle
             enabled={omoConversationNavSimplify}
             onChange={() => layoutStore.setOmoConversationNavSimplify(!omoConversationNavSimplify)}
+          />
+        </SettingRow>
+
+        <SettingRow
+          label={t('workspace.alwaysLoadFullConversationNavigation')}
+          description={t('workspace.alwaysLoadFullConversationNavigationDesc')}
+          onClick={() => layoutStore.setAlwaysLoadFullConversationNavigation(!alwaysLoadFullConversationNavigation)}
+        >
+          <Toggle
+            enabled={alwaysLoadFullConversationNavigation}
+            ariaLabel={t('workspace.alwaysLoadFullConversationNavigation')}
+            onChange={() => layoutStore.setAlwaysLoadFullConversationNavigation(!alwaysLoadFullConversationNavigation)}
           />
         </SettingRow>
 

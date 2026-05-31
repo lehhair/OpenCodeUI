@@ -14,6 +14,7 @@ const {
   setTerminalRightClickPasteMock,
   setWakeLockMock,
   setOmoConversationNavSimplifyMock,
+  setAlwaysLoadFullConversationNavigationMock,
   syncTerminalTitleModeMock,
 } = vi.hoisted(() => ({
   useTranslationMock: vi.fn(),
@@ -27,6 +28,7 @@ const {
   setTerminalRightClickPasteMock: vi.fn(),
   setWakeLockMock: vi.fn(),
   setOmoConversationNavSimplifyMock: vi.fn(),
+  setAlwaysLoadFullConversationNavigationMock: vi.fn(),
   syncTerminalTitleModeMock: vi.fn(),
 }))
 
@@ -48,6 +50,7 @@ vi.mock('../../../store', () => ({
     setTerminalRightClickPaste: setTerminalRightClickPasteMock,
     setWakeLock: setWakeLockMock,
     setOmoConversationNavSimplify: setOmoConversationNavSimplifyMock,
+    setAlwaysLoadFullConversationNavigation: setAlwaysLoadFullConversationNavigationMock,
     syncTerminalTitleMode: syncTerminalTitleModeMock,
   },
   useLayoutStore: useLayoutStoreMock,
@@ -79,6 +82,7 @@ describe('WorkspaceSettings', () => {
       terminalRightClickPaste: false,
       wakeLock: false,
       omoConversationNavSimplify: false,
+      alwaysLoadFullConversationNavigation: false,
     })
 
     setSidebarShowChildSessionsMock.mockReset()
@@ -89,6 +93,7 @@ describe('WorkspaceSettings', () => {
     setTerminalRightClickPasteMock.mockReset()
     setWakeLockMock.mockReset()
     setOmoConversationNavSimplifyMock.mockReset()
+    setAlwaysLoadFullConversationNavigationMock.mockReset()
     syncTerminalTitleModeMock.mockReset()
   })
 
@@ -127,6 +132,7 @@ describe('WorkspaceSettings', () => {
       terminalRightClickPaste: false,
       wakeLock: false,
       omoConversationNavSimplify: false,
+      alwaysLoadFullConversationNavigation: false,
     })
 
     render(<WorkspaceSettings />)
@@ -142,15 +148,46 @@ describe('WorkspaceSettings', () => {
     expect(setSidebarSubSessionSortOrderMock).toHaveBeenCalledWith('activeAsc')
   })
 
-  it('renders omoConversationNavSimplify between manualTerminalTitles and diffStyle in the layout section', () => {
+  it('renders navigation loading row between omoConversationNavSimplify and diffStyle in the layout section', () => {
     render(<WorkspaceSettings />)
 
     const layoutSection = screen.getByRole('heading', { name: 'workspace.layout' }).closest('section')
 
     expect(layoutSection).not.toBeNull()
     expect(layoutSection).toHaveTextContent(
-      /workspace\.manualTerminalTitles.*workspace\.omoConversationNavSimplify.*appearance\.diffStyle/,
+      /workspace\.omoConversationNavSimplify.*workspace\.alwaysLoadFullConversationNavigation.*appearance\.diffStyle/,
     )
+  })
+
+  it('calls setAlwaysLoadFullConversationNavigation(true) when the row is clicked while false', () => {
+    render(<WorkspaceSettings />)
+
+    const label = screen.getByText('workspace.alwaysLoadFullConversationNavigation')
+    fireEvent.click(label)
+
+    expect(setAlwaysLoadFullConversationNavigationMock).toHaveBeenCalledWith(true)
+  })
+
+  it('calls setAlwaysLoadFullConversationNavigation(false) when the row toggle is clicked while true', () => {
+    useLayoutStoreMock.mockReturnValue({
+      sidebarFolderRecents: false,
+      sidebarFolderRecentsShowDiff: false,
+      sidebarShowChildSessions: true,
+      sidebarSubSessionSortOrder: 'activeAsc',
+      terminalCopyOnSelect: false,
+      terminalRightClickPaste: false,
+      wakeLock: false,
+      omoConversationNavSimplify: false,
+      alwaysLoadFullConversationNavigation: true,
+    })
+
+    render(<WorkspaceSettings />)
+
+    const toggle = screen.getByRole('switch', { name: 'workspace.alwaysLoadFullConversationNavigation' })
+
+    fireEvent.click(toggle)
+
+    expect(setAlwaysLoadFullConversationNavigationMock).toHaveBeenCalledWith(false)
   })
 
   it('calls setOmoConversationNavSimplify(true) when the row is clicked while false', () => {
@@ -162,7 +199,7 @@ describe('WorkspaceSettings', () => {
     expect(setOmoConversationNavSimplifyMock).toHaveBeenCalledWith(true)
   })
 
-  it('calls setOmoConversationNavSimplify(false) when the toggle is clicked while true', () => {
+  it('calls setOmoConversationNavSimplify(false) when the row toggle is clicked while true', () => {
     useLayoutStoreMock.mockReturnValue({
       sidebarFolderRecents: false,
       sidebarFolderRecentsShowDiff: false,
@@ -172,6 +209,7 @@ describe('WorkspaceSettings', () => {
       terminalRightClickPaste: false,
       wakeLock: false,
       omoConversationNavSimplify: true,
+      alwaysLoadFullConversationNavigation: false,
     })
 
     render(<WorkspaceSettings />)
@@ -192,6 +230,7 @@ describe('WorkspaceSettings', () => {
       terminalRightClickPaste: false,
       wakeLock: false,
       omoConversationNavSimplify: true,
+      alwaysLoadFullConversationNavigation: false,
     })
 
     render(<WorkspaceSettings />)

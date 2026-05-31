@@ -221,6 +221,8 @@
     "manualTerminalTitlesDesc": "开启后，终端标签不再跟随 shell 自动更新，可手动重命名。关闭后，终端标签会继续按 shell 或进程标题自动变化。",
     "omoConversationNavSimplify": "omo 对话导航精简",
     "omoConversationNavSimplifyDesc": "开启后将隐藏 omo 的提示词",
+    "alwaysLoadFullConversationNavigation": "始终加载全部对话导航",
+    "alwaysLoadFullConversationNavigationDesc": "开启后将自动获取会话中的所有对话历史",
     "terminal": "终端",
     "terminalDesc": "终端复制、粘贴和鼠标行为。基础粘贴与有选区时 Ctrl+C 复制始终可用。",
     "terminalCopyOnSelect": "选中即复制",

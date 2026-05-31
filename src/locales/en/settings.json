@@ -221,6 +221,8 @@
     "manualTerminalTitlesDesc": "When enabled, terminal tabs stop following shell title changes and can be renamed manually. When disabled, terminal tabs continue to follow shell or process titles automatically.",
     "omoConversationNavSimplify": "omo 对话导航精简",
     "omoConversationNavSimplifyDesc": "开启后将隐藏 omo 的提示词",
+    "alwaysLoadFullConversationNavigation": "始终加载全部对话导航",
+    "alwaysLoadFullConversationNavigationDesc": "开启后将自动获取会话中的所有对话历史",
     "terminal": "Terminal",
     "terminalDesc": "Terminal copy, paste, and mouse behavior. Basic paste and Ctrl/Cmd+C copy with a selection are always available.",
     "terminalCopyOnSelect": "Copy On Selection",
