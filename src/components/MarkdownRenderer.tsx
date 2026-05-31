@@ -13,9 +13,10 @@ import {
 import { Streamdown, type Components, type CustomRendererProps, type PluginConfig } from 'streamdown'
 import { createMathPlugin } from '@streamdown/math'
 import { CodeBlock } from './CodeBlock'
-import { RetryIcon, ZoomInIcon, ZoomOutIcon } from './Icons'
+import { HandIcon, RetryIcon, ZoomInIcon, ZoomOutIcon } from './Icons'
 import { CopyButton } from './ui'
 import { useTheme } from '../hooks/useTheme'
+import { useInputCapabilities } from '../hooks/useInputCapabilities'
 import { detectLanguage } from '../utils/languageUtils'
 
 interface MarkdownRendererProps {
@@ -36,6 +37,15 @@ const MERMAID_CONTROL_BUTTON_BASE_CLASS =
   'inline-flex h-8 w-8 items-center justify-center rounded-md bg-bg-300/70 backdrop-blur-md transition-colors duration-150 hover:bg-bg-300/85 disabled:opacity-40 disabled:cursor-not-allowed'
 const MERMAID_CONTROL_BUTTON_CLASS = `${MERMAID_CONTROL_BUTTON_BASE_CLASS} text-text-400 hover:text-text-200`
 
+type DiagramPointer = { x: number; y: number }
+
+type PinchGesture = {
+  startDistance: number
+  startScale: number
+  startOffset: { x: number; y: number }
+  startCenter: { x: number; y: number }
+}
+
 let mermaidRenderCounter = 0
 
 function createMermaidRenderId(prefix: string) {
@@ -46,6 +56,27 @@ function createMermaidRenderId(prefix: string) {
 
 function clampMermaidScale(scale: number) {
   return Math.min(MERMAID_MAX_SCALE, Math.max(MERMAID_MIN_SCALE, Number(scale.toFixed(2))))
+}
+
+function getPointerDistance(first: DiagramPointer, second: DiagramPointer) {
+  return Math.hypot(first.x - second.x, first.y - second.y)
+}
+
+function getPointerCenter(first: DiagramPointer, second: DiagramPointer) {
+  return {
+    x: (first.x + second.x) / 2,
+    y: (first.y + second.y) / 2,
+  }
+}
+
+function getRelativeCenter(target: HTMLDivElement, first: DiagramPointer, second: DiagramPointer) {
+  const center = getPointerCenter(first, second)
+  const rect = target.parentElement?.getBoundingClientRect()
+  if (!rect) return center
+  return {
+    x: center.x - rect.left,
+    y: center.y - rect.top,
+  }
 }
 
 // ─── Inline Code ───────────────────────────────────────────────
@@ -271,6 +302,8 @@ const MarkdownTable = memo(function MarkdownTable({
 
 const MarkdownMermaid = memo(function MarkdownMermaid({ code, isIncomplete }: CustomRendererProps) {
   const { resolvedTheme } = useTheme()
+  const { hasCoarsePointer, hasTouch, preferTouchUi } = useInputCapabilities()
+  const supportsTouchGestures = hasCoarsePointer || hasTouch
   const renderPrefix = useId()
   const dragRef = useRef<{
     pointerId: number
@@ -279,10 +312,13 @@ const MarkdownMermaid = memo(function MarkdownMermaid({ code, isIncomplete }: Cu
     originX: number
     originY: number
   } | null>(null)
+  const touchPointersRef = useRef<Map<number, DiagramPointer>>(new Map())
+  const pinchRef = useRef<PinchGesture | null>(null)
   const [svg, setSvg] = useState('')
   const [error, setError] = useState('')
   const [scale, setScale] = useState(1)
   const [offset, setOffset] = useState({ x: 0, y: 0 })
+  const [isTouchPanEnabled, setIsTouchPanEnabled] = useState(false)
 
   const resetView = useCallback(() => {
     setScale(1)
@@ -293,9 +329,65 @@ const MarkdownMermaid = memo(function MarkdownMermaid({ code, isIncomplete }: Cu
     setScale(current => clampMermaidScale(current + delta))
   }, [])
 
+  const clearTouchGesture = useCallback(() => {
+    touchPointersRef.current.clear()
+    pinchRef.current = null
+    dragRef.current = null
+  }, [])
+
+  const beginPinchGesture = useCallback(
+    (target: HTMLDivElement) => {
+      const pointers = Array.from(touchPointersRef.current.values())
+      if (pointers.length < 2) return
+      const [first, second] = pointers
+      pinchRef.current = {
+        startDistance: Math.max(1, getPointerDistance(first, second)),
+        startScale: scale,
+        startOffset: offset,
+        startCenter: getRelativeCenter(target, first, second),
+      }
+      dragRef.current = null
+    },
+    [offset, scale],
+  )
+
+  const handleContainerClick = useCallback(
+    (event: React.MouseEvent<HTMLDivElement>) => {
+      if (!supportsTouchGestures) return
+      if (event.target instanceof HTMLElement && event.target.closest('button')) return
+      event.currentTarget.focus()
+    },
+    [supportsTouchGestures],
+  )
+
+  const handleContainerBlur = useCallback(
+    (event: React.FocusEvent<HTMLDivElement>) => {
+      if (!supportsTouchGestures) return
+      const nextTarget = event.relatedTarget
+      if (nextTarget instanceof Node && event.currentTarget.contains(nextTarget)) return
+      setIsTouchPanEnabled(false)
+      clearTouchGesture()
+    },
+    [clearTouchGesture, supportsTouchGestures],
+  )
+
+  useEffect(() => {
+    if (isTouchPanEnabled) return
+    clearTouchGesture()
+  }, [clearTouchGesture, isTouchPanEnabled])
+
   const handlePointerDown = useCallback(
     (event: React.PointerEvent<HTMLDivElement>) => {
       if (event.pointerType === 'mouse' && event.button !== 0) return
+      if (supportsTouchGestures && event.pointerType !== 'mouse' && !isTouchPanEnabled) return
+      if (event.pointerType !== 'mouse') {
+        touchPointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY })
+        if (touchPointersRef.current.size >= 2) {
+          beginPinchGesture(event.currentTarget)
+          event.currentTarget.setPointerCapture?.(event.pointerId)
+          return
+        }
+      }
       dragRef.current = {
         pointerId: event.pointerId,
         startX: event.clientX,
@@ -305,10 +397,32 @@ const MarkdownMermaid = memo(function MarkdownMermaid({ code, isIncomplete }: Cu
       }
       event.currentTarget.setPointerCapture?.(event.pointerId)
     },
-    [offset.x, offset.y],
+    [beginPinchGesture, supportsTouchGestures, isTouchPanEnabled, offset.x, offset.y],
   )
 
   const handlePointerMove = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    if (event.pointerType !== 'mouse' && touchPointersRef.current.has(event.pointerId)) {
+      touchPointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY })
+      const pointers = Array.from(touchPointersRef.current.values())
+      const pinch = pinchRef.current
+      if (pointers.length >= 2 && pinch) {
+        const [first, second] = pointers
+        const distance = Math.max(1, getPointerDistance(first, second))
+        const center = getRelativeCenter(event.currentTarget, first, second)
+        const nextScale = clampMermaidScale(pinch.startScale * (distance / pinch.startDistance))
+        const anchorX = (pinch.startCenter.x - pinch.startOffset.x) / pinch.startScale
+        const anchorY = (pinch.startCenter.y - pinch.startOffset.y) / pinch.startScale
+
+        event.preventDefault()
+        setScale(nextScale)
+        setOffset({
+          x: center.x - anchorX * nextScale,
+          y: center.y - anchorY * nextScale,
+        })
+        return
+      }
+    }
+
     const drag = dragRef.current
     if (!drag || drag.pointerId !== event.pointerId) return
     event.preventDefault()
@@ -319,9 +433,16 @@ const MarkdownMermaid = memo(function MarkdownMermaid({ code, isIncomplete }: Cu
   }, [])
 
   const handlePointerEnd = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
-    if (dragRef.current?.pointerId !== event.pointerId) return
-    dragRef.current = null
-    event.currentTarget.releasePointerCapture?.(event.pointerId)
+    if (event.pointerType !== 'mouse') {
+      touchPointersRef.current.delete(event.pointerId)
+      if (touchPointersRef.current.size < 2) pinchRef.current = null
+    }
+    if (dragRef.current?.pointerId === event.pointerId) {
+      dragRef.current = null
+    }
+    if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId)
+    }
   }, [])
 
   useEffect(() => {
@@ -390,29 +511,52 @@ const MarkdownMermaid = memo(function MarkdownMermaid({ code, isIncomplete }: Cu
   }
 
   return (
-    <div className="group/mermaid relative my-4 first:mt-0 last:mb-0 overflow-hidden">
-      <div className="absolute right-2 top-2 z-10 flex items-center gap-1 opacity-0 transition-opacity group-hover/mermaid:opacity-100 group-focus-within/mermaid:opacity-100 [@media(hover:none)]:opacity-100">
+    <div
+      className={`group/mermaid relative my-4 first:mt-0 last:mb-0 overflow-hidden ${supportsTouchGestures ? 'focus:outline-none' : ''}`}
+      tabIndex={supportsTouchGestures ? 0 : undefined}
+      onClick={supportsTouchGestures ? handleContainerClick : undefined}
+      onBlur={supportsTouchGestures ? handleContainerBlur : undefined}
+    >
+      <div
+        className={`absolute right-2 top-2 z-10 flex items-center gap-1 opacity-0 transition-opacity group-hover/mermaid:opacity-100 group-focus-within/mermaid:opacity-100 ${preferTouchUi ? '[@media(hover:none)]:opacity-0' : '[@media(hover:none)]:opacity-100'}`}
+      >
         <CopyButton text={code} position="static" className={`!h-8 !w-8 !p-2 ${MERMAID_CONTROL_BUTTON_BASE_CLASS}`} />
-        <button
-          type="button"
-          className={MERMAID_CONTROL_BUTTON_CLASS}
-          onClick={() => zoomBy(-MERMAID_SCALE_STEP)}
-          disabled={scale <= MERMAID_MIN_SCALE}
-          title="Zoom out"
-          aria-label="Zoom out diagram"
-        >
-          <ZoomOutIcon />
-        </button>
-        <button
-          type="button"
-          className={MERMAID_CONTROL_BUTTON_CLASS}
-          onClick={() => zoomBy(MERMAID_SCALE_STEP)}
-          disabled={scale >= MERMAID_MAX_SCALE}
-          title="Zoom in"
-          aria-label="Zoom in diagram"
-        >
-          <ZoomInIcon />
-        </button>
+        {supportsTouchGestures && (
+          <button
+            type="button"
+            className={`${MERMAID_CONTROL_BUTTON_CLASS} ${isTouchPanEnabled ? 'ring-1 ring-accent-main-100/60 !text-accent-main-100' : ''}`}
+            onClick={() => setIsTouchPanEnabled(current => !current)}
+            title={isTouchPanEnabled ? 'Disable diagram pan' : 'Enable diagram pan'}
+            aria-label={isTouchPanEnabled ? 'Disable diagram pan' : 'Enable diagram pan'}
+            aria-pressed={isTouchPanEnabled}
+          >
+            <HandIcon />
+          </button>
+        )}
+        {!preferTouchUi && (
+          <>
+            <button
+              type="button"
+              className={MERMAID_CONTROL_BUTTON_CLASS}
+              onClick={() => zoomBy(-MERMAID_SCALE_STEP)}
+              disabled={scale <= MERMAID_MIN_SCALE}
+              title="Zoom out"
+              aria-label="Zoom out diagram"
+            >
+              <ZoomOutIcon />
+            </button>
+            <button
+              type="button"
+              className={MERMAID_CONTROL_BUTTON_CLASS}
+              onClick={() => zoomBy(MERMAID_SCALE_STEP)}
+              disabled={scale >= MERMAID_MAX_SCALE}
+              title="Zoom in"
+              aria-label="Zoom in diagram"
+            >
+              <ZoomInIcon />
+            </button>
+          </>
+        )}
         <button
           type="button"
           className={MERMAID_CONTROL_BUTTON_CLASS}
@@ -424,7 +568,7 @@ const MarkdownMermaid = memo(function MarkdownMermaid({ code, isIncomplete }: Cu
         </button>
       </div>
       <div
-        className="mermaid-diagram min-h-40 min-w-fit cursor-grab touch-none select-none overflow-hidden p-1 active:cursor-grabbing [&_svg]:max-w-full [&_svg]:h-auto"
+        className={`mermaid-diagram min-h-40 min-w-fit select-none overflow-hidden p-1 [&_svg]:max-w-full [&_svg]:h-auto ${supportsTouchGestures && !isTouchPanEnabled ? 'cursor-default touch-pan-y' : 'cursor-grab touch-none active:cursor-grabbing'}`}
         role="img"
         aria-label="Mermaid diagram"
         onPointerDown={handlePointerDown}

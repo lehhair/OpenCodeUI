@@ -6,6 +6,14 @@ const mermaidMocks = vi.hoisted(() => ({
   initialize: vi.fn(),
   render: vi.fn(async () => ({ svg: '<svg><title>Diagram</title></svg>' })),
 }))
+const useInputCapabilitiesMock = vi.hoisted(() =>
+  vi.fn(() => ({
+    canHover: true,
+    hasCoarsePointer: false,
+    hasTouch: false,
+    preferTouchUi: false,
+  })),
+)
 
 vi.mock('./CodeBlock', () => ({
   CodeBlock: ({
@@ -36,6 +44,10 @@ vi.mock('../hooks/useTheme', () => ({
   useTheme: () => ({ resolvedTheme: 'light' }),
 }))
 
+vi.mock('../hooks/useInputCapabilities', () => ({
+  useInputCapabilities: () => useInputCapabilitiesMock(),
+}))
+
 vi.mock('mermaid', () => ({
   default: mermaidMocks,
 }))
@@ -50,6 +62,13 @@ vi.mock('./ui', () => ({
 
 describe('MarkdownRenderer', () => {
   beforeEach(() => {
+    useInputCapabilitiesMock.mockReset()
+    useInputCapabilitiesMock.mockReturnValue({
+      canHover: true,
+      hasCoarsePointer: false,
+      hasTouch: false,
+      preferTouchUi: false,
+    })
     mermaidMocks.initialize.mockClear()
     mermaidMocks.render.mockClear()
     mermaidMocks.render.mockResolvedValue({ svg: '<svg><title>Diagram</title></svg>' })
@@ -165,6 +184,50 @@ describe('MarkdownRenderer', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Reset diagram view' }))
     expect(diagram).toHaveStyle({ transform: 'translate(0px, 0px) scale(1)' })
+  })
+
+  it('uses tap-to-reveal mermaid controls for touch-preferred input', async () => {
+    useInputCapabilitiesMock.mockReturnValue({
+      canHover: false,
+      hasCoarsePointer: true,
+      hasTouch: true,
+      preferTouchUi: true,
+    })
+
+    render(<MarkdownRenderer content={'```mermaid\ngraph TD\n  A-->B\n```'} />)
+
+    const diagram = await screen.findByRole('img', { name: 'Mermaid diagram' })
+    const container = diagram.parentElement
+    const toolbar = screen.getByRole('button', { name: 'Copy to clipboard' }).parentElement
+
+    expect(container).toHaveAttribute('tabindex', '0')
+    expect(toolbar?.className).toContain('[@media(hover:none)]:opacity-0')
+    expect(diagram.className).toContain('touch-pan-y')
+    expect(screen.queryByRole('button', { name: 'Zoom in diagram' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Zoom out diagram' })).not.toBeInTheDocument()
+
+    fireEvent.pointerDown(diagram, { clientX: 10, clientY: 20, pointerId: 2, pointerType: 'touch' })
+    fireEvent.pointerMove(diagram, { clientX: 35, clientY: 55, pointerId: 2, pointerType: 'touch' })
+    expect(diagram).toHaveStyle({ transform: 'translate(0px, 0px) scale(1)' })
+
+    fireEvent.click(diagram)
+    expect(container).toHaveFocus()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Enable diagram pan' }))
+    const panButton = screen.getByRole('button', { name: 'Disable diagram pan' })
+    expect(panButton).toHaveAttribute('aria-pressed', 'true')
+    expect(panButton.className).toContain('ring-accent-main-100')
+    expect(diagram.className).toContain('touch-none')
+
+    fireEvent.pointerDown(diagram, { clientX: 10, clientY: 20, pointerId: 3, pointerType: 'touch' })
+    fireEvent.pointerMove(diagram, { clientX: 35, clientY: 55, pointerId: 3, pointerType: 'touch' })
+    expect(diagram).toHaveStyle({ transform: 'translate(25px, 35px) scale(1)' })
+    fireEvent.pointerUp(diagram, { pointerId: 3, pointerType: 'touch' })
+
+    fireEvent.pointerDown(diagram, { clientX: 100, clientY: 100, pointerId: 4, pointerType: 'touch' })
+    fireEvent.pointerDown(diagram, { clientX: 140, clientY: 100, pointerId: 5, pointerType: 'touch' })
+    fireEvent.pointerMove(diagram, { clientX: 180, clientY: 100, pointerId: 5, pointerType: 'touch' })
+    expect(diagram).toHaveStyle({ transform: 'translate(-50px, -30px) scale(2)' })
   })
 
   it('renders markdown table with copy button in default mode', () => {

@@ -2,15 +2,20 @@ import { render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { CodeBlock } from './CodeBlock'
 
-const useIsMobileMock = vi.fn(() => false)
+const useInputCapabilitiesMock = vi.fn(() => ({
+  canHover: true,
+  hasCoarsePointer: false,
+  hasTouch: false,
+  preferTouchUi: false,
+}))
 const useSyntaxHighlightMock = vi.fn((_code: string, _options: unknown) => ({
   output: '<pre><code>highlighted</code></pre>',
 }))
 const useInViewMock = vi.fn(() => ({ ref: vi.fn(), inView: false }))
 const themeSnapshot = { codeWordWrap: false }
 
-vi.mock('../hooks/useIsMobile', () => ({
-  useIsMobile: () => useIsMobileMock(),
+vi.mock('../hooks/useInputCapabilities', () => ({
+  useInputCapabilities: () => useInputCapabilitiesMock(),
 }))
 
 vi.mock('../hooks/useSyntaxHighlight', () => ({
@@ -38,16 +43,26 @@ vi.mock('./ui', () => ({
 
 describe('CodeBlock', () => {
   beforeEach(() => {
-    useIsMobileMock.mockReset()
-    useIsMobileMock.mockReturnValue(false)
+    useInputCapabilitiesMock.mockReset()
+    useInputCapabilitiesMock.mockReturnValue({
+      canHover: true,
+      hasCoarsePointer: false,
+      hasTouch: false,
+      preferTouchUi: false,
+    })
     useSyntaxHighlightMock.mockClear()
     useSyntaxHighlightMock.mockReturnValue({ output: '<pre><code>highlighted</code></pre>' })
     useInViewMock.mockReset()
     useInViewMock.mockReturnValue({ ref: vi.fn(), inView: false })
   })
 
-  it('requires tap-to-reveal copy button for unlabeled mobile code blocks', () => {
-    useIsMobileMock.mockReturnValue(true)
+  it('requires tap-to-reveal copy button for unlabeled touch-ui code blocks', () => {
+    useInputCapabilitiesMock.mockReturnValue({
+      canHover: false,
+      hasCoarsePointer: true,
+      hasTouch: true,
+      preferTouchUi: true,
+    })
 
     const { container } = render(<CodeBlock code="const value = 1" />)
 
@@ -57,8 +72,13 @@ describe('CodeBlock', () => {
     )
   })
 
-  it('keeps labeled mobile code blocks unchanged', () => {
-    useIsMobileMock.mockReturnValue(true)
+  it('keeps labeled touch-ui code blocks unchanged', () => {
+    useInputCapabilitiesMock.mockReturnValue({
+      canHover: false,
+      hasCoarsePointer: true,
+      hasTouch: true,
+      preferTouchUi: true,
+    })
 
     const { container } = render(<CodeBlock code="const value = 1" language="ts" />)
 

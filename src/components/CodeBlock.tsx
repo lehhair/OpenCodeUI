@@ -1,5 +1,5 @@
 import { memo, useCallback, useMemo, useSyncExternalStore } from 'react'
-import { useIsMobile } from '../hooks/useIsMobile'
+import { useInputCapabilities } from '../hooks/useInputCapabilities'
 import { useSyntaxHighlight } from '../hooks/useSyntaxHighlight'
 import { themeStore } from '../store/themeStore'
 import { CopyButton } from './ui'
@@ -37,7 +37,7 @@ export const CodeBlock = memo(function CodeBlock({
   highlightDelayMs = 0,
 }: CodeBlockProps) {
   const { codeWordWrap } = useSyncExternalStore(themeStore.subscribe, themeStore.getSnapshot)
-  const isMobile = useIsMobile()
+  const { preferTouchUi } = useInputCapabilities()
   const resolvedWordWrap = wordwrap ?? codeWordWrap
   const isReasoning = variant === 'reasoning'
 
@@ -84,7 +84,7 @@ export const CodeBlock = memo(function CodeBlock({
       ? '[&_pre]:pt-0 [&_pre]:pb-3.5 [&_pre]:px-3.5 [&_pre]:m-0'
       : '[&_pre]:p-4 [&_pre]:m-0'
 
-  const requireTapToRevealCopy = isMobile && !isReasoning && !showLabel
+  const requireTapToRevealCopy = preferTouchUi && !isReasoning && !showLabel
 
   const handleTouchStartCapture = useCallback(
     (event: React.TouchEvent<HTMLDivElement>) => {
