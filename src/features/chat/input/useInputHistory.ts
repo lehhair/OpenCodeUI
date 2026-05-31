@@ -1,6 +1,8 @@
-import { useRef, useMemo, useCallback, useEffect } from 'react'
+import { useRef, useMemo, useCallback, useEffect, useSyncExternalStore } from 'react'
+import { themeStore } from '../../../store/themeStore'
 import { useMessages } from '../../../store/messageStoreHooks'
 import { getMessageText, type FilePart, type AgentPart } from '../../../types/message'
+import { hasOmoInternalInitiatorMarker } from '../../../utils/omo'
 import type { Attachment } from '../../attachment'
 
 // ============================================
@@ -38,6 +40,11 @@ interface UseInputHistoryReturn {
 export function useInputHistory({ textareaRef }: UseInputHistoryOptions): UseInputHistoryReturn {
   // 构建历史条目：从消息列表中提取去重的用户消息
   const messages = useMessages()
+  const omoInputHistorySimplify = useSyncExternalStore(
+    themeStore.subscribe,
+    () => themeStore.getSnapshot().omoInputHistorySimplify,
+    () => themeStore.getSnapshot().omoInputHistorySimplify,
+  )
   const userHistory = useMemo((): HistoryEntry[] => {
     const entries: HistoryEntry[] = []
     const seen = new Set<string>()
@@ -45,6 +52,7 @@ export function useInputHistory({ textareaRef }: UseInputHistoryOptions): UseInp
       if (msg.info.role !== 'user') continue
       const t = getMessageText(msg).trim()
       if (!t || seen.has(t)) continue
+      if (omoInputHistorySimplify && hasOmoInternalInitiatorMarker(t)) continue
       seen.add(t)
 
       const atts: Attachment[] = []
@@ -93,7 +101,7 @@ export function useInputHistory({ textareaRef }: UseInputHistoryOptions): UseInp
       entries.push({ text: t, attachments: atts })
     }
     return entries
-  }, [messages])
+  }, [messages, omoInputHistorySimplify])
 
   // -1 = 未进入历史模式，0 = 最后一条，往上递增
   const historyIndexRef = useRef(-1)

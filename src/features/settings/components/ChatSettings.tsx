@@ -10,6 +10,7 @@ export function ChatSettings() {
   const { t } = useTranslation(['settings'])
   const { pathMode, setPathMode, effectiveStyle, detectedStyle, isAutoMode } = usePathMode()
   const [collapseUserMessages, setCollapseUserMessages] = useState(themeStore.collapseUserMessages)
+  const [omoInputHistorySimplify, setOmoInputHistorySimplify] = useState(themeStore.omoInputHistorySimplify)
   const [stepFinishDisplay, setStepFinishDisplay] = useState(themeStore.stepFinishDisplay)
   const [completedAtFormat, setCompletedAtFormat] = useState(themeStore.completedAtFormat)
   const [modelLabelFormat, setModelLabelFormat] = useState(themeStore.modelLabelFormat)
@@ -22,6 +23,12 @@ export function ChatSettings() {
     const v = !collapseUserMessages
     setCollapseUserMessages(v)
     themeStore.setCollapseUserMessages(v)
+  }
+
+  const handleOmoInputHistorySimplifyToggle = () => {
+    const v = !omoInputHistorySimplify
+    setOmoInputHistorySimplify(v)
+    themeStore.setOmoInputHistorySimplify(v)
   }
 
   const handleReasoningDisplayModeChange = (mode: ReasoningDisplayMode) => {
@@ -63,6 +70,18 @@ export function ChatSettings() {
           onClick={handleCollapseToggle}
         >
           <Toggle enabled={collapseUserMessages} onChange={handleCollapseToggle} />
+        </SettingRow>
+
+        <SettingRow
+          label={t('chat.omoInputHistorySimplify')}
+          description={t('chat.omoInputHistorySimplifyDesc')}
+          onClick={handleOmoInputHistorySimplifyToggle}
+        >
+          <Toggle
+            enabled={omoInputHistorySimplify}
+            ariaLabel={t('chat.omoInputHistorySimplify')}
+            onChange={handleOmoInputHistorySimplifyToggle}
+          />
         </SettingRow>
 
         <div>

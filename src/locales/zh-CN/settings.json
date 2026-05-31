@@ -81,6 +81,8 @@
     "conversationExperienceDesc": "消息密度、推理风格和步骤摘要字段",
     "collapseLongMessages": "折叠长消息",
     "collapseLongMessagesDesc": "自动折叠较长的用户消息",
+    "omoInputHistorySimplify": "omo 历史指令精简",
+    "omoInputHistorySimplifyDesc": "开启后将隐藏指令历史的 omo 提示词",
     "descriptiveToolSteps": "描述型步骤",
     "descriptiveToolStepsDesc": "把普通 steps 计数改成带工具描述的摘要，并让单工具调用也显示步骤描述",
     "inlineToolRequests": "工具内嵌请求",

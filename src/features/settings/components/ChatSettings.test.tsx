@@ -10,6 +10,7 @@ const {
   setStepFinishDisplayMock,
   setCompletedAtFormatMock,
   setCollapseUserMessagesMock,
+  setOmoInputHistorySimplifyMock,
   setReasoningDisplayModeMock,
   setShowModelVariantMock,
 } = vi.hoisted(() => ({
@@ -20,6 +21,7 @@ const {
   setStepFinishDisplayMock: vi.fn(),
   setCompletedAtFormatMock: vi.fn(),
   setCollapseUserMessagesMock: vi.fn(),
+  setOmoInputHistorySimplifyMock: vi.fn(),
   setReasoningDisplayModeMock: vi.fn(),
   setShowModelVariantMock: vi.fn(),
 }))
@@ -47,6 +49,9 @@ vi.mock('../../../store/themeStore', () => ({
     get collapseUserMessages() {
       return true
     },
+    get omoInputHistorySimplify() {
+      return omoInputHistorySimplifyValue
+    },
     get reasoningDisplayMode() {
       return 'capsule' as const
     },
@@ -57,6 +62,7 @@ vi.mock('../../../store/themeStore', () => ({
     setCompletedAtFormat: setCompletedAtFormatMock,
     setModelLabelFormat: setModelLabelFormatMock,
     setCollapseUserMessages: setCollapseUserMessagesMock,
+    setOmoInputHistorySimplify: setOmoInputHistorySimplifyMock,
     setReasoningDisplayMode: setReasoningDisplayModeMock,
     setShowModelVariant: setShowModelVariantMock,
   },
@@ -74,6 +80,8 @@ let stepFinishDisplayValue = {
 }
 
 let modelLabelFormatValue: 'code' | 'name' = 'code'
+
+let omoInputHistorySimplifyValue = false
 
 let showModelVariantValue = false
 
@@ -105,12 +113,14 @@ describe('ChatSettings', () => {
     }
 
     modelLabelFormatValue = 'code'
+    omoInputHistorySimplifyValue = false
     showModelVariantValue = false
 
     setModelLabelFormatMock.mockReset()
     setStepFinishDisplayMock.mockReset()
     setCompletedAtFormatMock.mockReset()
     setCollapseUserMessagesMock.mockReset()
+    setOmoInputHistorySimplifyMock.mockReset()
     setReasoningDisplayModeMock.mockReset()
     setShowModelVariantMock.mockReset()
   })
@@ -155,6 +165,34 @@ describe('ChatSettings', () => {
     fireEvent.click(codeTab)
 
     expect(setModelLabelFormatMock).toHaveBeenCalledWith('code')
+  })
+
+  it('shows omo input history simplify after collapse long messages and before thinking display', () => {
+    render(<ChatSettings />)
+
+    const section = screen.getByRole('heading', { name: 'chat.conversationExperience' }).closest('section')
+    expect(section).not.toBeNull()
+
+    const html = section!.innerHTML
+    const collapseIndex = html.indexOf('chat.collapseLongMessages')
+    const omoIndex = html.indexOf('chat.omoInputHistorySimplify')
+    const thinkingIndex = html.indexOf('chat.thinkingDisplay')
+
+    expect(omoIndex).toBeGreaterThan(collapseIndex)
+    expect(omoIndex).toBeLessThan(thinkingIndex)
+  })
+
+  it('reflects the omo input history simplify state and updates both state and store on interaction', () => {
+    omoInputHistorySimplifyValue = false
+
+    render(<ChatSettings />)
+
+    const toggle = screen.getByRole('switch', { name: 'chat.omoInputHistorySimplify' })
+    expect(toggle).toHaveAttribute('aria-checked', 'false')
+
+    fireEvent.click(toggle)
+
+    expect(setOmoInputHistorySimplifyMock).toHaveBeenCalledWith(true)
   })
 
   it('shows model label format directly below the Model row and before completed-at format when both toggles are on', () => {
