@@ -17,6 +17,7 @@ import { playNotificationSoundDeduped } from '../utils/notificationSoundBridge'
 import { subscribeToEvents, getSessionStatus, getPendingPermissions, getPendingQuestions } from '../api'
 import { replyPermission } from '../api/permission'
 import { autoApproveStore } from '../store/autoApproveStore'
+import { claimGlobalSideEffect } from '../utils/globalEventSideEffects'
 import type { ApiMessage, ApiPart, ApiPermissionRequest, ApiQuestionRequest } from '../api/types'
 import type { SessionStatusMap } from '../types/api/session'
 
@@ -120,6 +121,7 @@ const pendingQuestions = new Map<string, PendingRequest<ApiQuestionRequest>[]>()
 
 // 5秒后过期，防止内存泄漏
 const PENDING_TIMEOUT = 5000
+const AUTO_APPROVE_SIDE_EFFECT_TTL = 10000
 
 function cleanupExpired<T>(map: Map<string, PendingRequest<T>[]>) {
   const now = Date.now()
@@ -260,6 +262,33 @@ function isSessionDirectlyOpen(sessionId: string): boolean {
   return false
 }
 
+function runGlobalSideEffect(key: string, sideEffect: () => void) {
+  if (!claimGlobalSideEffect(key)) return
+  sideEffect()
+}
+
+function pushGlobalNotification(
+  key: string,
+  soundKey: string,
+  type: Parameters<typeof notificationStore.push>[0],
+  title: string,
+  body: string,
+  sessionId: string,
+  directory?: string,
+) {
+  runGlobalSideEffect(key, () => {
+    notificationStore.push(type, title, body, sessionId, directory, { soundKey })
+  })
+}
+
+function claimAutoApproveSideEffect(requestId: string): boolean {
+  if (!autoApproveStore.claimAutoReply(requestId)) return false
+  if (claimGlobalSideEffect(`auto-approve:${requestId}`, AUTO_APPROVE_SIDE_EFFECT_TTL)) return true
+
+  autoApproveStore.releaseAutoReply(requestId)
+  return false
+}
+
 export function useGlobalEvents(directories?: string[]) {
   const directoriesRef = useRef<string[] | undefined>(directories)
   const refreshRef = useRef<((strategy?: 'replace' | 'merge') => void) | null>(null)
@@ -323,7 +352,12 @@ export function useGlobalEvents(directories?: string[]) {
               ? !currentDirectories || currentDirectories.length === 0 || currentDirectories.includes(pending.directory)
               : pending.scopeKey === currentScopeKey
             if (!matchesScope) continue
-            activeSessionStore.addPendingRequest(pending.requestId, pending.sessionId, pending.type, pending.description)
+            activeSessionStore.addPendingRequest(
+              pending.requestId,
+              pending.sessionId,
+              pending.type,
+              pending.description,
+            )
           }
           activeSessionStore.setSessionMetaBulk(sessionMetaEntries)
         })
@@ -342,7 +376,8 @@ export function useGlobalEvents(directories?: string[]) {
     const approveGlobalPendingPermissions = () => {
       if (!autoApproveStore.approvePendingOnFullAuto || autoApproveStore.fullAutoMode !== 'global') return
 
-      const directoriesToFetch = directoriesRef.current && directoriesRef.current.length > 0 ? directoriesRef.current : [undefined]
+      const directoriesToFetch =
+        directoriesRef.current && directoriesRef.current.length > 0 ? directoriesRef.current : [undefined]
 
       void Promise.all(
         directoriesToFetch.map(async directory => {
@@ -350,7 +385,7 @@ export function useGlobalEvents(directories?: string[]) {
 
           await Promise.all(
             permissions.map(async request => {
-              if (!autoApproveStore.claimAutoReply(request.id)) return
+              if (!claimAutoApproveSideEffect(request.id)) return
 
               const dir = directory ?? activeSessionStore.getSessionMeta(request.sessionID)?.directory
               try {
@@ -442,9 +477,17 @@ export function useGlobalEvents(directories?: string[]) {
           if (!belongsToCurrentSession(error.sessionID)) {
             const meta = activeSessionStore.getSessionMeta(error.sessionID)
             const sessionLabel = meta?.title || error.sessionID.slice(0, 8)
-            notificationStore.push('error', sessionLabel, 'Session error', error.sessionID, meta?.directory)
+            pushGlobalNotification(
+              `notification:error:${error.sessionID}`,
+              `sound:error:${error.sessionID}`,
+              'error',
+              sessionLabel,
+              'Session error',
+              error.sessionID,
+              meta?.directory,
+            )
           } else if (isSessionDirectlyOpen(error.sessionID) && soundStore.getSnapshot().currentSessionEnabled) {
-            playNotificationSoundDeduped('error')
+            runGlobalSideEffect(`sound:error:${error.sessionID}`, () => playNotificationSoundDeduped('error'))
           }
         }
         dispatchToConsumers(error.sessionID, cb => cb.onSessionError?.(error.sessionID))
@@ -477,7 +520,7 @@ export function useGlobalEvents(directories?: string[]) {
         // Full Auto 全局模式拦截 — 所有会话的权限请求直接放行
         if (autoApproveStore.fullAutoMode === 'global') {
           const dir = activeSessionStore.getSessionMeta(request.sessionID)?.directory
-          if (autoApproveStore.claimAutoReply(request.id)) {
+          if (claimAutoApproveSideEffect(request.id)) {
             replyPermission(request.id, 'once', undefined, dir, request.sessionID).catch(() => {
               autoApproveStore.releaseAutoReply(request.id)
             })
@@ -504,10 +547,18 @@ export function useGlobalEvents(directories?: string[]) {
 
         // Toast 通知 — 不属于当前 session family 的才弹
         if (!belongsToCurrentSession(request.sessionID)) {
-          notificationStore.push('permission', `${sessionLabel} — Permission`, desc, request.sessionID, meta?.directory)
+          pushGlobalNotification(
+            `notification:permission:${request.id}`,
+            `sound:permission:${request.id}`,
+            'permission',
+            `${sessionLabel} — Permission`,
+            desc,
+            request.sessionID,
+            meta?.directory,
+          )
         } else if (isSessionDirectlyOpen(request.sessionID) && soundStore.getSnapshot().currentSessionEnabled) {
           // 当前会话：如果开启了当前会话提示音
-          playNotificationSoundDeduped('permission')
+          runGlobalSideEffect(`sound:permission:${request.id}`, () => playNotificationSoundDeduped('permission'))
         }
 
         if (belongsToCurrentSession(request.sessionID)) {
@@ -551,9 +602,17 @@ export function useGlobalEvents(directories?: string[]) {
 
         // Toast 通知
         if (!belongsToCurrentSession(request.sessionID)) {
-          notificationStore.push('question', `${sessionLabel} — Question`, desc, request.sessionID, meta?.directory)
+          pushGlobalNotification(
+            `notification:question:${request.id}`,
+            `sound:question:${request.id}`,
+            'question',
+            `${sessionLabel} — Question`,
+            desc,
+            request.sessionID,
+            meta?.directory,
+          )
         } else if (isSessionDirectlyOpen(request.sessionID) && soundStore.getSnapshot().currentSessionEnabled) {
-          playNotificationSoundDeduped('question')
+          runGlobalSideEffect(`sound:question:${request.id}`, () => playNotificationSoundDeduped('question'))
         }
 
         if (belongsToCurrentSession(request.sessionID)) {
@@ -597,14 +656,22 @@ export function useGlobalEvents(directories?: string[]) {
         if (wasBusy && data.status.type === 'idle' && !belongsToCurrentSession(data.sessionID)) {
           const meta = activeSessionStore.getSessionMeta(data.sessionID)
           const sessionLabel = meta?.title || data.sessionID.slice(0, 8)
-          notificationStore.push('completed', sessionLabel, 'Session completed', data.sessionID, meta?.directory)
+          pushGlobalNotification(
+            `notification:completed:${data.sessionID}`,
+            `sound:completed:${data.sessionID}`,
+            'completed',
+            sessionLabel,
+            'Session completed',
+            data.sessionID,
+            meta?.directory,
+          )
         } else if (
           wasBusy &&
           data.status.type === 'idle' &&
           isSessionDirectlyOpen(data.sessionID) &&
           soundStore.getSnapshot().currentSessionEnabled
         ) {
-          playNotificationSoundDeduped('completed')
+          runGlobalSideEffect(`sound:completed:${data.sessionID}`, () => playNotificationSoundDeduped('completed'))
         }
       },
 
