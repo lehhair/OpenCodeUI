@@ -19,7 +19,7 @@ const {
   childBelongsToSessionMock,
   getFocusedSessionIdMock,
   notificationPushMock,
-  playNotificationSoundDedupedMock,
+  playNotificationSoundClaimedMock,
   getSoundSnapshotMock,
   isSystemEnabledMock,
   activeSessionStoreMock,
@@ -40,7 +40,7 @@ const {
   childBelongsToSessionMock: vi.fn<(sessionId: string, rootSessionId: string) => boolean>(() => false),
   getFocusedSessionIdMock: vi.fn<() => string | null>(() => null),
   notificationPushMock: vi.fn(),
-  playNotificationSoundDedupedMock: vi.fn(),
+    playNotificationSoundClaimedMock: vi.fn(),
   isSystemEnabledMock: vi.fn((type: string) => type !== 'permission'),
   applyServerConnectedTimestampMock: vi.fn(),
   getActiveServerIdMock: vi.fn(() => 'local'),
@@ -130,7 +130,7 @@ vi.mock('../store/notificationEventSettingsStore', () => ({
 }))
 
 vi.mock('../utils/notificationSoundBridge', () => ({
-  playNotificationSoundDeduped: playNotificationSoundDedupedMock,
+  playNotificationSoundClaimed: playNotificationSoundClaimedMock,
 }))
 
 vi.mock('../store/autoApproveStore', () => ({
@@ -151,7 +151,7 @@ describe('useGlobalEvents', () => {
     childBelongsToSessionMock.mockReset()
     getFocusedSessionIdMock.mockReset()
     notificationPushMock.mockReset()
-    playNotificationSoundDedupedMock.mockReset()
+    playNotificationSoundClaimedMock.mockReset()
     getSoundSnapshotMock.mockReset()
     isSystemEnabledMock.mockReset()
     applyServerConnectedTimestampMock.mockReset()
@@ -352,7 +352,7 @@ describe('useGlobalEvents', () => {
     })
 
     expect(notificationPushMock).not.toHaveBeenCalled()
-    expect(playNotificationSoundDedupedMock).not.toHaveBeenCalled()
+    expect(playNotificationSoundClaimedMock).not.toHaveBeenCalled()
   })
 
   it('keeps later pending question requests for the same session after one reply arrives', async () => {
@@ -522,18 +522,16 @@ describe('useGlobalEvents', () => {
     })
 
     expect(notificationPushMock).not.toHaveBeenCalled()
-    expect(playNotificationSoundDedupedMock).toHaveBeenCalledWith('permission')
-    expect(claimGlobalSideEffectMock).toHaveBeenCalledWith('sound:permission:perm-2')
+    expect(playNotificationSoundClaimedMock).toHaveBeenCalledWith('permission', 'sound:permission:perm-2')
   })
 
-  it('skips current-session sound already claimed by another window', async () => {
+  it('delegates current-session sound to the locked sound bridge', async () => {
     let callbacks: Parameters<typeof subscribeToEventsMock>[0] | undefined
     subscribeToEventsMock.mockImplementation(cb => {
       callbacks = cb
       return vi.fn()
     })
     getFocusedSessionIdMock.mockReturnValue('child-session')
-    claimGlobalSideEffectMock.mockReturnValue(false)
 
     renderHook(() => useGlobalEvents())
 
@@ -552,7 +550,7 @@ describe('useGlobalEvents', () => {
       'permission',
       'bash',
     )
-    expect(playNotificationSoundDedupedMock).not.toHaveBeenCalled()
+    expect(playNotificationSoundClaimedMock).toHaveBeenCalledWith('permission', 'sound:permission:perm-claimed')
   })
 
   it('uses the same sound claim key for current-session sound and background notification sound', async () => {
@@ -574,11 +572,10 @@ describe('useGlobalEvents', () => {
       patterns: [],
     })
 
-    expect(claimGlobalSideEffectMock).toHaveBeenCalledWith('sound:permission:perm-mixed-window')
-    expect(playNotificationSoundDedupedMock).toHaveBeenCalledWith('permission')
+    expect(playNotificationSoundClaimedMock).toHaveBeenCalledWith('permission', 'sound:permission:perm-mixed-window')
 
     notificationPushMock.mockClear()
-    playNotificationSoundDedupedMock.mockClear()
+    playNotificationSoundClaimedMock.mockClear()
     getFocusedSessionIdMock.mockReturnValue(null)
 
     callbacks!.onPermissionAsked?.({
@@ -596,7 +593,7 @@ describe('useGlobalEvents', () => {
       '/workspace',
       { soundKey: 'sound:permission:perm-mixed-window' },
     )
-    expect(playNotificationSoundDedupedMock).not.toHaveBeenCalled()
+    expect(playNotificationSoundClaimedMock).not.toHaveBeenCalled()
   })
 
   it('still plays current-session sound when the matching system notification toggle is disabled', async () => {
@@ -620,7 +617,7 @@ describe('useGlobalEvents', () => {
     })
 
     expect(notificationPushMock).not.toHaveBeenCalled()
-    expect(playNotificationSoundDedupedMock).toHaveBeenCalledWith('permission')
+    expect(playNotificationSoundClaimedMock).toHaveBeenCalledWith('permission', 'sound:permission:perm-sound')
   })
 
   it.each([
@@ -669,7 +666,7 @@ describe('useGlobalEvents', () => {
       callbacks![trigger as keyof typeof callbacks]?.(payload as never)
 
       expect(notificationPushMock).toHaveBeenCalledTimes(1)
-      expect(playNotificationSoundDedupedMock).not.toHaveBeenCalled()
+      expect(playNotificationSoundClaimedMock).not.toHaveBeenCalled()
     },
   )
 

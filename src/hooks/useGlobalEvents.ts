@@ -13,7 +13,7 @@ import { messageStore, childSessionStore, paneLayoutStore, serverStore } from '.
 import { activeSessionStore } from '../store/activeSessionStore'
 import { notificationStore } from '../store/notificationStore'
 import { soundStore } from '../store/soundStore'
-import { playNotificationSoundDeduped } from '../utils/notificationSoundBridge'
+import { playNotificationSoundClaimed } from '../utils/notificationSoundBridge'
 import { subscribeToEvents, getSessionStatus, getPendingPermissions, getPendingQuestions } from '../api'
 import { replyPermission } from '../api/permission'
 import { autoApproveStore } from '../store/autoApproveStore'
@@ -487,7 +487,7 @@ export function useGlobalEvents(directories?: string[]) {
               meta?.directory,
             )
           } else if (isSessionDirectlyOpen(error.sessionID) && soundStore.getSnapshot().currentSessionEnabled) {
-            runGlobalSideEffect(`sound:error:${error.sessionID}`, () => playNotificationSoundDeduped('error'))
+            playNotificationSoundClaimed('error', `sound:error:${error.sessionID}`)
           }
         }
         dispatchToConsumers(error.sessionID, cb => cb.onSessionError?.(error.sessionID))
@@ -558,7 +558,7 @@ export function useGlobalEvents(directories?: string[]) {
           )
         } else if (isSessionDirectlyOpen(request.sessionID) && soundStore.getSnapshot().currentSessionEnabled) {
           // 当前会话：如果开启了当前会话提示音
-          runGlobalSideEffect(`sound:permission:${request.id}`, () => playNotificationSoundDeduped('permission'))
+          playNotificationSoundClaimed('permission', `sound:permission:${request.id}`)
         }
 
         if (belongsToCurrentSession(request.sessionID)) {
@@ -612,7 +612,7 @@ export function useGlobalEvents(directories?: string[]) {
             meta?.directory,
           )
         } else if (isSessionDirectlyOpen(request.sessionID) && soundStore.getSnapshot().currentSessionEnabled) {
-          runGlobalSideEffect(`sound:question:${request.id}`, () => playNotificationSoundDeduped('question'))
+          playNotificationSoundClaimed('question', `sound:question:${request.id}`)
         }
 
         if (belongsToCurrentSession(request.sessionID)) {
@@ -671,7 +671,7 @@ export function useGlobalEvents(directories?: string[]) {
           isSessionDirectlyOpen(data.sessionID) &&
           soundStore.getSnapshot().currentSessionEnabled
         ) {
-          runGlobalSideEffect(`sound:completed:${data.sessionID}`, () => playNotificationSoundDeduped('completed'))
+          playNotificationSoundClaimed('completed', `sound:completed:${data.sessionID}`)
         }
       },
 
