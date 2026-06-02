@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { NotificationPushListener } from '../store/notificationStore'
 
-const { claimGlobalSideEffectMock, getSoundSnapshotMock, getCustomAudioBlobMock, playSoundMock, onPushMock } =
+const { claimGlobalSideEffectLockedMock, getSoundSnapshotMock, getCustomAudioBlobMock, playSoundMock, onPushMock } =
   vi.hoisted(() => ({
-    claimGlobalSideEffectMock: vi.fn(() => true),
+    claimGlobalSideEffectLockedMock: vi.fn(() => Promise.resolve(true)),
     getSoundSnapshotMock: vi.fn(() => ({
       enabled: true,
       volume: 0.5,
@@ -20,7 +20,7 @@ const { claimGlobalSideEffectMock, getSoundSnapshotMock, getCustomAudioBlobMock,
   }))
 
 vi.mock('./globalEventSideEffects', () => ({
-  claimGlobalSideEffect: claimGlobalSideEffectMock,
+  claimGlobalSideEffectLocked: claimGlobalSideEffectLockedMock,
 }))
 
 vi.mock('../store/notificationStore', () => ({
@@ -42,12 +42,12 @@ vi.mock('./soundPlayer', () => ({
 
 describe('notificationSoundBridge', () => {
   beforeEach(() => {
-    claimGlobalSideEffectMock.mockReset()
+    claimGlobalSideEffectLockedMock.mockReset()
     getSoundSnapshotMock.mockClear()
     getCustomAudioBlobMock.mockClear()
     playSoundMock.mockReset()
     onPushMock.mockReset()
-    claimGlobalSideEffectMock.mockReturnValue(true)
+    claimGlobalSideEffectLockedMock.mockResolvedValue(true)
     getSoundSnapshotMock.mockReturnValue({
       enabled: true,
       volume: 0.5,
@@ -72,7 +72,8 @@ describe('notificationSoundBridge', () => {
 
     listener?.('permission', { soundKey: 'sound:permission:perm-1' })
 
-    expect(claimGlobalSideEffectMock).toHaveBeenCalledWith('sound:permission:perm-1')
+    await vi.waitFor(() => expect(playSoundMock).toHaveBeenCalled())
+    expect(claimGlobalSideEffectLockedMock).toHaveBeenCalledWith('sound:permission:perm-1')
     expect(playSoundMock).toHaveBeenCalledWith({
       soundId: 'ding',
       customAudioData: null,
@@ -87,13 +88,22 @@ describe('notificationSoundBridge', () => {
       listener = cb
       return vi.fn()
     })
-    claimGlobalSideEffectMock.mockReturnValue(false)
+    claimGlobalSideEffectLockedMock.mockResolvedValue(false)
 
     initNotificationSound()
 
     listener?.('permission', { soundKey: 'sound:permission:perm-1' })
 
-    expect(claimGlobalSideEffectMock).toHaveBeenCalledWith('sound:permission:perm-1')
+    await vi.waitFor(() => expect(claimGlobalSideEffectLockedMock).toHaveBeenCalledWith('sound:permission:perm-1'))
     expect(playSoundMock).not.toHaveBeenCalled()
+  })
+
+  it('uses the locked claim for current-session sounds', async () => {
+    const { playNotificationSoundClaimed } = await import('./notificationSoundBridge')
+
+    playNotificationSoundClaimed('completed', 'sound:completed:session-1')
+
+    await vi.waitFor(() => expect(playSoundMock).toHaveBeenCalledTimes(1))
+    expect(claimGlobalSideEffectLockedMock).toHaveBeenCalledWith('sound:completed:session-1')
   })
 })
