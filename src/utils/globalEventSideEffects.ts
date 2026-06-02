@@ -12,7 +12,9 @@ interface SideEffectClaim {
 }
 
 const STORAGE_PREFIX = 'opencode:global-side-effect:'
+const LOCK_PREFIX = 'opencode:global-side-effect-lock:'
 const DEFAULT_TTL_MS = 3000
+const FALLBACK_CONFIRM_DELAY_MS = 25
 
 function createClaimToken(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2)}`
@@ -49,6 +51,12 @@ function scheduleClaimCleanup(storageKey: string, token: string, ttlMs: number) 
   setTimeout(() => removeStoredClaim(storageKey, token), ttlMs)
 }
 
+function waitForFallbackConfirmation(): Promise<void> {
+  return new Promise(resolve => {
+    setTimeout(resolve, FALLBACK_CONFIRM_DELAY_MS)
+  })
+}
+
 export function claimGlobalSideEffect(key: string, ttlMs: number = DEFAULT_TTL_MS): boolean {
   const storageKey = `${STORAGE_PREFIX}${key}`
   const now = Date.now()
@@ -74,5 +82,46 @@ export function claimGlobalSideEffect(key: string, ttlMs: number = DEFAULT_TTL_M
     // If storage is unavailable, prefer preserving the side effect over
     // dropping notifications/sounds entirely.
     return true
+  }
+}
+
+async function claimGlobalSideEffectAfterConfirmation(key: string, ttlMs: number): Promise<boolean> {
+  const storageKey = `${STORAGE_PREFIX}${key}`
+  const now = Date.now()
+
+  try {
+    const existing = parseClaim(localStorage.getItem(storageKey))
+    if (existing && existing.expiresAt > now) return false
+
+    const token = createClaimToken()
+    const claim: SideEffectClaim = {
+      token,
+      expiresAt: now + ttlMs,
+    }
+
+    localStorage.setItem(storageKey, JSON.stringify(claim))
+    await waitForFallbackConfirmation()
+
+    const stored = parseClaim(localStorage.getItem(storageKey))
+    const claimed = stored?.token === token && stored.expiresAt > Date.now()
+    if (claimed) {
+      scheduleClaimCleanup(storageKey, claim.token, ttlMs)
+    }
+    return claimed
+  } catch {
+    // If storage is unavailable, prefer preserving the side effect over
+    // dropping notifications/sounds entirely.
+    return true
+  }
+}
+
+export async function claimGlobalSideEffectLocked(key: string, ttlMs: number = DEFAULT_TTL_MS): Promise<boolean> {
+  const lockManager = typeof navigator === 'undefined' ? undefined : navigator.locks
+  if (!lockManager) return claimGlobalSideEffectAfterConfirmation(key, ttlMs)
+
+  try {
+    return await lockManager.request(`${LOCK_PREFIX}${key}`, { mode: 'exclusive' }, () => claimGlobalSideEffect(key, ttlMs))
+  } catch {
+    return claimGlobalSideEffectAfterConfirmation(key, ttlMs)
   }
 }
