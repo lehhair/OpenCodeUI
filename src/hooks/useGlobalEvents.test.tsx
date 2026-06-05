@@ -19,16 +19,19 @@ const {
   childBelongsToSessionMock,
   getFocusedSessionIdMock,
   notificationPushMock,
-  playNotificationSoundDedupedMock,
+  playNotificationSoundClaimedMock,
   getSoundSnapshotMock,
   isSystemEnabledMock,
   activeSessionStoreMock,
   applyServerConnectedTimestampMock,
   getActiveServerIdMock,
   autoApproveStoreMock,
+  claimGlobalSideEffectMock,
 } = vi.hoisted(() => ({
   subscribeToEventsMock: vi.fn(),
-  getSessionStatusMock: vi.fn<(directory?: string) => Promise<Record<string, { type: string }>>>(() => Promise.resolve({})),
+  getSessionStatusMock: vi.fn<(directory?: string) => Promise<Record<string, { type: string }>>>(() =>
+    Promise.resolve({}),
+  ),
   getPendingPermissionsMock: vi.fn(() =>
     Promise.resolve([] as Array<{ id: string; sessionID: string; permission: string; patterns?: string[] }>),
   ),
@@ -37,7 +40,7 @@ const {
   childBelongsToSessionMock: vi.fn<(sessionId: string, rootSessionId: string) => boolean>(() => false),
   getFocusedSessionIdMock: vi.fn<() => string | null>(() => null),
   notificationPushMock: vi.fn(),
-  playNotificationSoundDedupedMock: vi.fn(),
+    playNotificationSoundClaimedMock: vi.fn(),
   isSystemEnabledMock: vi.fn((type: string) => type !== 'permission'),
   applyServerConnectedTimestampMock: vi.fn(),
   getActiveServerIdMock: vi.fn(() => 'local'),
@@ -64,6 +67,7 @@ const {
     claimAutoReply: vi.fn((_requestId: string) => true),
     releaseAutoReply: vi.fn((_requestId: string) => undefined),
   },
+  claimGlobalSideEffectMock: vi.fn(() => true),
 }))
 
 vi.mock('../api', () => ({
@@ -126,11 +130,15 @@ vi.mock('../store/notificationEventSettingsStore', () => ({
 }))
 
 vi.mock('../utils/notificationSoundBridge', () => ({
-  playNotificationSoundDeduped: playNotificationSoundDedupedMock,
+  playNotificationSoundClaimed: playNotificationSoundClaimedMock,
 }))
 
 vi.mock('../store/autoApproveStore', () => ({
   autoApproveStore: autoApproveStoreMock,
+}))
+
+vi.mock('../utils/globalEventSideEffects', () => ({
+  claimGlobalSideEffect: claimGlobalSideEffectMock,
 }))
 
 describe('useGlobalEvents', () => {
@@ -143,7 +151,7 @@ describe('useGlobalEvents', () => {
     childBelongsToSessionMock.mockReset()
     getFocusedSessionIdMock.mockReset()
     notificationPushMock.mockReset()
-    playNotificationSoundDedupedMock.mockReset()
+    playNotificationSoundClaimedMock.mockReset()
     getSoundSnapshotMock.mockReset()
     isSystemEnabledMock.mockReset()
     applyServerConnectedTimestampMock.mockReset()
@@ -152,6 +160,7 @@ describe('useGlobalEvents', () => {
     autoApproveStoreMock.approvePendingOnFullAuto = false
     autoApproveStoreMock.subscribe.mockReset()
     autoApproveStoreMock.claimAutoReply.mockReset()
+    claimGlobalSideEffectMock.mockReset()
     autoApproveStoreMock.releaseAutoReply.mockReset()
     Object.values(activeSessionStoreMock).forEach(value => {
       if (typeof value === 'function' && 'mockClear' in value) value.mockClear()
@@ -165,6 +174,7 @@ describe('useGlobalEvents', () => {
     getActiveServerIdMock.mockReturnValue('local')
     autoApproveStoreMock.subscribe.mockReturnValue(vi.fn())
     autoApproveStoreMock.claimAutoReply.mockReturnValue(true)
+    claimGlobalSideEffectMock.mockReturnValue(true)
     activeSessionStoreMock.getSessionMeta.mockReturnValue({ title: 'Child Session', directory: '/workspace' })
     activeSessionStoreMock.getSnapshot.mockReturnValue({ statusMap: {} })
   })
@@ -342,7 +352,7 @@ describe('useGlobalEvents', () => {
     })
 
     expect(notificationPushMock).not.toHaveBeenCalled()
-    expect(playNotificationSoundDedupedMock).not.toHaveBeenCalled()
+    expect(playNotificationSoundClaimedMock).not.toHaveBeenCalled()
   })
 
   it('keeps later pending question requests for the same session after one reply arrives', async () => {
@@ -424,6 +434,54 @@ describe('useGlobalEvents', () => {
       )
     })
     expect(autoApproveStoreMock.claimAutoReply).toHaveBeenCalledWith('perm-global')
+    expect(claimGlobalSideEffectMock).toHaveBeenCalledWith('auto-approve:perm-global', 10000)
+  })
+
+  it('does not auto approve a request already claimed by another window', async () => {
+    autoApproveStoreMock.fullAutoMode = 'global'
+    autoApproveStoreMock.approvePendingOnFullAuto = true
+    claimGlobalSideEffectMock.mockReturnValue(false)
+    getPendingPermissionsMock.mockResolvedValue([
+      {
+        id: 'perm-global',
+        sessionID: 'background-session',
+        permission: 'bash',
+        patterns: ['npm test'],
+      },
+    ])
+
+    renderHook(() => useGlobalEvents(['/workspace']))
+
+    await waitFor(() => expect(getPendingPermissionsMock).toHaveBeenCalled())
+
+    expect(autoApproveStoreMock.claimAutoReply).toHaveBeenCalledWith('perm-global')
+    expect(autoApproveStoreMock.releaseAutoReply).toHaveBeenCalledWith('perm-global')
+    expect(replyPermissionMock).not.toHaveBeenCalled()
+  })
+
+  it('releases a global full-auto permission event already claimed by another window', async () => {
+    let callbacks: Parameters<typeof subscribeToEventsMock>[0] | undefined
+    subscribeToEventsMock.mockImplementation(cb => {
+      callbacks = cb
+      return vi.fn()
+    })
+    autoApproveStoreMock.fullAutoMode = 'global'
+    claimGlobalSideEffectMock.mockReturnValue(false)
+
+    renderHook(() => useGlobalEvents())
+
+    await waitFor(() => expect(callbacks).toBeDefined())
+
+    callbacks!.onPermissionAsked?.({
+      id: 'perm-global-claimed',
+      sessionID: 'background-session',
+      permission: 'bash',
+      patterns: [],
+    })
+
+    expect(autoApproveStoreMock.claimAutoReply).toHaveBeenCalledWith('perm-global-claimed')
+    expect(autoApproveStoreMock.releaseAutoReply).toHaveBeenCalledWith('perm-global-claimed')
+    expect(replyPermissionMock).not.toHaveBeenCalled()
   })
 
   it('does not approve already waiting permissions when the pending sweep is disabled', async () => {
@@ -464,7 +522,78 @@ describe('useGlobalEvents', () => {
     })
 
     expect(notificationPushMock).not.toHaveBeenCalled()
-    expect(playNotificationSoundDedupedMock).toHaveBeenCalledWith('permission')
+    expect(playNotificationSoundClaimedMock).toHaveBeenCalledWith('permission', 'sound:permission:perm-2')
+  })
+
+  it('delegates current-session sound to the locked sound bridge', async () => {
+    let callbacks: Parameters<typeof subscribeToEventsMock>[0] | undefined
+    subscribeToEventsMock.mockImplementation(cb => {
+      callbacks = cb
+      return vi.fn()
+    })
+    getFocusedSessionIdMock.mockReturnValue('child-session')
+
+    renderHook(() => useGlobalEvents())
+
+    await waitFor(() => expect(callbacks).toBeDefined())
+
+    callbacks!.onPermissionAsked?.({
+      id: 'perm-claimed',
+      sessionID: 'child-session',
+      permission: 'bash',
+      patterns: [],
+    })
+
+    expect(activeSessionStoreMock.addPendingRequest).toHaveBeenCalledWith(
+      'perm-claimed',
+      'child-session',
+      'permission',
+      'bash',
+    )
+    expect(playNotificationSoundClaimedMock).toHaveBeenCalledWith('permission', 'sound:permission:perm-claimed')
+  })
+
+  it('uses the same sound claim key for current-session sound and background notification sound', async () => {
+    let callbacks: Parameters<typeof subscribeToEventsMock>[0] | undefined
+    subscribeToEventsMock.mockImplementation(cb => {
+      callbacks = cb
+      return vi.fn()
+    })
+    getFocusedSessionIdMock.mockReturnValue('child-session')
+
+    renderHook(() => useGlobalEvents())
+
+    await waitFor(() => expect(callbacks).toBeDefined())
+
+    callbacks!.onPermissionAsked?.({
+      id: 'perm-mixed-window',
+      sessionID: 'child-session',
+      permission: 'bash',
+      patterns: [],
+    })
+
+    expect(playNotificationSoundClaimedMock).toHaveBeenCalledWith('permission', 'sound:permission:perm-mixed-window')
+
+    notificationPushMock.mockClear()
+    playNotificationSoundClaimedMock.mockClear()
+    getFocusedSessionIdMock.mockReturnValue(null)
+
+    callbacks!.onPermissionAsked?.({
+      id: 'perm-mixed-window',
+      sessionID: 'child-session',
+      permission: 'bash',
+      patterns: [],
+    })
+
+    expect(notificationPushMock).toHaveBeenCalledWith(
+      'permission',
+      'Child Session — Permission',
+      'bash',
+      'child-session',
+      '/workspace',
+      { soundKey: 'sound:permission:perm-mixed-window' },
+    )
+    expect(playNotificationSoundClaimedMock).not.toHaveBeenCalled()
   })
 
   it('still plays current-session sound when the matching system notification toggle is disabled', async () => {
@@ -488,7 +617,7 @@ describe('useGlobalEvents', () => {
     })
 
     expect(notificationPushMock).not.toHaveBeenCalled()
-    expect(playNotificationSoundDedupedMock).toHaveBeenCalledWith('permission')
+    expect(playNotificationSoundClaimedMock).toHaveBeenCalledWith('permission', 'sound:permission:perm-sound')
   })
 
   it.each([
@@ -537,7 +666,35 @@ describe('useGlobalEvents', () => {
       callbacks![trigger as keyof typeof callbacks]?.(payload as never)
 
       expect(notificationPushMock).toHaveBeenCalledTimes(1)
-      expect(playNotificationSoundDedupedMock).not.toHaveBeenCalled()
+      expect(playNotificationSoundClaimedMock).not.toHaveBeenCalled()
     },
   )
+
+  it('keeps state updates but skips background notification already claimed by another window', async () => {
+    let callbacks: Parameters<typeof subscribeToEventsMock>[0] | undefined
+    subscribeToEventsMock.mockImplementation(cb => {
+      callbacks = cb
+      return vi.fn()
+    })
+    claimGlobalSideEffectMock.mockReturnValue(false)
+
+    renderHook(() => useGlobalEvents())
+
+    await waitFor(() => expect(callbacks).toBeDefined())
+
+    callbacks!.onPermissionAsked?.({
+      id: 'perm-background-claimed',
+      sessionID: 'background-session',
+      permission: 'bash',
+      patterns: [],
+    })
+
+    expect(activeSessionStoreMock.addPendingRequest).toHaveBeenCalledWith(
+      'perm-background-claimed',
+      'background-session',
+      'permission',
+      'bash',
+    )
+    expect(notificationPushMock).not.toHaveBeenCalled()
+  })
 })

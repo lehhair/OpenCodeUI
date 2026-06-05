@@ -17,7 +17,11 @@ import { useSyncExternalStore } from 'react'
 export type NotificationType = 'permission' | 'question' | 'completed' | 'error'
 
 /** push 后的回调，用于声音播放等扩展 */
-export type NotificationPushListener = (type: NotificationType) => void
+export interface NotificationPushOptions {
+  soundKey?: string
+}
+
+export type NotificationPushListener = (type: NotificationType, options?: NotificationPushOptions) => void
 
 export interface NotificationEntry {
   id: string
@@ -107,7 +111,9 @@ class NotificationStore {
   }
 
   private notify() {
-    this.subscribers.forEach(cb => cb())
+    this.subscribers.forEach(cb => {
+      cb()
+    })
   }
 
   private persist() {
@@ -137,7 +143,14 @@ class NotificationStore {
   // 推送通知（加历史 + 弹 toast）
   // ============================================
 
-  push(type: NotificationType, title: string, body: string, sessionId: string, directory?: string) {
+  push(
+    type: NotificationType,
+    title: string,
+    body: string,
+    sessionId: string,
+    directory?: string,
+    options?: NotificationPushOptions,
+  ) {
     const entry: NotificationEntry = {
       id: `notif_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
       type,
@@ -173,7 +186,7 @@ class NotificationStore {
     // 触发 push 后回调（声音播放等）
     this.pushListeners.forEach(fn => {
       try {
-        fn(type)
+        fn(type, options)
       } catch {
         // 回调异常不影响通知流程
       }
@@ -271,7 +284,9 @@ class NotificationStore {
   }
 
   dismissAllToasts() {
-    this.toastTimers.forEach(timer => clearTimeout(timer))
+    this.toastTimers.forEach(timer => {
+      clearTimeout(timer)
+    })
     this.toastTimers.clear()
     this.state = { ...this.state, toasts: [] }
     this.notify()

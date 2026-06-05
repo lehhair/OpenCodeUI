@@ -14,6 +14,7 @@
 import type { NotificationType } from '../store/notificationStore'
 import { notificationStore } from '../store/notificationStore'
 import { soundStore } from '../store/soundStore'
+import { claimGlobalSideEffectLocked } from './globalEventSideEffects'
 import { playSound } from './soundPlayer'
 
 /**
@@ -57,16 +58,26 @@ export function playNotificationSoundDeduped(type: NotificationType): void {
   playNotificationSound(type)
 }
 
+export function playNotificationSoundClaimed(type: NotificationType, soundKey: string): void {
+  void claimGlobalSideEffectLocked(soundKey).then(claimed => {
+    if (!claimed) return
+    playNotificationSoundDeduped(type)
+  })
+}
+
 /**
  * 初始化通知声音系统
  * 在 App 层调用一次即可，注册 notificationStore.push 的声音回调
  */
 export function initNotificationSound(): () => void {
-  const unsubscribe = notificationStore.onPush((type: NotificationType) => {
+  const unsubscribe = notificationStore.onPush((type: NotificationType, options) => {
     // notificationStore.push 只在后台会话触发（非当前 session family）
-    // 记录播放时间用于去重
-    recentPlays.set(type, Date.now())
-    playNotificationSound(type)
+    if (options?.soundKey) {
+      playNotificationSoundClaimed(type, options.soundKey)
+      return
+    }
+
+    playNotificationSoundDeduped(type)
   })
 
   return unsubscribe
