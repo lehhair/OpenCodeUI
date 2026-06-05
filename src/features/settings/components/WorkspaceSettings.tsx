@@ -38,6 +38,7 @@ export function WorkspaceSettings() {
         </SettingRow>
 
         <SettingRow
+          id="setting-wakeLock"
           label={t('appearance.wakeLock')}
           description={t('appearance.wakeLockDesc')}
           onClick={() => layoutStore.setWakeLock(!wakeLock)}
@@ -46,6 +47,7 @@ export function WorkspaceSettings() {
         </SettingRow>
 
         <SettingRow
+          id="setting-codeWordWrap"
           label={t('appearance.codeWordWrap')}
           description={t('appearance.codeWordWrapDesc')}
           onClick={() => setCodeWordWrap(!codeWordWrap)}

@@ -1,10 +1,34 @@
 import type React from 'react'
+import { createContext, useContext, Fragment } from 'react'
 
 // ============================================
 // Shared Settings UI Primitives
-// section + border-bottom 分隔，
-// 标题左+描述左+控件右，无装饰图标，干净利落。
 // ============================================
+
+const SettingsHighlightContext = createContext<string>('')
+
+export function SettingsHighlightProvider({ query, children }: { query: string; children: React.ReactNode }) {
+  return <SettingsHighlightContext.Provider value={query}>{children}</SettingsHighlightContext.Provider>
+}
+
+function useHighlight(): string {
+  return useContext(SettingsHighlightContext)
+}
+
+export function highlightText(text: string, query: string): React.ReactNode {
+  if (!query.trim()) return text
+  const lower = text.toLowerCase()
+  const q = query.toLowerCase()
+  const idx = lower.indexOf(q)
+  if (idx === -1) return text
+  return (
+    <>
+      {text.slice(0, idx)}
+      <mark className="bg-accent-main-100/20 text-accent-main-100 rounded-sm px-0.5">{text.slice(idx, idx + q.length)}</mark>
+      {text.slice(idx + q.length)}
+    </>
+  )
+}
 
 /**
  * Toggle switch — 36×20，即时生效。
@@ -110,11 +134,14 @@ export interface SettingRowProps {
   children: React.ReactNode
   onClick?: () => void
   className?: string
+  id?: string
 }
 
-export function SettingRow({ label, description, icon, children, onClick, className }: SettingRowProps) {
+export function SettingRow({ label, description, icon, children, onClick, className, id }: SettingRowProps) {
+  const hq = useHighlight()
   return (
     <div
+      id={id}
       className={`w-full flex flex-row gap-x-8 gap-y-3 justify-between items-center
         ${onClick ? 'cursor-pointer' : ''}
         ${className || ''}`}
@@ -123,8 +150,8 @@ export function SettingRow({ label, description, icon, children, onClick, classN
       <div className="flex items-center gap-3 min-w-0 flex-1">
         {icon && <span className="text-text-400 shrink-0">{icon}</span>}
         <div className="flex flex-col gap-0.5 min-w-0">
-          <p className="text-[length:var(--fs-md)] font-medium text-text-100">{label}</p>
-          {description && <p className="text-[length:var(--fs-sm)] text-text-400 leading-relaxed">{description}</p>}
+          <p className="text-[length:var(--fs-md)] font-medium text-text-100">{highlightText(label, hq)}</p>
+          {description && <p className="text-[length:var(--fs-sm)] text-text-400 leading-relaxed">{highlightText(description, hq)}</p>}
         </div>
       </div>
       <div className="shrink-0">{children}</div>
@@ -137,9 +164,10 @@ export function SettingRow({ label, description, icon, children, onClick, classN
  * h2 标题 + 内容 + 底部 border 分隔。最后一个 section 无 border。
  */
 export function SettingsSection({ title, children }: { title: string; children: React.ReactNode }) {
+  const hq = useHighlight()
   return (
     <section className="flex flex-col gap-5 border-b border-border-200/50 last:!border-b-0 mb-7 pb-7 last:mb-0 last:pb-0">
-      <h2 className="text-[length:var(--fs-base)] font-semibold text-text-100">{title}</h2>
+      <h2 className="text-[length:var(--fs-base)] font-semibold text-text-100">{highlightText(title, hq)}</h2>
       {children}
     </section>
   )
