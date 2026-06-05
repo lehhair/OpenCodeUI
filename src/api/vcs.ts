@@ -6,6 +6,7 @@ import { getSDKClient, unwrap } from './sdk'
 import type { FileDiff } from './types'
 import type { VcsDiffMode, VcsInfo } from '../types/api/vcs'
 import { formatPathForApi } from '../utils/directoryUtils'
+import { normalizeFileDiffs } from '../types/api/file'
 
 /**
  * 获取 VCS 信息
@@ -25,5 +26,5 @@ export async function getVcsInfo(directory?: string): Promise<VcsInfo | null> {
  */
 export async function getVcsDiff(mode: VcsDiffMode, directory?: string): Promise<FileDiff[]> {
   const sdk = getSDKClient()
-  return unwrap(await sdk.vcs.diff({ mode, directory: formatPathForApi(directory) }))
+  return normalizeFileDiffs(unwrap(await sdk.vcs.diff({ mode, directory: formatPathForApi(directory) })))
 }

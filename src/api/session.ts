@@ -7,6 +7,7 @@ import { getSDKClient, unwrap } from './sdk'
 import { normalizeTodoItems } from './todo'
 import { formatPathForApi } from '../utils/directoryUtils'
 import { getSessionMessages } from './message'
+import { normalizeFileDiffs } from '../types/api/file'
 import type { ApiSession, SessionListParams, FileDiff, ApiMessageWithParts, ApiUserMessage } from './types'
 import type { SessionStatusMap } from '../types/api/session'
 import type { TodoItem } from '../types/api/event'
@@ -29,14 +30,14 @@ export async function getSessionStatus(directory?: string): Promise<SessionStatu
  */
 export async function getSessionDiff(sessionId: string, directory?: string, messageId?: string): Promise<FileDiff[]> {
   const sdk = getSDKClient()
-  return (
+  return normalizeFileDiffs(
     unwrap(
       await sdk.session.diff({
         sessionID: sessionId,
         directory: formatPathForApi(directory),
         messageID: messageId,
       }),
-    ) ?? []
+    ),
   )
 }
 
@@ -59,7 +60,7 @@ export async function getLastTurnDiff(sessionId: string, directory?: string): Pr
     ? userMessages.filter(message => message.info.id < revertMessageId)
     : userMessages
 
-  return visibleUserMessages.at(-1)?.info.summary?.diffs ?? []
+  return normalizeFileDiffs(visibleUserMessages.at(-1)?.info.summary?.diffs)
 }
 
 // ============================================

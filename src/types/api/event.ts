@@ -133,7 +133,6 @@ export const EventTypes = {
   WORKTREE_FAILED: 'worktree.failed',
   WORKSPACE_READY: 'workspace.ready',
   WORKSPACE_FAILED: 'workspace.failed',
-  LSP_CLIENT_DIAGNOSTICS: 'lsp.client.diagnostics',
   LSP_UPDATED: 'lsp.updated',
   MCP_TOOLS_CHANGED: 'mcp.tools.changed',
   MCP_BROWSER_OPEN_FAILED: 'mcp.browser.open.failed',

@@ -54,10 +54,11 @@ export const SkillPanel = memo(function SkillPanel({ isResizing: _isResizing }: 
   }, [loadSkills])
 
   // Filter skills
+  const normalizedFilter = filter.toLowerCase()
   const filteredSkills = skills.filter(
     skill =>
-      skill.name.toLowerCase().includes(filter.toLowerCase()) ||
-      skill.description.toLowerCase().includes(filter.toLowerCase()),
+      skill.name.toLowerCase().includes(normalizedFilter) ||
+      (skill.description ?? '').toLowerCase().includes(normalizedFilter),
   )
 
   return (
@@ -156,7 +157,7 @@ const SkillItem = memo(function SkillItem({ skill }: { skill: Skill }) {
 
         <div className="flex-1 min-w-0">
           <div className="text-[length:var(--fs-base)] text-text-100 font-medium">{skill.name}</div>
-          <div className="text-[length:var(--fs-sm)] text-text-400 truncate">{skill.description}</div>
+          <div className="text-[length:var(--fs-sm)] text-text-400 truncate">{skill.description ?? ''}</div>
         </div>
       </button>
 
