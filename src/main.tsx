@@ -18,6 +18,7 @@ import { getSDKClientAsync, invalidateSDKClient } from './api/sdk'
 import { resetPathModeCache } from './utils/directoryUtils'
 import { isTauri, isTauriMobile } from './utils/tauri'
 import { apiErrorHandler, globalErrorHandler } from './utils/errorHandling'
+import { applyLocalServiceUrl } from './utils/localServiceUrl'
 
 // Polyfill: randomUUID 在非 HTTPS 环境可能缺失（如局域网 HTTP）
 // 统一补齐，避免业务层 scattered fallback。
@@ -82,6 +83,12 @@ serverStore.onServerChange(() => {
 const isNativeTauri = isTauri()
 const isNativeTauriMobile = isNativeTauri && isTauriMobile()
 
+interface StartOpencodeServiceResult {
+  started: boolean
+  startedByUs: boolean
+  url?: string | null
+}
+
 // Tauri 原生 app 初始化
 if (isNativeTauri) {
   // 添加 CSS class 用于 safe-area 适配
@@ -98,7 +105,7 @@ if (isNativeTauri) {
 
   // Auto-start opencode serve（如果设置开启）
   if (!isNativeTauriMobile && serviceStore.autoStart) {
-    const serverUrl = serverStore.getActiveServer()?.url || 'http://127.0.0.1:4096'
+    const serverUrl = serverStore.getLocalServerUrl()
     import('@tauri-apps/api/core').then(({ invoke }) => {
       serviceStore.setStarting(true)
       invoke<string | null>('detect_opencode_binary', { envVars: serviceStore.envVarsRecord })
@@ -107,17 +114,18 @@ if (isNativeTauri) {
         })
         .catch(() => undefined)
         .then(() =>
-          invoke<boolean>('start_opencode_service', {
+          invoke<StartOpencodeServiceResult>('start_opencode_service', {
             url: serverUrl,
             binaryPath: serviceStore.effectiveBinaryPath,
             envVars: serviceStore.envVarsRecord,
           }),
         )
-        .then(weStarted => {
-          serviceStore.setStartedByUs(weStarted)
+        .then(result => {
+          applyLocalServiceUrl(result.url)
+          serviceStore.setStartedByUs(result.startedByUs)
           serviceStore.setRunning(true)
           serviceStore.setStarting(false)
-          if (weStarted) {
+          if (result.started) {
             console.info('[Service] opencode serve started by app')
           } else {
             console.info('[Service] opencode serve already running')

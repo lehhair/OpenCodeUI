@@ -3,10 +3,19 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '../../../components/ui/Button'
 import { TrashIcon, WifiIcon, WifiOffIcon, SpinnerIcon, StopIcon } from '../../../components/Icons'
 import { useServerStore, useIsMobile } from '../../../hooks'
+import { API_BASE_URL } from '../../../constants'
+import { LOCAL_SERVER_ID } from '../../../store/serverStore'
 import { serviceStore, useServiceStore } from '../../../store/serviceStore'
 import { isTauri } from '../../../utils/tauri'
 import { apiErrorHandler } from '../../../utils'
+import { applyLocalServiceUrl } from '../../../utils/localServiceUrl'
 import { Toggle, SettingRow, SettingsCard } from './SettingsUI'
+
+interface StartOpencodeServiceResult {
+  started: boolean
+  startedByUs: boolean
+  url?: string | null
+}
 
 export function ServiceSettings() {
   const { t } = useTranslation(['settings', 'common'])
@@ -20,7 +29,8 @@ export function ServiceSettings() {
     startedByUs,
     starting: serviceStarting,
   } = useServiceStore()
-  const { activeServer } = useServerStore()
+  const { servers } = useServerStore()
+  const localServer = servers.find(server => server.id === LOCAL_SERVER_ID)
   const isTauriDesktop = isTauri() && !isMobile
 
   // 本地编辑状态（debounce 保存）
@@ -53,7 +63,7 @@ export function ServiceSettings() {
     pathDebounceRef.current = setTimeout(() => serviceStore.setBinaryPath(v), 400)
   }
 
-  const getServerUrl = () => activeServer?.url || 'http://127.0.0.1:4096'
+  const getServerUrl = () => localServer?.url || API_BASE_URL
 
   const handleDetectBinary = async () => {
     if (!isTauriDesktop) return
@@ -79,12 +89,13 @@ export function ServiceSettings() {
         () => null,
       )
       serviceStore.setDetectedBinaryPath(detected)
-      const weStarted = await invoke<boolean>('start_opencode_service', {
+      const result = await invoke<StartOpencodeServiceResult>('start_opencode_service', {
         url: getServerUrl(),
         binaryPath: serviceStore.effectiveBinaryPath,
         envVars: serviceStore.envVarsRecord,
       })
-      serviceStore.setStartedByUs(weStarted)
+      applyLocalServiceUrl(result.url)
+      serviceStore.setStartedByUs(result.startedByUs)
       serviceStore.setRunning(true)
     } catch (e) {
       const msg = String(e)

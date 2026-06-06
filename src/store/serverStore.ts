@@ -64,6 +64,7 @@ type Listener = () => void
 
 const STORAGE_KEY = 'opencode-servers'
 const ACTIVE_SERVER_KEY = 'opencode-active-server'
+export const LOCAL_SERVER_ID = 'local'
 
 /**
  * Server Store
@@ -75,6 +76,7 @@ class ServerStore {
   private healthMap = new Map<string, ServerHealth>()
   private clockCalibrationMap = new Map<string, ServerClockCalibration>()
   private listeners: Set<Listener> = new Set()
+  private localServerUrlOverride: string | null = null
 
   // server 切换监听器（用于触发 SSE 重连等副作用，避免循环依赖）
   private serverChangeListeners: Set<(newServerId: string) => void> = new Set()
@@ -85,7 +87,7 @@ class ServerStore {
   private _healthMapSnapshot: Map<string, ServerHealth> = new Map()
 
   // 默认本地服务器 ID
-  private readonly DEFAULT_SERVER_ID = 'local'
+  private readonly DEFAULT_SERVER_ID = LOCAL_SERVER_ID
 
   constructor() {
     this.loadFromStorage()
@@ -182,9 +184,16 @@ class ServerStore {
    * 更新快照缓存
    */
   private updateSnapshots(): void {
-    this._serversSnapshot = [...this.servers]
-    this._activeServerSnapshot = this.servers.find(s => s.id === this.activeServerId) ?? null
+    this._serversSnapshot = this.servers.map(server => this.withRuntimeServerUrl(server))
+    this._activeServerSnapshot = this._serversSnapshot.find(s => s.id === this.activeServerId) ?? null
     this._healthMapSnapshot = new Map(this.healthMap)
+  }
+
+  private withRuntimeServerUrl(server: ServerConfig): ServerConfig {
+    if (server.id === this.DEFAULT_SERVER_ID && this.localServerUrlOverride) {
+      return { ...server, url: this.localServerUrlOverride }
+    }
+    return server
   }
 
   // ============================================
@@ -198,11 +207,27 @@ class ServerStore {
     return this._serversSnapshot
   }
 
+  getStoredServers(): ServerConfig[] {
+    return [...this.servers]
+  }
+
   /**
    * 获取当前活动服务器 (返回缓存快照)
    */
   getActiveServer(): ServerConfig | null {
     return this._activeServerSnapshot
+  }
+
+  getLocalServer(): ServerConfig | null {
+    return this._serversSnapshot.find(s => s.id === this.DEFAULT_SERVER_ID) ?? null
+  }
+
+  getLocalServerUrl(): string {
+    return this.getLocalServer()?.url ?? API_BASE_URL
+  }
+
+  isActiveLocalServer(): boolean {
+    return this.getActiveServerId() === this.DEFAULT_SERVER_ID
   }
 
   /**
@@ -291,7 +316,21 @@ class ServerStore {
       id: server.id, // 确保 id 不被覆盖
       url: updates.url ? updates.url.replace(/\/+$/, '') : server.url,
     }
+    if (id === this.DEFAULT_SERVER_ID && updates.url) {
+      this.localServerUrlOverride = null
+    }
     this.saveToStorage()
+    this.notify()
+    return true
+  }
+
+  setLocalServerRuntimeUrl(url: string): boolean {
+    if (!this.servers.some(s => s.id === this.DEFAULT_SERVER_ID)) return false
+
+    const normalizedUrl = url.replace(/\/+$/, '')
+    if (this.localServerUrlOverride === normalizedUrl) return false
+
+    this.localServerUrlOverride = normalizedUrl
     this.notify()
     return true
   }
@@ -360,10 +399,11 @@ class ServerStore {
    * 检查服务器健康状态
    */
   async checkHealth(serverId: string): Promise<ServerHealth> {
-    const server = this.servers.find(s => s.id === serverId)
-    if (!server) {
+    const storedServer = this.servers.find(s => s.id === serverId)
+    if (!storedServer) {
       return { status: 'error', error: 'Server not found' }
     }
+    const server = this.withRuntimeServerUrl(storedServer)
 
     // 标记为检查中
     this.healthMap.set(serverId, { status: 'checking' })
@@ -506,7 +546,7 @@ function normalizeServerBackup(raw: unknown): ServerSettingsBackup {
 
 export function exportServerSettingsBackup(): ServerSettingsBackup {
   return {
-    servers: serverStore.getServers().map(server => ({
+    servers: serverStore.getStoredServers().map(server => ({
       ...server,
       auth: server.auth ? { ...server.auth } : undefined,
     })),
