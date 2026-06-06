@@ -1,5 +1,29 @@
 import { useEffect } from 'react'
 
+const KEYBOARD_INSET_THRESHOLD = 100
+const KEYBOARD_SETTLE_DELAYS_MS = [0, 80, 180, 360, 700]
+
+const NON_TEXT_INPUT_TYPES = new Set([
+  'button',
+  'checkbox',
+  'color',
+  'file',
+  'hidden',
+  'image',
+  'radio',
+  'range',
+  'reset',
+  'submit',
+])
+
+function isKeyboardEditableElement(element: Element | null): boolean {
+  if (element instanceof HTMLTextAreaElement) return !element.disabled && !element.readOnly
+  if (element instanceof HTMLInputElement) {
+    return !element.disabled && !element.readOnly && !NON_TEXT_INPUT_TYPES.has(element.type)
+  }
+  return element instanceof HTMLElement && element.isContentEditable
+}
+
 /**
  * 跟踪视口高度，处理移动端键盘弹出时的布局适配。
  *
@@ -31,6 +55,7 @@ export function useViewportHeight() {
     // env(safe-area-inset-bottom) 在 CSS 自定义属性里不会被 getComputedStyle 解析为像素，
     // 用临时 probe 元素把它赋给实际 padding 属性才能获得解析后的 px 值。
     let safeAreaBottomPx = 0
+    let keyboardSettleTimers: number[] = []
     const measureSafeAreaBottom = () => {
       const probe = document.createElement('div')
       probe.style.cssText =
@@ -43,6 +68,17 @@ export function useViewportHeight() {
     }
     measureSafeAreaBottom()
 
+    const clearKeyboardSettleTimers = () => {
+      keyboardSettleTimers.forEach(timer => window.clearTimeout(timer))
+      keyboardSettleTimers = []
+    }
+
+    const setKeyboardInset = (keyboardInset: number) => {
+      root.style.setProperty('--keyboard-inset-bottom', `${Math.round(keyboardInset)}px`)
+    }
+
+    const hasKeyboardFocus = () => isKeyboardEditableElement(document.activeElement)
+
     const updateViewport = () => {
       const viewport = window.visualViewport
       if (!viewport) return
@@ -50,8 +86,22 @@ export function useViewportHeight() {
       // 减掉 safe-area phantom，再用阈值区分键盘与 iOS Safari 底部工具栏。
       // 真实软键盘通常远高于 100px，工具栏/phantom 误差一般低于这个值。
       const candidateInset = rawInset - safeAreaBottomPx
-      const keyboardInset = candidateInset >= 100 ? candidateInset : 0
-      root.style.setProperty('--keyboard-inset-bottom', `${Math.round(keyboardInset)}px`)
+      const keyboardInset = candidateInset >= KEYBOARD_INSET_THRESHOLD ? candidateInset : 0
+      setKeyboardInset(keyboardInset)
+    }
+
+    const syncAfterFocusSettles = () => {
+      clearKeyboardSettleTimers()
+      keyboardSettleTimers = KEYBOARD_SETTLE_DELAYS_MS.map(delay =>
+        window.setTimeout(() => {
+          if (hasKeyboardFocus()) {
+            updateViewport()
+          } else {
+            // iOS PWA 有时在键盘收起后不派发 visualViewport.resize，必须主动清掉旧 inset。
+            setKeyboardInset(0)
+          }
+        }, delay),
+      )
     }
 
     // 旋转设备 / 窗口 resize 时 safe-area 可能变化，重测一次。
@@ -66,12 +116,21 @@ export function useViewportHeight() {
       window.visualViewport.addEventListener('scroll', updateViewport)
     }
     window.addEventListener('resize', handleWindowResize)
+    window.addEventListener('pageshow', syncAfterFocusSettles)
+    document.addEventListener('focusin', syncAfterFocusSettles)
+    document.addEventListener('focusout', syncAfterFocusSettles)
+    document.addEventListener('visibilitychange', syncAfterFocusSettles)
     return () => {
+      clearKeyboardSettleTimers()
       if (window.visualViewport) {
         window.visualViewport.removeEventListener('resize', updateViewport)
         window.visualViewport.removeEventListener('scroll', updateViewport)
       }
       window.removeEventListener('resize', handleWindowResize)
+      window.removeEventListener('pageshow', syncAfterFocusSettles)
+      document.removeEventListener('focusin', syncAfterFocusSettles)
+      document.removeEventListener('focusout', syncAfterFocusSettles)
+      document.removeEventListener('visibilitychange', syncAfterFocusSettles)
     }
   }, [])
 }
