@@ -15,13 +15,21 @@ const getSessionsMock = vi.fn()
 const createSessionMock = vi.fn()
 const deleteSessionMock = vi.fn()
 const subscribeToEventsMock = vi.fn()
+const onServerChangeMock = vi.fn()
 let latestEventCallbacks: Partial<EventCallbacks> = {}
+let latestServerChange: (() => void) | undefined
 
 vi.mock('../api', () => ({
   getSessions: (...args: unknown[]) => getSessionsMock(...args),
   createSession: (...args: unknown[]) => createSessionMock(...args),
   deleteSession: (...args: unknown[]) => deleteSessionMock(...args),
   subscribeToEvents: (...args: unknown[]) => subscribeToEventsMock(...args),
+}))
+
+vi.mock('../store/serverStore', () => ({
+  serverStore: {
+    onServerChange: (...args: unknown[]) => onServerChangeMock(...args),
+  },
 }))
 
 function makeSession(id: string, directory = '/workspace/demo') {
@@ -46,12 +54,18 @@ describe('useSessions', () => {
     createSessionMock.mockReset()
     deleteSessionMock.mockReset()
     subscribeToEventsMock.mockReset()
+    onServerChangeMock.mockReset()
     getSessionsMock.mockResolvedValue([])
     createSessionMock.mockResolvedValue(makeSession('new'))
     deleteSessionMock.mockResolvedValue(true)
     latestEventCallbacks = {}
+    latestServerChange = undefined
     subscribeToEventsMock.mockImplementation((callbacks: EventCallbacks) => {
       latestEventCallbacks = callbacks
+      return vi.fn()
+    })
+    onServerChangeMock.mockImplementation(listener => {
+      latestServerChange = listener as () => void
       return vi.fn()
     })
   })
@@ -159,5 +173,44 @@ describe('useSessions', () => {
       await Promise.resolve()
       await Promise.resolve()
     })
+  })
+
+  it('refetches on server endpoint changes even while the old request is in flight', async () => {
+    const staleRequest = createDeferred<ReturnType<typeof makeSession>[]>()
+    const freshRequest = createDeferred<ReturnType<typeof makeSession>[]>()
+
+    getSessionsMock.mockImplementationOnce(() => staleRequest.promise).mockImplementationOnce(() => freshRequest.promise)
+
+    const { result } = renderHook(() => useSessions({ directory: '/workspace/demo' }))
+
+    await act(async () => {
+      vi.runAllTimers()
+      await Promise.resolve()
+    })
+
+    expect(getSessionsMock).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      latestServerChange?.()
+      await Promise.resolve()
+    })
+
+    expect(getSessionsMock).toHaveBeenCalledTimes(2)
+
+    await act(async () => {
+      freshRequest.resolve([makeSession('fresh')])
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(result.current.sessions.map(session => session.id)).toEqual(['fresh'])
+
+    await act(async () => {
+      staleRequest.resolve([makeSession('stale')])
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(result.current.sessions.map(session => session.id)).toEqual(['fresh'])
   })
 })

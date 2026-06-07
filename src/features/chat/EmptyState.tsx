@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { MessageSquareIcon, FolderIcon, ChevronDownIcon, NewChatIcon } from '../../components/Icons'
 import { getPath, type ApiProject, type ApiPath } from '../../api'
+import { serverStore } from '../../store/serverStore'
 import { handleError } from '../../utils'
 
 interface EmptyStateProps {
@@ -18,10 +19,31 @@ export function EmptyState({ currentProject, projects, onStartChat }: EmptyState
   const [isCustomMode, setIsCustomMode] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const pathRequestIdRef = useRef(0)
 
   // 获取当前路径信息
   useEffect(() => {
-    getPath().then(setPathInfo).catch(handleError('get path', 'api'))
+    let mounted = true
+
+    const loadPathInfo = () => {
+      const requestId = ++pathRequestIdRef.current
+      const reportError = handleError('get path', 'api')
+      getPath()
+        .then(info => {
+          if (mounted && requestId === pathRequestIdRef.current) setPathInfo(info)
+        })
+        .catch(error => {
+          if (mounted && requestId === pathRequestIdRef.current) reportError(error)
+        })
+    }
+
+    loadPathInfo()
+    const unsubscribe = serverStore.onServerChange(loadPathInfo)
+
+    return () => {
+      mounted = false
+      unsubscribe()
+    }
   }, [])
 
   // 点击外部关闭下拉

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { getCurrentProject, listWorktrees } from '../api'
 import { subscribeToEvents } from '../api/events'
+import { serverStore } from '../store/serverStore'
 import { normalizeToForwardSlash } from '../utils'
 
 export interface GitWorkspaceMeta {
@@ -157,7 +158,9 @@ export function useGitWorkspaceCatalog(directories: string[]) {
     return subscribeToEvents({
       onWorktreeReady: () => void refresh(),
       onWorktreeFailed: () => void refresh(),
-      onReconnected: () => void refresh(),
+      onReconnected: reason => {
+        if (reason !== 'server-switch') void refresh()
+      },
     })
   }, [refresh])
 
@@ -167,6 +170,10 @@ export function useGitWorkspaceCatalog(directories: string[]) {
     return () => {
       refreshListeners.delete(listener)
     }
+  }, [refresh])
+
+  useEffect(() => {
+    return serverStore.onServerChange(() => void refresh())
   }, [refresh])
 
   return {

@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { TerminalIcon } from './Icons'
 import { PanelContainer } from './PanelContainer'
 import { layoutStore, useLayoutStore, type TerminalTab, type PanelTab } from '../store/layoutStore'
+import { serverStore } from '../store/serverStore'
 import { createPtySession, removePtySession, listPtySessions } from '../api/pty'
 import { useMessageStore } from '../store'
 import { ResizablePanel } from './ui/ResizablePanel'
@@ -67,9 +68,8 @@ export const BottomPanel = memo(function BottomPanel({ directory }: BottomPanelP
     if (hasRestoredDirectoryRef.current && prevDirectoryRef.current === normalizedDirectory) return
     hasRestoredDirectoryRef.current = true
     prevDirectoryRef.current = normalizedDirectory
-    const requestId = ++restoreRequestIdRef.current
 
-    const restoreSessions = async () => {
+    const restoreSessions = async (requestId: number) => {
       try {
         setIsRestoring(true)
 
@@ -95,7 +95,10 @@ export const BottomPanel = memo(function BottomPanel({ directory }: BottomPanelP
       }
     }
 
-    restoreSessions()
+    void restoreSessions(++restoreRequestIdRef.current)
+    return serverStore.onServerChange(() => {
+      void restoreSessions(++restoreRequestIdRef.current)
+    })
   }, [normalizedDirectory])
 
   // 创建新终端

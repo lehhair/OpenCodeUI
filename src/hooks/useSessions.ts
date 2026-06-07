@@ -7,6 +7,7 @@ import {
   type ApiSession,
   type SessionListParams,
 } from '../api'
+import { serverStore } from '../store/serverStore'
 import { autoDetectPathStyle, isSameDirectory } from '../utils'
 
 interface UseSessionsOptions {
@@ -213,16 +214,25 @@ export function useSessions(options: UseSessionsOptions = {}): UseSessionsResult
       onSessionDeleted: sessionId => {
         setSessions(prev => prev.filter(item => item.id !== sessionId))
       },
-      onReconnected: () => {
-        // 如果已经有一个请求在进行中，跳过重复拉取
-        if (isFetchingRef.current) return
+      onReconnected: reason => {
+        if (reason === 'server-switch' || isFetchingRef.current) return
         setSessions([])
         void fetchSessionsRef.current({ search: searchRef.current || undefined })
       },
     })
 
     return unsubscribe
-  }, [enabled, matchesDirectory])
+  }, [enabled, matchesDirectory, pageSize])
+
+  useEffect(() => {
+    if (!enabled) return
+
+    return serverStore.onServerChange(() => {
+      currentLimitRef.current = pageSize
+      setSessions([])
+      void fetchSessionsRef.current({ search: searchRef.current || undefined })
+    })
+  }, [enabled, pageSize])
 
   // 加载更多：递增 limit 重新拉取完整列表（与 SessionContext 一致）
   const loadMore = useCallback(async () => {

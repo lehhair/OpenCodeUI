@@ -14,6 +14,8 @@ import { isTauri } from '../utils/tauri'
 // Tauri fetch 缓存
 let _tauriFetch: typeof globalThis.fetch | null = null
 let _tauriFetchLoading: Promise<typeof globalThis.fetch> | null = null
+let _apiRequestGeneration = 0
+const _apiRequestControllers = new Set<AbortController>()
 
 async function getTauriFetch(): Promise<typeof globalThis.fetch> {
   if (_tauriFetch) return _tauriFetch
@@ -23,6 +25,50 @@ async function getTauriFetch(): Promise<typeof globalThis.fetch> {
     return _tauriFetch
   })
   return _tauriFetchLoading
+}
+
+function getFetchImpl(): typeof globalThis.fetch {
+  return isTauri() && _tauriFetch ? _tauriFetch : globalThis.fetch
+}
+
+function createAbortError(message: string) {
+  return new DOMException(message, 'AbortError')
+}
+
+async function trackedFetch(input: RequestInfo | URL, init: RequestInit | undefined, generation: number): Promise<Response> {
+  const controller = new AbortController()
+  const externalSignal = init?.signal
+  const abortFromExternal = () => controller.abort(externalSignal?.reason)
+
+  if (externalSignal?.aborted) {
+    abortFromExternal()
+  } else {
+    externalSignal?.addEventListener('abort', abortFromExternal, { once: true })
+  }
+
+  _apiRequestControllers.add(controller)
+
+  try {
+    if (generation !== _apiRequestGeneration) {
+      throw createAbortError('Stale API request')
+    }
+
+    return await getFetchImpl()(input, {
+      ...init,
+      signal: controller.signal,
+    })
+  } finally {
+    externalSignal?.removeEventListener('abort', abortFromExternal)
+    _apiRequestControllers.delete(controller)
+  }
+}
+
+export function abortInFlightApiRequests(reason = 'Server endpoint changed'): void {
+  _apiRequestGeneration++
+  for (const controller of _apiRequestControllers) {
+    controller.abort(createAbortError(reason))
+  }
+  _apiRequestControllers.clear()
 }
 
 // Client 缓存：按 "baseUrl + authHash" 缓存实例，避免重复创建
@@ -57,12 +103,12 @@ export function getSDKClient(): OpencodeClient {
 
   const baseUrl = serverStore.getActiveBaseUrl()
   const headers = buildHeaders()
+  const generation = _apiRequestGeneration
 
   _cachedClient = createOpencodeClient({
     baseUrl,
     headers,
-    // 如果 tauri fetch 已经加载了就用它，否则不传（用默认 fetch）
-    ...(isTauri() && _tauriFetch ? { fetch: _tauriFetch as typeof fetch } : {}),
+    fetch: (input, init) => trackedFetch(input, init, generation),
   })
   _cachedKey = key
   return _cachedClient

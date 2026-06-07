@@ -8,6 +8,7 @@ import {
   type SessionListParams,
 } from '../api'
 import { todoStore } from '../store/todoStore'
+import { serverStore } from '../store/serverStore'
 import { useDirectory } from './useDirectory'
 import { sessionErrorHandler, normalizeToForwardSlash, isSameDirectory, autoDetectPathStyle } from '../utils'
 import { clearSessionRuntimeState } from '../utils/sessionLifecycle'
@@ -183,10 +184,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         clearSessionRuntimeState(sessionId)
         setSessions(prev => prev.filter(s => s.id !== sessionId))
       },
-      onReconnected: () => {
-        // SSE 重连成功后，如果已经有请求在进行中，跳过重复拉取
-        if (isFetchingRef.current) return
-        // 清空旧 session 列表，重新从服务器拉取
+      onReconnected: reason => {
+        if (reason === 'server-switch' || isFetchingRef.current) return
         setSessions([])
         fetchSessionsRef.current()
       },
@@ -194,6 +193,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
     return unsubscribe
   }, [matchesCurrentDirectory])
+
+  useEffect(() => {
+    return serverStore.onServerChange(() => {
+      currentLimitRef.current = 30
+      setSessions([])
+      void fetchSessionsRef.current()
+    })
+  }, [])
 
   // Actions
   const refresh = useCallback(() => fetchSessions(), [fetchSessions])

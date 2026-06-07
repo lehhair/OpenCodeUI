@@ -14,7 +14,7 @@ import { todoStore } from './store/todoStore'
 import { autoApproveStore } from './store/autoApproveStore'
 import { serviceStore } from './store/serviceStore'
 import { reconnectSSE } from './api/events'
-import { getSDKClientAsync, invalidateSDKClient } from './api/sdk'
+import { abortInFlightApiRequests, getSDKClientAsync, invalidateSDKClient } from './api/sdk'
 import { resetPathModeCache } from './utils/directoryUtils'
 import { isTauri, isTauriMobile } from './utils/tauri'
 import { apiErrorHandler, globalErrorHandler } from './utils/errorHandling'
@@ -60,6 +60,7 @@ if (document.readyState === 'loading') {
 
 // 注册 active server 入口变化 → 清理 server-specific 状态 + 重建 SDK/SSE
 serverStore.onServerChange(() => {
+  abortInFlightApiRequests()
   invalidateSDKClient()
   if (isTauri()) {
     void getSDKClientAsync().catch(err => apiErrorHandler('reinitialize sdk client after server endpoint change', err))
