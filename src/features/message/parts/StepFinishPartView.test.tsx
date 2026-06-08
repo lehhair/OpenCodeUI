@@ -71,7 +71,7 @@ describe('StepFinishPartView', () => {
     // genTime = 20000 - 6000 = 14000ms = 14s
     // genTokens = 200 + 50 = 250
     // tps = Math.round(250 / 14) = Math.round(17.857) = 18
-    expect(screen.getByText('18 T/s')).toBeInTheDocument()
+    expect(screen.getByText('18 tps')).toBeInTheDocument()
   })
 
   it('renders TTFT when data is available', () => {

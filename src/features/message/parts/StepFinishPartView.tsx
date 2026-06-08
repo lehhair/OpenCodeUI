@@ -76,7 +76,7 @@ export const StepFinishPartView = memo(function StepFinishPartView({
         </span>
       )}
       {show.tps && tps != null && (
-        <span>{tps} T/s</span>
+        <span>{tps} tps</span>
       )}
       {show.cache && cacheHit > 0 && (
         <span
