@@ -95,7 +95,7 @@ describe('StepFinishPartView', () => {
         completedAt={20000}
       />,
     )
-    expect(screen.queryByText(/T\/s/)).toBeNull()
+    expect(screen.queryByText(/tps/)).toBeNull()
   })
 
   it('does not render TTFT when no firstPartStart', () => {
@@ -130,7 +130,7 @@ describe('StepFinishPartView', () => {
         firstPartStart={6000}
       />,
     )
-    expect(screen.queryByText(/T\/s/)).toBeNull()
+    expect(screen.queryByText(/tps/)).toBeNull()
     expect(screen.queryByText(/TTFT/)).toBeNull()
   })
 })

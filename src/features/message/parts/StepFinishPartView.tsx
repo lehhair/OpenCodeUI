@@ -55,12 +55,12 @@ export const StepFinishPartView = memo(function StepFinishPartView({
     (show.agent && !!agent) ||
     (show.model && !!modelLabel) ||
     (show.tokens && totalTokens > 0) ||
-    (show.tps && tps != null) ||
     (show.cache && cacheHit > 0) ||
     (show.cost && cost > 0) ||
+    (show.tps && tps != null) ||
+    (show.ttft && ttft != null) ||
     (show.duration && duration != null && duration > 0) ||
     (show.turnDuration && turnDuration != null && turnDuration > 0) ||
-    (show.ttft && ttft != null) ||
     (show.completedAt && completedAt != null)
   if (!hasAny) return null
 
@@ -75,9 +75,6 @@ export const StepFinishPartView = memo(function StepFinishPartView({
           {formatNumber(totalTokens)} {t('tokens')}
         </span>
       )}
-      {show.tps && tps != null && (
-        <span>{tps} tps</span>
-      )}
       {show.cache && cacheHit > 0 && (
         <span
           className="text-text-600"
@@ -87,12 +84,15 @@ export const StepFinishPartView = memo(function StepFinishPartView({
         </span>
       )}
       {show.cost && cost > 0 && <span>{formatCost(cost)}</span>}
-      {show.duration && duration != null && duration > 0 && <span>{formatDuration(duration)}</span>}
-      {show.turnDuration && turnDuration != null && turnDuration > 0 && (
-        <span>{t('stepFinish.totalDuration', { duration: formatDuration(turnDuration) })}</span>
+      {show.tps && tps != null && (
+        <span>{tps} tps</span>
       )}
       {show.ttft && ttft != null && (
         <span>TTFT {formatDuration(ttft)}</span>
+      )}
+      {show.duration && duration != null && duration > 0 && <span>{formatDuration(duration)}</span>}
+      {show.turnDuration && turnDuration != null && turnDuration > 0 && (
+        <span>{t('stepFinish.totalDuration', { duration: formatDuration(turnDuration) })}</span>
       )}
       {show.completedAt && completedAt != null && (
         <span title={formatDetailedDateTime(completedAt)}>{formatCompletedAt(completedAt, completedAtFormat)}</span>
