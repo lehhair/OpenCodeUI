@@ -99,10 +99,12 @@ export function ChatSettings() {
             { key: 'agent', label: t('chat.agent'), desc: t('chat.showAgent') },
             { key: 'model', label: t('chat.model'), desc: t('chat.showModel') },
             { key: 'tokens', label: t('chat.tokens'), desc: t('chat.showTokenUsage') },
+            { key: 'tps', label: t('chat.tps'), desc: t('chat.showTps') },
             { key: 'cache', label: t('chat.cache'), desc: t('chat.showCacheHit') },
             { key: 'cost', label: t('chat.cost'), desc: t('chat.showApiCost') },
             { key: 'duration', label: t('chat.duration'), desc: t('chat.showResponseTime') },
             { key: 'turnDuration', label: t('chat.totalDuration'), desc: t('chat.showTurnElapsed') },
+            { key: 'ttft', label: t('chat.ttft'), desc: t('chat.showTtft') },
             { key: 'completedAt', label: t('chat.completedAt'), desc: t('chat.showCompletedAt') },
           ] as const
         ).map(({ key, label, desc }) => (
