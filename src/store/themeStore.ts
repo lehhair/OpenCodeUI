@@ -65,6 +65,7 @@ export interface CustomCSSSnippet {
 /** step-finish 信息栏各项显示开关 */
 export interface StepFinishDisplay {
   tokens: boolean
+  tps: boolean
   cache: boolean
   cost: boolean
   duration: boolean
@@ -72,6 +73,7 @@ export interface StepFinishDisplay {
   agent: boolean
   model: boolean
   completedAt: boolean
+  ttft: boolean
 }
 
 export type CompletedAtFormat = 'time' | 'dateTime'
@@ -97,6 +99,7 @@ export type DiffStyle = 'markers' | 'changeBars'
 
 const DEFAULT_STEP_FINISH_DISPLAY: StepFinishDisplay = {
   tokens: true,
+  tps: true,
   cache: true,
   cost: true,
   duration: true,
@@ -104,6 +107,7 @@ const DEFAULT_STEP_FINISH_DISPLAY: StepFinishDisplay = {
   agent: false,
   model: false,
   completedAt: false,
+  ttft: true,
 }
 
 const DEFAULT_COMPLETED_AT_FORMAT: CompletedAtFormat = 'time'
