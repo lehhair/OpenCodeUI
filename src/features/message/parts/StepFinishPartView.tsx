@@ -22,6 +22,10 @@ interface StepFinishPartViewProps {
   modelLabel?: string
   /** 消息完成时间戳（毫秒），用于显示完成时刻 */
   completedAt?: number
+  /** 消息创建时间戳（毫秒），来自 AssistantMessage.time.created */
+  created?: number
+  /** 消息中最早 part.time.start（毫秒时间戳），用于计算 TTFT/TPS */
+  firstPartStart?: number
 }
 
 export const StepFinishPartView = memo(function StepFinishPartView({
@@ -31,6 +35,8 @@ export const StepFinishPartView = memo(function StepFinishPartView({
   agent,
   modelLabel,
   completedAt,
+  created,
+  firstPartStart,
 }: StepFinishPartViewProps) {
   const { t } = useTranslation('message')
   const { stepFinishDisplay: show, completedAtFormat } = useTheme()
@@ -38,15 +44,23 @@ export const StepFinishPartView = memo(function StepFinishPartView({
   const totalTokens = tokens.input + tokens.output + tokens.reasoning + tokens.cache.read + tokens.cache.write
   const cacheHit = tokens.cache.read
 
+  // TTFT & TPS
+  const ttft = created != null && firstPartStart != null ? firstPartStart - created : undefined
+  const genTime = completedAt != null && firstPartStart != null ? completedAt - firstPartStart : undefined
+  const genTokens = tokens.output + tokens.reasoning
+  const tps = genTime != null && genTime > 0 && genTokens > 0 ? Math.round(genTokens / (genTime / 1000)) : undefined
+
   // 所有项都关闭时不渲染
   const hasAny =
     (show.agent && !!agent) ||
     (show.model && !!modelLabel) ||
     (show.tokens && totalTokens > 0) ||
+    (show.tps && tps != null) ||
     (show.cache && cacheHit > 0) ||
     (show.cost && cost > 0) ||
     (show.duration && duration != null && duration > 0) ||
     (show.turnDuration && turnDuration != null && turnDuration > 0) ||
+    (show.ttft && ttft != null) ||
     (show.completedAt && completedAt != null)
   if (!hasAny) return null
 
@@ -61,6 +75,9 @@ export const StepFinishPartView = memo(function StepFinishPartView({
           {formatNumber(totalTokens)} {t('tokens')}
         </span>
       )}
+      {show.tps && tps != null && (
+        <span>{tps} T/s</span>
+      )}
       {show.cache && cacheHit > 0 && (
         <span
           className="text-text-600"
@@ -73,6 +90,9 @@ export const StepFinishPartView = memo(function StepFinishPartView({
       {show.duration && duration != null && duration > 0 && <span>{formatDuration(duration)}</span>}
       {show.turnDuration && turnDuration != null && turnDuration > 0 && (
         <span>{t('stepFinish.totalDuration', { duration: formatDuration(turnDuration) })}</span>
+      )}
+      {show.ttft && ttft != null && (
+        <span>TTFT {formatDuration(ttft)}</span>
       )}
       {show.completedAt && completedAt != null && (
         <span title={formatDetailedDateTime(completedAt)}>{formatCompletedAt(completedAt, completedAtFormat)}</span>
