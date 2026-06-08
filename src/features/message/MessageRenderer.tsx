@@ -424,6 +424,16 @@ const AssistantMessageView = memo(function AssistantMessageView({
   const { created, completed } = info.time
   const duration = completed != null ? completed - created : undefined
 
+  // 最早 part.time.start，用于 TTFT/TPS 计算
+  const firstPartStart = useMemo(() => {
+    for (const p of parts) {
+      if ((p.type === 'text' || p.type === 'reasoning') && p.time?.start) {
+        return p.time.start
+      }
+    }
+    return undefined
+  }, [parts])
+
   // agent / model（仅 assistant 消息）
   const assistantInfo = info.role === 'assistant' ? (info as AssistantMessageInfo) : null
   const agent = assistantInfo?.agent || undefined
@@ -473,6 +483,8 @@ const AssistantMessageView = memo(function AssistantMessageView({
                   agent={agent}
                   modelLabel={modelLabel}
                   completedAt={isLastStepFinish ? completed : undefined}
+                  created={isLastStepFinish ? created : undefined}
+                  firstPartStart={isLastStepFinish ? firstPartStart : undefined}
                 />
               )
             }
@@ -495,6 +507,8 @@ const AssistantMessageView = memo(function AssistantMessageView({
                     agent={agent}
                     modelLabel={modelLabel}
                     completedAt={isLastStepFinish ? completed : undefined}
+                    created={isLastStepFinish ? created : undefined}
+                    firstPartStart={isLastStepFinish ? firstPartStart : undefined}
                   />
                 )
               case 'subtask':
@@ -547,6 +561,8 @@ interface ToolGroupProps {
   agent?: string
   modelLabel?: string
   completedAt?: number
+  created?: number
+  firstPartStart?: number
 }
 
 /** 用户需要阅读/交互的工具：沉浸模式下这些工具完成后保持展开 */
@@ -565,6 +581,8 @@ const ToolGroup = memo(function ToolGroup({
   agent,
   modelLabel,
   completedAt,
+  created,
+  firstPartStart,
 }: ToolGroupProps) {
   const { t } = useTranslation('message')
   const { descriptiveToolSteps, inlineToolRequests, immersiveMode } = useTheme()
@@ -741,6 +759,8 @@ const ToolGroup = memo(function ToolGroup({
               agent={agent}
               modelLabel={modelLabel}
               completedAt={completedAt}
+              created={created}
+              firstPartStart={firstPartStart}
             />
           </div>
         )}
