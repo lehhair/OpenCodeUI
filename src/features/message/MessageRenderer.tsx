@@ -1,4 +1,4 @@
-import { memo, useState, useRef, useEffect, useLayoutEffect, useMemo, useCallback } from 'react'
+import { memo, useSyncExternalStore, useState, useRef, useEffect, useLayoutEffect, useMemo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { diffLines } from 'diff'
 import { animate } from 'motion/mini'
@@ -38,6 +38,8 @@ import type {
 } from '../../types/message'
 import { isToolPart, isVisibleReasoningPart, isVisibleTextPart } from '../../types/message'
 import { formatDuration, formatCompletedAt, formatDetailedDateTime } from '../../utils/formatUtils'
+import { themeStore } from '../../store/themeStore'
+import { detectOmoWrapper } from '../../utils/omo'
 
 interface MessageRendererProps {
   message: Message
@@ -262,6 +264,12 @@ const UserMessageView = memo(function UserMessageView({
   const [showSystemContext, setShowSystemContext] = useState(false)
   const shouldRenderSystemContext = useDelayedRender(showSystemContext)
   const { collapseUserMessages } = useTheme()
+  // 精简 OMO 历史指令开关 — 同时控制消息正文中的 OMO 过滤
+  const omoInputHistorySimplify = useSyncExternalStore(
+    themeStore.subscribe,
+    () => themeStore.getSnapshot().omoInputHistorySimplify,
+    () => themeStore.getSnapshot().omoInputHistorySimplify,
+  )
 
   const wrapperRef = useEntryGrowAnimation(info.time.created)
 
@@ -275,12 +283,102 @@ const UserMessageView = memo(function UserMessageView({
   const hasSystemContext = syntheticParts.length > 0
   const messageText = textParts.map(p => p.text).join('')
 
+  // OMO 包装检测与提取（受开关控制）
+  const omoWrapper = useMemo(() => {
+    if (!messageText || !omoInputHistorySimplify) return null
+    return detectOmoWrapper(messageText)
+  }, [messageText, omoInputHistorySimplify])
+  const [showOmoWrapper, setShowOmoWrapper] = useState(false)
+  const shouldRenderOmoWrapper = useDelayedRender(showOmoWrapper)
+  const displayText = omoWrapper?.isWrapped && omoWrapper.userText ? omoWrapper.userText : messageText
+
   return (
     <div ref={wrapperRef} className="flex flex-col items-end group">
       <div className="flex flex-col gap-1 items-end w-full">
         {/* 消息文本 */}
-        {messageText && (
-          <CollapsibleUserText text={messageText} collapseEnabled={collapseUserMessages} messageId={info.id} />
+        {displayText && !(omoWrapper?.isWrapped && !omoWrapper.userText) && (
+          <div className="flex flex-col items-end gap-1">
+            {/* OMO 标签 */}
+            {omoWrapper?.isWrapped && omoWrapper.labels.length > 0 && (
+              <div className="flex items-center gap-1">
+                {omoWrapper.labels.map(label => (
+                  <span
+                    key={label}
+                    className="inline-block px-2 py-0.5 rounded-md text-[length:var(--fs-xs)] font-medium bg-accent-secondary-100/15 text-accent-secondary-100"
+                  >
+                    {label}
+                  </span>
+                ))}
+              </div>
+            )}
+            <CollapsibleUserText text={displayText} collapseEnabled={collapseUserMessages} messageId={info.id} />
+            {/* 查看完整包装内容按钮 */}
+            {omoWrapper?.isWrapped && messageText !== displayText && (
+              <div className="flex flex-col items-end mt-1">
+                <button
+                  onClick={() => setShowOmoWrapper(!showOmoWrapper)}
+                  className="flex items-center gap-1 text-[length:var(--fs-sm)] text-text-400 hover:text-text-300 transition-colors py-1 px-2 rounded hover:bg-bg-200"
+                >
+                  <span>{showOmoWrapper ? t('hideSystemContext') : t('showSystemContext', { count: 1 })}</span>
+                  <span className={`transition-transform duration-300 ${showOmoWrapper ? '' : '-rotate-90'}`}>
+                    <ChevronDownIcon size={10} />
+                  </span>
+                </button>
+                <div
+                  className={`grid w-full transition-[grid-template-rows,opacity] duration-300 ease-out ${
+                    showOmoWrapper ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
+                  }`}
+                >
+                  <div className="overflow-hidden">
+                    {shouldRenderOmoWrapper && (
+                      <div className="pt-1 px-4 py-2.5 bg-bg-300/50 rounded-2xl max-w-full">
+                        <p className="m-0 whitespace-pre-wrap break-words text-[length:var(--fs-xs)] text-text-400 leading-relaxed">
+                          {messageText}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+        {/* 纯系统消息（有包装但无用户文本）：仅显示标签 + 小展开按钮 */}
+        {omoWrapper?.isWrapped && !omoWrapper.userText && omoWrapper.labels.length > 0 && (
+          <div className="flex items-center gap-2">
+            {omoWrapper.labels.map(label => (
+              <span
+                key={label}
+                className="inline-block px-2 py-0.5 rounded-md text-[length:var(--fs-xs)] font-medium bg-accent-secondary-100/15 text-accent-secondary-100"
+              >
+                {label}
+              </span>
+            ))}
+            <button
+              onClick={() => setShowOmoWrapper(!showOmoWrapper)}
+              className="flex items-center gap-1 text-[length:var(--fs-xs)] text-text-400 hover:text-text-300 transition-colors"
+            >
+              <ChevronDownIcon
+                size={10}
+                className={`transition-transform duration-200 ${showOmoWrapper ? 'rotate-0' : '-rotate-90'}`}
+              />
+            </button>
+            <div
+              className={`grid transition-[grid-template-rows,opacity] duration-300 ease-out ${
+                showOmoWrapper ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
+              }`}
+            >
+              <div className="overflow-hidden">
+                {shouldRenderOmoWrapper && (
+                  <div className="pt-1 px-4 py-2.5 bg-bg-300/50 rounded-2xl max-w-full">
+                    <p className="m-0 whitespace-pre-wrap break-words text-[length:var(--fs-xs)] text-text-400 leading-relaxed">
+                      {messageText}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
         )}
 
         {/* 用户附件 */}
@@ -350,7 +448,7 @@ const UserMessageView = memo(function UserMessageView({
           )}
           <ForkActionButton message={message} onFork={onFork} forkMessageId={forkMessageId} />
           {/* Copy button */}
-          {messageText && <CopyButton text={messageText} position="static" />}
+          {displayText && <CopyButton text={displayText} position="static" />}
         </div>
       </div>
     </div>

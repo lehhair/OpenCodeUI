@@ -11,6 +11,7 @@ export function ChatSettings() {
   const { pathMode, setPathMode, effectiveStyle, detectedStyle, isAutoMode } = usePathMode()
   const { externalFileDropMode, setExternalFileDropMode } = useTheme()
   const [collapseUserMessages, setCollapseUserMessages] = useState(themeStore.collapseUserMessages)
+  const [omoInputHistorySimplify, setOmoInputHistorySimplify] = useState(themeStore.omoInputHistorySimplify)
   const [stepFinishDisplay, setStepFinishDisplay] = useState(themeStore.stepFinishDisplay)
   const [completedAtFormat, setCompletedAtFormat] = useState(themeStore.completedAtFormat)
   const [reasoningDisplayMode, setReasoningDisplayMode] = useState(themeStore.reasoningDisplayMode)
@@ -21,6 +22,12 @@ export function ChatSettings() {
     const v = !collapseUserMessages
     setCollapseUserMessages(v)
     themeStore.setCollapseUserMessages(v)
+  }
+
+  const handleOmoInputHistorySimplifyToggle = () => {
+    const v = !omoInputHistorySimplify
+    setOmoInputHistorySimplify(v)
+    themeStore.setOmoInputHistorySimplify(v)
   }
 
   const handleReasoningDisplayModeChange = (mode: ReasoningDisplayMode) => {
@@ -75,6 +82,14 @@ export function ChatSettings() {
           onClick={handleCollapseToggle}
         >
           <Toggle enabled={collapseUserMessages} onChange={handleCollapseToggle} />
+        </SettingRow>
+
+        <SettingRow
+          label={t('chat.omoInputHistorySimplify')}
+          description={t('chat.omoInputHistorySimplifyDesc')}
+          onClick={handleOmoInputHistorySimplifyToggle}
+        >
+          <Toggle enabled={omoInputHistorySimplify} onChange={handleOmoInputHistorySimplifyToggle} />
         </SettingRow>
 
         <div>

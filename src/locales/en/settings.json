@@ -90,6 +90,8 @@
     "conversationExperienceDesc": "Message density, reasoning style, and step summary fields",
     "collapseLongMessages": "Collapse Long Messages",
     "collapseLongMessagesDesc": "Auto-collapse lengthy user messages",
+    "omoInputHistorySimplify": "Simplify OMO History",
+    "omoInputHistorySimplifyDesc": "Filter out OMO internal marker messages from input history navigation",
     "descriptiveToolSteps": "Descriptive Steps",
     "descriptiveToolStepsDesc": "Replace plain step counts with tool-aware summaries and show a steps line even for single tool calls",
     "inlineToolRequests": "Inline Tool Requests",
