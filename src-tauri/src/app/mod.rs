@@ -270,7 +270,9 @@ pub fn run() {
                         let was_fs = fullscreen_state()
                             .lock()
                             .ok()
-                            .map(|mut m| m.insert(window.label().to_string(), is_fs).unwrap_or(false))
+                            .map(|mut m| {
+                                m.insert(window.label().to_string(), is_fs).unwrap_or(false)
+                            })
                             .unwrap_or(false);
                         if was_fs && !is_fs {
                             reposition_traffic_lights(&webview);
@@ -278,6 +280,11 @@ pub fn run() {
                     }
                 }
                 tauri::WindowEvent::Destroyed => {
+                    #[cfg(target_os = "macos")]
+                    if let Ok(mut states) = fullscreen_state().lock() {
+                        states.remove(window.label());
+                    }
+
                     // 窗口销毁时清理该窗口的所有桥接连接
                     let state = window.state::<BridgeState>();
                     state.disconnect_window(window.label());
