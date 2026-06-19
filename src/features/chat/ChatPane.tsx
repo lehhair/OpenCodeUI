@@ -40,6 +40,7 @@ interface ChatPaneProps {
   displayMode: 'single' | 'split'
   isPaneFullscreen?: boolean
   onOpenSidebar?: () => void
+  onToggleRightPanel?: () => void
   onOpenSettings?: () => void
   showSidebarButton?: boolean
   onSplitPane?: () => void
@@ -125,6 +126,7 @@ export const ChatPane = memo(function ChatPane({
   displayMode,
   isPaneFullscreen = false,
   onOpenSidebar,
+  onToggleRightPanel,
   onOpenSettings,
   showSidebarButton = false,
   onSplitPane,
@@ -775,6 +777,7 @@ export const ChatPane = memo(function ChatPane({
               selectedModelKey={selectedModelKey}
               onModelChange={handleModelChange}
               onOpenSidebar={onOpenSidebar}
+              onToggleRightPanel={onToggleRightPanel}
               onSplitPane={onSplitPane}
               isPaneFullscreen={isPaneFullscreen}
               onTogglePaneFullscreen={onTogglePaneFullscreen}
@@ -967,6 +970,7 @@ export const ChatPane = memo(function ChatPane({
             paneCount={paneCount}
             showSidebarButton={showSidebarButton}
             onOpenSidebar={onOpenSidebar}
+            onToggleRightPanel={onToggleRightPanel}
             canSplitPane={splitPaneEnabled}
             isPaneFullscreen={isPaneFullscreen}
             onTogglePaneFullscreen={onTogglePaneFullscreen}

@@ -30,9 +30,11 @@ function PanelFallback() {
 interface RightPanelProps {
   directory?: string
   sessionId?: string | null
+  inline?: boolean
+  renderPanelContent?: boolean
 }
 
-export const RightPanel = memo(function RightPanel({ directory, sessionId }: RightPanelProps) {
+export const RightPanel = memo(function RightPanel({ directory, sessionId, inline = false, renderPanelContent = true }: RightPanelProps) {
   const { t } = useTranslation(['components', 'common'])
   const { rightPanelOpen, rightPanelWidth } = useLayoutStore()
   const { interaction, layout } = useChatViewport()
@@ -150,6 +152,24 @@ export const RightPanel = memo(function RightPanel({ directory, sessionId }: Rig
     },
     [normalizedDirectory, sessionId, isPanelResizing, t],
   )
+
+  if (inline) {
+    return (
+      <div className="flex h-full w-full flex-col overflow-hidden bg-bg-100 border-l border-border-200/50 [contain:layout_paint]">
+        {renderPanelContent ? (
+          <PanelContainer
+            position="right"
+            directory={normalizedDirectory}
+            onNewTerminal={handleNewTerminal}
+            onCloseTerminal={handleCloseTerminal}
+            forceOpen
+          >
+            {renderContent}
+          </PanelContainer>
+        ) : null}
+      </div>
+    )
+  }
 
   return (
     <ResizablePanel

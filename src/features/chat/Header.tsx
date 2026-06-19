@@ -27,6 +27,7 @@ interface HeaderProps {
   selectedModelKey: string | null
   onModelChange: (modelKey: string, model: ModelInfo) => void
   onOpenSidebar?: () => void
+  onToggleRightPanel?: () => void
   onSplitPane?: () => void
   isPaneFullscreen?: boolean
   onTogglePaneFullscreen?: () => void
@@ -116,6 +117,7 @@ export function Header({
   selectedModelKey,
   onModelChange,
   onOpenSidebar,
+  onToggleRightPanel,
   onSplitPane,
   isPaneFullscreen = false,
   onTogglePaneFullscreen,
@@ -259,7 +261,7 @@ export function Header({
 
           <IconButton
             aria-label={rightPanelOpen ? t('header.closePanel') : t('header.openPanel')}
-            onClick={() => layoutStore.toggleRightPanel()}
+            onClick={onToggleRightPanel ?? (() => layoutStore.toggleRightPanel())}
             className={`transition-colors ${rightPanelOpen ? 'text-accent-main-100 bg-bg-200/50' : 'text-text-400 hover:text-text-100 hover:bg-bg-200/50'}`}
           >
             <PanelRightIcon size={18} />

@@ -43,6 +43,7 @@ interface PaneHeaderProps {
   isPaneFullscreen?: boolean
   showSidebarButton?: boolean
   onOpenSidebar?: () => void
+  onToggleRightPanel?: () => void
   onTogglePaneFullscreen?: () => void
   onFocus: () => void
 }
@@ -56,6 +57,7 @@ export function PaneHeader({
   isPaneFullscreen = false,
   showSidebarButton = false,
   onOpenSidebar,
+  onToggleRightPanel,
   onTogglePaneFullscreen,
   onFocus,
 }: PaneHeaderProps) {
@@ -295,7 +297,11 @@ export function PaneHeader({
               aria-label={rightPanelOpen ? t('header.closePanel') : t('header.openPanel')}
               onClick={e => {
                 e.stopPropagation()
-                layoutStore.toggleRightPanel()
+                if (onToggleRightPanel) {
+                  onToggleRightPanel()
+                } else {
+                  layoutStore.toggleRightPanel()
+                }
               }}
               className={`transition-colors ${
                 rightPanelOpen

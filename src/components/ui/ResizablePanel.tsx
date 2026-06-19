@@ -8,6 +8,7 @@ interface ResizablePanelProps {
   position: 'right' | 'bottom'
   isOpen: boolean
   overlay?: boolean
+  overlayBackdrop?: boolean
   size: number
   minSize?: number
   maxSize?: number
@@ -21,6 +22,7 @@ export const ResizablePanel = memo(function ResizablePanel({
   position,
   isOpen,
   overlay = false,
+  overlayBackdrop = true,
   size,
   minSize = 300,
   maxSize = 800,
@@ -200,27 +202,29 @@ export const ResizablePanel = memo(function ResizablePanel({
     const mobileBaseClass =
       position === 'right'
         ? 'fixed left-0 right-0 z-[100] w-full bg-bg-100'
-        : 'fixed bottom-0 left-0 right-0 z-[100] h-[40vh] shadow-lg rounded-t-xl border-t border-border-200 bg-bg-100'
+        : 'fixed bottom-0 left-0 right-0 z-[100] shadow-lg rounded-t-xl border-t border-border-200 bg-bg-100'
 
-    const mobileInsetStyle =
+    const mobilePanelStyle =
       position === 'right'
         ? ({
             top: 'calc(var(--safe-area-inset-top, 0px) + var(--desktop-titlebar-height, 0px))',
             height: 'calc(100% - var(--safe-area-inset-top, 0px) - var(--desktop-titlebar-height, 0px))',
           } as React.CSSProperties)
-        : ({} as React.CSSProperties)
+        : ({ height: `${effectiveSize}px` } as React.CSSProperties)
 
     return (
       <>
-        <div
-          className={`
-            fixed left-0 right-0 bg-[hsl(var(--always-black)/0.5)] z-[99]
-            transition-opacity ${ANIMATION_DURATION} ease-out
-            ${isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}
-          `}
-          style={position === 'right' ? { top: 'calc(var(--safe-area-inset-top, 0px) + var(--desktop-titlebar-height, 0px))', left: 0, right: 0, bottom: 0 } : undefined}
-          onClick={onClose}
-        />
+        {overlayBackdrop && (
+          <div
+            className={`
+              fixed left-0 right-0 bg-[hsl(var(--always-black)/0.5)] z-[99]
+              transition-opacity ${ANIMATION_DURATION} ease-out
+              ${isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}
+            `}
+            style={position === 'right' ? { top: 'calc(var(--safe-area-inset-top, 0px) + var(--desktop-titlebar-height, 0px))', left: 0, right: 0, bottom: 0 } : undefined}
+            onClick={onClose}
+          />
+        )}
 
         <div
           ref={panelRef}
@@ -229,7 +233,7 @@ export const ResizablePanel = memo(function ResizablePanel({
             transition-transform ${ANIMATION_DURATION} ${ANIMATION_EASE}
             ${transformClass}
           `}
-          style={mobileInsetStyle}
+          style={mobilePanelStyle}
         >
           {position === 'bottom' && (
             <div

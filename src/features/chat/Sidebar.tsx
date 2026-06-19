@@ -27,6 +27,7 @@ interface SidebarProps {
   onOpenSettings?: () => void
   projectDialogOpen?: boolean
   onProjectDialogClose?: () => void
+  mobileInline?: boolean
 }
 
 export const Sidebar = memo(function Sidebar({
@@ -40,6 +41,7 @@ export const Sidebar = memo(function Sidebar({
   onOpenSettings,
   projectDialogOpen,
   onProjectDialogClose,
+  mobileInline = false,
 }: SidebarProps) {
   const [isProjectDialogOpen, setIsProjectDialogOpen] = useState(false)
   const [projectDialogKey, setProjectDialogKey] = useState(0)
@@ -274,6 +276,35 @@ export const Sidebar = memo(function Sidebar({
   }, [onClose])
 
   if (isOverlay) {
+    if (mobileInline) {
+      return (
+        <>
+          <div className="relative flex h-full w-full flex-col overflow-hidden bg-bg-100 border-r border-border-200/50 [contain:strict]">
+            <SidePanel
+              onNewSession={onNewSession}
+              onSelectSession={handleSelectSession}
+              onCloseMobile={onClose}
+              selectedSessionId={selectedSessionId}
+              onAddProject={openProjectDialog}
+              isMobile={true}
+              isExpanded={true}
+              onToggleSidebar={onClose}
+              contextLimit={contextLimit}
+              onOpenSettings={onOpenSettings}
+            />
+          </div>
+
+          <ProjectDialog
+            key={`mobile-${projectDialogKey}-${Number(isProjectDialogVisible)}`}
+            isOpen={isProjectDialogVisible}
+            onClose={closeProjectDialog}
+            onSelect={handleAddProject}
+            initialPath={pathInfo?.home}
+          />
+        </>
+      )
+    }
+
     return (
       <>
         <div
