@@ -164,9 +164,10 @@ export function PaneHeader({
   return (
     <div
       ref={headerRef}
-      className={`relative h-10 flex items-center justify-between px-2 select-none transition-colors duration-200 shrink-0 z-20 ${
+      className={`relative flex items-center justify-between px-2 select-none transition-colors duration-200 shrink-0 z-20 ${
         isDragOver ? 'bg-accent-main-100/10' : 'bg-bg-100'
       }`}
+      style={{ height: 'calc(2.5rem + var(--native-safe-area-inset-top, 0px))', paddingTop: 'var(--native-safe-area-inset-top, 0px)' }}
       onClick={onFocus}
       onPointerDown={handlePointerDragStart}
     >

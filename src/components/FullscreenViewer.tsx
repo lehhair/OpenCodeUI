@@ -71,7 +71,11 @@ export const FullscreenViewer = memo(function FullscreenViewer({
     >
       <div className="w-full h-full flex flex-col bg-bg-100">
         {showHeader && (
-          <div data-testid="fullscreen-viewer-header" className="flex items-center h-11 px-4 border-b border-border-100/40 shrink-0 gap-3">
+          <div
+            data-testid="fullscreen-viewer-header"
+            className="flex items-center px-4 border-b border-border-100/40 shrink-0 gap-3"
+            style={{ height: 'calc(2.75rem + var(--native-safe-area-inset-top, 0px))', paddingTop: 'var(--native-safe-area-inset-top, 0px)' }}
+          >
             {/* Left: title area */}
             <div className="flex items-center gap-3 min-w-0 flex-1">
               {title &&

@@ -279,7 +279,10 @@ export const Sidebar = memo(function Sidebar({
     if (mobileInline) {
       return (
         <>
-          <div className="relative flex h-full w-full flex-col overflow-hidden bg-bg-100 [contain:strict]">
+          <div
+            className="relative flex h-full w-full flex-col overflow-hidden bg-bg-100 [contain:strict]"
+            style={{ paddingTop: 'var(--native-safe-area-inset-top, 0px)' }}
+          >
             <SidePanel
               onNewSession={onNewSession}
               onSelectSession={handleSelectSession}

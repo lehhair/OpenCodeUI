@@ -882,7 +882,7 @@ export const ChatArea = memo(
               </div>
             )}
 
-            <div className="h-20 shrink-0" />
+            <div className="shrink-0" style={{ height: 'calc(5rem + var(--native-safe-area-inset-top, 0px))' }} />
             <div ref={topSentinelRef} className="h-px shrink-0" aria-hidden="true" />
           </div>
         </div>

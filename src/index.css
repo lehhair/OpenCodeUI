@@ -31,7 +31,7 @@
 
 /* 导航到消息时保留顶部空间，避免被对话标题栏遮挡。 */
 [data-chat-scroll-root='true'] [data-message-id] {
-  scroll-margin-top: 72px;
+  scroll-margin-top: calc(72px + var(--native-safe-area-inset-top, 0px));
 }
 
 /* ============================================
@@ -50,6 +50,7 @@
   --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
   --safe-area-inset-left: env(safe-area-inset-left, 0px);
   --safe-area-inset-right: env(safe-area-inset-right, 0px);
+  --native-safe-area-inset-top: 0px;
   --keyboard-inset-bottom: 0px;
 }
 
@@ -99,6 +100,11 @@ body,
  * 防止 CSS env() 与原生 setPadding 双重叠加。 */
 .tauri-app #root {
   padding: 0;
+}
+
+/* Tauri Android edge-to-edge：WebView 需要画到状态栏下方，只有贴顶 UI 自己避开状态栏。 */
+.tauri-app {
+  --native-safe-area-inset-top: var(--safe-area-inset-top);
 }
 
 /* ============================================
