@@ -317,26 +317,11 @@ export const Terminal = memo(function Terminal({ ptyId, directory, isActive }: T
   const [hasBeenActive, setHasBeenActive] = useState(isActive)
   const { preferTouchUi, hasTouch, hasCoarsePointer } = useInputCapabilities()
   const { manualTerminalTitles } = useTheme()
-  const { panelTabs, terminalCopyOnSelect, terminalRightClickPaste } = useLayoutStore()
+  const { terminalCopyOnSelect, terminalRightClickPaste } = useLayoutStore()
   const touchCapable = hasTouch || hasCoarsePointer
   const manualTerminalTitlesRef = useRef(manualTerminalTitles)
   const terminalCopyOnSelectRef = useRef(terminalCopyOnSelect)
   const terminalRightClickPasteRef = useRef(terminalRightClickPaste)
-  const terminalTab = panelTabs.find(tab => tab.id === ptyId && tab.type === 'terminal')
-  const restoreBuffer = typeof terminalTab?.buffer === 'string' ? terminalTab.buffer : ''
-  const restoreScrollY = typeof terminalTab?.scrollY === 'number' ? terminalTab.scrollY : undefined
-  const restoreCursor =
-    typeof terminalTab?.cursor === 'number' && Number.isSafeInteger(terminalTab.cursor) && terminalTab.cursor >= 0
-      ? terminalTab.cursor
-      : 0
-  const restoreCols =
-    typeof terminalTab?.cols === 'number' && Number.isSafeInteger(terminalTab.cols) && terminalTab.cols > 0
-      ? terminalTab.cols
-      : undefined
-  const restoreRows =
-    typeof terminalTab?.rows === 'number' && Number.isSafeInteger(terminalTab.rows) && terminalTab.rows > 0
-      ? terminalTab.rows
-      : undefined
 
   const clearStickyModifiers = useCallback(() => {
     const next = createStickyModifiers()
@@ -394,10 +379,32 @@ export const Terminal = memo(function Terminal({ ptyId, directory, isActive }: T
     if (!containerRef.current) return
     if (!hasBeenActive) return
 
-    const restoreSize = restoreBuffer && restoreCols && restoreRows ? { cols: restoreCols, rows: restoreRows } : undefined
+    // Read latest snapshot values from the store directly, not from
+    // the render closure. This breaks the infinite cycle:
+    //   old terminal cleanup → updateTerminalSnapshot → notify →
+    //   re-render → effect deps changed → cleanup → notify → ...
+    const freshTab = layoutStore.getState().panelTabs.find(
+      t => t.id === ptyId && t.type === 'terminal',
+    )
+    const effectBuffer = typeof freshTab?.buffer === 'string' ? freshTab.buffer : ''
+    const effectScrollY = typeof freshTab?.scrollY === 'number' ? freshTab.scrollY : undefined
+    const effectCursor =
+      typeof freshTab?.cursor === 'number' && Number.isSafeInteger(freshTab.cursor) && freshTab.cursor >= 0
+        ? freshTab.cursor
+        : 0
+    const effectCols =
+      typeof freshTab?.cols === 'number' && Number.isSafeInteger(freshTab.cols) && freshTab.cols > 0
+        ? freshTab.cols
+        : undefined
+    const effectRows =
+      typeof freshTab?.rows === 'number' && Number.isSafeInteger(freshTab.rows) && freshTab.rows > 0
+        ? freshTab.rows
+        : undefined
+
+    const restoreSize = effectBuffer && effectCols && effectRows ? { cols: effectCols, rows: effectRows } : undefined
 
     mountedRef.current = true
-    cursorRef.current = restoreCursor
+    cursorRef.current = effectCursor
     let ws: WebSocket | null = null
     let wsConnectTimeout: number | null = null
     let disposeData: { dispose: () => void } | null = null
@@ -699,11 +706,11 @@ export const Terminal = memo(function Terminal({ ptyId, directory, isActive }: T
       wsConnectTimeout = requestAnimationFrame(connectTransport) as unknown as number
     }
 
-    if (restoreBuffer) {
-      terminal.write(restoreBuffer, () => {
+    if (effectBuffer) {
+      terminal.write(effectBuffer, () => {
         if (!mountedRef.current) return
-        if (restoreScrollY !== undefined) {
-          terminal.scrollToLine(restoreScrollY)
+        if (effectScrollY !== undefined) {
+          terminal.scrollToLine(effectScrollY)
         }
         scheduleInitialConnect()
       })
@@ -765,11 +772,6 @@ export const Terminal = memo(function Terminal({ ptyId, directory, isActive }: T
     clearStickyModifiers,
     sendTerminalData,
     preferTouchUi,
-    restoreBuffer,
-    restoreScrollY,
-    restoreCursor,
-    restoreCols,
-    restoreRows,
   ])
 
   useEffect(() => {
