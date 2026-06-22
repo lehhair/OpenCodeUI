@@ -303,7 +303,7 @@ export const PanelContainer = memo(function PanelContainer({
   return (
     <>
       {/* Header with Tabs */}
-      <div className="mobile-safe-topbar-14 flex items-center justify-between px-3 z-20 bg-bg-100 relative shrink-0">
+      <div className={`${position === 'right' ? 'mobile-safe-topbar-14' : ''} flex items-center justify-between px-3 z-20 bg-bg-100 relative shrink-0`}>
         {/* Tabs Container - 水平滚动 */}
         <div
           ref={tabsContainerRef}
