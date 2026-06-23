@@ -40,6 +40,12 @@ describe('CodePreview', () => {
     expect(container.querySelector('.cm-content')).toHaveAttribute('contenteditable', 'true')
   })
 
+  it('disables editable focus for constrained inline previews', () => {
+    const { container } = render(<CodePreview code={'first line\nsecond line'} language="text" maxHeight={120} />)
+
+    expect(container.querySelector('.cm-content')).toHaveAttribute('contenteditable', 'false')
+  })
+
   it('opens CodeMirror search from the preview Ctrl+F fallback', () => {
     const { container } = render(<CodePreview code={'first line\nsecond line'} language="text" />)
 

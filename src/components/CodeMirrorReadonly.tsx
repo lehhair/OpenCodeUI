@@ -37,8 +37,17 @@ export function CodeMirrorReadonly({
   const lineNumberWidth = useMemo(() => getLineNumberColumnWidth(getLineCount(code)), [code])
 
   const extensions = useMemo(
-    () => createReadonlyCodeMirrorExtensions({ wordWrap, lineHeight, showLineNumbers, maxHeight, lineNumberWidth, extraExtensions }),
-    [wordWrap, lineHeight, showLineNumbers, maxHeight, lineNumberWidth, extraExtensions],
+    () =>
+      createReadonlyCodeMirrorExtensions({
+        wordWrap,
+        lineHeight,
+        showLineNumbers,
+        maxHeight,
+        editable: !constrainedHeight,
+        lineNumberWidth,
+        extraExtensions,
+      }),
+    [wordWrap, lineHeight, showLineNumbers, maxHeight, constrainedHeight, lineNumberWidth, extraExtensions],
   )
 
   useEffect(() => {
