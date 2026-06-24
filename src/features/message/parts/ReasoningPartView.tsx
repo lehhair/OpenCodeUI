@@ -30,6 +30,7 @@ export const ReasoningPartView = memo(function ReasoningPartView({ part, isStrea
   const summaryContainerRef = useRef<HTMLDivElement>(null)
   const summaryMeasureRef = useRef<HTMLSpanElement>(null)
   const [summaryOverflow, setSummaryOverflow] = useState(false)
+  const [isAtBottom, setIsAtBottom] = useState(true)
 
   const collapsedPreview = useMemo(() => (displayText || '').replace(/\s+/g, ' ').trim(), [displayText])
   const thoughtDurationLabel = useMemo(() => {
@@ -71,12 +72,19 @@ export const ReasoningPartView = memo(function ReasoningPartView({ part, isStrea
     }
   }, [isPartStreaming, hasContent])
 
+  const handleCapsuleScroll = useCallback(() => {
+    const el = scrollAreaRef.current
+    if (!el) return
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 60
+    setIsAtBottom(atBottom)
+  }, [])
+
   useEffect(() => {
     if (reasoningDisplayMode !== 'capsule') return
-    if (isPartStreaming && expanded && scrollAreaRef.current) {
+    if (isPartStreaming && expanded && isAtBottom && scrollAreaRef.current) {
       scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight
     }
-  }, [displayText, isPartStreaming, expanded, reasoningDisplayMode])
+  }, [displayText, isPartStreaming, expanded, isAtBottom, reasoningDisplayMode])
 
   useEffect(() => {
     if (reasoningDisplayMode !== 'italic' && reasoningDisplayMode !== 'markdown') return
@@ -246,7 +254,7 @@ export const ReasoningPartView = memo(function ReasoningPartView({ part, isStrea
       >
         <div className="min-h-0 min-w-0 overflow-hidden" style={{ clipPath: 'inset(0 -100% 0 -100%)' }}>
           {shouldRenderBody && (
-            <ScrollArea ref={scrollAreaRef} maxHeight={192} className="border-t border-border-300/20 bg-bg-200/30">
+            <ScrollArea ref={scrollAreaRef} maxHeight={192} onScroll={handleCapsuleScroll} className="border-t border-border-300/20 bg-bg-200/30">
               <div className="px-2 py-2 text-text-300 text-[length:var(--fs-sm)] font-mono whitespace-pre-wrap break-words overflow-x-hidden">
                 {displayText}
               </div>
