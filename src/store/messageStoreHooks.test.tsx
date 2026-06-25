@@ -77,4 +77,30 @@ describe('useSessionState', () => {
     expect(result.current?.messages).toEqual([])
     expect(result.current?.canUndo).toBe(false)
   })
+
+  it('does not re-render when another session changes', async () => {
+    messageStore.setMessages('session-1', [createMessageWithParts('message-1', 'one', 1)])
+    messageStore.setMessages('session-2', [
+      {
+        info: { ...createUserMessage('message-2', 2), sessionID: 'session-2' },
+        parts: [{ ...createTextPart('part-message-2', 'message-2', 'two'), sessionID: 'session-2' }],
+      },
+    ])
+
+    let renderCount = 0
+    const { result } = renderHook(() => {
+      renderCount += 1
+      return useSessionState('session-1')
+    })
+    expect(result.current?.messages.map(message => message.info.id)).toEqual(['message-1'])
+
+    messageStore.handlePartUpdated({
+      ...createTextPart('part-message-2', 'message-2', 'two updated'),
+      sessionID: 'session-2',
+    })
+    await new Promise(resolve => requestAnimationFrame(resolve))
+
+    expect(renderCount).toBe(1)
+    expect(result.current?.messages.map(message => message.info.id)).toEqual(['message-1'])
+  })
 })

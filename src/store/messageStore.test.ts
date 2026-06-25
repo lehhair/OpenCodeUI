@@ -208,4 +208,30 @@ describe('messageStore', () => {
     expect(afterMessage1).not.toBe(beforeMessage1)
     expect(afterMessage2).not.toBe(beforeMessage2)
   })
+
+  it('notifies only subscribers for changed sessions', () => {
+    const session1Subscriber = vi.fn()
+    const session2Subscriber = vi.fn()
+    const allSubscriber = vi.fn()
+    const rafCallbacks: Array<(time: number) => void> = []
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation(cb => {
+      rafCallbacks.push(cb as (time: number) => void)
+      return rafCallbacks.length
+    })
+
+    const unsubscribeSession1 = messageStore.subscribeSession('session-1', session1Subscriber)
+    const unsubscribeSession2 = messageStore.subscribeSession('session-2', session2Subscriber)
+    const unsubscribeAll = messageStore.subscribe(allSubscriber)
+
+    messageStore.setMessages('session-2', [createMessageWithParts('message-2', 'world', 'session-2')])
+    rafCallbacks.shift()?.(0)
+
+    expect(session1Subscriber).not.toHaveBeenCalled()
+    expect(session2Subscriber).toHaveBeenCalledTimes(1)
+    expect(allSubscriber).toHaveBeenCalledTimes(1)
+
+    unsubscribeSession1()
+    unsubscribeSession2()
+    unsubscribeAll()
+  })
 })

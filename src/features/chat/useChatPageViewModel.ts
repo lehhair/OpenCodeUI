@@ -1,10 +1,21 @@
-import { useMemo } from 'react'
+import { useMemo, useRef } from 'react'
 import { getMessageText, type Message } from '../../types/message'
 import { buildOutlineSourceEntries, type OutlineSourceEntry } from '../../components/outlineIndexModel'
-import { buildVisibleMessageEntries, getVisibleMessageForkTargetId } from './chatAreaVisibility'
-import { buildContentKeyedChatPages, buildTurnDurationMap, type StableChatPage } from './chatPageModel'
+import {
+  buildVisibleMessageEntries,
+  getVisibleMessageForkTargetId,
+  type VisibleMessageEntry,
+} from './chatAreaVisibility'
+import {
+  buildContentKeyedChatPages,
+  findMessageSequenceOffset,
+  buildTurnDurationMap,
+  type MessageGroupRow,
+  type StableChatPage,
+} from './chatPageModel'
 
 export interface ChatPageViewModel {
+  visibleMessageEntries: VisibleMessageEntry[]
   visibleMessages: Message[]
   pageRecords: StableChatPage[]
   outlineSourceEntries: OutlineSourceEntry[]
@@ -67,18 +78,126 @@ function getStableOutlineModel(messages: Message[]): StableOutlineModel {
   return next
 }
 
-export function useChatPageViewModel(messages: Message[]): ChatPageViewModel {
-  const visibleMessageEntries = useMemo(() => buildVisibleMessageEntries(messages), [messages])
-  const visibleMessages = useMemo(() => visibleMessageEntries.map(entry => entry.message), [visibleMessageEntries])
-  const pageRecords = useMemo(() => buildContentKeyedChatPages(visibleMessages), [visibleMessages])
-  const forkTargetIdMap = useMemo(
-    () => new Map(visibleMessageEntries.map(entry => [entry.message.info.id, getVisibleMessageForkTargetId(entry)])),
-    [visibleMessageEntries],
+function sameStringList(a: readonly string[], b: readonly string[]) {
+  return a.length === b.length && a.every((value, index) => value === b[index])
+}
+
+function sameParts(a: Message['parts'], b: Message['parts']) {
+  return a.length === b.length && a.every((part, index) => part === b[index])
+}
+
+function sameVisibleEntry(a: VisibleMessageEntry, b: VisibleMessageEntry) {
+  return (
+    sameStringList(a.sourceIds, b.sourceIds) &&
+    a.message.info === b.message.info &&
+    a.message.isStreaming === b.message.isStreaming &&
+    sameParts(a.message.parts, b.message.parts)
   )
-  const outlineModel = useMemo(() => getStableOutlineModel(visibleMessages), [visibleMessages])
-  const turnDurationMap = useMemo(() => buildTurnDurationMap(messages, visibleMessages), [messages, visibleMessages])
+}
+
+function reuseVisibleMessageEntries(
+  previous: VisibleMessageEntry[] | undefined,
+  next: VisibleMessageEntry[],
+): VisibleMessageEntry[] {
+  if (!previous || previous.length !== next.length) return next
+  let changed = false
+  const entries = next.map((entry, index) => {
+    const previousEntry = previous[index]
+    if (sameVisibleEntry(previousEntry, entry)) return previousEntry
+    changed = true
+    return entry
+  })
+  return changed ? entries : previous
+}
+
+function visibleMessagesFromEntries(previous: Message[] | undefined, entries: VisibleMessageEntry[]) {
+  const messages = entries.map(entry => entry.message)
+  if (
+    previous &&
+    previous.length === messages.length &&
+    previous.every((message, index) => message === messages[index])
+  ) {
+    return previous
+  }
+  return messages
+}
+
+function sameRow(a: MessageGroupRow, b: MessageGroupRow) {
+  return (
+    a.key === b.key &&
+    a.estimatedHeight === b.estimatedHeight &&
+    sameStringList(a.messageIds, b.messageIds) &&
+    a.messages.every((message, index) => message === b.messages[index])
+  )
+}
+
+function reusePageRecords(previous: StableChatPage[] | undefined, next: StableChatPage[]): StableChatPage[] {
+  if (!previous) return next
+  const stableKeyPages = keepStablePageKeys(previous, next)
+  if (previous.length !== stableKeyPages.length) return stableKeyPages
+  let changed = false
+  const pages = stableKeyPages.map((page, index) => {
+    const previousPage = previous[index]
+    if (
+      previousPage.key === page.key &&
+      previousPage.estimatedHeight === page.estimatedHeight &&
+      sameStringList(previousPage.messageIds, page.messageIds) &&
+      previousPage.rows.length === page.rows.length &&
+      previousPage.rows.every((row, rowIndex) => sameRow(row, page.rows[rowIndex]))
+    ) {
+      return previousPage
+    }
+    changed = true
+    return page
+  })
+  return changed ? pages : previous
+}
+
+function keepStablePageKeys(previous: StableChatPage[], next: StableChatPage[]): StableChatPage[] {
+  if (previous.length === 0 || next.length === 0) return next
+  const usedPreviousKeys = new Set<string>()
+  let changed = false
+
+  const pages = next.map(page => {
+    const match = previous.find(previousPage => {
+      if (usedPreviousKeys.has(previousPage.key)) return false
+      return findMessageSequenceOffset(page.messageIds, previousPage.messageIds) !== -1
+    })
+    if (!match) return page
+    usedPreviousKeys.add(match.key)
+    if (match.key === page.key) return page
+    changed = true
+    return { ...page, key: match.key }
+  })
+
+  return changed ? pages : next
+}
+
+function buildForkTargetIdMap(entries: VisibleMessageEntry[]) {
+  return new Map(entries.map(entry => [entry.message.info.id, getVisibleMessageForkTargetId(entry)]))
+}
+
+function reuseMap<K, V>(previous: Map<K, V> | undefined, next: Map<K, V>) {
+  if (!previous || previous.size !== next.size) return next
+  for (const [key, value] of next) {
+    if (!previous.has(key) || previous.get(key) !== value) return next
+  }
+  return previous
+}
+
+export function buildChatPageViewModel(messages: Message[], previous?: ChatPageViewModel): ChatPageViewModel {
+  const visibleMessageEntries = reuseVisibleMessageEntries(
+    previous?.visibleMessageEntries,
+    buildVisibleMessageEntries(messages),
+  )
+  const visibleMessages = visibleMessagesFromEntries(previous?.visibleMessages, visibleMessageEntries)
+  const pageRecords = reusePageRecords(previous?.pageRecords, buildContentKeyedChatPages(visibleMessages))
+  const forkTargetIdMap = reuseMap(previous?.forkTargetIdMap, buildForkTargetIdMap(visibleMessageEntries))
+  const outlineModel = getStableOutlineModel(visibleMessages)
+  const turnDurationMap = reuseMap(previous?.turnDurationMap, buildTurnDurationMap(messages, visibleMessages))
 
   return {
+    visibleMessageEntries,
     visibleMessages,
     pageRecords,
     outlineSourceEntries: outlineModel.entries,
@@ -86,4 +205,13 @@ export function useChatPageViewModel(messages: Message[]): ChatPageViewModel {
     forkTargetIdMap,
     turnDurationMap,
   }
+}
+
+export function useChatPageViewModel(messages: Message[]): ChatPageViewModel {
+  const previousRef = useRef<ChatPageViewModel | undefined>(undefined)
+  return useMemo(() => {
+    const viewModel = buildChatPageViewModel(messages, previousRef.current)
+    previousRef.current = viewModel
+    return viewModel
+  }, [messages])
 }

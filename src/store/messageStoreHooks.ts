@@ -129,7 +129,6 @@ function shallowEqual<T>(a: T, b: T): boolean {
 // 缓存：sessionId -> Snapshot
 const sessionSnapshots = new Map<string, SessionStateSnapshot>()
 
-// 订阅 store 变化，清除相关缓存
 messageStore.subscribe(() => {
   sessionSnapshots.clear()
 })
@@ -170,11 +169,18 @@ export function useSessionState(sessionId: string | null): SessionStateSnapshot 
     return snapshot
   }
 
-  return useSyncExternalStore(
-    onStoreChange => messageStore.subscribe(onStoreChange),
-    getSessionSnapshot,
-    getSessionSnapshot,
+  const subscribeSession = useCallback(
+    (onStoreChange: () => void) => {
+      if (!sessionId) return () => undefined
+      return messageStore.subscribeSession(sessionId, () => {
+        sessionSnapshots.delete(sessionId)
+        onStoreChange()
+      })
+    },
+    [sessionId],
   )
+
+  return useSyncExternalStore(subscribeSession, getSessionSnapshot, getSessionSnapshot)
 }
 
 // ============================================

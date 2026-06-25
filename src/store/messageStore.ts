@@ -24,10 +24,16 @@ const MAX_CACHED_SESSIONS = 10
 class MessageStore {
   private sessions = new Map<string, SessionState>()
   private subscribers = new Set<Subscriber>()
+  private sessionSubscribers = new Map<string, Map<Subscriber, number>>()
+  private sessionVersions = new Map<string, number>()
+  private allSessionsVersion = 0
+  private changeVersion = 0
   private sessionAccessTime = new Map<string, number>()
   /** 被分屏 pane 保护的 sessionId 集合，evict 时跳过 */
   private protectedSessions = new Set<string>()
   private pendingNotify = false
+  private pendingNotifyAllSessions = false
+  private pendingSessionNotifyIds = new Set<string>()
   private rafId: number | null = null
   // delta 批量化：按 session 追踪被 mutable 修改过的消息，在 notify 前统一做不可变快照
   private dirtyMessagesBySession = new Map<string, Set<string>>()
@@ -41,7 +47,41 @@ class MessageStore {
     return () => this.subscribers.delete(fn)
   }
 
-  private notify() {
+  subscribeSession(sessionId: string, fn: Subscriber): () => void {
+    let subscribers = this.sessionSubscribers.get(sessionId)
+    if (!subscribers) {
+      subscribers = new Map()
+      this.sessionSubscribers.set(sessionId, subscribers)
+    }
+    subscribers.set(fn, this.getSessionVersion(sessionId))
+    return () => {
+      subscribers.delete(fn)
+      if (subscribers.size === 0) this.sessionSubscribers.delete(sessionId)
+    }
+  }
+
+  private getSessionVersion(sessionId: string) {
+    return Math.max(this.sessionVersions.get(sessionId) ?? 0, this.allSessionsVersion)
+  }
+
+  private markPendingSessionNotifications(sessionIds?: Iterable<string> | 'all') {
+    if (sessionIds === 'all') {
+      this.changeVersion += 1
+      this.allSessionsVersion = this.changeVersion
+      this.pendingNotifyAllSessions = true
+      this.pendingSessionNotifyIds.clear()
+      return
+    }
+    if (!sessionIds || this.pendingNotifyAllSessions) return
+    for (const sessionId of sessionIds) {
+      this.changeVersion += 1
+      this.sessionVersions.set(sessionId, this.changeVersion)
+      this.pendingSessionNotifyIds.add(sessionId)
+    }
+  }
+
+  private notify(sessionIds?: Iterable<string> | 'all') {
+    this.markPendingSessionNotifications(sessionIds)
     if (this.pendingNotify) return
     this.pendingNotify = true
 
@@ -51,12 +91,42 @@ class MessageStore {
         this.rafId = null
         this.flushDirtyMessages()
         this.subscribers.forEach(fn => fn())
+        this.flushSessionSubscribers()
       })
     } else {
       this.pendingNotify = false
       this.flushDirtyMessages()
       this.subscribers.forEach(fn => fn())
+      this.flushSessionSubscribers()
     }
+  }
+
+  private flushSessionSubscribers() {
+    if (this.pendingNotifyAllSessions) {
+      this.pendingNotifyAllSessions = false
+      this.pendingSessionNotifyIds.clear()
+      this.sessionSubscribers.forEach((subscribers, sessionId) => {
+        this.flushSubscribersForSession(sessionId, subscribers)
+      })
+      return
+    }
+
+    if (this.pendingSessionNotifyIds.size === 0) return
+    const sessionIds = Array.from(this.pendingSessionNotifyIds)
+    this.pendingSessionNotifyIds.clear()
+    for (const sessionId of sessionIds) {
+      const subscribers = this.sessionSubscribers.get(sessionId)
+      if (subscribers) this.flushSubscribersForSession(sessionId, subscribers)
+    }
+  }
+
+  private flushSubscribersForSession(sessionId: string, subscribers: Map<Subscriber, number>) {
+    const version = this.getSessionVersion(sessionId)
+    subscribers.forEach((seenVersion, fn) => {
+      if (seenVersion === version) return
+      subscribers.set(fn, version)
+      fn()
+    })
   }
 
   /**
@@ -88,14 +158,16 @@ class MessageStore {
     this.dirtyMessagesBySession.clear()
   }
 
-  private notifyImmediate() {
+  private notifyImmediate(sessionIds?: Iterable<string> | 'all') {
     if (this.rafId !== null) {
       cancelAnimationFrame(this.rafId)
       this.rafId = null
     }
+    this.markPendingSessionNotifications(sessionIds)
     this.pendingNotify = false
     this.flushDirtyMessages()
     this.subscribers.forEach(fn => fn())
+    this.flushSessionSubscribers()
   }
 
   // ============================================
@@ -176,12 +248,12 @@ class MessageStore {
         revertState: null,
         isStreaming: false,
         loadState: 'idle',
-          hasMoreHistory: false,
-          directory: '',
-          title: undefined,
-          loadError: undefined,
-          shareUrl: undefined,
-          isStale: false,
+        hasMoreHistory: false,
+        directory: '',
+        title: undefined,
+        loadError: undefined,
+        shareUrl: undefined,
+        isStale: false,
       }
       this.sessions.set(sessionId, state)
     }
@@ -242,7 +314,7 @@ class MessageStore {
     if (options.loadError !== undefined) state.loadError = options.loadError
     if (options.shareUrl !== undefined) state.shareUrl = options.shareUrl
 
-    this.notify()
+    this.notify([sessionId])
   }
 
   upsertLocalMessage(message: Message) {
@@ -259,7 +331,7 @@ class MessageStore {
       })
     }
 
-    this.notify()
+    this.notify([message.info.sessionID])
   }
 
   removeMessage(sessionId: string, messageId: string) {
@@ -268,7 +340,7 @@ class MessageStore {
     const nextMessages = state.messages.filter(message => message.info.id !== messageId)
     if (nextMessages.length === state.messages.length) return
     state.messages = nextMessages
-    this.notify()
+    this.notify([sessionId])
   }
 
   markAllSessionsStale() {
@@ -278,21 +350,21 @@ class MessageStore {
       state.isStale = true
       updated = true
     }
-    if (updated) this.notify()
+    if (updated) this.notify('all')
   }
 
   setLoadState(sessionId: string, loadState: SessionState['loadState']) {
     const state = this.ensureSession(sessionId)
     state.loadState = loadState
     if (loadState !== 'error') state.loadError = undefined
-    this.notify()
+    this.notify([sessionId])
   }
 
   setLoadError(sessionId: string, error: MessageError) {
     const state = this.ensureSession(sessionId)
     state.loadState = 'error'
     state.loadError = error
-    this.notify()
+    this.notify([sessionId])
   }
 
   // ============================================
@@ -357,7 +429,7 @@ class MessageStore {
       state.isStreaming = false
     }
 
-    this.notify()
+    this.notify([sessionId])
   }
 
   prependMessages(sessionId: string, apiMessages: ApiMessageWithParts[], hasMore: boolean) {
@@ -375,7 +447,7 @@ class MessageStore {
     }
     state.hasMoreHistory = hasMore
 
-    this.notify()
+    this.notify([sessionId])
   }
 
   clearAll() {
@@ -387,21 +459,21 @@ class MessageStore {
       this.rafId = null
     }
     this.pendingNotify = false
-    this.notifyImmediate()
+    this.notifyImmediate('all')
   }
 
   clearSession(sessionId: string) {
     this.sessions.delete(sessionId)
     this.sessionAccessTime.delete(sessionId)
     this.dirtyMessagesBySession.delete(sessionId)
-    this.notify()
+    this.notify([sessionId])
   }
 
   setShareUrl(sessionId: string, url: string | undefined) {
     const state = this.sessions.get(sessionId)
     if (!state) return
     state.shareUrl = url
-    this.notify()
+    this.notify([sessionId])
   }
 
   // ============================================
@@ -432,7 +504,7 @@ class MessageStore {
       }
     }
 
-    this.notify()
+    this.notify([apiMsg.sessionID])
   }
 
   handlePartUpdated(apiPart: ApiPart & { sessionID: string; messageID: string }) {
@@ -454,7 +526,7 @@ class MessageStore {
 
     const newMessage = { ...oldMessage, parts: newParts }
     state.messages = [...state.messages.slice(0, msgIndex), newMessage, ...state.messages.slice(msgIndex + 1)]
-    this.notify()
+    this.notify([apiPart.sessionID])
   }
 
   handlePartDelta(data: { sessionID: string; messageID: string; partID: string; field: string; delta: string }) {
@@ -479,7 +551,7 @@ class MessageStore {
       this.dirtyMessagesBySession.set(data.sessionID, dirtyMessages)
     }
     dirtyMessages.add(data.messageID)
-    this.notify()
+    this.notify([data.sessionID])
   }
 
   handlePartRemoved(data: { partID: string; messageID: string; sessionID: string }) {
@@ -494,7 +566,7 @@ class MessageStore {
 
     const newMessage = { ...oldMessage, parts: oldMessage.parts.filter(p => p.id !== data.partID) }
     state.messages = [...state.messages.slice(0, msgIndex), newMessage, ...state.messages.slice(msgIndex + 1)]
-    this.notify()
+    this.notify([data.sessionID])
   }
 
   handleSessionIdle(sessionId: string) {
@@ -520,7 +592,7 @@ class MessageStore {
         }
       })
     }
-    this.notify()
+    this.notify([sessionId])
   }
 
   handleSessionError(sessionId: string) {
@@ -546,7 +618,7 @@ class MessageStore {
         }
       })
     }
-    this.notify()
+    this.notify([sessionId])
   }
 
   // ============================================
@@ -562,7 +634,7 @@ class MessageStore {
       state.messages = state.messages.slice(0, revertIndex)
     }
     state.revertState = null
-    this.notify()
+    this.notify([sessionId])
   }
 
   createSendRollbackSnapshot(sessionId: string): SendRollbackSnapshot | null {
@@ -590,14 +662,14 @@ class MessageStore {
         }
       : null
     state.isStreaming = false
-    this.notify()
+    this.notify([sessionId])
   }
 
   setRevertState(sessionId: string, revertState: RevertState | null) {
     const state = this.sessions.get(sessionId)
     if (!state) return
     state.revertState = revertState
-    this.notify()
+    this.notify([sessionId])
   }
 
   getLastUserMessageId(sessionId: string | null): string | null {
@@ -644,7 +716,7 @@ class MessageStore {
     const state = isStreaming ? this.ensureSession(sessionId) : this.sessions.get(sessionId)
     if (!state) return
     state.isStreaming = isStreaming
-    this.notify()
+    this.notify([sessionId])
   }
 
   // ============================================
