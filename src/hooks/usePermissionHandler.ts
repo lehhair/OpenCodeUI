@@ -84,9 +84,8 @@ export function usePermissionHandler(): UsePermissionHandlerResult {
 
       try {
         await withRetry(() => replyPermission(requestId, reply, undefined, directory, sessionId))
-
-        // 等待 permission.replied SSE 再移除。部分后端路径会在找不到 pending 时
-        // 仍返回 200/true，提前移除会让真实未处理的权限请求从 UI 消失。
+        setPendingPermissionRequests(prev => prev.filter(r => r.id !== requestId))
+        activeSessionStore.resolvePendingRequest(requestId)
         return true
       } catch (error) {
         permissionErrorHandler('reply after retries', error)
