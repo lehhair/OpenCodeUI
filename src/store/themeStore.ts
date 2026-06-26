@@ -72,6 +72,8 @@ export interface StepFinishDisplay {
   agent: boolean
   model: boolean
   completedAt: boolean
+  tps: boolean
+  ttft: boolean
 }
 
 export type CompletedAtFormat = 'time' | 'dateTime'
@@ -104,6 +106,8 @@ const DEFAULT_STEP_FINISH_DISPLAY: StepFinishDisplay = {
   agent: false,
   model: false,
   completedAt: false,
+  tps: false,
+  ttft: false,
 }
 
 const DEFAULT_COMPLETED_AT_FORMAT: CompletedAtFormat = 'time'
