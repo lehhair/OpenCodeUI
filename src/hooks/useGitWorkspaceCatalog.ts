@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { getCurrentProject, listWorktrees } from '../api'
+import { getCurrentProject } from '../api'
 import { subscribeToEvents } from '../api/events'
 import { serverStore } from '../store/serverStore'
 import { normalizeToForwardSlash } from '../utils'
@@ -16,6 +16,35 @@ export type GitWorkspaceCatalog = Map<string, GitWorkspaceMeta>
 type RefreshListener = () => void
 
 const refreshListeners = new Set<RefreshListener>()
+
+function normalizeProjectWorkspaces(rootDirectory: string, sandboxes?: string[]) {
+  const seen = new Set([rootDirectory.toLowerCase()])
+  const workspaces = [rootDirectory]
+
+  for (const sandbox of sandboxes ?? []) {
+    const normalized = normalizeToForwardSlash(sandbox)
+    const key = normalized.toLowerCase()
+    if (!normalized || seen.has(key)) continue
+    seen.add(key)
+    workspaces.push(normalized)
+  }
+
+  return workspaces
+}
+
+function mergeProjectWorkspaces(current: string[] | undefined, next: string[]) {
+  if (!current) return next
+
+  const seen = new Set(current.map(directory => directory.toLowerCase()))
+  const merged = [...current]
+  for (const directory of next) {
+    const key = directory.toLowerCase()
+    if (seen.has(key)) continue
+    seen.add(key)
+    merged.push(directory)
+  }
+  return merged
+}
 
 export function requestGitWorkspaceCatalogRefresh() {
   refreshListeners.forEach(listener => listener())
@@ -59,8 +88,8 @@ export function useGitWorkspaceCatalog(directories: string[]) {
 
       if (!mountedRef.current || version !== versionRef.current) return
 
-      const rootDirectories = new Set<string>()
       const directoryToRoot = new Map<string, string>()
+      const rootToWorkspaces = new Map<string, string[]>()
       const nextCatalog: GitWorkspaceCatalog = new Map()
       const previousWorkspacesByRoot = new Map<string, string[]>()
 
@@ -81,8 +110,8 @@ export function useGitWorkspaceCatalog(directories: string[]) {
         if (result.status !== 'fulfilled') {
           const previousMeta = previousCatalog.get(directory)
           if (previousMeta?.isGit) {
-            rootDirectories.add(previousMeta.rootDirectory)
             directoryToRoot.set(directory, previousMeta.rootDirectory)
+            rootToWorkspaces.set(previousMeta.rootDirectory, previousMeta.workspaces)
           }
           continue
         }
@@ -91,8 +120,11 @@ export function useGitWorkspaceCatalog(directories: string[]) {
 
         if (project.vcs === 'git' && project.worktree) {
           const rootDirectory = normalizeToForwardSlash(project.worktree)
-          rootDirectories.add(rootDirectory)
           directoryToRoot.set(directory, rootDirectory)
+          rootToWorkspaces.set(
+            rootDirectory,
+            mergeProjectWorkspaces(rootToWorkspaces.get(rootDirectory), normalizeProjectWorkspaces(rootDirectory, project.sandboxes)),
+          )
         } else {
           nextCatalog.set(directory, {
             isGit: false,
@@ -102,39 +134,13 @@ export function useGitWorkspaceCatalog(directories: string[]) {
         }
       }
 
-      const rootDirectoryList = Array.from(rootDirectories)
-
-      const workspaceResults = await Promise.allSettled(
-        rootDirectoryList.map(async rootDirectory => ({
-          rootDirectory,
-          worktrees: await listWorktrees(rootDirectory),
-        })),
-      )
-
       if (!mountedRef.current || version !== versionRef.current) return
-
-      const rootToWorkspaces = new Map<string, string[]>()
-
-      for (let index = 0; index < workspaceResults.length; index++) {
-        const result = workspaceResults[index]
-        const rootDirectory = rootDirectoryList[index]
-
-        if (result.status !== 'fulfilled') {
-          rootToWorkspaces.set(rootDirectory, previousWorkspacesByRoot.get(rootDirectory) ?? [rootDirectory])
-          continue
-        }
-
-        const { worktrees } = result.value
-        const normalizedWorktrees = Array.from(new Set(worktrees.map(worktree => normalizeToForwardSlash(worktree))))
-        const sandboxes = normalizedWorktrees.filter(worktree => worktree.toLowerCase() !== rootDirectory.toLowerCase())
-        rootToWorkspaces.set(rootDirectory, [rootDirectory, ...sandboxes])
-      }
 
       for (const [directory, rootDirectory] of directoryToRoot) {
         nextCatalog.set(directory, {
           isGit: true,
           rootDirectory,
-          workspaces: rootToWorkspaces.get(rootDirectory) ?? [rootDirectory],
+          workspaces: rootToWorkspaces.get(rootDirectory) ?? previousWorkspacesByRoot.get(rootDirectory) ?? [rootDirectory],
         })
       }
 

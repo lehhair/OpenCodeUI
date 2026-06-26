@@ -11,14 +11,14 @@ function createDeferred<T>() {
 }
 
 const getCurrentProjectMock = vi.fn()
-const listWorktreesMock = vi.fn()
 const subscribeToEventsMock = vi.fn()
 const onServerChangeMock = vi.fn()
 let latestServerChange: (() => void) | undefined
 
+type ProjectResult = { vcs: string; worktree: string; sandboxes?: string[] }
+
 vi.mock('../api', () => ({
   getCurrentProject: (...args: unknown[]) => getCurrentProjectMock(...args),
-  listWorktrees: (...args: unknown[]) => listWorktreesMock(...args),
 }))
 
 vi.mock('../api/events', () => ({
@@ -34,7 +34,6 @@ vi.mock('../store/serverStore', () => ({
 describe('useGitWorkspaceCatalog', () => {
   beforeEach(() => {
     getCurrentProjectMock.mockReset()
-    listWorktreesMock.mockReset()
     subscribeToEventsMock.mockReset()
     onServerChangeMock.mockReset()
     latestServerChange = undefined
@@ -44,12 +43,11 @@ describe('useGitWorkspaceCatalog', () => {
       latestServerChange = listener as () => void
       return vi.fn()
     })
-    listWorktreesMock.mockResolvedValue(['C:/repo', 'C:/repo-worktree'])
   })
 
   it('refetches workspace metadata on server endpoint changes while stale requests are in flight', async () => {
-    const staleRequest = createDeferred<{ vcs: string; worktree: string }>()
-    const freshRequest = createDeferred<{ vcs: string; worktree: string }>()
+    const staleRequest = createDeferred<ProjectResult>()
+    const freshRequest = createDeferred<ProjectResult>()
 
     getCurrentProjectMock.mockImplementationOnce(() => staleRequest.promise).mockImplementationOnce(() => freshRequest.promise)
 
@@ -66,7 +64,7 @@ describe('useGitWorkspaceCatalog', () => {
     expect(getCurrentProjectMock).toHaveBeenCalledTimes(2)
 
     await act(async () => {
-      freshRequest.resolve({ vcs: 'git', worktree: 'C:/repo' })
+      freshRequest.resolve({ vcs: 'git', worktree: 'C:/repo', sandboxes: ['C:/repo-worktree'] })
       await Promise.resolve()
       await Promise.resolve()
     })
@@ -76,12 +74,24 @@ describe('useGitWorkspaceCatalog', () => {
     })
 
     await act(async () => {
-      staleRequest.resolve({ vcs: 'git', worktree: 'C:/stale' })
+      staleRequest.resolve({ vcs: 'git', worktree: 'C:/stale', sandboxes: ['C:/stale-worktree'] })
       await Promise.resolve()
       await Promise.resolve()
     })
 
     expect(result.current.catalog.get('C:/repo')?.rootDirectory).toBe('C:/repo')
     expect(result.current.catalog.get('C:/repo')?.workspaces).toEqual(['C:/repo', 'C:/repo-worktree'])
+  })
+
+  it('does not call experimental worktree listing while building the sidebar catalog', async () => {
+    getCurrentProjectMock.mockResolvedValue({ vcs: 'git', worktree: 'C:/repo', sandboxes: ['C:/repo-worktree'] })
+
+    const { result } = renderHook(() => useGitWorkspaceCatalog(['C:\\repo']))
+
+    await waitFor(() => {
+      expect(result.current.catalog.get('C:/repo')?.workspaces).toEqual(['C:/repo', 'C:/repo-worktree'])
+    })
+
+    expect(getCurrentProjectMock).toHaveBeenCalledWith('C:/repo')
   })
 })
