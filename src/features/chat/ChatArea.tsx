@@ -31,6 +31,7 @@ import { messageStore } from '../../store'
 import { useTheme } from '../../hooks/useTheme'
 import { useAutoScroll } from '../../hooks/useAutoScroll'
 import { useScrollGestureDetector } from './useScrollGestureDetector'
+import { useMobileChatPagerGestureBridge } from './useMobileChatPagerGestureBridge'
 import type { Message, MessageError } from '../../types/message'
 import { RetryStatusInline, type RetryStatusInlineData } from './RetryStatusInline'
 import { buildVisibleMessageEntries, getVisibleMessageForkTargetId } from './chatAreaVisibility'
@@ -172,7 +173,7 @@ export const ChatArea = memo(
       const loadMoreBlockedRef = useRef(true)
 
       const { isWideMode } = useTheme()
-      const { presentation } = useChatViewport()
+      const { presentation, interaction } = useChatViewport()
       const atBottomThreshold = AT_BOTTOM_THRESHOLD_PX
       const messagePaddingClass = presentation.isCompact ? 'px-3' : 'px-6'
       const messageMaxWidthClass = isWideMode ? 'max-w-[95%] xl:max-w-6xl' : 'max-w-2xl'
@@ -296,6 +297,12 @@ export const ChatArea = memo(
         autoScroll.scrollRef(node)
         gestureDetector.setRoot(node)
       }, [autoScroll, gestureDetector])
+
+      useMobileChatPagerGestureBridge(
+        scrollRef,
+        interaction.sidebarBehavior === 'overlay',
+        scrollRoot,
+      )
 
       const setContentWrapperRef = useCallback((node: HTMLDivElement | null) => {
         autoScroll.contentRef(node)
