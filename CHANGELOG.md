@@ -1,5 +1,11 @@
 # Changelog
 
+## [v0.6.23] - 2026-06-27
+
+- fix: constrain mobile dialog content height (52d6a5e)
+- fix: constrain composer height (94ed590)
+- fix: preserve message disclosure state (0fcc13f)
+
 ## [v0.6.22] - 2026-06-27
 
 - fix: stabilize streaming markdown highlights (a973d79)
