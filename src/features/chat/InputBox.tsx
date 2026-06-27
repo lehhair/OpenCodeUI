@@ -197,7 +197,6 @@ function InputBoxComponent({
   onRedoAll,
   onClearRevert,
   registerInputBox,
-  isAtBottom = true,
   showScrollToBottom = false,
   onScrollToBottom,
   collapsedPermission,
@@ -276,14 +275,10 @@ function InputBoxComponent({
   // ============================================
   // Mobile Input Dock: 滚动收起/展开（逻辑在 useMobileCollapse hook 中）
   // ============================================
-  const { isCollapsed, handleExpandInput, handleFocus, handleBlur, handleContainerPointerDown } =
+  const { isCollapsed, toggleCollapse, handleExpandInput, handleFocus, handleBlur, handleContainerPointerDown } =
     useMobileCollapse({
       enabled: interaction.enableCollapsedInputDock,
-      isAtBottom,
       textareaRef,
-      inputContainerRef,
-      contentWrapRef,
-      footerRef,
       registerInputBox,
       collapsedPermission,
       collapsedQuestion,
@@ -1399,6 +1394,8 @@ function InputBoxComponent({
                         modelsLoading={modelsLoading}
                         inputContainerRef={inputContainerRef}
                         modelSelectorRef={modelSelectorRef}
+                        isCollapsed={isCollapsed}
+                        onToggleCollapse={toggleCollapse}
                       />
                     </div>
                   </div>

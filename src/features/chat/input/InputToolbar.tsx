@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ChevronDownIcon, SendIcon, StopIcon, PaperclipIcon, AgentIcon, ThinkingIcon } from '../../../components/Icons'
+import { ChevronDownIcon, SendIcon, StopIcon, PaperclipIcon, AgentIcon, ThinkingIcon, MinusIcon } from '../../../components/Icons'
 import { DropdownMenu, MenuItem, IconButton, AnimatedPresence } from '../../../components/ui'
 import { ModelSelector, type ModelSelectorHandle } from '../ModelSelector'
 import { useChatViewport } from '../chatViewport'
@@ -35,6 +35,9 @@ interface InputToolbarProps {
   // 输入框容器 ref，用于约束菜单边界
   inputContainerRef?: React.RefObject<HTMLDivElement | null>
   modelSelectorRef?: React.RefObject<ModelSelectorHandle | null>
+  // 移动端手动折叠
+  isCollapsed?: boolean
+  onToggleCollapse?: () => void
 }
 
 export function InputToolbar({
@@ -57,6 +60,8 @@ export function InputToolbar({
   modelsLoading = false,
   inputContainerRef,
   modelSelectorRef,
+  isCollapsed = false,
+  onToggleCollapse,
 }: InputToolbarProps) {
   const { t } = useTranslation(['chat', 'common'])
   const { presentation } = useChatViewport()
@@ -493,6 +498,14 @@ export function InputToolbar({
 
       {/* Action Buttons */}
       <div className="flex items-center gap-1">
+        {isCompact && !isCollapsed && onToggleCollapse && (
+          <IconButton
+            aria-label="Collapse input"
+            onClick={onToggleCollapse}
+          >
+            <MinusIcon />
+          </IconButton>
+        )}
         <AnimatedPresence show={supportsAnyFile}>
           <>
             {/* 浏览器模式下的隐藏文件输入 */}
