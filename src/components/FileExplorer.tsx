@@ -9,7 +9,8 @@ import { useTranslation } from 'react-i18next'
 import { useFileExplorer, type FileTreeNode } from '../hooks'
 import { useVerticalSplitResize } from '../hooks/useVerticalSplitResize'
 import { layoutStore, type PreviewFile } from '../store/layoutStore'
-import { ChevronRightIcon, ChevronDownIcon, RetryIcon, AlertCircleIcon, DownloadIcon, MaximizeIcon } from './Icons'
+import { ChevronRightIcon, ChevronDownIcon, RetryIcon, AlertCircleIcon, DownloadIcon, MaximizeIcon, SearchIcon, CloseIcon } from './Icons'
+import { searchFiles } from '../api'
 import { CodePreview } from './CodePreview'
 import { PreviewTabsBar, type PreviewTabsBarItem } from './PreviewTabsBar'
 import { MarkdownRenderer } from './MarkdownRenderer'
@@ -95,6 +96,35 @@ export const FileExplorer = memo(function FileExplorer({
     fileStatus,
     refresh,
   } = useFileExplorer({ directory, autoLoad: true, sessionId: sessionId || undefined })
+
+  const [filter, setFilter] = useState('')
+  const [searchResults, setSearchResults] = useState<string[] | null>(null)
+  const [isSearching, setIsSearching] = useState(false)
+  const searchIdRef = useRef(0)
+
+  useEffect(() => {
+    const query = filter.trim()
+    if (!query) {
+      searchIdRef.current += 1
+      setSearchResults(null)
+      setIsSearching(false)
+      return
+    }
+    const id = ++searchIdRef.current
+    setIsSearching(true)
+    ;(async () => {
+      try {
+        const results = await searchFiles(query, { directory, limit: 50 })
+        if (id !== searchIdRef.current) return
+        setSearchResults(results)
+        setIsSearching(false)
+      } catch {
+        if (id !== searchIdRef.current) return
+        setSearchResults([])
+        setIsSearching(false)
+      }
+    })()
+  }, [filter, directory])
 
   // 当 previewFile 改变时加载预览
   useEffect(() => {
@@ -188,16 +218,35 @@ export const FileExplorer = memo(function FileExplorer({
         }
       >
         {/* Tree Header */}
-        <div className="relative flex h-10 items-center justify-between px-3 shrink-0">
-          <span className="inline-flex h-6 items-center text-[length:var(--fs-xs)] font-medium text-text-100">
+        <div className="relative flex h-10 items-center gap-1.5 px-2 shrink-0">
+          <span className="inline-flex h-6 items-center text-[length:var(--fs-xs)] font-medium text-text-100 shrink-0">
             {t('fileExplorer.explorer')}
           </span>
+          <div className="relative flex-1 min-w-0">
+            <SearchIcon size={12} className="absolute left-1.5 top-1/2 -translate-y-1/2 text-text-400 pointer-events-none" />
+            <input
+              type="text"
+              value={filter}
+              onChange={e => setFilter(e.target.value)}
+              placeholder={t('fileExplorer.filterFile')}
+              className="w-full h-5.5 pl-5 pr-5 bg-bg-100 text-text-200 text-[length:var(--fs-xs)] rounded-sm outline-none placeholder:text-text-400/60 border border-border-100/40 focus:border-border-100/70"
+            />
+            {filter && (
+              <button
+                type="button"
+                onClick={() => setFilter('')}
+                className="absolute right-1 top-1/2 -translate-y-1/2 text-text-400 hover:text-text-100"
+              >
+                <CloseIcon size={10} />
+              </button>
+            )}
+          </div>
           <button
             type="button"
             onClick={handleRefresh}
             disabled={isLoading}
             aria-label={t('common:refresh')}
-            className="inline-flex h-6 w-6 items-center justify-center text-text-400 hover:text-text-100 hover:bg-bg-200/50 rounded-md transition-colors disabled:opacity-50"
+            className="inline-flex h-6 w-6 items-center justify-center text-text-400 hover:text-text-100 hover:bg-bg-200/50 rounded-md transition-colors disabled:opacity-50 shrink-0"
             title={t('common:refresh')}
           >
             <RetryIcon size={12} className={isLoading ? 'animate-spin' : ''} />
@@ -207,7 +256,42 @@ export const FileExplorer = memo(function FileExplorer({
 
         {/* Tree Content */}
         <div className="flex-1 overflow-auto panel-scrollbar-y">
-          {isLoading && tree.length === 0 ? (
+          {filter.trim() ? (
+            searchResults && searchResults.length === 0 ? (
+              <div className="flex items-center justify-center h-20 text-text-400 text-[length:var(--fs-sm)] px-4 text-center">
+                {isSearching ? t('common:loading') : t('fileExplorer.noFilesFound')}
+              </div>
+            ) : searchResults && searchResults.length > 0 ? (
+              <div className="py-1">
+                {searchResults.map(path => {
+                  const fileName = path.replace(/\\/g, '/').split('/').pop() || path
+                  return (
+                    <button
+                      key={path}
+                      onClick={() => {
+                        layoutStore.openFilePreview({ path, name: fileName }, position)
+                      }}
+                      className="w-full flex items-center gap-1.5 px-3 py-0.5 text-left hover:bg-bg-200/50 transition-colors text-[length:var(--fs-sm)] text-text-300"
+                    >
+                      <img
+                        src={getMaterialIconUrl(path, 'file')}
+                        alt=""
+                        width={16}
+                        height={16}
+                        className="shrink-0"
+                        loading="lazy"
+                        onError={e => { e.currentTarget.style.visibility = 'hidden' }}
+                      />
+                      <span className="truncate">{fileName}</span>
+                      <span className="text-text-400 text-[length:var(--fs-xxs)] truncate ml-auto pl-2">
+                        {path}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+            ) : null
+          ) : isLoading && tree.length === 0 ? (
             <div className="flex items-center justify-center h-20 text-text-400 text-[length:var(--fs-sm)]">
               {t('common:loading')}
             </div>
