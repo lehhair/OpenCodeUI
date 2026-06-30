@@ -204,37 +204,66 @@ const TaskHeader = memo(function TaskHeader({
   const isError = status === 'error'
   const isCompleted = status === 'completed'
 
+  const titleContent = (
+    <>
+      {/* Agent type badge */}
+      <span
+        className={`px-1.5 py-0.5 text-[length:var(--fs-xxs)] font-medium rounded-xs ${
+          isRunning
+            ? 'bg-accent-main-100/20 text-accent-main-100'
+            : isError
+              ? 'bg-danger-100/20 text-danger-100'
+              : isCompleted
+                ? 'bg-accent-secondary-100/20 text-accent-secondary-100'
+                : 'bg-bg-300 text-text-300'
+        }`}
+      >
+        {agentType}
+      </span>
+
+      {/* Description */}
+      <span className="min-w-0 truncate text-[length:var(--fs-sm)] text-text-300 group-hover/title:text-text-100">
+        {description}
+      </span>
+    </>
+  )
+
   return (
     <div className="flex items-center gap-2 py-1 group">
       <button
         type="button"
         onClick={onToggle}
         aria-expanded={expanded}
-        className="flex min-w-0 flex-1 items-center gap-2 text-left bg-transparent border-none p-0"
+        aria-label={expanded ? t('showLess') : t('showMore')}
+        title={expanded ? t('showLess') : t('showMore')}
+        className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-sm text-text-400 transition-colors hover:bg-bg-200/70 hover:text-text-100 bg-transparent border-none p-0"
       >
         {/* Expand icon */}
         <span className={`text-text-400 transition-transform ${expanded ? 'rotate-90' : ''}`}>
           <ChevronRightIcon size={12} />
         </span>
-
-        {/* Agent type badge */}
-        <span
-          className={`px-1.5 py-0.5 text-[length:var(--fs-xxs)] font-medium rounded-xs ${
-            isRunning
-              ? 'bg-accent-main-100/20 text-accent-main-100'
-              : isError
-                ? 'bg-danger-100/20 text-danger-100'
-                : isCompleted
-                  ? 'bg-accent-secondary-100/20 text-accent-secondary-100'
-                  : 'bg-bg-300 text-text-300'
-          }`}
-        >
-          {agentType}
-        </span>
-
-        {/* Description */}
-        <span className="text-[length:var(--fs-sm)] text-text-300 truncate flex-1 min-w-0">{description}</span>
       </button>
+
+      {sessionId ? (
+        <button
+          type="button"
+          onClick={handleOpenSession}
+          className="group/title flex min-w-0 max-w-full flex-shrink items-center gap-2 text-left bg-transparent border-none p-0"
+          title={t('task.openSession')}
+        >
+          {titleContent}
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={onToggle}
+          className="group/title flex min-w-0 max-w-full flex-shrink items-center gap-2 text-left bg-transparent border-none p-0"
+        >
+          {titleContent}
+        </button>
+      )}
+
+      <div className="min-w-0 flex-1" />
 
       {/* Stop button (running) */}
       {onStop && (

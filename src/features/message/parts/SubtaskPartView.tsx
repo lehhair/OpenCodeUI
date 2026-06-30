@@ -60,27 +60,23 @@ export const SubtaskPartView = memo(function SubtaskPartView({ part }: SubtaskPa
         {/* Agent icon & name */}
         <div className="flex items-center gap-2 flex-1 min-w-0">
           <UsersIcon size={16} className="text-text-400 flex-shrink-0" />
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="text-[length:var(--fs-base)] font-medium text-text-200 truncate">{part.agent}</span>
-              {isRunning && (
-                <span className="text-[length:var(--fs-xxs)] text-info-100 bg-info-100/10 px-1.5 py-0.5 rounded">
-                  {t('subtask.running')}
-                </span>
-              )}
-              {status === 'idle' && (
-                <span className="text-[length:var(--fs-xxs)] text-success-100 bg-success-100/10 px-1.5 py-0.5 rounded">
-                  {t('subtask.done')}
-                </span>
-              )}
-              {status === 'error' && (
-                <span className="text-[length:var(--fs-xxs)] text-danger-100 bg-danger-100/10 px-1.5 py-0.5 rounded">
-                  {t('subtask.error')}
-                </span>
-              )}
+          {childSession ? (
+            <button
+              type="button"
+              onClick={e => {
+                e.stopPropagation()
+                handleEnter()
+              }}
+              className="min-w-0 max-w-full flex-shrink text-left bg-transparent border-none p-0"
+              title={t('subtask.viewFullSession')}
+            >
+              <SubtaskTitle part={part} status={status} isRunning={isRunning} />
+            </button>
+          ) : (
+            <div className="flex-1 min-w-0">
+              <SubtaskTitle part={part} status={status} isRunning={isRunning} />
             </div>
-            <p className="text-[length:var(--fs-sm)] text-text-400 truncate mt-0.5">{part.description}</p>
-          </div>
+          )}
         </div>
 
         {/* Actions */}
@@ -154,6 +150,34 @@ export const SubtaskPartView = memo(function SubtaskPartView({ part }: SubtaskPa
     </div>
   )
 })
+
+function SubtaskTitle({ part, status, isRunning }: { part: SubtaskPart; status: string; isRunning: boolean }) {
+  const { t } = useTranslation('message')
+
+  return (
+    <>
+      <div className="flex items-center gap-2">
+        <span className="text-[length:var(--fs-base)] font-medium text-text-200 truncate">{part.agent}</span>
+        {isRunning && (
+          <span className="text-[length:var(--fs-xxs)] text-info-100 bg-info-100/10 px-1.5 py-0.5 rounded">
+            {t('subtask.running')}
+          </span>
+        )}
+        {status === 'idle' && (
+          <span className="text-[length:var(--fs-xxs)] text-success-100 bg-success-100/10 px-1.5 py-0.5 rounded">
+            {t('subtask.done')}
+          </span>
+        )}
+        {status === 'error' && (
+          <span className="text-[length:var(--fs-xxs)] text-danger-100 bg-danger-100/10 px-1.5 py-0.5 rounded">
+            {t('subtask.error')}
+          </span>
+        )}
+      </div>
+      <p className="text-[length:var(--fs-sm)] text-text-400 truncate mt-0.5">{part.description}</p>
+    </>
+  )
+}
 
 /**
  * 找到匹配 subtask 的子 session
