@@ -10,10 +10,10 @@
 //
 // Pointer 版本两层 DOM：
 //   外层 zone — 覆盖 label 弹出范围，初始 pointer-events:none
-//   内层 tick 列 — 始终可交互，mouseEnter 时激活外层
+//   内层 tick 列 — 初始只用可见 tick 区域触发，mouseEnter 时激活外层
 //   效果：必须从 tick 触发，激活后 zone 内自由滑动不中断
 //
-// Touch 版本：触摸 tick 列激活鱼眼 + 震动 + overlay 居中标题
+// Touch 版本：触摸 tick 列激活鱼眼，激活后全局跟踪滑动 + 震动 + overlay 居中标题
 // ============================================
 
 import { memo, useMemo, useRef, useEffect, useLayoutEffect, useCallback } from 'react'
@@ -62,6 +62,7 @@ interface FisheyeConfig {
 interface VisualConfig {
   rightOffset: number
   hitPadLeft: number
+  pointerHitWidth: number
   zonePadLeft: number
   labelClassName: string
   overlayClassName: string
@@ -101,7 +102,8 @@ const COMPACT_FISHEYE: FisheyeConfig = {
 
 const DESKTOP_VISUAL: VisualConfig = {
   rightOffset: 5,
-  hitPadLeft: 16,
+  hitPadLeft: 0,
+  pointerHitWidth: 8,
   zonePadLeft: 200,
   labelClassName: 'text-[length:var(--fs-md)] leading-none text-text-200',
   overlayClassName: 'text-[length:var(--fs-heading-2)] font-semibold text-text-100',
@@ -113,7 +115,8 @@ const DESKTOP_VISUAL: VisualConfig = {
 
 const COMPACT_VISUAL: VisualConfig = {
   rightOffset: 4,
-  hitPadLeft: 12,
+  hitPadLeft: 0,
+  pointerHitWidth: 6,
   zonePadLeft: 140,
   labelClassName: 'text-[length:var(--fs-xs)] leading-none text-text-300',
   overlayClassName: 'text-[length:var(--fs-base)] font-semibold text-text-100',
@@ -509,17 +512,18 @@ const PointerFisheye = memo(function PointerFisheye({ entries, onSelect, visual,
       onClick={onZoneClick}
     >
       <div
-        ref={railRef}
-        className="flex flex-col items-end py-1"
+        className="flex justify-end py-1"
         style={{
           pointerEvents: 'auto',
           paddingRight: `${visual.rightOffset}px`,
           paddingLeft: `${visual.hitPadLeft}px`,
-          ...buildRailVars(entries.length, visual.fisheye),
+          width: `${visual.pointerHitWidth + visual.hitPadLeft + visual.rightOffset}px`,
         }}
         onMouseEnter={onTickEnter}
       >
-        <TickRail entries={entries} visual={visual} />
+        <div ref={railRef} className="pointer-events-none flex flex-col items-end" style={buildRailVars(entries.length, visual.fisheye)}>
+          <TickRail entries={entries} visual={visual} />
+        </div>
       </div>
     </div>
   )
@@ -597,10 +601,12 @@ const TouchFisheye = memo(function TouchFisheye({ entries, onSelect, visual, own
     if (!el) return
 
     const onStart = (e: TouchEvent) => {
+      const touch = e.touches[0]
+      if (!touch) return
       e.preventDefault()
       touchingRef.current = true
       prevFocusRef.current = -1
-      const y = e.touches[0].clientY
+      const y = touch.clientY
       ticksRef.current = getTicks()
       activateRail(el, y)
       // 直接用 ref 显示遮罩，不触发 React 重渲染
@@ -608,8 +614,11 @@ const TouchFisheye = memo(function TouchFisheye({ entries, onSelect, visual, own
       updateFocus(y)
     }
     const onMove = (e: TouchEvent) => {
+      if (!touchingRef.current) return
+      const touch = e.touches[0]
+      if (!touch) return
       e.preventDefault()
-      const y = e.touches[0].clientY
+      const y = touch.clientY
       // 主线程每帧唯一的工作：写一个变量
       el.style.setProperty('--oi-cursor-y', String(y))
       updateFocus(y)
@@ -635,6 +644,7 @@ const TouchFisheye = memo(function TouchFisheye({ entries, onSelect, visual, own
       }
     }
     const onEnd = () => {
+      if (!touchingRef.current) return
       const idx = prevFocusRef.current
       const cur = entriesRef.current
       if (idx >= 0 && idx < cur.length) onSelectRef.current(cur[idx].messageId)
@@ -652,14 +662,14 @@ const TouchFisheye = memo(function TouchFisheye({ entries, onSelect, visual, own
     }
 
     el.addEventListener('touchstart', onStart, { passive: false })
-    el.addEventListener('touchmove', onMove, { passive: false })
-    el.addEventListener('touchend', onEnd)
-    el.addEventListener('touchcancel', onEnd)
+    document.addEventListener('touchmove', onMove, { passive: false })
+    document.addEventListener('touchend', onEnd)
+    document.addEventListener('touchcancel', onEnd)
     return () => {
       el.removeEventListener('touchstart', onStart)
-      el.removeEventListener('touchmove', onMove)
-      el.removeEventListener('touchend', onEnd)
-      el.removeEventListener('touchcancel', onEnd)
+      document.removeEventListener('touchmove', onMove)
+      document.removeEventListener('touchend', onEnd)
+      document.removeEventListener('touchcancel', onEnd)
     }
   }, [getTicks, vibrate])
 
@@ -683,7 +693,7 @@ const TouchFisheye = memo(function TouchFisheye({ entries, onSelect, visual, own
 
       <div
         ref={railRef}
-        className="absolute top-1/2 -translate-y-1/2 z-[15] flex flex-col items-end pl-4 py-4 select-none"
+        className="absolute top-1/2 -translate-y-1/2 z-[15] flex flex-col items-end select-none"
         style={{ right: `${visual.rightOffset}px`, ...buildRailVars(entries.length, visual.fisheye) }}
       >
         <TickRail entries={entries} visual={visual} />
