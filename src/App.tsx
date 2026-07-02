@@ -355,7 +355,8 @@ function App() {
       return
     }
 
-    const page = rightPanelOpen ? 'right' : sidebarExpanded ? 'left' : 'chat'
+    const isInitializing = !mobilePagerInitializedRef.current
+    const page = rightPanelOpen ? 'right' : isInitializing ? 'chat' : sidebarExpanded ? 'left' : 'chat'
     if (!mobilePagerInitializedRef.current) {
       const pager = mobilePagerRef.current
       if (pager) {
@@ -363,6 +364,9 @@ function App() {
       }
       mobileProgrammaticTargetRef.current = null
       mobilePagerInitializedRef.current = true
+      if (!rightPanelOpen && sidebarExpanded) {
+        setSidebarExpanded(false)
+      }
       return
     }
 
@@ -370,7 +374,7 @@ function App() {
       scrollMobilePagerTo(page, 'smooth')
     })
     return () => window.cancelAnimationFrame(frameId)
-  }, [getMobilePageScrollLeft, isMobilePanelLayout, rightPanelOpen, scrollMobilePagerTo, sidebarExpanded])
+  }, [getMobilePageScrollLeft, isMobilePanelLayout, rightPanelOpen, scrollMobilePagerTo, setSidebarExpanded, sidebarExpanded])
 
   useEffect(() => {
     if (!isMobilePanelLayout) {
