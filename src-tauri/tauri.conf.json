@@ -30,7 +30,7 @@
       }
     ],
     "security": {
-      "csp": null
+      "csp": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: http: https: asset: http://asset.localhost; font-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost http: https: ws: wss:; media-src 'self' data: blob: http: https:; frame-src 'self' data: blob: http: https:; object-src 'none'; base-uri 'self'"
     }
   },
   "plugins": {
