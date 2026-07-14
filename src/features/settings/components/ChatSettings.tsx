@@ -132,6 +132,8 @@ export function ChatSettings() {
             { key: 'tokens', label: t('chat.tokens'), desc: t('chat.showTokenUsage') },
             { key: 'cache', label: t('chat.cache'), desc: t('chat.showCacheHit') },
             { key: 'cost', label: t('chat.cost'), desc: t('chat.showApiCost') },
+            { key: 'tps', label: t('chat.tps'), desc: t('chat.showTps') },
+            { key: 'ttft', label: t('chat.ttft'), desc: t('chat.showTtft') },
             { key: 'duration', label: t('chat.duration'), desc: t('chat.showResponseTime') },
             { key: 'turnDuration', label: t('chat.totalDuration'), desc: t('chat.showTurnElapsed') },
             { key: 'completedAt', label: t('chat.completedAt'), desc: t('chat.showCompletedAt') },
