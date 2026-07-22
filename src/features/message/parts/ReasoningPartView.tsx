@@ -29,6 +29,7 @@ export const ReasoningPartView = memo(function ReasoningPartView({ part, isStrea
   const shouldRenderBody = useDelayedRender(expanded)
   const { rootRef, headerRef, withScrollLock } = useDisclosureScrollLock()
   const scrollAreaRef = useRef<HTMLDivElement>(null)
+  const isAtBottomRef = useRef(true)
   const summaryContainerRef = useRef<HTMLDivElement>(null)
   const summaryMeasureRef = useRef<HTMLSpanElement>(null)
   const [summaryOverflow, setSummaryOverflow] = useState(false)
@@ -76,10 +77,17 @@ export const ReasoningPartView = memo(function ReasoningPartView({ part, isStrea
     }
   }, [hasContent, isPartStreaming, setExpanded])
 
+  const handleCapsuleScroll = useCallback(() => {
+    const el = scrollAreaRef.current
+    if (!el) return
+    isAtBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 60
+  }, [])
+
   useEffect(() => {
     if (reasoningDisplayMode !== 'capsule') return
-    if (isPartStreaming && expanded && scrollAreaRef.current) {
-      scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight
+    const el = scrollAreaRef.current
+    if (isPartStreaming && expanded && isAtBottomRef.current && el) {
+      el.scrollTop = el.scrollHeight
     }
   }, [displayText, isPartStreaming, expanded, reasoningDisplayMode])
 
@@ -277,7 +285,12 @@ export const ReasoningPartView = memo(function ReasoningPartView({ part, isStrea
       >
         <div className="min-h-0 min-w-0 overflow-hidden" style={{ clipPath: 'inset(0 -100% 0 -100%)' }}>
           {shouldRenderBody && (
-            <ScrollArea ref={scrollAreaRef} maxHeight={192} className="border-t border-border-300/20 bg-bg-200/30">
+            <ScrollArea
+              ref={scrollAreaRef}
+              maxHeight={192}
+              onScroll={handleCapsuleScroll}
+              className="border-t border-border-300/20 bg-bg-200/30"
+            >
               <div className="px-2 py-2 text-text-300 text-[length:var(--fs-sm)] font-mono whitespace-pre-wrap break-words overflow-x-hidden">
                 {displayText}
               </div>
