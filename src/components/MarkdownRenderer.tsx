@@ -1655,7 +1655,7 @@ export const HighlightedCode = memo(function HighlightedCode({
   }, [filePath, language])
 
   return (
-    <div className={`overflow-auto ${className}`} style={maxHeight ? { maxHeight } : undefined}>
+    <div data-scrollable className={`overflow-auto ${className}`} style={maxHeight ? { maxHeight } : undefined}>
       <CodeBlock code={code} language={lang} />
     </div>
   )

@@ -48,7 +48,7 @@ function TodoList({ todos, stateKey }: { todos: TodoItem[]; stateKey: string }) 
       <div
         ref={headerRef}
         className="flex items-center justify-between px-3 h-8 bg-bg-200/50 hover:bg-bg-200 cursor-pointer select-none transition-colors"
-        onClick={() => withScrollLock(() => setCollapsed(!collapsed))}
+        onClick={() => withScrollLock(() => setCollapsed(!collapsed), collapsed)}
       >
         <div className="flex items-center gap-2">
           <span className={`text-text-400 transition-transform duration-200 ${collapsed ? '-rotate-90' : ''}`}>

@@ -223,6 +223,8 @@ export const ChatPane = memo(function ChatPane({
     setVisibleMessageIds(ids)
   }, [])
   const [isAtBottom, setIsAtBottom] = useState(true)
+  /** 用户是否在贴底跟随（true=正在跟随，false=用户主动停止） */
+  const [isFollowing, setIsFollowing] = useState(true)
 
   const handleOutlineScrollToMessage = useCallback((messageId: string) => {
     chatAreaRef.current?.scrollToMessageId(messageId)
@@ -841,6 +843,7 @@ export const ChatPane = memo(function ChatPane({
                 bottomPadding={inputBoxHeight}
                 onVisibleMessageIdsChange={handleVisibleIdsChange}
                 onAtBottomChange={setIsAtBottom}
+                onFollowingChange={setIsFollowing}
               />
             )}
           </ErrorBoundary>
@@ -914,7 +917,7 @@ export const ChatPane = memo(function ChatPane({
           onClearRevert={clearRevert}
           registerInputBox={registerInputBox}
           isAtBottom={isAtBottom}
-          showScrollToBottom={!isAtBottom}
+          showScrollToBottom={!isFollowing}
           onScrollToBottom={() => chatAreaRef.current?.scrollToBottom()}
           collapsedPermission={
             !inlineToolRequests && pendingPermissionRequests.length > 0 && permissionCollapsed

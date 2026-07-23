@@ -503,7 +503,7 @@ const CollapsibleUserText = memo(function CollapsibleUserText({
       {showCollapse && (
         <button
           type="button"
-          onClick={() => withScrollLock(() => setExpanded(prev => !prev))}
+          onClick={() => withScrollLock(() => setExpanded(!expanded), !expanded)}
           className="mt-1 text-[length:var(--fs-sm)] text-text-400 hover:text-text-200 transition-colors"
           aria-expanded={expanded}
         >
@@ -645,7 +645,7 @@ const UserMessageView = memo(function UserMessageView({
             <button
               type="button"
               ref={systemContextHeaderRef}
-              onClick={() => withSystemContextScrollLock(() => setShowSystemContext(!showSystemContext))}
+              onClick={() => withSystemContextScrollLock(() => setShowSystemContext(!showSystemContext), !showSystemContext)}
               className="flex items-center gap-1 text-[length:var(--fs-sm)] text-text-400 hover:text-text-300 transition-colors py-1 px-2 rounded hover:bg-bg-200"
             >
               <span>
@@ -1096,7 +1096,7 @@ const ToolGroup = memo(function ToolGroup({
             <button
               type="button"
               ref={stepsHeaderRef}
-              onClick={() => withStepsScrollLock(() => setExpanded(!expanded))}
+              onClick={() => withStepsScrollLock(() => setExpanded(!expanded), !expanded)}
               className="flex w-full items-baseline rounded-md py-1 text-left hover:bg-bg-200/30 transition-colors"
             >
               <span className="text-[length:var(--fs-sm)] leading-5">
@@ -1128,7 +1128,7 @@ const ToolGroup = memo(function ToolGroup({
             <button
               type="button"
               ref={stepsHeaderRef}
-              onClick={() => withStepsScrollLock(() => setExpanded(!expanded))}
+              onClick={() => withStepsScrollLock(() => setExpanded(!expanded), !expanded)}
               className="flex items-center gap-1.5 py-1.5 text-text-400 text-[length:var(--fs-base)] hover:text-text-200 hover:bg-bg-200/30 rounded-md transition-colors"
             >
               <span className="inline-flex w-[14px] items-center justify-center shrink-0">

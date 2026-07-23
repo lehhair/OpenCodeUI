@@ -133,7 +133,7 @@ export const ToolPartView = memo(function ToolPartView({
   // 展开即挂 body：默认展开的工具 header/body 同帧，不再先 header 后 body
   const shouldRenderBody = useDelayedRender(keepMounted)
   const toggleExpanded = useCallback(() => {
-    withScrollLock(() => setExpanded(!expanded))
+    withScrollLock(() => setExpanded(!expanded), !expanded)
   }, [expanded, setExpanded, withScrollLock])
 
   useEffect(() => {

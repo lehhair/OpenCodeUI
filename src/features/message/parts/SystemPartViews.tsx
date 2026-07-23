@@ -29,7 +29,7 @@ export const RetryPartView = memo(function RetryPartView({ part }: RetryPartView
       <button
         type="button"
         ref={headerRef}
-        onClick={() => withScrollLock(() => setExpanded(!expanded))}
+        onClick={() => withScrollLock(() => setExpanded(!expanded), !expanded)}
         aria-expanded={expanded}
         className="flex w-full items-center gap-2 bg-transparent border-none p-0 text-left"
       >
@@ -114,7 +114,7 @@ export const PatchPartView = memo(function PatchPartView({ part }: PatchPartView
       <button
         type="button"
         ref={headerRef}
-        onClick={() => withScrollLock(() => setExpanded(!expanded))}
+        onClick={() => withScrollLock(() => setExpanded(!expanded), !expanded)}
         aria-expanded={expanded}
         className="flex h-8 w-full items-center gap-2 px-3 text-left bg-transparent border-none hover:bg-bg-200/30 transition-colors"
       >

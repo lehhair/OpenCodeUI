@@ -40,6 +40,7 @@ import {
 } from './chatPageModel'
 import { useTheme } from '../../hooks/useTheme'
 import { useAutoScroll } from './virtual/useAutoScroll'
+import { AutoScrollProvider } from '../../hooks/AutoScrollContext'
 import { useEmptyWorkingShellGate } from './virtual/useEmptyWorkingShellGate'
 
 const NOOP = () => {}
@@ -110,6 +111,8 @@ interface ChatAreaProps {
   bottomPadding?: number
   onVisibleMessageIdsChange?: (ids: string[]) => void
   onAtBottomChange?: (atBottom: boolean) => void
+  /** 用户跟随状态变化时调用：true=正在贴底跟随，false=用户主动停止跟随 */
+  onFollowingChange?: (following: boolean) => void
 }
 
 export type ChatAreaHandle = {
@@ -329,7 +332,7 @@ export const ChatArea = memo(
         loadState = 'idle', loadError, connectionError, onOpenSettings,
         hasMoreHistory = false, onLoadMore, onUndo, onFork, canUndo,
         registerMessage, retryStatus = null, bottomPadding = 0,
-        onVisibleMessageIdsChange, onAtBottomChange,
+        onVisibleMessageIdsChange, onAtBottomChange, onFollowingChange,
       },
       ref,
     ) => {
@@ -415,6 +418,7 @@ export const ChatArea = memo(
       const onLoadMoreRef = useRef(onLoadMore); onLoadMoreRef.current = onLoadMore
       const onVisibleIdsRef = useRef(onVisibleMessageIdsChange); onVisibleIdsRef.current = onVisibleMessageIdsChange
       const onAtBottomRef = useRef(onAtBottomChange); onAtBottomRef.current = onAtBottomChange
+      const onFollowingRef = useRef(onFollowingChange); onFollowingRef.current = onFollowingChange
       const hasMoreRef = useRef(hasMoreHistory); hasMoreRef.current = hasMoreHistory
       const loadStateRef = useRef(loadState); loadStateRef.current = loadState
       const thresholdRef = useRef(atBottomThreshold); thresholdRef.current = atBottomThreshold
@@ -430,17 +434,23 @@ export const ChatArea = memo(
       const autoSetScrollRef = auto.setScrollRef
       const autoSetContentRef = auto.setContentRef
       const autoHandleScroll = auto.handleScroll
-      const autoHandleWheel = auto.handleWheel
-      const autoHandleInteraction = auto.handleInteraction
       const autoForceScroll = auto.forceScrollToBottom
       const autoScrollBottom = auto.scrollToBottom
       const autoPause = auto.pause
-      const autoMarkAuto = auto.markAuto
+      const autoSetStreaming = auto.setStreaming
       const userScrolledRef = auto.userScrolledRef
+      const autoSetPinToBottom = auto.setPinToBottom
       const spacerHeight = bottomSpacerHeight(bottomPadding)
       // 贴底判断必须读 ref：wheel→stop 后 state 还没 re-render，
       // 若仍用 state，同一帧的 ResizeObserver 会误判仍可贴底。
       const shouldAnchorBottom = () => !userScrolledRef.current
+
+      // 给 message tree 里的 disclosure widget 用：用户主动操作（展开/折叠）
+      // 时通知这里停止贴底跟随。值 stable（pause 是 useCallback），不会引起消费方 re-render。
+      const autoScrollCtxValue = useMemo(() => ({ pause: autoPause }), [autoPause])
+
+      // 同步 isStreaming 到 useAutoScroll —— selection 只在流式时才影响跟随
+      useEffect(() => { autoSetStreaming(isStreaming) }, [autoSetStreaming, isStreaming])
 
       // ── 滚动状态（同步计算，不使用 rAF） ──
       const prevState = useRef({ overflow: false, bottom: true, jump: false })
@@ -502,7 +512,6 @@ export const ChatArea = memo(
         // 预写 total height，避免浏览器把新 offset clamp 到旧高度（oc 同款）
         scrollToFn: (offset, options, instance) => {
           if (contentRef.current) contentRef.current.style.height = `${instance.getTotalSize()}px`
-          autoMarkAuto(scrollRef.current)
           elementScroll(offset, options, instance)
         },
         anchorTo: 'end',
@@ -540,13 +549,13 @@ export const ChatArea = memo(
               })
             })
           }
-          // 核心修复：用户已上滚（userScrolledRef）时，临时关掉 anchorTo:'end'，
+          // 用户已上滚（userScrolledRef）时，临时关掉 anchorTo:'end'，
           // 阻止 virtual-core resizeItem 内部的 wasAtEnd 路径（applyScrollAdjustment 拉回）。
           // wasAtEnd 用 getVirtualDistanceFromEnd()（基于内部 scrollOffset），
           // 但 React commit 阶段 ref 回调触发 measureElement 时 scroll 事件还没 fire，
           // scrollOffset 是陈旧的（仍指向底部），wasAtEnd 误判为 true → 拉回。
-          // userScrolledRef 由 handleWheel 上滚设 true，只由 handleWheel 下滚回底设 false，
-          // handleScroll 不清它（避免流式增长推回时误清）。
+          // userScrolledRef 现在只由输入事件设置（useAutoScroll 的 wheel/touch/...），
+          // handleScroll 在用户回到底部阈值内时清掉。
           if (userScrolledRef.current) {
             const opts = (virtualizer as any).options
             const origAnchor = opts.anchorTo
@@ -569,7 +578,6 @@ export const ChatArea = memo(
               if (!(virtualizer as any).isAtEnd?.(80)) return
               const el = scrollRef.current
               if (!el) return
-              autoMarkAuto(el)
               const max = Math.max(0, el.scrollHeight - el.clientHeight)
               if (max - el.scrollTop >= 2) el.scrollTop = max
             })
@@ -679,10 +687,14 @@ export const ChatArea = memo(
         // 必须滚到整页底（含 retry/error + 输入框 spacer），不能只 scrollToEnd 虚拟消息区
         const el = scrollRef.current
         if (!el) return
-        autoMarkAuto(el)
         const max = Math.max(0, el.scrollHeight - el.clientHeight)
         if (max - el.scrollTop >= 2) el.scrollTop = max
-      }, [autoMarkAuto])
+      }, [])
+
+      // 把 pinToBottom 注入 useAutoScroll，让 drift 自愈路径能调到
+      useEffect(() => {
+        autoSetPinToBottom(pinToBottom)
+      }, [autoSetPinToBottom, pinToBottom])
 
       // ── 事件处理 ──
       const onScroll = useCallback(() => {
@@ -700,10 +712,9 @@ export const ChatArea = memo(
         autoHandleScroll()
       }, [updatePrependAnchor, computeScrollState, autoHandleScroll, loadMore, userScrolledRef])
 
-      const onWheel = useCallback((e: React.WheelEvent<HTMLDivElement>) => {
+      const onWheel = useCallback(() => {
         if (!prependLoading.current) clearPrepend()
-        autoHandleWheel(e.nativeEvent)
-      }, [autoHandleWheel, clearPrepend])
+      }, [clearPrepend])
 
       const onTouchStart = useCallback(() => {
         if (!prependLoading.current) clearPrepend()
@@ -770,6 +781,12 @@ export const ChatArea = memo(
         return () => cancelAnimationFrame(frame)
       }, [auto.userScrolled, autoScrollBottom, pinToBottom])
 
+      // 通知父组件跟随状态变化（toBottom 按钮的显隐依据）
+      // useLayoutEffect 避免新 session remount 时按钮闪烁
+      useLayoutEffect(() => {
+        onFollowingRef.current?.(!auto.userScrolled)
+      }, [auto.userScrolled])
+
       // fill effect
       useEffect(() => {
         if (!sessionId || loadState !== 'loaded' || isLoadingMore || auto.userScrolled || !hasMoreHistory) return
@@ -832,22 +849,16 @@ export const ChatArea = memo(
       useImperativeHandle(ref, () => ({
         scrollToBottom: () => {
           autoForceScroll()
-          pinToBottom()
         },
         scrollToBottomIfAtBottom: () => {
-          // userScrolled 守卫：用户上滚后 userScrolled=true，此函数由 onScrollRequest
-          //（每个 SSE chunk）调用。autoForceScroll() 的 force=true 会清掉 userScrolled，
-          // 导致 resizeItem 的 anchorTo toggle 失效 → wasAtEnd 恢复拉回。
-          // 不在此处清 userScrolled——用户主动下滚回底时 handleWheel 会清。
-          // 正常贴底跟随（userScrolled=false 时）不受影响。
+          // 每个 SSE chunk 调用一次。userScrolled=true（用户主动操作过）时直接 return，
+          // 否则贴底。不再用 prevState.bottom 做二次门控——
+          // 用户手势是唯一停止信号，drift 之类不应该让 chunk 停止 pin。
           if (userScrolledRef.current) return
-          if (!prevState.current.bottom) return
-          autoForceScroll()
           pinToBottom()
         },
         scrollToLastMessage: () => {
           if (timeline.length === 0) return
-          autoMarkAuto(scrollRef.current)
           virtualizer.scrollToIndex(timeline.length - 1, { align: 'end' })
         },
         scrollToMessageIndex: (index: number) => {
@@ -867,10 +878,11 @@ export const ChatArea = memo(
           autoPause()
           virtualizer.scrollToIndex(timelineIndex, { align: 'center' })
         },
-      }), [autoForceScroll, autoPause, autoMarkAuto, pinToBottom, virtualizer, timeline, visibleMessages, messageIdToTimelineIndex])
+      }), [autoForceScroll, autoPause, pinToBottom, virtualizer, timeline, visibleMessages, messageIdToTimelineIndex])
 
       return (
-        <div className="h-full overflow-hidden contain-strict relative">
+        <AutoScrollProvider value={autoScrollCtxValue}>
+          <div className="h-full overflow-hidden contain-strict relative">
           {loadState === 'loading' && visibleMessages.length === 0 && (
             <div className="absolute inset-0 z-10 flex items-center justify-center">
               <div className="flex flex-col items-center gap-3 text-text-400 session-loading-indicator">
@@ -891,7 +903,6 @@ export const ChatArea = memo(
             onWheel={onWheel}
             onTouchStart={onTouchStart}
             onScroll={onScroll}
-            onClick={autoHandleInteraction}
           >
             {visibleMessages.length > 0 && isLoadingMore && (
               <div className="flex justify-center py-3" aria-live="polite">
@@ -961,7 +972,8 @@ export const ChatArea = memo(
 
             <div style={{ height: spacerHeight }} aria-hidden="true" />
           </div>
-        </div>
+          </div>
+        </AutoScrollProvider>
       )
     },
   ),

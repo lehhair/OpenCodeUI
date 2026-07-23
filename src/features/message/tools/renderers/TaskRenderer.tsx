@@ -101,7 +101,7 @@ export const TaskRenderer = memo(function TaskRenderer({ part, onFullscreenChang
           status={state.status}
           expanded={expanded}
           headerRef={headerRef}
-          onToggle={() => withScrollLock(() => setExpanded(!expanded))}
+          onToggle={() => withScrollLock(() => setExpanded(!expanded), !expanded)}
           sessionId={targetSessionId}
           onStop={isRunning ? handleStop : undefined}
         />

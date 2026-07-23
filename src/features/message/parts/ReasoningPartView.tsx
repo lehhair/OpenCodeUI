@@ -33,7 +33,7 @@ export const ReasoningPartView = memo(function ReasoningPartView({ part, isStrea
   const summaryMeasureRef = useRef<HTMLSpanElement>(null)
   const [summaryOverflow, setSummaryOverflow] = useState(false)
   const toggleExpanded = useCallback(() => {
-    withScrollLock(() => setExpanded(!expanded))
+    withScrollLock(() => setExpanded(!expanded), !expanded)
   }, [expanded, setExpanded, withScrollLock])
 
   const collapsedPreview = useMemo(() => (displayText || '').replace(/\s+/g, ' ').trim(), [displayText])
