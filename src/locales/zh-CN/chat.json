@@ -192,6 +192,14 @@
     "cacheRW": "缓存 (读/写)",
     "rawMessages": "原始消息"
   },
+  "queuedMessages": {
+    "count": "{{count}} 条排队中",
+    "sending": "发送中…",
+    "failed": "发送失败",
+    "remove": "从队列移除",
+    "cancelFailed": "放弃",
+    "sendNow": "立即发送"
+  },
   "hints": {
     "pressEscAgain": "再按一次 <1>Esc</1> 停止",
     "autoApproveAll": "自动放行：全部会话",

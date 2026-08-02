@@ -284,86 +284,6 @@ export function useChatSession({
     }
   }, [approvePendingOnFullAuto, fullAutoMode, pendingPermissionRequests, replyPermissionOnceAutomatically])
 
-  const buildLocalQueuedMessage = useCallback(
-    (input: {
-      sessionId: string
-      messageId: string
-      text: string
-      attachments: Attachment[]
-      agent?: string
-      model: { providerID: string; modelID: string; variant?: string }
-      createdAt: number
-    }): UIMessage => {
-      const parts: UIMessage['parts'] = [
-        {
-          id: `${input.messageId}:text`,
-          type: 'text',
-          text: input.text,
-          synthetic: false,
-          sessionID: input.sessionId,
-          messageID: input.messageId,
-        },
-      ]
-
-      for (const attachment of input.attachments) {
-        if (attachment.type === 'agent') {
-          parts.push({
-            id: attachment.id || `${input.messageId}:agent:${parts.length}`,
-            type: 'agent',
-            name: attachment.agentName || attachment.displayName,
-            source: attachment.textRange
-              ? {
-                  value: attachment.textRange.value,
-                  start: attachment.textRange.start,
-                  end: attachment.textRange.end,
-                }
-              : undefined,
-            sessionID: input.sessionId,
-            messageID: input.messageId,
-          })
-          continue
-        }
-
-        if (attachment.type !== 'file' && attachment.type !== 'folder') continue
-
-        parts.push({
-          id: attachment.id || `${input.messageId}:file:${parts.length}`,
-          type: 'file',
-          mime: attachment.mime || (attachment.type === 'folder' ? 'application/x-directory' : 'text/plain'),
-          filename: attachment.displayName,
-          url: attachment.url || '',
-          source: attachment.textRange
-            ? {
-                type: 'file',
-                path: attachment.relativePath || attachment.displayName,
-                text: {
-                  value: attachment.textRange.value,
-                  start: attachment.textRange.start,
-                  end: attachment.textRange.end,
-                },
-              }
-            : undefined,
-          sessionID: input.sessionId,
-          messageID: input.messageId,
-        })
-      }
-
-      return {
-        info: {
-          id: input.messageId,
-          sessionID: input.sessionId,
-          role: 'user',
-          time: { created: input.createdAt },
-          agent: input.agent || '',
-          model: input.model,
-        },
-        parts,
-        isStreaming: false,
-      }
-    },
-    [],
-  )
-
   // ============================================
   // SSE 事件回调（permission / question / scroll / idle / error / reconnect）
   // 每个 pane 都注册自己的 consumer，由 App 顶层统一建立 SSE 连接
@@ -742,7 +662,7 @@ export function useChatSession({
         !!routeSessionId && (queuedFollowups.length > 0 || (queueFollowupMessages && isSessionBusy))
 
       if (shouldQueueFollowup) {
-        const queued = followupQueueStore.enqueue({
+        followupQueueStore.enqueue({
           sessionId: routeSessionId,
           directory: effectiveDirectory || '',
           text: content,
@@ -755,17 +675,6 @@ export function useChatSession({
           variant: options?.variant,
           agent: options?.agent,
         })
-        messageStore.upsertLocalMessage(
-          buildLocalQueuedMessage({
-            sessionId: queued.sessionId,
-            messageId: queued.id,
-            text: queued.text,
-            attachments: queued.attachments,
-            agent: queued.agent,
-            model: queued.model,
-            createdAt: queued.createdAt,
-          }),
-        )
         return true
       }
 
@@ -790,7 +699,6 @@ export function useChatSession({
       queueFollowupMessages,
       isSessionBusy,
       effectiveDirectory,
-      buildLocalQueuedMessage,
       sendMessageNow,
     ],
   )
@@ -800,9 +708,6 @@ export function useChatSession({
       const draft = followupQueueStore.getItem(sessionId, draftId)
       if (!draft) return false
       if (!followupQueueStore.startSending(draft.sessionId, draft.id)) return false
-
-      // 发送前先移除占位消息，让 sendMessageNow 走和正常发送完全一样的路径
-      messageStore.removeMessage(draft.sessionId, draft.id)
 
       const ok = await sendMessageNow({
         sessionId: draft.sessionId,
@@ -826,11 +731,6 @@ export function useChatSession({
       } else {
         // 标记失败，阻塞后续队列项
         followupQueueStore.markFailed(draft.sessionId, draft.id)
-        // 移除剩余排队消息的本地占位，恢复队头到输入框
-        const remaining = followupQueueStore.getItems(draft.sessionId)
-        for (const item of remaining) {
-          messageStore.removeMessage(draft.sessionId, item.id)
-        }
         setRestoredContent({
           sessionId: draft.sessionId,
           content: {
@@ -847,6 +747,27 @@ export function useChatSession({
       return ok
     },
     [sendMessageNow],
+  )
+
+  // 立即发送排队消息（跳过队列检查，直接发送）
+  const handleSendQueuedNow = useCallback(
+    async (draftId: string) => {
+      if (!routeSessionId) return false
+      const draft = followupQueueStore.getItem(routeSessionId, draftId)
+      if (!draft) return false
+
+      followupQueueStore.remove(routeSessionId, draftId)
+
+      return sendMessageNow({
+        sessionId: routeSessionId,
+        content: draft.text,
+        attachments: draft.attachments,
+        model: { providerID: draft.model.providerID, modelID: draft.model.modelID },
+        options: { agent: draft.agent, variant: draft.variant },
+        directory: draft.directory,
+      })
+    },
+    [routeSessionId, sendMessageNow],
   )
 
   useEffect(() => {
@@ -938,6 +859,8 @@ export function useChatSession({
   // Abort handler
   const handleAbort = useCallback(async () => {
     if (!routeSessionId) return
+    // 放弃当前回复时清空队列，排队消息不应继续发送
+    followupQueueStore.clearSession(routeSessionId)
     try {
       const directory = sessionDirectory || currentDirectory
       await abortSession(routeSessionId, directory)
@@ -1163,6 +1086,7 @@ export function useChatSession({
     pendingQuestionRequests,
     queuedFollowups,
     queuedFollowupSendingId,
+    queuedFollowupFailedId,
     handlePermissionReply,
     handleQuestionReply,
     handleQuestionReject,
@@ -1179,6 +1103,7 @@ export function useChatSession({
 
     // Handlers
     handleSend,
+    handleSendQueuedNow,
     handleAbort,
     handleCommand,
     handleUndoWithAnimation,

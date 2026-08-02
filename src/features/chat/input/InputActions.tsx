@@ -128,12 +128,14 @@ interface CollapsedCapsuleProps {
   onExpand: () => void
   showScrollToBottom?: boolean
   onScrollToBottom?: () => void
+  queuedCount?: number
 }
 
 export const CollapsedCapsule = memo(function CollapsedCapsule({
   onExpand,
   showScrollToBottom,
   onScrollToBottom,
+  queuedCount = 0,
 }: CollapsedCapsuleProps) {
   const { t } = useTranslation(['chat', 'common'])
   return (
@@ -145,6 +147,11 @@ export const CollapsedCapsule = memo(function CollapsedCapsule({
       >
         <ArrowUpIcon size={14} />
         <span className="text-[length:var(--fs-xs)]">{t('inputActions.reply')}</span>
+        {queuedCount > 0 && (
+          <span className="ml-0.5 px-1.5 py-0.5 rounded-full bg-accent-main-100/15 text-accent-main-100 text-[length:var(--fs-xxs)] font-medium leading-none">
+            {queuedCount}
+          </span>
+        )}
       </button>
       {showScrollToBottom && <ScrollToBottomButton onClick={onScrollToBottom} />}
     </div>

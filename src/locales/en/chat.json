@@ -192,6 +192,14 @@
     "cacheRW": "Cache (r/w)",
     "rawMessages": "Raw Messages"
   },
+  "queuedMessages": {
+    "count": "{{count}} queued",
+    "sending": "Sending…",
+    "failed": "Failed",
+    "remove": "Remove from queue",
+    "cancelFailed": "Dismiss",
+    "sendNow": "Send now"
+  },
   "hints": {
     "pressEscAgain": "Press <1>Esc</1> again to stop",
     "autoApproveAll": "Auto-approve: all sessions",
