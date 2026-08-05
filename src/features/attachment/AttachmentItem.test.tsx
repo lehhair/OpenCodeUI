@@ -3,10 +3,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AttachmentItem } from './AttachmentItem'
 import type { Attachment } from './types'
 import { FullscreenProvider } from '../../contexts'
+import { copyTextToClipboard } from '../../utils'
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (k: string) => k }),
 }))
+
+vi.mock('../../utils', async importOriginal => {
+  const actual = await importOriginal<typeof import('../../utils')>()
+  return { ...actual, copyTextToClipboard: vi.fn(), clipboardErrorHandler: vi.fn() }
+})
 
 const imgAttachment: Attachment = {
   id: 'a1',
@@ -30,6 +36,15 @@ const noUrlAttachment: Attachment = {
   id: 'a3',
   type: 'file',
   displayName: 'notes.txt',
+  mime: 'text/plain',
+  category: 'user',
+}
+
+const contentAttachment: Attachment = {
+  id: 'a4',
+  type: 'file',
+  displayName: 'notes.txt',
+  content: 'hello world',
   mime: 'text/plain',
   category: 'user',
 }
@@ -90,5 +105,37 @@ describe('AttachmentItem defaultExpanded', () => {
       </FullscreenProvider>,
     )
     expect(screen.queryByTitle('attachment.saveToFile')).toBeNull()
+  })
+
+  it('shows copied state only when copy succeeds', async () => {
+    vi.mocked(copyTextToClipboard).mockResolvedValue(undefined)
+    render(
+      <FullscreenProvider>
+        <AttachmentItem attachment={contentAttachment} expandable defaultExpanded />
+      </FullscreenProvider>,
+    )
+    act(() => {
+      vi.runAllTimers()
+    })
+    await act(async () => {
+      screen.getByTitle('attachment.copyContent').click()
+    })
+    expect(screen.getByText('common:copied')).toBeTruthy()
+  })
+
+  it('does not show copied state when copy fails', async () => {
+    vi.mocked(copyTextToClipboard).mockRejectedValue(new Error('clipboard denied'))
+    render(
+      <FullscreenProvider>
+        <AttachmentItem attachment={contentAttachment} expandable defaultExpanded />
+      </FullscreenProvider>,
+    )
+    act(() => {
+      vi.runAllTimers()
+    })
+    await act(async () => {
+      screen.getByTitle('attachment.copyContent').click()
+    })
+    expect(screen.queryByText('common:copied')).toBeNull()
   })
 })

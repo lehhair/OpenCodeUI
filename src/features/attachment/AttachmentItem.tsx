@@ -66,7 +66,12 @@ function AttachmentItemComponent({
     async (e: React.MouseEvent) => {
       e.stopPropagation()
       if (!attachment.content) return
-      await copyTextToClipboard(attachment.content).catch(err => clipboardErrorHandler('copy', err))
+      try {
+        await copyTextToClipboard(attachment.content)
+      } catch (err) {
+        clipboardErrorHandler('copy', err)
+        throw err
+      }
     },
     [attachment.content],
   )
@@ -371,7 +376,11 @@ function ActionBar({
   const handleCopy = useCallback(
     async (e: React.MouseEvent) => {
       e.stopPropagation()
-      await onCopy(e)
+      try {
+        await onCopy(e)
+      } catch {
+        return
+      }
       setCopied(true)
       if (timeoutRef.current) clearTimeout(timeoutRef.current)
       timeoutRef.current = setTimeout(() => setCopied(false), 2000)
