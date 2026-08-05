@@ -104,12 +104,10 @@ export function getMentionText(attachment: Attachment): string {
  * 判断附件是否有可展开的内容
  */
 export function hasExpandableContent(attachment: Attachment): boolean {
-  const isImage = attachment.mime?.startsWith('image/')
-
   switch (attachment.type) {
     case 'file':
-      // 图片需要 url，其他文件需要 content 或 relativePath
-      return isImage ? !!attachment.url : !!attachment.content || !!attachment.relativePath
+      // 图片需要 url，其他文件需要 content / relativePath / url（均可用于下载或查看）
+      return !!attachment.url || !!attachment.content || !!attachment.relativePath
     case 'folder':
       return !!attachment.relativePath
     case 'agent':

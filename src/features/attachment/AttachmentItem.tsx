@@ -14,6 +14,7 @@ interface AttachmentItemProps {
   onRemove?: (id: string) => void
   size?: 'sm' | 'md'
   expandable?: boolean
+  defaultExpanded?: boolean
   className?: string
 }
 
@@ -22,16 +23,53 @@ function AttachmentItemComponent({
   onRemove,
   size = 'md',
   expandable = false,
+  defaultExpanded = false,
   className,
 }: AttachmentItemProps) {
   const { t } = useTranslation(['commands', 'common'])
-  const [isExpanded, setIsExpanded] = useState(false)
+  const [isExpanded, setIsExpanded] = useState(defaultExpanded)
   const [imageError, setImageError] = useState(false)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const shouldRenderBody = useDelayedRender(isExpanded)
 
   const { Icon, colorClass } = getAttachmentIcon(attachment)
   const canExpand = expandable && hasExpandableContent(attachment)
+  // 可下载：有 url 或文本 content（下载按钮常驻 header，展开与否都能保存文件）
+  const hasDownloadable = !!attachment.url || !!attachment.content
+
+  const handleDownload = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation()
+      const isImage = attachment.mime?.startsWith('image/')
+      const fileName = attachment.displayName || (isImage ? 'image' : 'attachment.txt')
+
+      if (isImage && attachment.url) {
+        // 图片：从 data URI 或 URL fetch 后保存
+        fetch(attachment.url)
+          .then(res => res.arrayBuffer())
+          .then(buf => saveData(new Uint8Array(buf), fileName, attachment.mime || 'image/png'))
+          .catch(err => console.warn('[AttachmentItem] save image failed:', err))
+      } else if (attachment.content) {
+        saveData(new TextEncoder().encode(attachment.content), fileName, 'text/plain;charset=utf-8')
+      } else if (attachment.url) {
+        // 非图片但有 url（如 base64 文本/二进制）：fetch 后保存
+        fetch(attachment.url)
+          .then(res => res.arrayBuffer())
+          .then(buf => saveData(new Uint8Array(buf), fileName, attachment.mime || 'application/octet-stream'))
+          .catch(err => console.warn('[AttachmentItem] save file failed:', err))
+      }
+    },
+    [attachment],
+  )
+
+  const handleCopy = useCallback(
+    async (e: React.MouseEvent) => {
+      e.stopPropagation()
+      if (!attachment.content) return
+      await copyTextToClipboard(attachment.content).catch(err => clipboardErrorHandler('copy', err))
+    },
+    [attachment.content],
+  )
 
   // file/folder 使用 material icon，其他类型用通用 SVG 图标
   const useMaterialIcon = attachment.type === 'file' || attachment.type === 'folder'
@@ -88,6 +126,17 @@ function AttachmentItemComponent({
         <span className="text-text-200 flex-1 min-w-0 truncate text-left" title={attachment.displayName}>
           {attachment.displayName}
         </span>
+        {hasDownloadable && (
+          <button
+            onClick={handleDownload}
+            className="inline-flex items-center gap-0.5 shrink-0 rounded px-1 py-0.5 text-[length:var(--fs-xxs)] text-accent-main-100 hover:text-accent-main-50 hover:bg-accent-main-100/10 transition-colors"
+            title={t('attachment.saveToFile')}
+            aria-label={t('attachment.saveToFile')}
+          >
+            <DownloadIcon size={11} />
+            <span className="hidden md:inline">{t('common:save')}</span>
+          </button>
+        )}
         {canExpand && (
           <span className={`text-text-400 transition-transform duration-300 ${isExpanded ? '' : '-rotate-90'}`}>
             <ChevronDownIcon size={10} />
@@ -121,6 +170,8 @@ function AttachmentItemComponent({
                 imageError={imageError}
                 onImageError={() => setImageError(true)}
                 onOpenDetail={() => setIsModalOpen(true)}
+                onCopy={handleCopy}
+                onDownload={handleDownload}
               />
             )}
           </div>
@@ -162,12 +213,28 @@ function MetaRow({
   )
 }
 
-function ExpandedContent({ attachment, imageError, onImageError, onOpenDetail }: ExpandedContentProps) {
+interface ExpandedContentProps {
+  attachment: Attachment
+  imageError: boolean
+  onImageError: () => void
+  onOpenDetail: () => void
+  onCopy: (e: React.MouseEvent) => Promise<void> | void
+  onDownload: (e: React.MouseEvent) => void
+}
+
+function ExpandedContent({
+  attachment,
+  imageError,
+  onImageError,
+  onOpenDetail,
+  onCopy,
+  onDownload,
+}: ExpandedContentProps) {
   const { t } = useTranslation(['commands', 'common'])
   const { type, url, content, relativePath, mime, agentName, agentDescription } = attachment
   const isImage = mime?.startsWith('image/')
   const hasContent = !!content
-  const hasDownloadable = hasContent || (!!isImage && !!url)
+  const hasDownloadable = hasContent || !!url
 
   // Content Area
   let contentNode = null
@@ -200,10 +267,11 @@ function ExpandedContent({ attachment, imageError, onImageError, onOpenDetail }:
 
       {/* 操作按钮栏 */}
       <ActionBar
-        attachment={attachment}
         hasContent={hasContent}
         hasDownloadable={hasDownloadable}
         onOpenDetail={onOpenDetail}
+        onCopy={onCopy}
+        onDownload={onDownload}
         showBorderTop={!!contentNode}
       />
 
@@ -274,14 +342,22 @@ function ExpandedContent({ attachment, imageError, onImageError, onOpenDetail }:
 // ============================================
 
 interface ActionBarProps {
-  attachment: Attachment
   hasContent: boolean
   hasDownloadable: boolean
   onOpenDetail: () => void
+  onCopy: (e: React.MouseEvent) => Promise<void> | void
+  onDownload: (e: React.MouseEvent) => void
   showBorderTop: boolean
 }
 
-function ActionBar({ attachment, hasContent, hasDownloadable, onOpenDetail, showBorderTop }: ActionBarProps) {
+function ActionBar({
+  hasContent,
+  hasDownloadable,
+  onOpenDetail,
+  onCopy,
+  onDownload,
+  showBorderTop,
+}: ActionBarProps) {
   const { t } = useTranslation(['commands', 'common'])
   const [copied, setCopied] = useState(false)
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -295,36 +371,12 @@ function ActionBar({ attachment, hasContent, hasDownloadable, onOpenDetail, show
   const handleCopy = useCallback(
     async (e: React.MouseEvent) => {
       e.stopPropagation()
-      if (!attachment.content) return
-      try {
-        await copyTextToClipboard(attachment.content)
-        setCopied(true)
-        if (timeoutRef.current) clearTimeout(timeoutRef.current)
-        timeoutRef.current = setTimeout(() => setCopied(false), 2000)
-      } catch (err) {
-        clipboardErrorHandler('copy', err)
-      }
+      await onCopy(e)
+      setCopied(true)
+      if (timeoutRef.current) clearTimeout(timeoutRef.current)
+      timeoutRef.current = setTimeout(() => setCopied(false), 2000)
     },
-    [attachment.content],
-  )
-
-  const handleDownload = useCallback(
-    (e: React.MouseEvent) => {
-      e.stopPropagation()
-      const isImage = attachment.mime?.startsWith('image/')
-      const fileName = attachment.displayName || (isImage ? 'image' : 'attachment.txt')
-
-      if (isImage && attachment.url) {
-        // 图片：从 data URI 或 URL fetch 后保存
-        fetch(attachment.url)
-          .then(res => res.arrayBuffer())
-          .then(buf => saveData(new Uint8Array(buf), fileName, attachment.mime || 'image/png'))
-          .catch(err => console.warn('[AttachmentItem] save image failed:', err))
-      } else if (attachment.content) {
-        saveData(new TextEncoder().encode(attachment.content), fileName, 'text/plain;charset=utf-8')
-      }
-    },
-    [attachment],
+    [onCopy],
   )
 
   const handleOpenDetail = useCallback(
@@ -365,7 +417,7 @@ function ActionBar({ attachment, hasContent, hasDownloadable, onOpenDetail, show
 
       {hasDownloadable && (
         <button
-          onClick={handleDownload}
+          onClick={onDownload}
           className={`${btnBase} text-text-400 hover:text-text-200 hover:bg-bg-300/50`}
           title={t('attachment.saveToFile')}
         >
