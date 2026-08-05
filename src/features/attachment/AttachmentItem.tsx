@@ -189,13 +189,6 @@ function AttachmentItemComponent({
   )
 }
 
-interface ExpandedContentProps {
-  attachment: Attachment
-  imageError: boolean
-  onImageError: () => void
-  onOpenDetail: () => void
-}
-
 function MetaRow({
   label,
   value,
