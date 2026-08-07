@@ -106,7 +106,7 @@ export function getMentionText(attachment: Attachment): string {
 export function hasExpandableContent(attachment: Attachment): boolean {
   switch (attachment.type) {
     case 'file':
-      // 图片需要 url，其他文件需要 content / relativePath / url（均可用于下载或查看）
+      // 有 url（用于展示/下载）或 content（文本预览）或 relativePath（定位）即可展开
       return !!attachment.url || !!attachment.content || !!attachment.relativePath
     case 'folder':
       return !!attachment.relativePath
@@ -117,6 +117,16 @@ export function hasExpandableContent(attachment: Attachment): boolean {
     default:
       return false
   }
+}
+
+/**
+ * 判断附件是否可下载保存
+ * 仅 content 文本、data:/http(s) url 可直接获取数据；file:// 在浏览器/WebView 中无法 fetch，视为不可下载
+ */
+export function canDownload(attachment: Attachment): boolean {
+  if (attachment.content) return true
+  if (!attachment.url) return false
+  return !attachment.url.startsWith('file://')
 }
 
 export function getAttachmentIcon(attachment: Attachment): { Icon: React.FC; colorClass: string } {

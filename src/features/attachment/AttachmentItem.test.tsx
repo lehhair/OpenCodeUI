@@ -107,6 +107,41 @@ describe('AttachmentItem defaultExpanded', () => {
     expect(screen.queryByTitle('attachment.saveToFile')).toBeNull()
   })
 
+  it('does not show a download button for a file:// url without content', () => {
+    const fileUrlAttachment: Attachment = {
+      id: 'a5',
+      type: 'file',
+      displayName: 'local.txt',
+      url: 'file:///home/user/local.txt',
+      mime: 'text/plain',
+      category: 'user',
+    }
+    render(
+      <FullscreenProvider>
+        <AttachmentItem attachment={fileUrlAttachment} />
+      </FullscreenProvider>,
+    )
+    expect(screen.queryByTitle('attachment.saveToFile')).toBeNull()
+  })
+
+  it('shows a download button for a file:// url when content exists', () => {
+    const fileUrlWithContentAttachment: Attachment = {
+      id: 'a6',
+      type: 'file',
+      displayName: 'local.txt',
+      url: 'file:///home/user/local.txt',
+      content: 'hello world',
+      mime: 'text/plain',
+      category: 'user',
+    }
+    render(
+      <FullscreenProvider>
+        <AttachmentItem attachment={fileUrlWithContentAttachment} />
+      </FullscreenProvider>,
+    )
+    expect(screen.getByTitle('attachment.saveToFile')).toBeTruthy()
+  })
+
   it('shows copied state only when copy succeeds', async () => {
     vi.mocked(copyTextToClipboard).mockResolvedValue(undefined)
     render(

@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useEffect, memo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { CloseIcon, ChevronDownIcon, CopyIcon, CheckIcon, DownloadIcon, ExpandIcon } from '../../components/Icons'
-import { getAttachmentIcon, hasExpandableContent } from './utils'
+import { getAttachmentIcon, hasExpandableContent, canDownload } from './utils'
 import { getMaterialIconUrl } from '../../utils/materialIcons'
 import { useDelayedRender } from '../../hooks/useDelayedRender'
 import { AttachmentDetailModal } from './AttachmentDetailModal'
@@ -34,8 +34,8 @@ function AttachmentItemComponent({
 
   const { Icon, colorClass } = getAttachmentIcon(attachment)
   const canExpand = expandable && hasExpandableContent(attachment)
-  // 可下载：有 url 或文本 content（下载按钮常驻 header，展开与否都能保存文件）
-  const hasDownloadable = !!attachment.url || !!attachment.content
+  // 可下载：有 content 或 data:/http(s) url（下载按钮常驻 header，展开与否都能保存文件）
+  const hasDownloadable = canDownload(attachment)
 
   const handleDownload = useCallback(
     (e: React.MouseEvent) => {
@@ -43,14 +43,18 @@ function AttachmentItemComponent({
       const isImage = attachment.mime?.startsWith('image/')
       const fileName = attachment.displayName || (isImage ? 'image' : 'attachment.txt')
 
+      // file:// 无法在浏览器/WebView 中 fetch，仅能保存文本 content
+      if (attachment.content) {
+        saveData(new TextEncoder().encode(attachment.content), fileName, 'text/plain;charset=utf-8')
+        return
+      }
+
       if (isImage && attachment.url) {
         // 图片：从 data URI 或 URL fetch 后保存
         fetch(attachment.url)
           .then(res => res.arrayBuffer())
           .then(buf => saveData(new Uint8Array(buf), fileName, attachment.mime || 'image/png'))
           .catch(err => console.warn('[AttachmentItem] save image failed:', err))
-      } else if (attachment.content) {
-        saveData(new TextEncoder().encode(attachment.content), fileName, 'text/plain;charset=utf-8')
       } else if (attachment.url) {
         // 非图片但有 url（如 base64 文本/二进制）：fetch 后保存
         fetch(attachment.url)
@@ -232,7 +236,7 @@ function ExpandedContent({
   const { type, url, content, relativePath, mime, agentName, agentDescription } = attachment
   const isImage = mime?.startsWith('image/')
   const hasContent = !!content
-  const hasDownloadable = hasContent || !!url
+  const hasDownloadable = canDownload(attachment)
 
   // Content Area
   let contentNode = null
