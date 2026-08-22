@@ -112,6 +112,13 @@
     "scrollToBottom": "滚动到底部",
     "reply": "回复..."
   },
+  "textSelectionPopup": {
+    "label": "文本操作",
+    "quote": "引用",
+    "copy": "复制",
+    "copied": "已复制",
+    "copyFailed": "复制到剪贴板失败"
+  },
   "undoStatus": {
     "editing": "Editing",
     "redo": "Redo",

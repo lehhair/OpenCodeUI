@@ -112,6 +112,13 @@
     "scrollToBottom": "Scroll to bottom",
     "reply": "Reply..."
   },
+  "textSelectionPopup": {
+    "label": "Text actions",
+    "quote": "Quote",
+    "copy": "Copy",
+    "copied": "Copied",
+    "copyFailed": "Could not copy to clipboard"
+  },
   "undoStatus": {
     "editing": "Editing",
     "redo": "Redo",
