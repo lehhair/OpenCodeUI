@@ -25,6 +25,7 @@ import {
   TaskRenderer,
   hasTodos,
 } from '../tools'
+import { FilePartView } from './AttachmentPartViews'
 import { MSG_SPACING } from '../messageSpacing'
 import { MessageExpandPanel, useMessageExpandRender } from '../messageExpand'
 
@@ -118,10 +119,12 @@ export const ToolPartView = memo(function ToolPartView({
   const permissionContentHidden =
     compactInlinePermission && !isEditWritePermission && !isTaskTool && !!permissionRequest
   const isReadable = isReadableTool(toolName)
+  const hasAttachments = (state.attachments ?? []).length > 0
   const shouldStartExpanded =
     isActive ||
     hasPendingInteraction ||
     permissionResolved ||
+    hasAttachments ||
     (immersiveMode && descriptive && isStreaming && isReadable)
 
   const [expanded, setExpanded] = useUiDisclosureState(`message:${part.messageID}:tool:${part.id}`, shouldStartExpanded)
@@ -148,6 +151,10 @@ export const ToolPartView = memo(function ToolPartView({
       frameId = requestAnimationFrame(() => {
         setExpanded(true, { touched: false, respectUser: true })
       })
+    } else if (hasAttachments) {
+      frameId = requestAnimationFrame(() => {
+        setExpanded(true, { touched: false, respectUser: true })
+      })
     } else if (immersiveMode && descriptive && !isReadable) {
       frameId = requestAnimationFrame(() => {
         setExpanded(false, { touched: false, respectUser: true })
@@ -166,6 +173,7 @@ export const ToolPartView = memo(function ToolPartView({
     isActive,
     hasPendingInteraction,
     permissionResolved,
+    hasAttachments,
     immersiveMode,
     descriptive,
     isStreaming,
@@ -197,10 +205,19 @@ export const ToolPartView = memo(function ToolPartView({
     setIsChildFullscreen(isFullscreen)
   }, [])
 
+  const attachments = state.attachments ?? []
+
   const bodyContent = (
     <>
       {!hideToolBodyForPermission && (
         <ToolBody part={part} data={toolData} onFullscreenChange={handleFullscreenChange} />
+      )}
+      {attachments.length > 0 && (
+        <div className="mt-1 flex flex-wrap gap-1.5 px-1 pb-1">
+          {attachments.map(attachmentPart => (
+            <FilePartView key={attachmentPart.id} part={attachmentPart} defaultExpanded />
+          ))}
+        </div>
       )}
       {displayPermission && (
         <div className={hideToolBodyForPermission && !permissionContentHidden ? '' : MSG_SPACING.inner}>
