@@ -1,4 +1,4 @@
-import { defineConfig } from 'vitest/config'
+import { defineConfig, defaultExclude } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { bundledLanguagesInfo } from 'shiki/langs'
@@ -15,6 +15,8 @@ export default defineConfig({
     globals: true,
     setupFiles: ['./src/test/setup.ts'],
     css: true,
+    // opencode/ 是本地参考用的外部仓库，里面的测试不属于本项目
+    exclude: [...defaultExclude, 'opencode/**'],
     coverage: {
       reporter: ['text', 'html'],
     },

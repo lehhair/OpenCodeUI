@@ -40,3 +40,9 @@ public/material-icons/
 *.njsproj
 *.sln
 *.sw?
+
+# Local tool dirs / reference checkouts (not part of the repo)
+.hermes/
+.omo/
+opencode/
+nul
