@@ -407,11 +407,11 @@ docker/                  # Docker 配置（Gateway / Frontend / Backend）
 
 ## Star History
 
-<a href="https://www.star-history.com/#lehhair/OpenCodeUI&Date">
+<a href="https://star-history.dera.page/#lehhair/OpenCodeUI&type=Date">
  <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=lehhair/OpenCodeUI&type=Date&theme=dark" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=lehhair/OpenCodeUI&type=Date" />
-   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=lehhair/OpenCodeUI&type=Date" />
+   <source media="(prefers-color-scheme: dark)" srcset="https://star-history.dera.page/svg?repos=lehhair/OpenCodeUI&type=Date&theme=dark" />
+   <source media="(prefers-color-scheme: light)" srcset="https://star-history.dera.page/svg?repos=lehhair/OpenCodeUI&type=Date" />
+   <img alt="Star History Chart" src="https://star-history.dera.page/svg?repos=lehhair/OpenCodeUI&type=Date" />
  </picture>
 </a>
 
