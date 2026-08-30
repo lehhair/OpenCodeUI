@@ -3,3 +3,9 @@ pub mod bridge;
 pub mod opencode;
 #[cfg(not(target_os = "android"))]
 pub mod utils;
+#[cfg(target_os = "windows")]
+pub mod wsl_types;
+#[cfg(target_os = "windows")]
+pub mod wsl_runtime;
+#[cfg(target_os = "windows")]
+pub mod wsl_commands;

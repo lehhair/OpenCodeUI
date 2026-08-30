@@ -364,6 +364,16 @@ pub fn run() {
                 }
             }
 
+            // Windows: 注册 WSL 控制器状态（emit 需要持有 AppHandle，manage 在
+            // setup 阶段完成），随后执行官方 initialize 对齐的启动逻辑
+            #[cfg(target_os = "windows")]
+            app.manage(commands::wsl_commands::WslState::new(app.handle().clone()));
+
+            // Windows: 官方 initialize 对齐——恢复持久化配置 + 后台刷新 opencode
+            // 检查 + 自动拉起全部服务器（wslServerIdsToStartOnInitialize 返回全部 id）
+            #[cfg(target_os = "windows")]
+            commands::wsl_commands::initialize_wsl(app.handle());
+
             Ok(())
         });
 
@@ -466,6 +476,34 @@ pub fn run() {
             commands::opencode::stop_opencode_service,
             commands::opencode::get_service_started_by_us,
             commands::opencode::confirm_close_app,
+            // Windows: WSL 发行版管理命令（对齐官方 ipc.ts 的命令面：
+            // getState / probeRuntime / refreshDistros / installWsl / installDistro /
+            // probeAddable / installOpencode / openTerminal / add / remove / start）。
+            // 注意：invoke_handler 是整体替换语义，WSL 命令必须合并在同一个
+            // generate_handler! 列表里；如果另起一次 invoke_handler 会把
+            // 上面的命令全部覆盖，导致前端窗口显示/服务管理等命令 404。
+            #[cfg(target_os = "windows")]
+            commands::wsl_commands::probe_wsl_runtime,
+            #[cfg(target_os = "windows")]
+            commands::wsl_commands::refresh_wsl_distros,
+            #[cfg(target_os = "windows")]
+            commands::wsl_commands::probe_wsl_addable,
+            #[cfg(target_os = "windows")]
+            commands::wsl_commands::open_wsl_terminal,
+            #[cfg(target_os = "windows")]
+            commands::wsl_commands::add_wsl_server,
+            #[cfg(target_os = "windows")]
+            commands::wsl_commands::remove_wsl_server,
+            #[cfg(target_os = "windows")]
+            commands::wsl_commands::start_wsl_server,
+            #[cfg(target_os = "windows")]
+            commands::wsl_commands::get_wsl_state,
+            #[cfg(target_os = "windows")]
+            commands::wsl_commands::install_wsl,
+            #[cfg(target_os = "windows")]
+            commands::wsl_commands::install_wsl_distro,
+            #[cfg(target_os = "windows")]
+            commands::wsl_commands::install_wsl_opencode,
         ]);
 
     // Android: 注册 bridge commands
