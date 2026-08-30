@@ -145,7 +145,10 @@ export function SidePanel({
   // 多服务器订阅模式配置
   const multiServerConfig = useMultiServerStore()
   // 多服务器模式：Git/路径信息跟随「焦点服务器」（焦点缺省 = 活动服务器）
-  const { activeServer } = useServerStore()
+  // servers 快照同时喂给下方 subscribedServerIds 的过滤：WSL 服务器就绪注册
+  // （upsert）只更新 serverStore，订阅白名单本身不变，漏了它 memo 会停留在
+  // 「服务器还不存在」的旧过滤结果上，侧边栏永远缺 WSL 分组
+  const { activeServer, servers: registryServers } = useServerStore()
   const catalogServerId = multiServerConfig.enabled
     ? (multiServerConfig.focusedServerId ?? activeServer?.id)
     : undefined
@@ -165,9 +168,9 @@ export function SidePanel({
     getStorageVersion,
   )
   const subscribedServerIds = useMemo(() => {
-    // 白名单精确生效：只展示用户在设置里勾选的服务器
-    return multiServerConfig.subscribedServerIds.filter(id => serverStore.getServers().some(s => s.id === id))
-  }, [multiServerConfig.subscribedServerIds])
+    // 白名单精确生效：只展示用户在设置里勾选的服务器（且已注册进 serverStore）
+    return multiServerConfig.subscribedServerIds.filter(id => registryServers.some(s => s.id === id))
+  }, [multiServerConfig.subscribedServerIds, registryServers])
   // 多服务器列表按复合 key（serverId::sessionId）比较，避免跨服务器同名 session 串高亮
   const multiServerSelectedSessionKey = selectedSessionId
   const [globalFolderIndex, setGlobalFolderIndex] = useState<number>(() => {

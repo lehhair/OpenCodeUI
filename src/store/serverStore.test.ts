@@ -236,7 +236,9 @@ describe('serverStore upsertServer runtime change', () => {
     expect(listener).not.toHaveBeenCalled()
   })
 
-  it('does not notify when a non-active server url changes', async () => {
+  it('notifies server-runtime-updated when a non-active server url changes', async () => {
+    // 信号语义是「端点事实变化」而非「active 在用谁」：非 active 的 WSL 服务器
+    // sidecar 换端口后，侧边栏会话事件流（SSE）同样挂在其端点上，必须重连
     const { serverStore } = await import('./serverStore')
     const remote = serverStore.addServer({ name: 'Remote', url: 'http://127.0.0.1:11111' })
 
@@ -245,7 +247,21 @@ describe('serverStore upsertServer runtime change', () => {
 
     serverStore.upsertServer({ id: remote.id, name: 'Remote', url: 'http://127.0.0.1:22222' })
 
-    expect(listener).not.toHaveBeenCalled()
+    expect(listener).toHaveBeenCalledWith(remote.id, 'server-runtime-updated')
+  })
+
+  it('notifies server-runtime-updated when a new server is registered', async () => {
+    // WSL 就绪注册：端点事实从无到有，消费方（SSE/SDK）需按新端点重建，
+    // 否则启动窗口期建立的回退连接永远指向错误地址
+    const { serverStore } = await import('./serverStore')
+
+    const listener = vi.fn()
+    serverStore.onServerChange(listener)
+
+    serverStore.upsertServer({ id: 'wsl:Ubuntu-22.04', name: 'Ubuntu', url: 'http://127.0.0.1:33333' })
+
+    expect(listener).toHaveBeenCalledWith('wsl:Ubuntu-22.04', 'server-runtime-updated')
+    expect(serverStore.getServer('wsl:Ubuntu-22.04')?.url).toBe('http://127.0.0.1:33333')
   })
 })
 

@@ -28,10 +28,15 @@ const {
   getActiveServerIdMock,
   checkHealthMock,
   onServerChangeMock,
+  serverChangeListeners,
   autoApproveStoreMock,
   clearSessionRuntimeStateMock,
   clearPaneSessionMock,
-} = vi.hoisted(() => ({
+} = vi.hoisted(() => {
+  // onServerChange 是多播语义（effect 里注册多个监听器），mock 必须保存全部监听器；
+  // 覆盖式单槽实现会静默丢掉先注册的监听器，让「只有最后注册者生效」的隐式依赖漏过测试
+  const serverChangeListeners = new Set<(serverId: string, reason?: string) => void>()
+  return {
   subscribeToEventsMock: vi.fn(),
   getSessionStatusMock: vi.fn<(directory?: string) => Promise<Record<string, { type: string }>>>(() => Promise.resolve({})),
   getPendingPermissionsMock: vi.fn(() =>
@@ -48,7 +53,13 @@ const {
   applyServerConnectedTimestampMock: vi.fn(),
   getActiveServerIdMock: vi.fn(() => 'local'),
   checkHealthMock: vi.fn(() => Promise.resolve({ status: 'online' })),
-  onServerChangeMock: vi.fn((_listener: (serverId: string) => void) => vi.fn()),
+  onServerChangeMock: vi.fn((listener: (serverId: string, reason?: string) => void) => {
+    serverChangeListeners.add(listener)
+    return () => {
+      serverChangeListeners.delete(listener)
+    }
+  }),
+  serverChangeListeners,
   clearSessionRuntimeStateMock: vi.fn(),
   clearPaneSessionMock: vi.fn(),
   getSoundSnapshotMock: vi.fn(() => ({
@@ -75,7 +86,8 @@ const {
     claimAutoReply: vi.fn((_requestId: string) => true),
     releaseAutoReply: vi.fn((_requestId: string) => undefined),
   },
-}))
+  }
+})
 
 vi.mock('../api', () => ({
   subscribeToEvents: subscribeToEventsMock,
@@ -192,7 +204,13 @@ describe('useGlobalEvents', () => {
     isSystemEnabledMock.mockImplementation((type: string) => type !== 'permission')
     getActiveServerIdMock.mockReturnValue('local')
     checkHealthMock.mockResolvedValue({ status: 'online' })
-    onServerChangeMock.mockReturnValue(vi.fn())
+    serverChangeListeners.clear()
+    onServerChangeMock.mockImplementation(listener => {
+      serverChangeListeners.add(listener)
+      return () => {
+        serverChangeListeners.delete(listener)
+      }
+    })
     getSessionAndDescendantsMock.mockImplementation((sessionId: string) => [sessionId])
     autoApproveStoreMock.subscribe.mockReturnValue(vi.fn())
     autoApproveStoreMock.getPaneFullAutoMode.mockReturnValue('off')
@@ -224,18 +242,13 @@ describe('useGlobalEvents', () => {
   })
 
   it('refreshes health for the selected server when active server changes', async () => {
-    let onServerChange: ((serverId: string) => void) | undefined
-    onServerChangeMock.mockImplementation(listener => {
-      onServerChange = listener
-      return vi.fn()
-    })
-
     renderHook(() => useGlobalEvents())
 
-    await waitFor(() => expect(onServerChange).toBeDefined())
+    await waitFor(() => expect(onServerChangeMock).toHaveBeenCalled())
     checkHealthMock.mockClear()
 
-    onServerChange!('remote')
+    // 多播广播：effect 里注册的每个监听器（健康检查、runtime 重连等）都会收到信号
+    serverChangeListeners.forEach(listener => listener('remote'))
 
     expect(checkHealthMock).toHaveBeenCalledWith('remote')
   })

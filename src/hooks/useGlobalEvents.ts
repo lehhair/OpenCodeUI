@@ -765,9 +765,20 @@ export function useGlobalEvents(directories?: string[]) {
       }
     }
 
+    // 索引与 activeServerIds 一一对应，端点变化时按索引定向替换单条订阅
     const unsubscribes = activeServerIds.map(serverId =>
       subscribeToServerEvents(serverId, buildServerCallbacks(serverId)),
     )
+    // WSL 服务器端点变化（sidecar 重启换端口 / 启动窗口期后注册就绪）：在订阅集合内
+    // 时定向拆旧建新。不能指望自动重连——启动窗口期 wsl 服务器尚未注册进 serverStore，
+    // SSE 会回退连到 local 地址且这条连接一直「健康」，不断线就永远不会自愈
+    const offRuntimeChange = serverStore.onServerChange((changedId, reason) => {
+      if (reason !== 'server-runtime-updated') return
+      const index = activeServerIdsRef.current.indexOf(changedId)
+      if (index === -1) return
+      unsubscribes[index]?.()
+      unsubscribes[index] = subscribeToServerEvents(changedId, buildServerCallbacks(changedId))
+    })
     activeServerIds.forEach(serverId => {
       fetchAndInitialize(serverId)
       refreshServerHealth(serverId)
@@ -777,6 +788,7 @@ export function useGlobalEvents(directories?: string[]) {
     return () => {
       disposed = true
       refreshRef.current = null
+      offRuntimeChange()
       unsubscribes.forEach(unsubscribe => unsubscribe())
       unsubscribeAutoApprove()
       unsubscribeServerChange()

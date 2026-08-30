@@ -482,21 +482,22 @@ class ServerStore {
       url: config.url.replace(/\/+$/, ''), // 移除尾部斜杠
     }
     const index = this.servers.findIndex(s => s.id === server.id)
+    // 新增与更新共用同一判定：端点/凭据是否变化。新增时 previous 为空，
+    // 「可用端点从无到有」对消费方与变更等价（WSL 就绪注册是典型场景）
+    const previous = index === -1 ? undefined : this.servers[index]
+    const runtimeChanged =
+      !previous || previous.url !== server.url || !isSameServerAuth(previous.auth, server.auth)
     if (index === -1) {
       this.servers.push(server)
-      this.saveToStorage()
-      this.notify()
-      return server
+    } else {
+      this.servers[index] = server
     }
-
-    // 同 id 更新：WSL sidecar 每次启动端口/密码都变。若连接参数变化且是当前 active，
-    // 活动中的会话（SSE 等）还挂在旧地址上，必须在 notify 之后通知消费方重连
-    const previous = this.servers[index]
-    const runtimeChanged = previous.url !== server.url || !isSameServerAuth(previous.auth, server.auth)
-    this.servers[index] = server
     this.saveToStorage()
     this.notify()
-    if (runtimeChanged && server.id === this.activeServerId) {
+    // 端点变化无条件广播（不限定 active）：SSE/SDK 消费方建连时现读 serverStore，
+    // 收到信号按 serverId 定向重建即拿到新值。active 与否只决定「谁正在用」，
+    // 不改变「端点事实已变化」本身——非 active 服务器换端口同样需要这条信号
+    if (runtimeChanged) {
       this.notifyServerChange(server.id, 'server-runtime-updated')
     }
     return server
