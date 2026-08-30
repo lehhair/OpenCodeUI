@@ -70,7 +70,9 @@
     "multiServerModeOffHint": "When enabled, only the servers you subscribe to appear in the sidebar session list.",
     "subscribe": "Subscribe",
     "unsubscribe": "Unsubscribe",
-    "enableMultiServerFirst": "Enable multi-server mode first"
+    "enableMultiServerFirst": "Enable multi-server mode first",
+    "addRemote": "Add remote server",
+    "addWsl": "Add WSL server"
   },
   "chat": {
     "pathsFormatting": "Paths & Formatting",
@@ -439,6 +441,56 @@
       "model": "Model",
       "message": "Message",
       "permission": "Permission"
+    }
+  },
+  "wsl": {
+    "addWslServer": "Add WSL Server",
+    "deleteServerTitle": "Delete WSL Server",
+    "deleteServerConfirm": "Delete {{name}}? Any running instance will be stopped.",
+    "server": {
+      "add": "Add WSL Server",
+      "label": "WSL",
+      "retryStart": "Retry start",
+      "updating": "Updating...",
+      "setDefault": "Set as default server",
+      "unsetDefault": "Unset default server",
+      "defaultTag": "Default"
+    },
+    "onboarding": {
+      "installWsl": "Install WSL",
+      "restartRequired": "Windows needs to restart to finish installing WSL.",
+      "windowsRestartRequired": "Restart Windows to finish installing WSL, then reopen OpenCode.",
+      "wslNotInstalled": {
+        "title": "WSL is not installed",
+        "description": "OpenCode needs WSL (Windows Subsystem for Linux) to add WSL servers"
+      },
+      "wslUnavailable": {
+        "title": "WSL is unavailable",
+        "description": "OpenCode could not verify WSL on this device."
+      },
+      "installedDistros": "Installed distributions",
+      "checkAgain": "Check again",
+      "allDistrosAdded": "All installed distributions have been added.",
+      "checkingDistros": "Detecting distributions…",
+      "noDistros": "No distributions detected.",
+      "openDistroOnce": "Open {{distro}} once to finish setup.",
+      "installOpencode": "Install OpenCode",
+      "installDistro": "Install distribution",
+      "searchDistros": "Search distributions",
+      "adding": "Adding...",
+      "needAnotherDistro": "Need another distribution?",
+      "needAnotherDistroHint": "Install a Linux distribution from the WSL catalog",
+      "openTerminal": "Open terminal",
+      "distroStatus": {
+        "ready": "Ready",
+        "checking": "Checking...",
+        "opencodeMissing": "OpenCode not installed",
+        "missingTools": "Missing bash, curl",
+        "unsupported": "Unsupported · WSL 2 required"
+      },
+      "distroNotInstalled": "{{distro}} is not installed yet.",
+      "updateOpencode": "Update OpenCode",
+      "updatingOpencode": "Updating OpenCode..."
     }
   }
 }
