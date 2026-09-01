@@ -80,12 +80,18 @@ export function useSessions(options: UseSessionsOptions = {}): UseSessionsResult
   // 当前 limit，loadMore 时递增（与 SessionContext 保持一致）
   const currentLimitRef = useRef(pageSize)
   const searchRef = useRef(search)
+  // enabled 实时值：重试循环等待期间读取（懒加载闸门关闭时中断在途重试）
+  const enabledRef = useRef(enabled)
   // 防止 onReconnected 密集触发时重复请求
   const isFetchingRef = useRef(false)
   const queuedReconnectRefreshRef = useRef(false)
   const fetchSessionsRef = useRef<(params?: SessionListParams & { append?: boolean }) => Promise<void>>(
     () => Promise.resolve(),
   )
+
+  useEffect(() => {
+    enabledRef.current = enabled
+  }, [enabled])
 
   useEffect(() => {
     searchRef.current = search
@@ -142,22 +148,20 @@ export function useSessions(options: UseSessionsOptions = {}): UseSessionsResult
             setError(null)
             return
           } catch (e) {
-            // 过期请求不打断外层竞态保护，直接交回 finally
-            if (requestId !== requestIdRef.current) throw e
+            // 已被更新的请求覆盖：静默退出，状态恢复交给新请求的 finally
+            if (requestId !== requestIdRef.current) return
             const exhausted = retryAttempt >= SESSION_RETRY_DELAYS_MS.length
             if (append || exhausted) {
-              if (requestId === requestIdRef.current) {
-                setError(e instanceof Error ? e : new Error('Failed to fetch sessions'))
-              }
-              throw e
+              // 失败终态：error 落定后退出，finally 统一恢复 loading
+              setError(e instanceof Error ? e : new Error('Failed to fetch sessions'))
+              return
             }
             // 重试未耗尽 = 仍在加载：loading 不落地，按退避表等待后进入下一轮
             await delay(SESSION_RETRY_DELAYS_MS[retryAttempt])
-            if (requestId !== requestIdRef.current) return
+            // 等待期间可能被新请求覆盖，或组件已禁用（懒加载闸门回退）
+            if (requestId !== requestIdRef.current || !enabledRef.current) return
           }
         }
-      } catch {
-        // 失败终态（或过期请求）：error 已在上方落定，这里统一恢复取数状态
       } finally {
         if (requestId === requestIdRef.current) {
           isFetchingRef.current = false

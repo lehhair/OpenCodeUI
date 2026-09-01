@@ -33,6 +33,7 @@ const {
   serverStoreListeners,
   multiServerMock,
   multiServerListeners,
+  paneLeavesMock,
   autoApproveStoreMock,
   clearSessionRuntimeStateMock,
   clearPaneSessionMock,
@@ -46,6 +47,8 @@ const {
   // 多服务器订阅白名单：可控开关 + 白名单集合，模拟 WSL 就绪注册时序
   const multiServerMock = { enabled: false, subscribedIds: [] as string[] }
   const multiServerListeners = new Set<() => void>()
+  // paneLayoutStore.allLeaves 的可控数据源：测试可注入特定 pane 会话
+  const paneLeavesMock: { current: Array<{ sessionId?: string }> } = { current: [] }
   return {
   subscribeToEventsMock: vi.fn(),
   getSessionStatusMock: vi.fn<(directory?: string) => Promise<Record<string, { type: string }>>>(() => Promise.resolve({})),
@@ -74,6 +77,7 @@ const {
   serverStoreListeners,
   multiServerMock,
   multiServerListeners,
+  paneLeavesMock,
   clearSessionRuntimeStateMock: vi.fn(),
   clearPaneSessionMock: vi.fn(),
   getSoundSnapshotMock: vi.fn(() => ({
@@ -150,7 +154,7 @@ vi.mock('../store', () => ({
   paneLayoutStore: {
     getFocusedSessionId: getFocusedSessionIdMock,
     clearSession: clearPaneSessionMock,
-    allLeaves: () => [],
+    allLeaves: () => paneLeavesMock.current,
     subscribe: () => () => {},
   },
   serverStore: {
@@ -247,6 +251,7 @@ describe('useGlobalEvents', () => {
     multiServerMock.enabled = false
     multiServerMock.subscribedIds = []
     multiServerListeners.clear()
+    paneLeavesMock.current = []
     onServerChangeMock.mockImplementation(listener => {
       serverChangeListeners.add(listener)
       return () => {
@@ -873,5 +878,22 @@ describe('useGlobalEvents', () => {
     expect(unsubscribes['wsl:Ubuntu'][0]).toHaveBeenCalledTimes(1)
     expect(unsubscribes.local).toHaveLength(1)
     expect(unsubscribes.local[0]).not.toHaveBeenCalled()
+  })
+
+  it('backfills the active server when filtering leaves an empty set', async () => {
+    // F1 回归：pane 仍指向已失效的服务器（sidecar 崩溃后未清理），
+    // 单服务器模式下过滤后集合为空——必须兜底回退 active server，
+    // 否则全应用一条 SSE 都没有（聊天静默）
+    paneLeavesMock.current = [{ sessionId: 'wsl:Ubuntu::ses-1' }]
+    const unsubscribes: string[] = []
+    subscribeToEventsMock.mockImplementation((_cb, serverId: string) => {
+      unsubscribes.push(serverId)
+      return vi.fn()
+    })
+
+    renderHook(() => useGlobalEvents())
+
+    await waitFor(() => expect(subscribeToEventsMock).toHaveBeenCalledTimes(1))
+    expect(unsubscribes).toEqual(['local'])
   })
 })
