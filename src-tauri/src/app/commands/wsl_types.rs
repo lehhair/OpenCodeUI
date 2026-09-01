@@ -25,7 +25,7 @@ pub struct WslInstalledDistro {
 }
 
 /// 在线可用的发行版
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct WslOnlineDistro {
     pub name: String,
     pub label: String,

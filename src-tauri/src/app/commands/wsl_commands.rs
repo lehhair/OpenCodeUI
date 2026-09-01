@@ -70,6 +70,70 @@ fn normalize_persisted_server(value: WslServerConfig) -> Option<WslServerConfig>
     Some(value)
 }
 
+// ============================================
+// 在线目录缓存 —— `wsl --list --online` 需要联网且可能很慢，
+// 采用 stale-while-revalidate：新鲜缓存直接用；过期缓存先展示、
+// 后台静默刷新；无缓存才内联拉取。缓存落盘跨重启，冷启动后
+// 首次打开添加对话框也无需等待网络
+// ============================================
+
+/// 在线目录缓存文件名（与服务器配置分开：缓存是可丢弃的派生数据，
+/// 不应混进服务器定义的持久化文件）
+const WSL_ONLINE_CACHE_FILE: &str = "wsl-online-cache.json";
+/// 缓存保鲜窗口：在线目录是微软的发行版列表，变化以周计，24h 足够
+const ONLINE_CACHE_TTL_MS: u64 = 24 * 60 * 60 * 1000;
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+struct OnlineCache {
+    fetched_at: u64,
+    distros: Vec<WslOnlineDistro>,
+}
+
+fn load_online_cache(app: &AppHandle) -> Option<OnlineCache> {
+    let dir = app.path().app_config_dir().ok()?;
+    let data = std::fs::read_to_string(dir.join(WSL_ONLINE_CACHE_FILE)).ok()?;
+    serde_json::from_str::<OnlineCache>(&data).ok()
+}
+
+/// 写缓存（尽力而为：失败只意味着下次仍要联网拉取，不影响本次结果）
+fn save_online_cache(app: &AppHandle, distros: &[WslOnlineDistro]) {
+    let Ok(dir) = app.path().app_config_dir() else {
+        return;
+    };
+    let _ = std::fs::create_dir_all(&dir);
+    let cache = OnlineCache {
+        fetched_at: now_ms(),
+        distros: distros.to_vec(),
+    };
+    if let Ok(json) = serde_json::to_string(&cache) {
+        let _ = std::fs::write(dir.join(WSL_ONLINE_CACHE_FILE), json);
+    }
+}
+
+/// 在线目录取数决策（纯函数，独立可测）
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum OnlineAction {
+    /// 联网内联拉取（无缓存，或用户显式强制刷新）
+    Fetch,
+    /// 缓存新鲜：直接使用，不联网
+    UseCache(Vec<WslOnlineDistro>),
+    /// 缓存过期：先展示旧数据，后台静默刷新
+    ServeStale(Vec<WslOnlineDistro>),
+}
+
+fn decide_online_action(cache: Option<&OnlineCache>, now: u64, force: bool) -> OnlineAction {
+    if force {
+        return OnlineAction::Fetch;
+    }
+    match cache {
+        Some(c) if now.saturating_sub(c.fetched_at) < ONLINE_CACHE_TTL_MS => {
+            OnlineAction::UseCache(c.distros.clone())
+        }
+        Some(c) => OnlineAction::ServeStale(c.distros.clone()),
+        None => OnlineAction::Fetch,
+    }
+}
+
 /// 运行中的 sidecar 句柄：cancel token 触发后监督任务杀掉子进程。
 /// token 是"所有权凭证"——stop/remove 会先从 map 移除再 cancel，
 /// 监督任务用 attempt 核对 map 里的句柄是否仍是自己，不是则保持静默。
@@ -175,6 +239,12 @@ impl WslState {
         if owned {
             self.set_state(|s| s.job = None);
         }
+    }
+
+    /// 只读快照访问：锁中毒按默认值（空状态）处理——调用方均为
+    /// 尽力而为的判定（如 prewarm），不应因锁异常而失败
+    fn read_state<T: Default>(&self, f: impl FnOnce(&WslServersState) -> T) -> T {
+        self.state.lock().map(|s| f(&s)).unwrap_or_default()
     }
 
     /// 从磁盘恢复已保存的服务器配置到内存状态（官方 refreshFromStore）
@@ -314,6 +384,12 @@ async fn probe_addable_distros(state: &WslState, distros: &[String], token: &Can
 /// 探测 WSL 运行时（官方 probeRuntime）
 #[command]
 pub async fn probe_wsl_runtime(state: tauri::State<'_, WslState>) -> Result<(), String> {
+    probe_runtime_impl(&state).await
+}
+
+/// 探测实现（命令与 prewarm 共用）：begin_job 抢占语义保证同一时刻
+/// 只有一个 runtime 探测在途，后到的取消先前的
+async fn probe_runtime_impl(state: &WslState) -> Result<(), String> {
     let token = state.begin_job(WslJob::Runtime {
         started_at: now_ms(),
     });
@@ -335,34 +411,119 @@ pub async fn probe_wsl_runtime(state: tauri::State<'_, WslState>) -> Result<(), 
 }
 
 /// 刷新发行版列表（官方 refreshDistros）。
-/// 同时清掉 can_execute=false 的探测记录（checkAgain 语义）：
-/// 探测失败可能是 WSL 冷启动等瞬时问题，重试应重新探测而不是永远卡在
-/// "打开一次完成设置"的提示上。
+/// force=true（用户显式「重新检测」）绕过在线目录缓存强制联网；
+/// 默认走 stale-while-revalidate，详见 refresh_distros_inner
 #[command]
-pub async fn refresh_wsl_distros(state: tauri::State<'_, WslState>) -> Result<(), String> {
+pub async fn refresh_wsl_distros(
+    state: tauri::State<'_, WslState>,
+    force: Option<bool>,
+) -> Result<(), String> {
+    refresh_distros_impl(&state, force.unwrap_or(false)).await
+}
+
+async fn refresh_distros_impl(state: &WslState, force: bool) -> Result<(), String> {
     let token = state.begin_job(WslJob::Distros {
         started_at: now_ms(),
     });
-    let result = tokio::join!(
-        wsl_runtime::list_installed_distros(Some(&token)),
-        wsl_runtime::list_online_distros(Some(&token))
-    );
-    match result {
-        (Ok(installed), Ok(online)) => {
-            state.set_state(|s| {
-                s.installed = installed;
-                s.online = online;
-                // checkAgain 重新探测失败过的 distro
-                s.distro_probes.retain(|_, p| p.can_execute);
-            });
-            state.end_job(&token);
+    let result = refresh_distros_inner(state, force, &token).await;
+    state.end_job(&token);
+    result
+}
+
+async fn refresh_distros_inner(
+    state: &WslState,
+    force: bool,
+    token: &CancellationToken,
+) -> Result<(), String> {
+    // 本地列表：无网络、快，永远新鲜拉取；失败是硬错误
+    let installed = wsl_runtime::list_installed_distros(Some(token)).await?;
+
+    let cache = load_online_cache(&state.app);
+    match decide_online_action(cache.as_ref(), now_ms(), force) {
+        OnlineAction::UseCache(online) => {
+            commit_distros(state, installed, online);
             Ok(())
         }
-        (Err(e), _) | (_, Err(e)) => {
-            state.end_job(&token);
-            Err(e)
+        OnlineAction::ServeStale(online) => {
+            commit_distros(state, installed, online);
+            // 过期缓存：后台静默再验证（不占 job，成功才更新状态与缓存）
+            revalidate_online_cache_background(state.app.clone());
+            Ok(())
         }
+        OnlineAction::Fetch => match wsl_runtime::list_online_distros(Some(token)).await {
+            Ok(online) => {
+                commit_distros(state, installed, online.clone());
+                save_online_cache(&state.app, &online);
+                Ok(())
+            }
+            // 在线目录失败容错：有旧缓存就顶替（谁失败只报谁），无缓存才报错
+            Err(e) => match cache {
+                Some(c) => {
+                    commit_distros(state, installed, c.distros);
+                    Ok(())
+                }
+                None => Err(e),
+            },
+        },
     }
+}
+
+/// 写入两份列表并清理失败探测记录（checkAgain 语义：探测失败可能是
+/// WSL 冷启动等瞬时问题，重试应重新探测而不是永远卡在设置提示上）
+fn commit_distros(state: &WslState, installed: Vec<WslInstalledDistro>, online: Vec<WslOnlineDistro>) {
+    state.set_state(|s| {
+        s.installed = installed;
+        s.online = online;
+        s.distro_probes.retain(|_, p| p.can_execute);
+    });
+}
+
+/// 后台再验证在线目录（stale-while-revalidate 的 revalidate 半边）：
+/// 静默更新状态与缓存，失败保持旧值不打扰用户
+fn revalidate_online_cache_background(app: AppHandle) {
+    tauri::async_runtime::spawn(async move {
+        let state = app.state::<WslState>();
+        if let Ok(online) = wsl_runtime::list_online_distros(None).await {
+            state.set_state(|s| s.online = online.clone());
+            save_online_cache(&app, &online);
+        }
+    });
+}
+
+/// 设置→服务器页打开时的按需预热（意图信号驱动，取代旧的无条件启动预热）：
+/// - runtime 未知或此前不可用 → 探测一次（未装 WSL 的机器 `wsl --version` 秒回）
+/// - runtime 可用且两份发行版列表皆空 → 刷新列表（在线目录走 TTL 缓存，通常不联网）
+/// - 已添加发行版缺 opencode 检查 → 补检查（服务器卡片「安装/更新」按钮的数据源）
+/// 幂等：状态已就位时零成本；与对话框 autoProbePlan 共享同一状态树，
+/// 谁先到谁生效，不再是靠 begin_job 取消语义仲裁的双触发源
+#[command]
+pub async fn prewarm_wsl(state: tauri::State<'_, WslState>) -> Result<(), String> {
+    // 不可用时重探：用户可能在两次打开设置之间装好/启用了 WSL；
+    // 可用时跳过：本进程已证明过，无需重复付出 wsl.exe 开销
+    let runtime_available = || state.read_state(|s| s.runtime.as_ref().is_some_and(|r| r.available));
+    if !runtime_available() {
+        let _ = probe_runtime_impl(&state).await;
+    }
+    if !runtime_available() {
+        return Ok(());
+    }
+
+    if state.read_state(|s| s.installed.is_empty() && s.online.is_empty()) {
+        let _ = refresh_distros_impl(&state, false).await;
+    }
+
+    // 为已添加但缺检查的发行版补 opencode 检查（就绪服务器由 Ready 挂钩自行刷新）
+    let missing: Vec<(String, String)> = state.read_state(|s| {
+        s.servers
+            .iter()
+            .filter(|item| !s.opencode_checks.contains_key(&item.config.distro))
+            .map(|item| (item.config.id.clone(), item.config.distro.clone()))
+            .collect()
+    });
+    for (id, distro) in missing {
+        refresh_opencode_check_background(&state.app, id, distro);
+    }
+    Ok(())
 }
 
 /// 批量探测可添加的发行版（官方 probeAddable，前端 probe 计划驱动）
@@ -1037,70 +1198,93 @@ pub async fn stop_all_wsl_servers(state: &tauri::State<'_, WslState>) {
     }
 }
 
-/// 应用启动初始化（官方 initialize：恢复配置 + 刷新 opencode 检查 + 全部拉起）
+/// 应用启动初始化：只做「恢复用户上次状态」的最小工作——读持久化配置并
+/// 拉起全部已添加服务器（sidecar 链自行处理就绪等待与状态推送）。
+///
+/// 一切 WSL 探测（runtime / 发行版列表 / opencode 检查）都是按需成本，
+/// 由设置页打开时的 prewarm_wsl 触发：从未添加 WSL 服务器的机器，
+/// 启动路径的 WSL 开销为零；添加过的机器也不在启动时重复付出
+/// 检查成本（每台服务器 Ready 后已有 refresh_opencode_check_background）
 pub fn initialize_wsl(app: &AppHandle) {
     let state = app.state::<WslState>();
     state.restore_persisted();
-    let ids = state.persisted_server_ids();
-    // 对全部已有服务器后台刷新 opencode 检查（官方 refreshOpencodeChecks）
-    {
-        let app = app.clone();
-        tauri::async_runtime::spawn(async move {
-            let state = app.state::<WslState>();
-            let distros: Vec<String> = {
-                let s = match state.state.lock() {
-                    Ok(s) => s,
-                    Err(_) => return,
-                };
-                s.servers.iter().map(|item| item.config.distro.clone()).collect()
-            };
-            let checks = futures_util::future::join_all(distros.iter().map(|d| check_opencode(d, None))).await;
-            let valid_checks: Vec<(String, WslOpencodeCheck)> = checks
-                .into_iter()
-                .filter_map(|r| r.ok())
-                .filter(|check| {
-                    state
-                        .state
-                        .lock()
-                        .map(|s| s.servers.iter().any(|item| item.config.distro == check.distro))
-                        .unwrap_or(false)
-                })
-                .map(|check| (check.distro.clone(), check))
-                .collect();
-            if !valid_checks.is_empty() {
-                state.set_state(|s| {
-                    for (distro, check) in valid_checks {
-                        s.opencode_checks.insert(distro, check);
-                    }
-                });
-            }
-        });
-    }
-    // 启动预热（官方 initialize 没做这一步，但官方靠"启动即拉起服务器"焐热 WSL；
-    // 无服务器的机器首开添加对话框会暴露完整的冷启动空窗）：后台探测 runtime，
-    // 可用时拉取发行版列表，用户打开对话框时即是热数据。
-    // 与对话框自身的 autoProbePlan 撞车时由 begin_job 的取消语义兜底
-    {
-        let app = app.clone();
-        tauri::async_runtime::spawn(async move {
-            if probe_wsl_runtime(app.state::<WslState>()).await.is_ok() {
-                let available = {
-                    let state = app.state::<WslState>();
-                    state
-                        .state
-                        .lock()
-                        .ok()
-                        .and_then(|s| s.runtime.as_ref().map(|r| r.available))
-                        .unwrap_or(false)
-                };
-                if available {
-                    let _ = refresh_wsl_distros(app.state::<WslState>()).await;
-                }
-            }
-        });
-    }
-    // 全部服务器自动拉起（官方 wslServerIdsToStartOnInitialize = 全部）
-    for id in ids {
+    for id in state.persisted_server_ids() {
         start_server_internal(app, &id);
+    }
+}
+
+// ============================================
+// 单元测试 —— 在线目录缓存的纯决策逻辑
+// ============================================
+
+#[cfg(all(test, target_os = "windows"))]
+mod tests {
+    use super::*;
+
+    fn online(name: &str) -> WslOnlineDistro {
+        WslOnlineDistro {
+            name: name.to_string(),
+            label: format!("{name} label"),
+        }
+    }
+
+    fn cache(fetched_at: u64) -> OnlineCache {
+        OnlineCache {
+            fetched_at,
+            distros: vec![online("Ubuntu")],
+        }
+    }
+
+    #[test]
+    fn no_cache_fetches_inline() {
+        assert_eq!(decide_online_action(None, 1_000, false), OnlineAction::Fetch);
+    }
+
+    #[test]
+    fn fresh_cache_used_without_network() {
+        let now = 1_000 + ONLINE_CACHE_TTL_MS - 1;
+        match decide_online_action(Some(&cache(1_000)), now, false) {
+            OnlineAction::UseCache(distros) => assert_eq!(distros.len(), 1),
+            other => panic!("expected UseCache, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn stale_cache_served_with_background_revalidate() {
+        let now = 1_000 + ONLINE_CACHE_TTL_MS;
+        assert!(matches!(
+            decide_online_action(Some(&cache(1_000)), now, false),
+            OnlineAction::ServeStale(_)
+        ));
+    }
+
+    #[test]
+    fn force_always_fetches() {
+        assert_eq!(
+            decide_online_action(Some(&cache(u64::MAX)), u64::MAX, true),
+            OnlineAction::Fetch
+        );
+    }
+
+    #[test]
+    fn future_timestamp_treated_as_fresh() {
+        // 时钟回拨（fetched_at 在未来）不应导致每次都重新联网
+        assert!(matches!(
+            decide_online_action(Some(&cache(2_000)), 1_000, false),
+            OnlineAction::UseCache(_)
+        ));
+    }
+
+    #[test]
+    fn cache_round_trips_through_json() {
+        let original = OnlineCache {
+            fetched_at: 123,
+            distros: vec![online("Debian"), online("openSUSE")],
+        };
+        let json = serde_json::to_string(&original).unwrap();
+        let parsed: OnlineCache = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.fetched_at, 123);
+        assert_eq!(parsed.distros.len(), 2);
+        assert_eq!(parsed.distros[0].name, "Debian");
     }
 }

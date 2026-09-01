@@ -13,6 +13,7 @@ import { settingsFieldClass, SettingsSection, SettingRow, Toggle } from './Setti
 import { ServerHealthButton } from './ServerHealthButton'
 import type { ServerConfig, ServerHealth } from '../../../store/serverStore'
 import { isTauri, getDesktopPlatform } from '../../../utils/tauri'
+import { wslApi } from '../../../api/wsl'
 import { DialogAddWslServer } from '../../wsl/components/DialogAddWslServer'
 import { WslServerRow } from '../../wsl/components/WslServerRow'
 import { isWslServerId } from '../../wsl/settings-model'
@@ -532,6 +533,15 @@ export function ServersSettings() {
   useEffect(() => {
     checkAllHealth()
   }, [checkAllHealth])
+
+  // WSL 按需预热（意图信号）：启动路径不做任何 WSL 探测，用户走到服务器
+  // 设置页才补齐 runtime / 发行版列表 / 已添加服务器的 opencode 检查。
+  // 后端命令幂等，状态已就位时零成本；失败静默（添加对话框自身的探测
+  // 状态机兜底），不打扰页面
+  useEffect(() => {
+    if (!isWindowsDesktop) return
+    void wslApi.prewarm().catch(err => console.error('WSL prewarm failed:', err))
+  }, [isWindowsDesktop])
 
   // M3: 下拉菜单外部点击关闭（trigger 与 portal 菜单内容都算「里面」）
   useEffect(() => {

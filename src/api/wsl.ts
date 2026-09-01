@@ -12,8 +12,13 @@ export const wslApi = {
   /** 探测 WSL 运行时 */
   probeRuntime: () => invoke<void>('probe_wsl_runtime'),
 
-  /** 刷新发行版列表（本地 + 在线） */
-  refreshDistros: () => invoke<void>('refresh_wsl_distros'),
+  /** 刷新发行版列表（本地 + 在线）。force=true 绕过在线目录 TTL 缓存强制联网
+   *  （用户显式「重新检测」）；默认走 stale-while-revalidate */
+  refreshDistros: (force = false) => invoke<void>('refresh_wsl_distros', { force }),
+
+  /** 按需预热（打开设置→服务器页时触发，幂等）：补齐 runtime 探测、
+   *  发行版列表与已添加服务器的 opencode 检查。启动路径不再做任何 WSL 探测 */
+  prewarm: () => invoke<void>('prewarm_wsl'),
 
   /** 批量探测可添加的发行版（增量语义，官方 probeAddable） */
   probeAddable: (distros: string[]) => invoke<void>('probe_wsl_addable', { distros }),

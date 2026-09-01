@@ -119,7 +119,8 @@ export function DialogAddWslServer({ isOpen, onClose, onAdded }: DialogWslServer
 
   const refreshDistros = () => {
     gateRef.current.reset()
-    run(() => wslApi.refreshDistros())
+    // 用户显式「重新检测」：绕过在线目录缓存强制联网刷新
+    run(() => wslApi.refreshDistros(true))
   }
 
   const installDistro = (name: string) => {

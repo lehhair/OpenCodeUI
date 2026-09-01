@@ -369,8 +369,9 @@ pub fn run() {
             #[cfg(target_os = "windows")]
             app.manage(commands::wsl_commands::WslState::new(app.handle().clone()));
 
-            // Windows: 官方 initialize 对齐——恢复持久化配置 + 后台刷新 opencode
-            // 检查 + 自动拉起全部服务器（wslServerIdsToStartOnInitialize 返回全部 id）
+            // Windows: 启动只做「恢复上次状态」——恢复持久化配置并拉起全部已添加
+            // 服务器；WSL 探测（runtime/发行版/opencode 检查）为按需成本，由设置页
+            // 打开时前端调用 prewarm_wsl 触发（未添加过 WSL 服务器的机器启动零开销）
             #[cfg(target_os = "windows")]
             commands::wsl_commands::initialize_wsl(app.handle());
 
@@ -486,6 +487,8 @@ pub fn run() {
             commands::wsl_commands::probe_wsl_runtime,
             #[cfg(target_os = "windows")]
             commands::wsl_commands::refresh_wsl_distros,
+            #[cfg(target_os = "windows")]
+            commands::wsl_commands::prewarm_wsl,
             #[cfg(target_os = "windows")]
             commands::wsl_commands::probe_wsl_addable,
             #[cfg(target_os = "windows")]
