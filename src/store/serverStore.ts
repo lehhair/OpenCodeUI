@@ -482,11 +482,20 @@ class ServerStore {
       url: config.url.replace(/\/+$/, ''), // 移除尾部斜杠
     }
     const index = this.servers.findIndex(s => s.id === server.id)
-    // 新增与更新共用同一判定：端点/凭据是否变化。新增时 previous 为空，
-    // 「可用端点从无到有」对消费方与变更等价（WSL 就绪注册是典型场景）
     const previous = index === -1 ? undefined : this.servers[index]
-    const runtimeChanged =
-      !previous || previous.url !== server.url || !isSameServerAuth(previous.auth, server.auth)
+    // 无变更 → 零副作用短路：wsl-state 每次全量推送都会重同步全部服务器，
+    // 不短路则每次推送都触发 localStorage 写入 + 全体 React 订阅方重渲染
+    if (
+      previous &&
+      previous.name === server.name &&
+      previous.url === server.url &&
+      isSameServerAuth(previous.auth, server.auth)
+    ) {
+      return previous
+    }
+    // 端点/凭据是否变化。新增时 previous 为空，「可用端点从无到有」
+    // 对消费方与变更等价（WSL 就绪注册是典型场景）
+    const runtimeChanged = !previous || previous.url !== server.url || !isSameServerAuth(previous.auth, server.auth)
     if (index === -1) {
       this.servers.push(server)
     } else {

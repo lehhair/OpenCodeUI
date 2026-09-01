@@ -263,6 +263,22 @@ describe('serverStore upsertServer runtime change', () => {
     expect(listener).toHaveBeenCalledWith('wsl:Ubuntu-22.04', 'server-runtime-updated')
     expect(serverStore.getServer('wsl:Ubuntu-22.04')?.url).toBe('http://127.0.0.1:33333')
   })
+
+  it('short-circuits a no-change upsert without notifying or rewriting storage', async () => {
+    // wsl-state 每次全量推送都会重同步全部服务器：无变更必须零副作用，
+    // 否则每次推送都触发 localStorage 写入 + 全体 React 订阅方重渲染
+    const { serverStore } = await import('./serverStore')
+    serverStore.upsertServer({ id: 'wsl:Ubuntu', name: 'Ubuntu', url: 'http://127.0.0.1:33333' })
+
+    const listener = vi.fn()
+    serverStore.subscribe(listener)
+    const snapshotBefore = serverStore.getServers()
+
+    serverStore.upsertServer({ id: 'wsl:Ubuntu', name: 'Ubuntu', url: 'http://127.0.0.1:33333' })
+
+    expect(listener).not.toHaveBeenCalled()
+    expect(serverStore.getServers()).toBe(snapshotBefore)
+  })
 })
 
 describe('serverStore default server preference', () => {

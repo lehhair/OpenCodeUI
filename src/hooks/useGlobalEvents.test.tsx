@@ -1,4 +1,4 @@
-import { renderHook, waitFor } from '@testing-library/react'
+import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { registerSessionConsumer, useGlobalEvents } from './useGlobalEvents'
 
@@ -29,6 +29,10 @@ const {
   checkHealthMock,
   onServerChangeMock,
   serverChangeListeners,
+  registeredServerIds,
+  serverStoreListeners,
+  multiServerMock,
+  multiServerListeners,
   autoApproveStoreMock,
   clearSessionRuntimeStateMock,
   clearPaneSessionMock,
@@ -36,6 +40,12 @@ const {
   // onServerChange 是多播语义（effect 里注册多个监听器），mock 必须保存全部监听器；
   // 覆盖式单槽实现会静默丢掉先注册的监听器，让「只有最后注册者生效」的隐式依赖漏过测试
   const serverChangeListeners = new Set<(serverId: string, reason?: string) => void>()
+  // serverStore.getServer 的注册表：collectActiveServerIds 过滤未注册 id 的判定源
+  const registeredServerIds = new Set(['local'])
+  const serverStoreListeners = new Set<() => void>()
+  // 多服务器订阅白名单：可控开关 + 白名单集合，模拟 WSL 就绪注册时序
+  const multiServerMock = { enabled: false, subscribedIds: [] as string[] }
+  const multiServerListeners = new Set<() => void>()
   return {
   subscribeToEventsMock: vi.fn(),
   getSessionStatusMock: vi.fn<(directory?: string) => Promise<Record<string, { type: string }>>>(() => Promise.resolve({})),
@@ -60,6 +70,10 @@ const {
     }
   }),
   serverChangeListeners,
+  registeredServerIds,
+  serverStoreListeners,
+  multiServerMock,
+  multiServerListeners,
   clearSessionRuntimeStateMock: vi.fn(),
   clearPaneSessionMock: vi.fn(),
   getSoundSnapshotMock: vi.fn(() => ({
@@ -91,10 +105,24 @@ const {
 
 vi.mock('../api', () => ({
   subscribeToEvents: subscribeToEventsMock,
-  subscribeToServerEvents: (_serverId: string, cb: unknown) => subscribeToEventsMock(cb),
+  // 透传 serverId 作为第二参数：测试需要区分「哪个服务器建了订阅」
+  subscribeToServerEvents: (serverId: string, cb: unknown) => subscribeToEventsMock(cb, serverId),
   getSessionStatus: getSessionStatusMock,
   getPendingPermissions: getPendingPermissionsMock,
   getPendingQuestions: getPendingQuestionsMock,
+}))
+
+vi.mock('../store/multiServerStore', () => ({
+  multiServerStore: {
+    isEnabled: () => multiServerMock.enabled,
+    getSubscribedServerIds: () => multiServerMock.subscribedIds,
+    subscribe: (listener: () => void) => {
+      multiServerListeners.add(listener)
+      return () => {
+        multiServerListeners.delete(listener)
+      }
+    },
+  },
 }))
 
 vi.mock('../api/permission', () => ({
@@ -130,6 +158,14 @@ vi.mock('../store', () => ({
     getActiveServerId: getActiveServerIdMock,
     checkHealth: checkHealthMock,
     onServerChange: onServerChangeMock,
+    // collectActiveServerIds 会过滤未注册服务器：mock 只认 local 与显式注册的 id
+    getServer: (id: string) => (registeredServerIds.has(id) ? { id } : null),
+    subscribe: (listener: () => void) => {
+      serverStoreListeners.add(listener)
+      return () => {
+        serverStoreListeners.delete(listener)
+      }
+    },
   },
 }))
 
@@ -205,6 +241,12 @@ describe('useGlobalEvents', () => {
     getActiveServerIdMock.mockReturnValue('local')
     checkHealthMock.mockResolvedValue({ status: 'online' })
     serverChangeListeners.clear()
+    registeredServerIds.clear()
+    registeredServerIds.add('local')
+    serverStoreListeners.clear()
+    multiServerMock.enabled = false
+    multiServerMock.subscribedIds = []
+    multiServerListeners.clear()
     onServerChangeMock.mockImplementation(listener => {
       serverChangeListeners.add(listener)
       return () => {
@@ -777,4 +819,59 @@ describe('useGlobalEvents', () => {
       expect(playNotificationSoundDedupedMock).not.toHaveBeenCalled()
     },
   )
+
+  it('does not subscribe unregistered whitelist servers and attaches them incrementally on registration', async () => {
+    // 启动竞态：WSL 白名单 id 在 sidecar 就绪前就存在于持久化配置。
+    // 未注册时不得订阅（getServerBaseUrl 会回退 local → 数据串服）；
+    // 注册进 serverStore 后由 notify 触发增量接入，且不重连已有服务器
+    multiServerMock.enabled = true
+    multiServerMock.subscribedIds = ['local', 'wsl:Ubuntu']
+    const unsubscribes: Record<string, Array<() => void>> = { local: [], 'wsl:Ubuntu': [] }
+    subscribeToEventsMock.mockImplementation((_cb, serverId: string) => {
+      const off = vi.fn()
+      unsubscribes[serverId].push(off)
+      return off
+    })
+
+    renderHook(() => useGlobalEvents())
+
+    await waitFor(() => expect(subscribeToEventsMock).toHaveBeenCalledTimes(1))
+    expect(subscribeToEventsMock.mock.calls[0][1]).toBe('local')
+
+    // WSL 就绪注册：入注册表 + notify → 集合重算 → 只新增 wsl 订阅，local 连接不动
+    registeredServerIds.add('wsl:Ubuntu')
+    act(() => {
+      multiServerListeners.forEach(listener => listener())
+      serverStoreListeners.forEach(listener => listener())
+    })
+
+    await waitFor(() => expect(subscribeToEventsMock).toHaveBeenCalledTimes(2))
+    expect(subscribeToEventsMock.mock.calls[1][1]).toBe('wsl:Ubuntu')
+    expect(unsubscribes.local[0]).not.toHaveBeenCalled()
+  })
+
+  it('rebuilds only the changed server subscription on server-runtime-updated', async () => {
+    // sidecar 重启换端口：定向拆旧建新，其余服务器的 SSE 不受牵连
+    multiServerMock.enabled = true
+    multiServerMock.subscribedIds = ['local', 'wsl:Ubuntu']
+    registeredServerIds.add('wsl:Ubuntu')
+    const unsubscribes: Record<string, Array<() => void>> = { local: [], 'wsl:Ubuntu': [] }
+    subscribeToEventsMock.mockImplementation((_cb, serverId: string) => {
+      const off = vi.fn()
+      unsubscribes[serverId].push(off)
+      return off
+    })
+
+    renderHook(() => useGlobalEvents())
+
+    await waitFor(() => expect(unsubscribes['wsl:Ubuntu']).toHaveLength(1))
+    checkHealthMock.mockClear()
+
+    serverChangeListeners.forEach(listener => listener('wsl:Ubuntu', 'server-runtime-updated'))
+
+    await waitFor(() => expect(unsubscribes['wsl:Ubuntu']).toHaveLength(2))
+    expect(unsubscribes['wsl:Ubuntu'][0]).toHaveBeenCalledTimes(1)
+    expect(unsubscribes.local).toHaveLength(1)
+    expect(unsubscribes.local[0]).not.toHaveBeenCalled()
+  })
 })
