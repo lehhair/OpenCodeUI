@@ -174,6 +174,9 @@ pub struct WslState {
     job_token: Mutex<Option<JobHandle>>,
     /// job 代数计数器
     job_generation: std::sync::atomic::AtomicU64,
+    /// 在线目录后台再验证在途标志：防止多次 ServeStale 并发拉起
+    /// 多个会挂住的 `wsl --list --online` 进程（离线/网络失败时尤其浪费）
+    online_revalidating: std::sync::atomic::AtomicBool,
 }
 
 impl WslState {
@@ -185,6 +188,7 @@ impl WslState {
             start_attempts: Mutex::new(HashMap::new()),
             job_token: Mutex::new(None),
             job_generation: std::sync::atomic::AtomicU64::new(0),
+            online_revalidating: std::sync::atomic::AtomicBool::new(false),
         }
     }
 
@@ -481,12 +485,19 @@ fn commit_distros(state: &WslState, installed: Vec<WslInstalledDistro>, online: 
 /// 后台再验证在线目录（stale-while-revalidate 的 revalidate 半边）：
 /// 静默更新状态与缓存，失败保持旧值不打扰用户
 fn revalidate_online_cache_background(app: AppHandle) {
+    let state = app.state::<WslState>();
+    // 已有在途 revalidate 则跳过：避免离线/网络失败机器上每次 ServeStale 都 spawn
+    // 一个会挂住的 `wsl --list --online`，也防止慢任务的先后顺序覆盖 force 拉取的结果
+    if state.online_revalidating.swap(true, std::sync::atomic::Ordering::AcqRel) {
+        return;
+    }
     tauri::async_runtime::spawn(async move {
         let state = app.state::<WslState>();
         if let Ok(online) = wsl_runtime::list_online_distros(None).await {
             state.set_state(|s| s.online = online.clone());
             save_online_cache(&app, &online);
         }
+        state.online_revalidating.store(false, std::sync::atomic::Ordering::Release);
     });
 }
 
@@ -512,10 +523,13 @@ pub async fn prewarm_wsl(state: tauri::State<'_, WslState>) -> Result<(), String
         let _ = refresh_distros_impl(&state, false).await;
     }
 
-    // 为已添加但缺检查的发行版补 opencode 检查（就绪服务器由 Ready 挂钩自行刷新）
+    // 为已添加但缺检查的发行版补 opencode 检查。就绪服务器由 Ready 挂钩自行刷新
+    // （run_start_server → refresh_opencode_check_background），这里只补未就绪的——
+    // 否则启动窗口期设置页早开，会对同一发行版重复 spawn 一次检查
     let missing: Vec<(String, String)> = state.read_state(|s| {
         s.servers
             .iter()
+            .filter(|item| !matches!(item.runtime, WslServerRuntime::Ready { .. }))
             .filter(|item| !s.opencode_checks.contains_key(&item.config.distro))
             .map(|item| (item.config.id.clone(), item.config.distro.clone()))
             .collect()
@@ -1215,9 +1229,10 @@ pub fn initialize_wsl(app: &AppHandle) {
 
 // ============================================
 // 单元测试 —— 在线目录缓存的纯决策逻辑
+// 模块已在 mod.rs 按 target_os = "windows" 门控，测试只需 cfg(test)
 // ============================================
 
-#[cfg(all(test, target_os = "windows"))]
+#[cfg(test)]
 mod tests {
     use super::*;
 
