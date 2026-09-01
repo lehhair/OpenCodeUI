@@ -266,4 +266,81 @@ describe('useSessions', () => {
 
     expect(result.current.sessions.map(session => session.id)).toEqual(['fresh'])
   })
+
+  it('keeps loading during retry backoff and lands error only at terminal failure', async () => {
+    getSessionsMock.mockRejectedValue(new Error('service not ready'))
+
+    const { result } = renderHook(() => useSessions({ directory: '/workspace/demo' }))
+
+    // 首次失败：进入重试等待期，必须仍是 loading（空列表 + 非 loading 会闪现空态文案）
+    await act(async () => {
+      vi.runOnlyPendingTimers()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(getSessionsMock).toHaveBeenCalledTimes(1)
+    expect(result.current.isLoading).toBe(true)
+    expect(result.current.error).toBeNull()
+
+    // 前两次退避到期后仍在加载（等待第三次重试），第三次退避会耗尽重试
+    for (const backoff of [500, 1500]) {
+      await act(async () => {
+        vi.advanceTimersByTime(backoff)
+        await Promise.resolve()
+        await Promise.resolve()
+        await Promise.resolve()
+      })
+      expect(result.current.isLoading).toBe(true)
+    }
+
+    // 第三次退避到期 → 第四次尝试 → 耗尽 → 终态
+    await act(async () => {
+      vi.advanceTimersByTime(3000)
+      await Promise.resolve()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(getSessionsMock).toHaveBeenCalledTimes(4)
+    expect(result.current.isLoading).toBe(false)
+    expect(result.current.error).not.toBeNull()
+    expect(result.current.sessions).toEqual([])
+
+    // 重试耗尽（500+1500+3000 后第四次尝试）：终态 = 非 loading + error，而非「没有对话」
+    await act(async () => {
+      vi.advanceTimersByTime(3000)
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(getSessionsMock).toHaveBeenCalledTimes(4)
+    expect(result.current.isLoading).toBe(false)
+    expect(result.current.error).not.toBeNull()
+    expect(result.current.sessions).toEqual([])
+  })
+
+  it('lands success after a retry and clears error', async () => {
+    getSessionsMock
+      .mockRejectedValueOnce(new Error('service not ready'))
+      .mockResolvedValueOnce([makeSession('session-1')])
+
+    const { result } = renderHook(() => useSessions({ directory: '/workspace/demo' }))
+
+    await act(async () => {
+      vi.runOnlyPendingTimers()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    await act(async () => {
+      vi.advanceTimersByTime(500)
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(result.current.sessions.map(session => session.id)).toEqual(['session-1'])
+    expect(result.current.isLoading).toBe(false)
+    expect(result.current.error).toBeNull()
+  })
 })

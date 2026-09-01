@@ -77,8 +77,13 @@ export function refreshModels(serverId?: string) {
 // 预取活动服务器的模型 — 组件挂载前模型就已就绪
 _fetchModels(serverStore.getActiveServerId())
 
-serverStore.onServerChange(newServerId => {
-  void refreshModels(newServerId)
+serverStore.onServerChange((serverId, reason) => {
+  // 只为「UI 正在消费的服务器」刷新模型：
+  // - server-switch：active 变了 → 需要新服务器的模型列表
+  // - server-runtime-updated：仅当变的是 active 自身（WSL 换端口重启）才值得重拉；
+  //   非 active 服务器换端点与模型栏无关，切过去时 server-switch 会拉到
+  if (reason === 'server-runtime-updated' && serverStore.getActiveServerId() !== serverId) return
+  void refreshModels(serverId)
 })
 
 function _subscribe(listener: Listener) {

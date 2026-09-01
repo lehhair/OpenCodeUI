@@ -148,6 +148,7 @@
     "moveFolderUp": "Move folder up",
     "moveFolderDown": "Move folder down",
     "noChatsInFolder": "No chats in this folder",
+    "loadFailed": "Failed to load, click to retry",
     "showMoreChats": "Show more chats",
     "selectedSessions": "{{count}} selected",
     "selectedProjects": "{{count}} projects",

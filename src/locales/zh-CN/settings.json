@@ -70,7 +70,9 @@
     "multiServerModeOffHint": "开启后，只有你订阅的服务器会出现在侧栏会话列表中。",
     "subscribe": "订阅",
     "unsubscribe": "取消订阅",
-    "enableMultiServerFirst": "请先开启多服务器模式"
+    "enableMultiServerFirst": "请先开启多服务器模式",
+    "addRemote": "添加远程服务器",
+    "addWsl": "添加 WSL 服务器"
   },
   "chat": {
     "pathsFormatting": "路径和格式",
@@ -439,6 +441,56 @@
       "model": "模型",
       "message": "消息",
       "permission": "权限"
+    }
+  },
+  "wsl": {
+    "addWslServer": "添加 WSL 服务器",
+    "deleteServerTitle": "删除 WSL 服务器",
+    "deleteServerConfirm": "确定删除 {{name}} 吗？正在运行的实例将被停止。",
+    "server": {
+      "add": "添加 WSL 服务器",
+      "label": "WSL",
+      "retryStart": "重试启动",
+      "updating": "正在更新...",
+      "setDefault": "设为默认服务器",
+      "unsetDefault": "取消默认服务器",
+      "defaultTag": "默认"
+    },
+    "onboarding": {
+      "installWsl": "安装 WSL",
+      "restartRequired": "Windows 需要重启才能完成 WSL 安装。",
+      "windowsRestartRequired": "重启 Windows 以完成 WSL 安装，然后重新打开 OpenCode。",
+      "wslNotInstalled": {
+        "title": "未安装 WSL",
+        "description": "OpenCode 需要 WSL（Windows Subsystem for Linux）才能添加 WSL 服务器"
+      },
+      "wslUnavailable": {
+        "title": "WSL 不可用",
+        "description": "OpenCode 无法验证此设备上的 WSL。"
+      },
+      "installedDistros": "已安装的发行版",
+      "checkAgain": "重新检查",
+      "allDistrosAdded": "所有已安装的发行版均已添加。",
+      "checkingDistros": "正在检测发行版…",
+      "noDistros": "尚未检测到发行版。",
+      "openDistroOnce": "打开一次 {{distro}} 以完成设置。",
+      "installOpencode": "安装 OpenCode",
+      "installDistro": "安装发行版",
+      "searchDistros": "搜索发行版",
+      "adding": "正在添加...",
+      "needAnotherDistro": "需要其他发行版？",
+      "needAnotherDistroHint": "从 WSL 目录安装 Linux 发行版",
+      "openTerminal": "打开终端",
+      "distroStatus": {
+        "ready": "已就绪",
+        "checking": "检查中...",
+        "opencodeMissing": "未安装 OpenCode",
+        "missingTools": "缺少 bash、curl",
+        "unsupported": "不支持 · 请使用 WSL 2"
+      },
+      "distroNotInstalled": "{{distro}} 尚未安装。",
+      "updateOpencode": "更新 OpenCode",
+      "updatingOpencode": "正在更新 OpenCode..."
     }
   }
 }

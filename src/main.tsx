@@ -10,6 +10,7 @@ import { themeStore } from './store/themeStore'
 import { serverStore } from './store/serverStore'
 import { autoApproveStore } from './store/autoApproveStore'
 import { serviceStore } from './store/serviceStore'
+import { wslStore } from './store/wslStore'
 import { reconnectSSE } from './api/events'
 import { getSDKClientAsync, invalidateSDKClient } from './api/sdk'
 import { resetPathModeCache } from './utils/directoryUtils'
@@ -46,6 +47,9 @@ if ('scrollRestoration' in history) {
 
 // 初始化主题系统（在 React 渲染前注入 CSS 变量，避免闪烁）
 themeStore.init()
+
+// 订阅 WSL 后端状态推送（Windows 桌面端：事件驱动，非 Tauri 环境下静默）
+wslStore.start()
 
 // 全局 overlay 滚动条 — 等 DOM 就绪后启动
 if (document.readyState === 'loading') {

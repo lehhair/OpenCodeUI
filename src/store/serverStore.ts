@@ -54,6 +54,8 @@ export interface ServerHealth {
 export interface ServerSettingsBackup {
   servers: ServerConfig[]
   activeServerId: string | null
+  /** 启动默认服务器偏好；旧备份没有该字段，导入时按无偏好处理 */
+  defaultServerId?: string | null
 }
 
 interface ServerClockCalibration {
@@ -62,7 +64,7 @@ interface ServerClockCalibration {
 }
 
 type Listener = () => void
-export type ServerChangeReason = 'server-switch' | 'local-runtime-url'
+export type ServerChangeReason = 'server-switch' | 'local-runtime-url' | 'server-runtime-updated'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value)
@@ -129,7 +131,18 @@ function formatExceptionDiagnostics(url: string, err: unknown): string {
 
 const STORAGE_KEY = 'opencode-servers'
 const ACTIVE_SERVER_KEY = 'opencode-active-server'
+/** 启动默认服务器偏好（官方 defaultKey 等价物）：决定下次启动优先连谁 */
+const DEFAULT_SERVER_KEY = 'opencode-default-server'
+/**
+ * WSL 服务器 id 前缀（单一事实源，wslStore 以 `wsl:<distro>` 生成稳定 id）。
+ * WSL 服务器端口/密码每次启动都变（一次性凭据），由后端全权管理，前端从不持久化其连接信息。
+ */
+export const WSL_SERVER_PREFIX = 'wsl:'
 export const LOCAL_SERVER_ID = 'local'
+
+function isSameServerAuth(a: ServerAuth | undefined, b: ServerAuth | undefined): boolean {
+  return a?.username === b?.username && a?.password === b?.password
+}
 
 /**
  * Server Store
@@ -143,6 +156,10 @@ class ServerStore {
   private clockCalibrationMap = new Map<string, ServerClockCalibration>()
   private listeners: Set<Listener> = new Set()
   private localServerUrlOverride: string | null = null
+  // 上次关闭时用户停留的 WSL 服务器 id（wslStore 就绪后据此恢复 active）
+  private bootIntentServerId: string | null = null
+  // 启动默认服务器偏好（内存缓存，随 notify 快照供 React 订阅）
+  private defaultServerId: string | null = null
 
   // server 切换监听器（用于触发 SSE 重连等副作用，避免循环依赖）
   private serverChangeListeners: Set<(newServerId: string, reason: ServerChangeReason) => void> = new Set()
@@ -166,10 +183,19 @@ class ServerStore {
 
   private loadFromStorage(): void {
     try {
-      // 加载服务器列表
+      // 启动意图：先于校验捕获「上次关闭时用户在用的服务器 id」原始值。
+      // 若是 wsl: 前缀，它在清洗后的列表里必然校验失败（正常回退），但 wslStore 需要这个
+      // 原始 id 才能在服务器就绪后把 active 切回去
+      const persistedActiveId = sessionStorage.getItem(ACTIVE_SERVER_KEY) ?? localStorage.getItem(ACTIVE_SERVER_KEY)
+      this.bootIntentServerId = persistedActiveId?.startsWith(WSL_SERVER_PREFIX) ? persistedActiveId : null
+
+      // 加载服务器列表。WSL 条目不入持久层（见 saveToStorage），这里同步清洗历史版本
+      // 遗留的 wsl: 条目，避免老用户下次启动先落在死地址上
       const stored = localStorage.getItem(STORAGE_KEY)
       if (stored) {
-        this.servers = JSON.parse(stored)
+        this.servers = (JSON.parse(stored) as ServerConfig[]).filter(
+          server => typeof server?.id === 'string' && !server.id.startsWith(WSL_SERVER_PREFIX),
+        )
       }
 
       // 如果没有服务器，添加默认的本地服务器
@@ -184,12 +210,24 @@ class ServerStore {
         ]
       }
 
-      // 加载当前选中的服务器
-      // 优先从 sessionStorage 读取（per-window 隔离，刷新保持）
-      // 回退到 localStorage（新窗口首次打开时继承上次默认）
-      const activeId = sessionStorage.getItem(ACTIVE_SERVER_KEY) ?? localStorage.getItem(ACTIVE_SERVER_KEY)
-      if (activeId && this.servers.some(s => s.id === activeId)) {
-        this.activeServerId = activeId
+      // 加载默认服务器偏好。wsl: 前缀同样合法——该服务器此刻可能尚未注册，
+      // 由 wslStore 在就绪后接入
+      const defaultPref = localStorage.getItem(DEFAULT_SERVER_KEY)
+      this.defaultServerId =
+        defaultPref && (defaultPref.startsWith(WSL_SERVER_PREFIX) || this.servers.some(s => s.id === defaultPref))
+          ? defaultPref
+          : null
+
+      // 解析 active：默认偏好是列表内的普通服务器时优先于上次 active；
+      // 偏好是 wsl: 前缀时不改动 active（wslStore 负责就绪后切回）
+      if (this.defaultServerId && !this.defaultServerId.startsWith(WSL_SERVER_PREFIX)) {
+        this.activeServerId = this.defaultServerId
+      } else if (
+        persistedActiveId &&
+        !persistedActiveId.startsWith(WSL_SERVER_PREFIX) &&
+        this.servers.some(s => s.id === persistedActiveId)
+      ) {
+        this.activeServerId = persistedActiveId
       } else {
         // 默认选中第一个
         this.activeServerId = this.servers[0]?.id ?? null
@@ -205,14 +243,20 @@ class ServerStore {
         },
       ]
       this.activeServerId = this.DEFAULT_SERVER_ID
+      this.bootIntentServerId = null
+      this.defaultServerId = null
     }
   }
 
   private saveToStorage(): void {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(this.servers))
+      // WSL 服务器端口/密码一次性，持久化只会产生下次启动落在死地址上的幽灵条目，
+      // 因此只持久化非 WSL 服务器
+      const persistable = this.servers.filter(s => !s.id.startsWith(WSL_SERVER_PREFIX))
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(persistable))
       if (this.activeServerId) {
-        // 写入 sessionStorage（当前窗口刷新保持）+ localStorage（新窗口默认值）
+        // 写入 sessionStorage（当前窗口刷新保持）+ localStorage（新窗口默认值）。
+        // activeId 即便是 wsl: 前缀也照写——它是下次启动的「启动意图」，loadFromStorage 依赖它
         sessionStorage.setItem(ACTIVE_SERVER_KEY, this.activeServerId)
         localStorage.setItem(ACTIVE_SERVER_KEY, this.activeServerId)
       }
@@ -370,6 +414,44 @@ class ServerStore {
     return calibration.serverTimestamp + (performance.now() - calibration.calibratedAtMonotonic)
   }
 
+  /**
+   * 上次关闭时用户停留的 WSL 服务器 id。
+   * 语义：仅启动意图，wslStore 在该服务器就绪后消费一次并切回 active；非 WSL 服务器不走此通道。
+   */
+  getBootIntentServerId(): string | null {
+    return this.bootIntentServerId
+  }
+
+  // ============================================
+  // 默认服务器偏好（官方 defaultKey 等价物）
+  // ============================================
+
+  /**
+   * 启动默认服务器偏好。校验在 loadFromStorage 完成：id 在列表中，或以 wsl: 开头
+   * （WSL 服务器启动时可能尚未注册）。
+   */
+  getDefaultServerId(): string | null {
+    return this.defaultServerId
+  }
+
+  /**
+   * 设置启动默认服务器偏好。只持久化偏好，不改动当前 active；
+   * 写入后 notify()，让 useSyncExternalStore 订阅方（useServerStore.defaultServerId）能感知。
+   */
+  setDefaultServer(id: string | null): void {
+    this.defaultServerId = id
+    try {
+      if (id) {
+        localStorage.setItem(DEFAULT_SERVER_KEY, id)
+      } else {
+        localStorage.removeItem(DEFAULT_SERVER_KEY)
+      }
+    } catch {
+      // 持久化失败只影响下次启动的默认选择，不回滚本次会话的偏好
+    }
+    this.notify()
+  }
+
   // ============================================
   // Mutations
   // ============================================
@@ -387,6 +469,46 @@ class ServerStore {
     this.servers.push(server)
     this.saveToStorage()
     this.notify()
+    return server
+  }
+
+  /**
+   * 幂等注册：按 id 更新（存在时），不存在则添加。
+   * 供 WSL 等由外部模块管理生命周期的服务器使用，id 需要跨重启稳定。
+   */
+  upsertServer(config: ServerConfig): ServerConfig {
+    const server: ServerConfig = {
+      ...config,
+      url: config.url.replace(/\/+$/, ''), // 移除尾部斜杠
+    }
+    const index = this.servers.findIndex(s => s.id === server.id)
+    const previous = index === -1 ? undefined : this.servers[index]
+    // 无变更 → 零副作用短路：wsl-state 每次全量推送都会重同步全部服务器，
+    // 不短路则每次推送都触发 localStorage 写入 + 全体 React 订阅方重渲染
+    if (
+      previous &&
+      previous.name === server.name &&
+      previous.url === server.url &&
+      isSameServerAuth(previous.auth, server.auth)
+    ) {
+      return previous
+    }
+    // 端点/凭据是否变化。新增时 previous 为空，「可用端点从无到有」
+    // 对消费方与变更等价（WSL 就绪注册是典型场景）
+    const runtimeChanged = !previous || previous.url !== server.url || !isSameServerAuth(previous.auth, server.auth)
+    if (index === -1) {
+      this.servers.push(server)
+    } else {
+      this.servers[index] = server
+    }
+    this.saveToStorage()
+    this.notify()
+    // 端点变化无条件广播（不限定 active）：SSE/SDK 消费方建连时现读 serverStore，
+    // 收到信号按 serverId 定向重建即拿到新值。active 与否只决定「谁正在用」，
+    // 不改变「端点事实已变化」本身——非 active 服务器换端口同样需要这条信号
+    if (runtimeChanged) {
+      this.notifyServerChange(server.id, 'server-runtime-updated')
+    }
     return server
   }
 
@@ -434,18 +556,29 @@ class ServerStore {
     const server = this.servers.find(s => s.id === id)
     if (!server || server.isDefault) return false
 
+    // 先采样：下面的删除动作会改变 active，之后无法判断「被删的是否是 active」
+    const wasActive = this.activeServerId === id
+
     this.servers = this.servers.filter(s => s.id !== id)
     this.healthMap.delete(id)
     this.healthCheckSeqMap.delete(id)
     this.clockCalibrationMap.delete(id)
 
     // 如果删除的是当前选中的，切换到默认
-    if (this.activeServerId === id) {
+    if (wasActive) {
       this.activeServerId = this.servers[0]?.id ?? null
     }
 
     this.saveToStorage()
     this.notify()
+
+    // 被删的是 active：SSE 等消费方还挂在死掉/被删的服务器上（WSL sidecar 退出是典型场景），
+    // 必须通知它们跟着切到回退目标，否则连接永远指向死地址。
+    // local 是 isDefault 永不可删，回退目标恒存在；getActiveServerId() 对 null 兜底为 'local'
+    if (wasActive) {
+      this.notifyServerChange(this.getActiveServerId(), 'server-switch')
+    }
+
     return true
   }
 
@@ -632,7 +765,9 @@ function normalizeServerBackup(raw: unknown): ServerSettingsBackup {
             typeof item === 'object' &&
             typeof (item as Record<string, unknown>).id === 'string' &&
             typeof (item as Record<string, unknown>).name === 'string' &&
-            typeof (item as Record<string, unknown>).url === 'string',
+            typeof (item as Record<string, unknown>).url === 'string' &&
+            // WSL 条目含一次性端口/密码，导入即清洗（兼容旧版本导出的备份文件）
+            !((item as Record<string, unknown>).id as string).startsWith(WSL_SERVER_PREFIX),
         )
         .map(item => ({
           id: item.id,
@@ -665,19 +800,34 @@ function normalizeServerBackup(raw: unknown): ServerSettingsBackup {
       ? parsed.activeServerId
       : (normalizedServers[0]?.id ?? null)
 
+  // 默认偏好：旧备份没有该字段 → undefined（视为无偏好）；普通 id 必须在清洗后的列表内，
+  // wsl: 前缀直接放行（该服务器由后端管理，导入时可能尚未注册）
+  const rawDefaultServerId = parsed?.defaultServerId
+  const defaultServerId =
+    typeof rawDefaultServerId === 'string' &&
+    (rawDefaultServerId.startsWith(WSL_SERVER_PREFIX) || normalizedServers.some(server => server.id === rawDefaultServerId))
+      ? rawDefaultServerId
+      : undefined
+
   return {
     servers: normalizedServers,
     activeServerId,
+    defaultServerId,
   }
 }
 
 export function exportServerSettingsBackup(): ServerSettingsBackup {
   return {
-    servers: serverStore.getStoredServers().map(server => ({
-      ...server,
-      auth: server.auth ? { ...server.auth } : undefined,
-    })),
+    // WSL 服务器不进备份：端口/密码一次性，导出只会泄漏一次性凭据
+    servers: serverStore
+      .getStoredServers()
+      .filter(server => !server.id.startsWith(WSL_SERVER_PREFIX))
+      .map(server => ({
+        ...server,
+        auth: server.auth ? { ...server.auth } : undefined,
+      })),
     activeServerId: serverStore.getActiveServerId(),
+    defaultServerId: serverStore.getDefaultServerId(),
   }
 }
 
@@ -690,6 +840,12 @@ export function importServerSettingsBackup(raw: unknown): void {
   } else {
     localStorage.removeItem(ACTIVE_SERVER_KEY)
     sessionStorage.removeItem(ACTIVE_SERVER_KEY)
+  }
+  // 导入语义为「完全替换」：旧备份没有 defaultServerId 字段时清除现有偏好
+  if (normalized.defaultServerId) {
+    localStorage.setItem(DEFAULT_SERVER_KEY, normalized.defaultServerId)
+  } else {
+    localStorage.removeItem(DEFAULT_SERVER_KEY)
   }
 }
 

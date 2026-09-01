@@ -28,6 +28,13 @@ export function useServerStore() {
     () => serverStore.getAllHealth(),
   )
 
+  // 启动默认服务器偏好（setDefaultServer 内部会 notify，这里能正常感知）
+  const defaultServerId = useSyncExternalStore(
+    serverStore.subscribe.bind(serverStore),
+    () => serverStore.getDefaultServerId(),
+    () => serverStore.getDefaultServerId(),
+  )
+
   const addServer = useCallback((config: Omit<ServerConfig, 'id'>) => {
     return serverStore.addServer(config)
   }, [])
@@ -63,6 +70,7 @@ export function useServerStore() {
     servers,
     activeServer,
     healthMap,
+    defaultServerId,
     addServer,
     updateServer,
     removeServer,

@@ -12,6 +12,16 @@ import { serverStore } from '../store/serverStore'
 import { pinnedSessionsStore } from '../store/pinnedSessionsStore'
 import { autoDetectPathStyle, isSameDirectory } from '../utils'
 
+// 会话列表加载失败的重试退避（毫秒）。退避间隔内仍算「加载中」，
+// 不落空态——消费方据此区分「还在加载」与「确实没有对话」
+const SESSION_RETRY_DELAYS_MS = [500, 1500, 3000]
+
+function delay(ms: number): Promise<void> {
+  return new Promise(resolve => {
+    window.setTimeout(resolve, ms)
+  })
+}
+
 interface UseSessionsOptions {
   /** 每页数量 */
   pageSize?: number
@@ -70,13 +80,18 @@ export function useSessions(options: UseSessionsOptions = {}): UseSessionsResult
   // 当前 limit，loadMore 时递增（与 SessionContext 保持一致）
   const currentLimitRef = useRef(pageSize)
   const searchRef = useRef(search)
+  // enabled 实时值：重试循环等待期间读取（懒加载闸门关闭时中断在途重试）
+  const enabledRef = useRef(enabled)
   // 防止 onReconnected 密集触发时重复请求
   const isFetchingRef = useRef(false)
   const queuedReconnectRefreshRef = useRef(false)
-  const retryTimerRef = useRef<number | null>(null)
-  const fetchSessionsRef = useRef<
-    (params?: SessionListParams & { append?: boolean; retryAttempt?: number }) => Promise<void>
-  >(() => Promise.resolve())
+  const fetchSessionsRef = useRef<(params?: SessionListParams & { append?: boolean }) => Promise<void>>(
+    () => Promise.resolve(),
+  )
+
+  useEffect(() => {
+    enabledRef.current = enabled
+  }, [enabled])
 
   useEffect(() => {
     searchRef.current = search
@@ -90,11 +105,13 @@ export function useSessions(options: UseSessionsOptions = {}): UseSessionsResult
   // 获取会话列表
   // append 仅用于控制 loading 状态：true 时用 isLoadingMore，false 时用 isLoading
   // 数据始终全量替换（递增 limit 策略）
+  // 重试为显式循环而非 setTimeout 自调用：loading 的生命周期 = 循环的生命周期，
+  // 重试空档不再以「空列表 + 非 loading」示人（空态文案闪现的根因）
   const fetchSessions = useCallback(
-    async (params: SessionListParams & { append?: boolean; retryAttempt?: number } = {}) => {
+    async (params: SessionListParams & { append?: boolean } = {}) => {
       if (!enabled) return
 
-      const { append = false, retryAttempt = 0, ...queryParams } = params
+      const { append = false, ...queryParams } = params
       const requestId = ++requestIdRef.current
       isFetchingRef.current = true
 
@@ -106,39 +123,43 @@ export function useSessions(options: UseSessionsOptions = {}): UseSessionsResult
       }
 
       try {
-        const data = await getSessions(
-          {
-            roots: rootsOnly,
-            limit: currentLimitRef.current,
-            directory: normalizedDirectory,
-            ...queryParams,
-          },
-          serverId,
-        )
+        for (let retryAttempt = 0; ; retryAttempt++) {
+          try {
+            const data = await getSessions(
+              {
+                roots: rootsOnly,
+                limit: currentLimitRef.current,
+                directory: normalizedDirectory,
+                ...queryParams,
+              },
+              serverId,
+            )
 
-        // 检查是否是最新的请求
-        if (requestId !== requestIdRef.current) return
+            // 已被更新的请求覆盖：静默退出，不碰任何状态
+            if (requestId !== requestIdRef.current) return
 
-        if (data.length > 0 && data[0].directory) {
-          // 按服务器记录路径风格（多服务器连不同操作系统时互不干扰）
-          autoDetectPathStyle(data[0].directory, serverId)
-        }
+            if (data.length > 0 && data[0].directory) {
+              // 按服务器记录路径风格（多服务器连不同操作系统时互不干扰）
+              autoDetectPathStyle(data[0].directory, serverId)
+            }
 
-        setSessions(data)
-        setHasMore(data.length >= currentLimitRef.current)
-      } catch (e) {
-        if (requestId !== requestIdRef.current) return
-        setError(e instanceof Error ? e : new Error('Failed to fetch sessions'))
-        if (!append) {
-          if (retryAttempt < 3) {
-            if (retryTimerRef.current) clearTimeout(retryTimerRef.current)
-            retryTimerRef.current = window.setTimeout(() => {
-              if (requestId !== requestIdRef.current) return
-              void fetchSessions({ ...queryParams, retryAttempt: retryAttempt + 1 })
-            }, [500, 1500, 3000][retryAttempt])
-          } else {
-            setSessions([])
-            setHasMore(false)
+            setSessions(data)
+            setHasMore(data.length >= currentLimitRef.current)
+            setError(null)
+            return
+          } catch (e) {
+            // 已被更新的请求覆盖：静默退出，状态恢复交给新请求的 finally
+            if (requestId !== requestIdRef.current) return
+            const exhausted = retryAttempt >= SESSION_RETRY_DELAYS_MS.length
+            if (append || exhausted) {
+              // 失败终态：error 落定后退出，finally 统一恢复 loading
+              setError(e instanceof Error ? e : new Error('Failed to fetch sessions'))
+              return
+            }
+            // 重试未耗尽 = 仍在加载：loading 不落地，按退避表等待后进入下一轮
+            await delay(SESSION_RETRY_DELAYS_MS[retryAttempt])
+            // 等待期间可能被新请求覆盖，或组件已禁用（懒加载闸门回退）
+            if (requestId !== requestIdRef.current || !enabledRef.current) return
           }
         }
       } finally {
@@ -185,9 +206,6 @@ export function useSessions(options: UseSessionsOptions = {}): UseSessionsResult
     return () => {
       if (searchTimerRef.current) {
         clearTimeout(searchTimerRef.current)
-      }
-      if (retryTimerRef.current) {
-        clearTimeout(retryTimerRef.current)
       }
     }
   }, [search, fetchSessions, enabled, pageSize])

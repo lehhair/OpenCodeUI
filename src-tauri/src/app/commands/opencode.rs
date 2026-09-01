@@ -33,20 +33,46 @@ struct SpawnedOpencodeServe {
 
 /// 检查 opencode 服务是否在运行（通过 health endpoint）
 pub async fn is_service_running(url: &str) -> bool {
-    let health_url = format!("{}/global/health", url.trim_end_matches('/'));
-    match reqwest::Client::builder()
+    is_service_running_with_auth(url, None).await
+}
+
+/// 带可选 Basic 鉴权的健康检查，对齐官方实现：
+/// 依次尝试 /api/health 与 /global/health；WSL 侧 serve 启用了密码保护，
+/// 不带凭据会收到 401 而误判为未就绪。
+pub async fn is_service_running_with_auth(url: &str, auth: Option<(&str, &str)>) -> bool {
+    let base = url.trim_end_matches('/');
+    let client = match reqwest::Client::builder()
         .connect_timeout(Duration::from_secs(3))
         .build()
     {
-        Ok(client) => client
-            .get(&health_url)
-            .timeout(Duration::from_secs(5))
-            .send()
-            .await
-            .map(|r| r.status().is_success())
-            .unwrap_or(false),
-        Err(_) => false,
+        Ok(c) => c,
+        Err(_) => return false,
+    };
+
+    let mut request = client.get(format!("{}/api/health", base));
+    if let Some((username, password)) = auth {
+        request = request.basic_auth(username, Some(password));
     }
+    if request
+        .timeout(Duration::from_secs(5))
+        .send()
+        .await
+        .map(|r| r.status().is_success())
+        .unwrap_or(false)
+    {
+        return true;
+    }
+
+    let mut request = client.get(format!("{}/global/health", base));
+    if let Some((username, password)) = auth {
+        request = request.basic_auth(username, Some(password));
+    }
+    request
+        .timeout(Duration::from_secs(5))
+        .send()
+        .await
+        .map(|r| r.status().is_success())
+        .unwrap_or(false)
 }
 
 /// 启动 opencode serve 进程
@@ -371,6 +397,14 @@ pub async fn confirm_close_app(
     state: State<'_, ServiceState>,
     stop_service: bool,
 ) -> Result<(), String> {
+    // 我们启动的 WSL 内 opencode 进程随应用退出统一清理，避免后台残留
+    #[cfg(target_os = "windows")]
+    {
+        use tauri::Manager;
+        let wsl_state = window.app_handle().state::<super::wsl_commands::WslState>();
+        super::wsl_commands::stop_all_wsl_servers(&wsl_state).await;
+    }
+
     if stop_service {
         let pid = state.child_pid.swap(0, Ordering::SeqCst);
         if pid > 0 {

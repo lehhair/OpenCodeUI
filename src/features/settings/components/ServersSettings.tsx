@@ -1,23 +1,22 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '../../../components/ui/Button'
 import { ConfirmDialog } from '../../../components/ui/ConfirmDialog'
-import {
-  TrashIcon,
-  WifiIcon,
-  WifiOffIcon,
-  SpinnerIcon,
-  KeyIcon,
-  PencilIcon,
-  RetryIcon,
-  PlugIcon,
-  CircleIcon,
-} from '../../../components/Icons'
+import { DropdownMenu } from '../../../components/ui/DropdownMenu'
+import { MenuItem } from '../../../components/ui/MenuItem'
+import { TrashIcon, KeyIcon, PencilIcon, RetryIcon, PlugIcon, CircleIcon } from '../../../components/Icons'
 import { useServerStore, useRouter } from '../../../hooks'
 import { messageStore } from '../../../store'
 import { useMultiServerStore, multiServerStore } from '../../../store/multiServerStore'
+import { useWslStore } from '../../../store/wslStore'
 import { settingsFieldClass, SettingsSection, SettingRow, Toggle } from './SettingsUI'
+import { ServerHealthButton } from './ServerHealthButton'
 import type { ServerConfig, ServerHealth } from '../../../store/serverStore'
+import { isTauri, getDesktopPlatform } from '../../../utils/tauri'
+import { wslApi } from '../../../api/wsl'
+import { DialogAddWslServer } from '../../wsl/components/DialogAddWslServer'
+import { WslServerRow } from '../../wsl/components/WslServerRow'
+import { isWslServerId } from '../../wsl/settings-model'
 
 const IPV4_PATTERN = /^(?:\d{1,3}\.){3}\d{1,3}$/
 /** 显示名长度上限，避免列表项把右侧操作按钮挤穿 */
@@ -63,31 +62,6 @@ function ServerItem({
   const { t } = useTranslation(['settings', 'common'])
   const [editing, setEditing] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
-
-  const statusIcon = () => {
-    if (!health || health.status === 'checking') return <SpinnerIcon size={12} className="animate-spin text-text-400" />
-    if (health.status === 'online') return <WifiIcon size={12} className="text-success-100" />
-    if (health.status === 'unauthorized') return <KeyIcon size={12} className="text-warning-100" />
-    return <WifiOffIcon size={12} className="text-danger-100" />
-  }
-
-  const statusTitle = () => {
-    if (!health) return t('servers.checkHealth')
-    switch (health.status) {
-      case 'checking':
-        return t('servers.checking')
-      case 'online':
-        return `${t('servers.onlineLatency', { latency: health.latency })}${health.version ? ` · OpenCode v${health.version}` : ''}`
-      case 'unauthorized':
-        return t('servers.invalidCredentials')
-      case 'offline':
-        return health.error || t('common:offline')
-      case 'error':
-        return health.error || t('common:error')
-      default:
-        return t('common:unknown')
-    }
-  }
 
   if (editing) {
     return (
@@ -159,18 +133,7 @@ function ServerItem({
           >
             {subscribed ? <PlugIcon size={13} /> : <CircleIcon size={11} className="opacity-50" />}
           </button>
-          <button
-            type="button"
-            className="p-1.5 rounded-md text-text-400 hover:text-text-200 hover:bg-bg-200/70 transition-colors"
-            onClick={e => {
-              e.stopPropagation()
-              onCheckHealth()
-            }}
-            title={statusTitle()}
-            aria-label={statusTitle()}
-          >
-            {statusIcon()}
-          </button>
+          <ServerHealthButton health={health} onCheck={onCheckHealth} />
           {!server.isDefault && (
             <>
               <button
@@ -532,6 +495,13 @@ function AddServerForm({
 export function ServersSettings() {
   const { t } = useTranslation(['settings', 'common'])
   const [addingServer, setAddingServer] = useState(false)
+  const [addingWslServer, setAddingWslServer] = useState(false)
+  const [addMenuOpen, setAddMenuOpen] = useState(false)
+  const addMenuRef = useRef<HTMLButtonElement>(null)
+  // portal 到 body 的菜单内容不在 addMenuRef 内，外部点击判定必须同时覆盖它，
+  // 否则点击菜单项会被当作「点外面」立即关闭，onClick 永远收不到
+  const addMenuContentRef = useRef<HTMLDivElement>(null)
+  const isWindowsDesktop = isTauri() && getDesktopPlatform() === 'windows'
   const multiServerConfig = useMultiServerStore()
   const subscribedCount = multiServerConfig.subscribedServerIds.length
   const {
@@ -553,9 +523,37 @@ export function ServersSettings() {
     return [active, ...servers.filter(s => s.id !== active.id)]
   }, [servers, activeServer])
 
+  // WSL 服务器统一由 wslStore 驱动渲染：就绪条目已同步进 serverStore（跟随上面的排序），
+  // 未就绪条目只存在于 wslStore，追加在列表尾部。这样一台 WSL 服务器永远只有一张卡片
+  const wslState = useWslStore()
+  const wslItems = isWindowsDesktop ? (wslState?.servers ?? []).filter(s => isWslServerId(s.config.id)) : []
+  const wslItemById = new Map(wslItems.map(item => [item.config.id, item]))
+  const unreadyWslItems = wslItems.filter(item => !servers.some(s => s.id === item.config.id))
+
   useEffect(() => {
     checkAllHealth()
   }, [checkAllHealth])
+
+  // WSL 按需预热（意图信号）：启动路径不做任何 WSL 探测，用户走到服务器
+  // 设置页才补齐 runtime / 发行版列表 / 已添加服务器的 opencode 检查。
+  // 后端命令幂等，状态已就位时零成本；失败静默（添加对话框自身的探测
+  // 状态机兜底），不打扰页面
+  useEffect(() => {
+    if (!isWindowsDesktop) return
+    void wslApi.prewarm().catch(err => console.error('WSL prewarm failed:', err))
+  }, [isWindowsDesktop])
+
+  // M3: 下拉菜单外部点击关闭（trigger 与 portal 菜单内容都算「里面」）
+  useEffect(() => {
+    if (!addMenuOpen) return
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as Node
+      if (addMenuRef.current?.contains(target) || addMenuContentRef.current?.contains(target)) return
+      setAddMenuOpen(false)
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [addMenuOpen])
 
   // 切换服务器：设置 active + 清理当前 session + 导航回首页
   const handleSelectServer = useCallback(
@@ -617,44 +615,104 @@ export function ServersSettings() {
             >
               <RetryIcon size={14} />
             </button>
-            <button
-              onClick={() => setAddingServer(true)}
-              disabled={addingServer}
-              className="h-7 px-2.5 rounded-md text-[length:var(--fs-sm)] font-medium text-accent-main-100 hover:bg-accent-main-100/10 transition-colors disabled:opacity-40"
-            >
-              {t('common:add')}
-            </button>
+            {isWindowsDesktop ? (
+              <div className="relative">
+                <button
+                  ref={addMenuRef}
+                  onClick={() => setAddMenuOpen(!addMenuOpen)}
+                  className="h-7 px-2.5 rounded-md text-[length:var(--fs-sm)] font-medium text-accent-main-100 hover:bg-accent-main-100/10 transition-colors"
+                >
+                  {t('common:add')} ▾
+                </button>
+                {/* 设置弹窗本身是 z-[300]，portal 到 body 的菜单默认 zIndex=100 会被压在下面（看起来点了没反应） */}
+                <DropdownMenu triggerRef={addMenuRef} isOpen={addMenuOpen} align="right" zIndex={400}>
+                  <div ref={addMenuContentRef}>
+                    <MenuItem
+                      label={t('servers.addRemote')}
+                      onClick={() => { setAddMenuOpen(false); setAddingServer(true) }}
+                    />
+                    <MenuItem
+                      label={t('servers.addWsl')}
+                      onClick={() => { setAddMenuOpen(false); setAddingWslServer(true) }}
+                    />
+                  </div>
+                </DropdownMenu>
+              </div>
+            ) : (
+              <button
+                onClick={() => setAddingServer(true)}
+                disabled={addingServer}
+                className="h-7 px-2.5 rounded-md text-[length:var(--fs-sm)] font-medium text-accent-main-100 hover:bg-accent-main-100/10 transition-colors disabled:opacity-40"
+              >
+                {t('common:add')}
+              </button>
+            )}
           </div>
         }
       >
         <div className="space-y-1.5">
-          {orderedServers.map(s => (
-            <ServerItem
-              key={s.id}
-              server={s}
-              health={getHealth(s.id)}
-              isActive={activeServer?.id === s.id}
-              subscribed={multiServerStore.isSubscribed(s.id)}
+          {orderedServers.map(s => {
+            if (isWslServerId(s.id)) {
+              const item = wslItemById.get(s.id)
+              // wsl 条目必须由 wslStore 状态驱动渲染；状态未到达时跳过，
+              // 避免出现没有生命周期管理能力的孤立连接条目
+              if (!item) return null
+              return (
+                <WslServerRow
+                  key={s.id}
+                  item={item}
+                  health={getHealth(s.id)}
+                  isActive={activeServer?.id === s.id}
+                  subscribed={multiServerStore.isSubscribed(s.id)}
+                  multiServerEnabled={multiServerConfig.enabled}
+                  onSelect={() => handleSelectServer(s.id)}
+                  onCheckHealth={() => void checkHealth(s.id)}
+                  onToggleSubscribe={() => multiServerStore.setSubscribed(s.id, !multiServerStore.isSubscribed(s.id))}
+                />
+              )
+            }
+            return (
+              <ServerItem
+                key={s.id}
+                server={s}
+                health={getHealth(s.id)}
+                isActive={activeServer?.id === s.id}
+                subscribed={multiServerStore.isSubscribed(s.id)}
+                multiServerEnabled={multiServerConfig.enabled}
+                onSelect={() => handleSelectServer(s.id)}
+                onDelete={() => {
+                  // 删除服务器时同步移出多服务器白名单（避免残留订阅连到已删地址）
+                  if (multiServerStore.isSubscribed(s.id)) {
+                    multiServerStore.setSubscribedServerIds(
+                      multiServerStore.getSubscribedServerIds().filter(id => id !== s.id),
+                    )
+                  }
+                  removeServer(s.id)
+                }}
+                onEdit={updates => {
+                  const auth = updates.password
+                    ? { username: updates.username || 'opencode', password: updates.password }
+                    : undefined
+                  updateServer(s.id, { name: updates.name, url: updates.url, auth })
+                  void checkHealth(s.id)
+                }}
+                onCheckHealth={() => void checkHealth(s.id)}
+                onToggleSubscribe={() => multiServerStore.setSubscribed(s.id, !multiServerStore.isSubscribed(s.id))}
+              />
+            )
+          })}
+
+          {/* 未就绪的 WSL 服务器（starting/failed/stopped）不在连接列表里，同样以卡片形态展示 */}
+          {unreadyWslItems.map(item => (
+            <WslServerRow
+              key={item.config.id}
+              item={item}
+              health={null}
+              isActive={false}
+              subscribed={false}
               multiServerEnabled={multiServerConfig.enabled}
-              onSelect={() => handleSelectServer(s.id)}
-              onDelete={() => {
-                // 删除服务器时同步移出多服务器白名单（避免残留订阅连到已删地址）
-                if (multiServerStore.isSubscribed(s.id)) {
-                  multiServerStore.setSubscribedServerIds(
-                    multiServerStore.getSubscribedServerIds().filter(id => id !== s.id),
-                  )
-                }
-                removeServer(s.id)
-              }}
-              onEdit={updates => {
-                const auth = updates.password
-                  ? { username: updates.username || 'opencode', password: updates.password }
-                  : undefined
-                updateServer(s.id, { name: updates.name, url: updates.url, auth })
-                void checkHealth(s.id)
-              }}
-              onCheckHealth={() => void checkHealth(s.id)}
-              onToggleSubscribe={() => multiServerStore.setSubscribed(s.id, !multiServerStore.isSubscribed(s.id))}
+              onSelect={() => handleSelectServer(item.config.id)}
+              onToggleSubscribe={() => multiServerStore.setSubscribed(item.config.id, true)}
             />
           ))}
 
@@ -670,11 +728,17 @@ export function ServersSettings() {
           />
         )}
 
-        {servers.length === 0 && !addingServer && (
+        {servers.length === 0 && unreadyWslItems.length === 0 && !addingServer && (
           <div className="text-[length:var(--fs-md)] text-text-400 text-center py-8">{t('servers.noServersConfigured')}</div>
         )}
       </div>
       </SettingsSection>
+
+      <DialogAddWslServer
+        isOpen={addingWslServer}
+        onClose={() => setAddingWslServer(false)}
+        onAdded={() => void checkAllHealth()}
+      />
     </>
   )
 }

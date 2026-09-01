@@ -148,6 +148,7 @@
     "moveFolderUp": "上移文件夹",
     "moveFolderDown": "下移文件夹",
     "noChatsInFolder": "此文件夹中没有对话",
+    "loadFailed": "加载失败，点击重试",
     "showMoreChats": "展开更多会话",
     "selectedSessions": "已选 {{count}}",
     "selectedProjects": "已选 {{count}} 个项目",
