@@ -114,6 +114,29 @@ class FollowupQueueStore {
     })
   }
 
+  /** Move draggedId to the index currently occupied by targetId (same semantics as directory reorder). */
+  reorder(sessionId: string, draggedId: string, targetId: string) {
+    if (draggedId === targetId) return
+    const current = this.state.itemsBySession[sessionId] ?? EMPTY_ITEMS
+    if (current.length < 2) return
+
+    const draggedIndex = current.findIndex(item => item.id === draggedId)
+    const targetIndex = current.findIndex(item => item.id === targetId)
+    if (draggedIndex === -1 || targetIndex === -1 || draggedIndex === targetIndex) return
+
+    const next = [...current]
+    const [dragged] = next.splice(draggedIndex, 1)
+    next.splice(targetIndex, 0, dragged)
+
+    this.setState({
+      ...this.state,
+      itemsBySession: {
+        ...this.state.itemsBySession,
+        [sessionId]: next,
+      },
+    })
+  }
+
   markFailed(sessionId: string, id: string | undefined) {
     const nextFailedBySession = { ...this.state.failedBySession }
     if (!id) delete nextFailedBySession[sessionId]

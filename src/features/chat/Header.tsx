@@ -10,7 +10,6 @@ import {
   MinimizeIcon,
 } from '../../components/Icons'
 import { IconButton } from '../../components/ui'
-import { ModelSelector, type ModelSelectorHandle } from './ModelSelector'
 import { ShareDialog } from './ShareDialog'
 import { messageStore, useHeaderSessionMeta } from '../../store'
 import { useLayoutStore, layoutStore } from '../../store/layoutStore'
@@ -19,19 +18,17 @@ import { updateSession } from '../../api'
 import { useDirectory } from '../../contexts/useDirectory'
 import { uiErrorHandler } from '../../utils'
 import { useChatViewport } from './chatViewport'
-import type { ModelInfo } from '../../api'
+import { useSessionHeaderContext } from './sessionHeaderContext'
+import { SessionHeaderLocationPicker } from './SessionHeaderLocationPicker'
+import type { SessionHeaderLocation } from './SessionHeaderLocation'
+
 
 interface HeaderProps {
-  models: ModelInfo[]
-  modelsLoading: boolean
-  selectedModelKey: string | null
-  onModelChange: (modelKey: string, model: ModelInfo) => void
   onOpenSidebar?: () => void
   onToggleRightPanel?: () => void
   onSplitPane?: () => void
   isPaneFullscreen?: boolean
   onTogglePaneFullscreen?: () => void
-  modelSelectorRef?: React.RefObject<ModelSelectorHandle | null>
 }
 
 interface SessionTitleControlProps {
@@ -39,6 +36,8 @@ interface SessionTitleControlProps {
   isEditingTitle: boolean
   editTitle: string
   sessionTitle: string
+  workspaceDirectory?: string
+  sessionLocation?: SessionHeaderLocation | null
   titleInputRef: React.RefObject<HTMLInputElement | null>
   setEditTitle: (value: string) => void
   setIsEditingTitle: (value: boolean) => void
@@ -54,6 +53,8 @@ function SessionTitleControl({
   isEditingTitle,
   editTitle,
   sessionTitle,
+  workspaceDirectory,
+  sessionLocation,
   titleInputRef,
   setEditTitle,
   setIsEditingTitle,
@@ -80,6 +81,19 @@ function SessionTitleControl({
     <div
       className={`flex items-center group ${isEditingTitle ? 'bg-bg-200/50 ring-1 ring-accent-main-100' : 'bg-transparent hover:bg-bg-200/50 border border-transparent hover:border-border-200/50'} rounded-lg transition-all duration-200 p-0.5 min-w-0 shrink`}
     >
+      {!compact && sessionLocation && (
+        <>
+          <SessionHeaderLocationPicker
+            currentDirectory={workspaceDirectory}
+            location={sessionLocation}
+            textClassName="text-[length:var(--fs-base)]"
+            iconSize={compact ? 11 : 12}
+            workspaceMaxWidthClass={compact ? 'max-w-[88px]' : 'max-w-[140px]'}
+            branchMaxWidthClass={compact ? 'max-w-[88px]' : 'max-w-[140px]'}
+          />
+          <span className="shrink-0 text-text-200 opacity-70">·</span>
+        </>
+      )}
       {isEditingTitle ? (
         <input
           ref={titleInputRef}
@@ -112,16 +126,11 @@ function SessionTitleControl({
 }
 
 export function Header({
-  models,
-  modelsLoading,
-  selectedModelKey,
-  onModelChange,
   onOpenSidebar,
   onToggleRightPanel,
   onSplitPane,
   isPaneFullscreen = false,
   onTogglePaneFullscreen,
-  modelSelectorRef,
 }: HeaderProps) {
   const { t } = useTranslation('chat')
   const { sessionId, sessionDirectory, sessionTitle: currentSessionTitle } = useHeaderSessionMeta()
@@ -129,6 +138,7 @@ export function Header({
   const { refresh } = useSessionContext()
   const { currentDirectory } = useDirectory()
   const { presentation, interaction } = useChatViewport()
+  const sessionLocation = useSessionHeaderContext(sessionDirectory || currentDirectory)
 
   const [shareDialogOpen, setShareDialogOpen] = useState(false)
   const [isEditingTitle, setIsEditingTitle] = useState(false)
@@ -184,6 +194,8 @@ export function Header({
       isEditingTitle={isEditingTitle}
       editTitle={editTitle}
       sessionTitle={sessionTitle}
+      workspaceDirectory={sessionDirectory || currentDirectory}
+      sessionLocation={sessionLocation}
       titleInputRef={titleInputRef}
       setEditTitle={setEditTitle}
       setIsEditingTitle={setIsEditingTitle}
@@ -208,16 +220,6 @@ export function Header({
           >
             <SidebarIcon size={16} />
           </IconButton>
-        )}
-
-        {!isCompact && (
-          <ModelSelector
-            ref={modelSelectorRef}
-            models={models}
-            selectedModelKey={selectedModelKey}
-            onSelect={onModelChange}
-            isLoading={modelsLoading}
-          />
         )}
 
         {isCompact && <div className="min-w-0">{titleControl}</div>}

@@ -3,8 +3,10 @@ import { useTranslation } from 'react-i18next'
 import { ChevronDownIcon, SendIcon, StopIcon, PaperclipIcon, AgentIcon, ThinkingIcon } from '../../../components/Icons'
 import { DropdownMenu, MenuItem, IconButton, AnimatedPresence } from '../../../components/ui'
 import { ModelSelector, type ModelSelectorHandle } from '../ModelSelector'
+import { ContextUsageButton } from './ContextUsageButton'
 import { useChatViewport } from '../chatViewport'
 import { isTauri, isTauriMobile, extToMime } from '../../../utils/tauri'
+import { getModelKey } from '../../../utils/modelUtils'
 import type { ApiAgent } from '../../../api/client'
 import type { ModelInfo, FileCapabilities } from '../../../api'
 
@@ -67,6 +69,7 @@ export function InputToolbar({
   const caps = fileCapabilities ?? { image: false, pdf: false, audio: false, video: false }
   const supportsAnyFile = caps.image || caps.pdf || caps.audio || caps.video
   const controlsDisabled = isSending
+  const contextLimit = models.find(model => getModelKey(model) === selectedModelKey)?.contextLimit
 
   // 动态构建 HTML accept 和 Tauri filter
   const { acceptString, tauriFilters } = useMemo(() => {
@@ -307,22 +310,8 @@ export function InputToolbar({
 
   return (
     <div className="flex items-center justify-between px-3 pb-3 relative">
-      {/* Left side: Model (mobile) + Agent + Variant selectors */}
+      {/* Left side: Agent + Model + Variant selectors */}
       <div className={`flex items-center min-w-0 ${isCompact ? 'gap-1' : 'gap-2'}`}>
-        {/* Model Selector — 移动端显示在最左边 */}
-        {isCompact && onModelChange && (
-          <ModelSelector
-            ref={modelSelectorRef}
-            models={models}
-            selectedModelKey={selectedModelKey}
-            onSelect={onModelChange}
-            isLoading={modelsLoading}
-            position="top"
-            trigger="toolbar"
-            constrainToRef={inputContainerRef}
-          />
-        )}
-
         {/* Agent Selector */}
         <AnimatedPresence show={selectableAgents.length > 1} className={isCompact ? 'shrink-0' : ''}>
           <div className="relative">
@@ -402,6 +391,20 @@ export function InputToolbar({
             </DropdownMenu>
           </div>
         </AnimatedPresence>
+
+        {/* Model Selector */}
+        {onModelChange && (
+          <ModelSelector
+            ref={modelSelectorRef}
+            models={models}
+            selectedModelKey={selectedModelKey}
+            onSelect={onModelChange}
+            isLoading={modelsLoading}
+            position="top"
+            trigger="toolbar"
+            constrainToRef={inputContainerRef}
+          />
+        )}
 
         {/* Variant Selector */}
         <AnimatedPresence show={variants.length > 0} className={isCompact ? 'shrink-0' : ''}>
@@ -493,6 +496,7 @@ export function InputToolbar({
 
       {/* Action Buttons */}
       <div className="flex items-center gap-1">
+        <ContextUsageButton contextLimit={contextLimit} />
         <AnimatedPresence show={supportsAnyFile}>
           <>
             {/* 浏览器模式下的隐藏文件输入 */}

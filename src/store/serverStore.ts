@@ -430,9 +430,10 @@ class ServerStore {
    * 删除服务器
    */
   removeServer(id: string): boolean {
-    // 不能删除默认服务器
     const server = this.servers.find(s => s.id === id)
-    if (!server || server.isDefault) return false
+    if (!server) return false
+    // 默认服务器仅在有其他服务器且非桌面端时可删除
+    if (server.isDefault && (isTauri() || this.servers.length <= 1)) return false
 
     this.servers = this.servers.filter(s => s.id !== id)
     this.healthMap.delete(id)

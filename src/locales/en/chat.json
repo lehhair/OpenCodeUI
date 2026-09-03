@@ -112,6 +112,13 @@
     "scrollToBottom": "Scroll to bottom",
     "reply": "Reply..."
   },
+  "textSelectionPopup": {
+    "label": "Text actions",
+    "quote": "Quote",
+    "copy": "Copy",
+    "copied": "Copied",
+    "copyFailed": "Could not copy to clipboard"
+  },
   "undoStatus": {
     "editing": "Editing",
     "redo": "Redo",
@@ -200,6 +207,16 @@
     "reasoning": "Reasoning",
     "cacheRW": "Cache (r/w)",
     "rawMessages": "Raw Messages"
+  },
+  "queuedMessages": {
+    "count": "{{count}} queued",
+    "sending": "Sending…",
+    "failed": "Failed",
+    "remove": "Remove from queue",
+    "cancelFailed": "Dismiss",
+    "sendNow": "Send now",
+    "revert": "Edit",
+    "reorder": "Drag to reorder"
   },
   "hints": {
     "pressEscAgain": "Press <1>Esc</1> again to stop",

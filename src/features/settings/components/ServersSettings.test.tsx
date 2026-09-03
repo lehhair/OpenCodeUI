@@ -2,10 +2,11 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ServersSettings } from './ServersSettings'
 
-const { useServerStoreMock, navigateHomeMock, clearSessionMock } = vi.hoisted(() => ({
+const { useServerStoreMock, navigateHomeMock, clearSessionMock, isTauriMock } = vi.hoisted(() => ({
   useServerStoreMock: vi.fn(),
   navigateHomeMock: vi.fn(),
   clearSessionMock: vi.fn(),
+  isTauriMock: vi.fn(() => false),
 }))
 
 vi.mock('react-i18next', () => ({
@@ -13,6 +14,10 @@ vi.mock('react-i18next', () => ({
     t: (key: string, values?: Record<string, unknown>) =>
       typeof values?.latency === 'number' ? `${key} ${values.latency}` : key,
   }),
+}))
+
+vi.mock('../../../utils/tauri', () => ({
+  isTauri: isTauriMock,
 }))
 
 vi.mock('../../../hooks', () => ({
@@ -36,6 +41,7 @@ describe('ServersSettings', () => {
     setActiveServerMock.mockReset()
     navigateHomeMock.mockReset()
     clearSessionMock.mockReset()
+    isTauriMock.mockReturnValue(false)
     useServerStoreMock.mockReturnValue({
       servers: [localServer, remoteServer],
       activeServer: localServer,
@@ -62,5 +68,19 @@ describe('ServersSettings', () => {
     expect(setActiveServerMock).toHaveBeenCalledWith('remote')
     expect(navigateHomeMock).toHaveBeenCalled()
     expect(clearSessionMock).toHaveBeenCalledWith('session-1')
+  })
+
+  it('shows a delete button on the default server when other servers exist', () => {
+    render(<ServersSettings />)
+
+    expect(screen.getAllByRole('button', { name: 'common:remove' })).toHaveLength(2)
+  })
+
+  it('hides the delete button on the default server on Tauri desktop', () => {
+    isTauriMock.mockReturnValue(true)
+
+    render(<ServersSettings />)
+
+    expect(screen.getAllByRole('button', { name: 'common:remove' })).toHaveLength(1)
   })
 })

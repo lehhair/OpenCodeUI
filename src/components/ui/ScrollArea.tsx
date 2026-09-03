@@ -17,6 +17,7 @@ export const ScrollArea = forwardRef<HTMLDivElement, ScrollAreaProps>(
     return (
       <div
         ref={ref}
+        data-scrollable
         className={`overflow-y-auto overflow-x-hidden ${className}`}
         style={{
           maxHeight: typeof maxHeight === 'number' ? `${maxHeight}px` : maxHeight,

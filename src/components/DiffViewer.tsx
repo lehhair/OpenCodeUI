@@ -773,6 +773,7 @@ const WrappedSplitDiffView = memo(function WrappedSplitDiffView({
   return (
     <div
       ref={containerRef}
+      data-scrollable
       className="overflow-y-auto overflow-x-hidden custom-scrollbar font-mono text-[length:var(--fs-code)] h-full"
       onScroll={handleScroll}
       style={maxHeight !== undefined ? { maxHeight } : undefined}
@@ -1115,6 +1116,7 @@ const SplitDiffView = memo(function SplitDiffView({
   return (
     <div
       ref={containerRef}
+      data-scrollable
       className="overflow-y-auto overflow-x-hidden custom-scrollbar font-mono text-[length:var(--fs-code)] h-full"
       style={maxHeight !== undefined ? { maxHeight } : undefined}
       onScroll={handleScroll}
@@ -1418,6 +1420,7 @@ const UnifiedDiffView = memo(function UnifiedDiffView({
   return (
     <div
       ref={containerRef}
+      data-scrollable
       className="overflow-y-auto overflow-x-hidden custom-scrollbar font-mono text-[length:var(--fs-code)] h-full"
       style={maxHeight !== undefined ? { maxHeight } : undefined}
       onScroll={handleScroll}
@@ -1586,6 +1589,7 @@ const WrappedUnifiedDiffView = memo(function WrappedUnifiedDiffView({
   return (
     <div
       ref={containerRef}
+      data-scrollable
       className="overflow-y-auto overflow-x-hidden custom-scrollbar font-mono text-[length:var(--fs-code)] h-full"
       onScroll={handleScroll}
       style={maxHeight !== undefined ? { maxHeight } : undefined}

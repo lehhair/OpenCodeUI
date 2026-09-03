@@ -90,6 +90,10 @@ vi.mock('../ModelSelector', () => ({
   ModelSelector: () => null,
 }))
 
+vi.mock('./ContextUsageButton', () => ({
+  ContextUsageButton: () => null,
+}))
+
 describe('InputToolbar file selection', () => {
   beforeEach(() => {
     useIsMobileMock.mockReturnValue(false)

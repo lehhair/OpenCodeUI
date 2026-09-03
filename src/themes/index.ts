@@ -901,6 +901,246 @@ export const obsidianTheme: ThemePreset = {
 }
 
 // ============================================
+// GitHub 主题 - Primer 设计系统
+// ============================================
+// 颜色来源：primer/primitives + primer/github-vscode-theme
+// - Light canvas/inset #ffffff / #f6f8fa，accent #0969da，fg #1f2328
+// - Dark canvas #0d1117 / surface #21262d，accent #2f81f7，fg #e6edf3
+
+const githubLight: ThemeColors = {
+  background: {
+    bg000: '0 0% 100%', // canvas.default #ffffff
+    bg100: '210 29% 97%', // canvas.inset #f6f8fa
+    bg200: '210 24% 93%', // neutral.subtle #eaeef2
+    bg300: '210 18% 84%', // border.default #d0d7de
+    bg400: '210 13% 72%', // neutral.emphasis #afb8c1
+  },
+  text: {
+    text000: '0 0% 100%',
+    text100: '213 13% 14%', // fg.default #1f2328
+    text200: '212 8% 43%', // fg.muted #656d76
+    text300: '212 8% 47%', // fg.subtle #6e7781
+    text400: '215 8% 62%', // fg.disabled #8c959f
+    text500: '215 8% 75%',
+    text600: '215 8% 84%',
+  },
+  accent: {
+    brand: '212 92% 45%', // accent.fg #0969da
+    main000: '212 90% 40%',
+    main100: '212 92% 45%',
+    main200: '211 100% 56%', // accent.bright #218bff
+    secondary100: '261 69% 59%', // done.fg #8250df
+  },
+  semantic: {
+    success100: '137 66% 30%', // success.fg #1a7f37
+    success200: '137 63% 25%',
+    successBg: '133 80% 92%', // success.subtle #dafbe1
+    warning100: '40 100% 30%', // attention.fg #9a6700
+    warning200: '41 95% 25%',
+    warningBg: '53 100% 89%', // attention.subtle #fff8c5
+    danger000: '356 72% 47%', // danger.fg #cf222e
+    danger100: '356 72% 47%',
+    danger200: '356 70% 40%',
+    dangerBg: '5 100% 96%', // danger.subtle #ffebe9
+    danger900: '5 80% 92%',
+    info100: '212 92% 45%',
+    info200: '211 100% 56%',
+    infoBg: '199 100% 93%', // accent.subtle #ddf4ff
+  },
+  border: {
+    border100: '210 18% 84%', // border.default #d0d7de
+    border200: '210 18% 87%', // border.muted #d8dee4
+    border300: '210 13% 72%', // neutral #afb8c1
+  },
+  special: {
+    alwaysBlack: '0 0% 0%',
+    alwaysWhite: '0 0% 100%',
+    oncolor100: '0 0% 100%',
+  },
+}
+
+const githubDark: ThemeColors = {
+  background: {
+    bg000: '215 15% 15%', // surface #21262d
+    bg100: '215 21% 11%', // canvas.subtle #161b22
+    bg200: '216 28% 7%', // canvas.default #0d1117
+    bg300: '218 80% 4%',
+    bg400: '218 80% 2%', // canvas.inset #010409
+  },
+  text: {
+    text000: '0 0% 100%',
+    text100: '208 35% 93%', // fg.default #e6edf3
+    text200: '215 8% 53%', // fg.muted #7d8590
+    text300: '215 8% 43%',
+    text400: '215 7% 35%',
+    text500: '215 6% 28%',
+    text600: '215 5% 22%',
+  },
+  accent: {
+    brand: '215 93% 58%', // accent.fg #2f81f7
+    main000: '216 84% 52%', // accent.emphasis #1f6feb
+    main100: '215 93% 58%',
+    main200: '215 93% 67%',
+    secondary100: '262 89% 71%', // done.fg #a371f7
+  },
+  semantic: {
+    success100: '128 49% 49%', // success.fg #3fb950
+    success200: '128 50% 60%',
+    successBg: '141 90% 12%', // success.subtle #033a16
+    warning100: '41 72% 48%', // attention.fg #d29922
+    warning200: '41 75% 58%',
+    warningBg: '29 34% 17%', // attention.subtle
+    danger000: '3 93% 63%', // danger.fg #f85149
+    danger100: '3 90% 60%',
+    danger200: '3 90% 68%',
+    dangerBg: '352 70% 17%', // danger.subtle
+    danger900: '352 60% 25%',
+    info100: '215 93% 58%',
+    info200: '215 93% 68%',
+    infoBg: '219 80% 23%', // accent.subtle
+  },
+  border: {
+    border100: '212 12% 21%', // border.default #30363d
+    border200: '215 15% 15%', // border.muted #21262d
+    border300: '212 12% 30%',
+  },
+  special: {
+    alwaysBlack: '0 0% 0%',
+    alwaysWhite: '0 0% 100%',
+    oncolor100: '0 0% 100%',
+  },
+}
+
+export const githubTheme: ThemePreset = {
+  id: 'github',
+  name: 'GitHub',
+  description: 'Primer palette, signature GitHub blue on neutral canvas',
+  light: githubLight,
+  dark: githubDark,
+}
+
+// ============================================
+// One 主题 - Atom One Dark / Light
+// ============================================
+// 颜色来源：base16 one-light-scheme + onedark (verbatim base00–base0F)
+// - Light #fafafa 底，accent = base0B string green #50a14f（也是 inline code 色），fg #383a42
+// - Dark  #282c34 底，accent = base0B string green #98c379，fg #abb2bf
+// 注：OpenCodeUI 把 brand 与 inline code 都绑在 accent.main100 上，所以选了 Atom
+// 最具辨识度的 string green 当 brand；secondary 退回 base0D blue（function hue）。
+
+const oneLight: ThemeColors = {
+  background: {
+    bg000: '0 0% 100%',
+    bg100: '0 0% 98%', // base00 #fafafa
+    bg200: '240 3% 94%', // base01 #f0f0f1
+    bg300: '240 2% 90%', // base02 #e5e5e6
+    bg400: '231 4% 80%',
+  },
+  text: {
+    text000: '0 0% 100%',
+    text100: '228 8% 24%', // base05 #383a42
+    text200: '227 6% 44%', // base04 #696c77
+    text300: '231 4% 64%', // base03 #a0a1a7
+    text400: '230 4% 75%',
+    text500: '230 3% 85%',
+    text600: '230 3% 90%',
+  },
+  accent: {
+    brand: '119 34% 47%', // base0B #50a14f (string green)
+    main000: '119 35% 38%',
+    main100: '119 34% 47%',
+    main200: '119 38% 55%',
+    secondary100: '221 87% 60%', // base0D #4078f2 (function blue)
+  },
+  semantic: {
+    success100: '119 34% 47%', // base0B #50a14f
+    success200: '119 35% 35%',
+    successBg: '120 30% 92%',
+    warning100: '41 99% 38%', // base0A #c18401
+    warning200: '41 90% 30%',
+    warningBg: '42 100% 92%',
+    danger000: '344 84% 43%', // base08 #ca1243
+    danger100: '344 84% 43%',
+    danger200: '344 80% 50%',
+    dangerBg: '345 70% 95%',
+    danger900: '345 50% 92%',
+    info100: '198 99% 37%', // base0C #0184bc
+    info200: '198 90% 47%',
+    infoBg: '199 80% 95%',
+  },
+  border: {
+    border100: '240 2% 90%', // base02 #e5e5e6
+    border200: '240 3% 94%', // base01 #f0f0f1
+    border300: '228 8% 80%',
+  },
+  special: {
+    alwaysBlack: '0 0% 0%',
+    alwaysWhite: '0 0% 100%',
+    oncolor100: '0 0% 100%',
+  },
+}
+
+const oneDark: ThemeColors = {
+  background: {
+    bg000: '218 13% 24%', // base01 #353b45
+    bg100: '220 13% 18%', // base00 #282c34
+    bg200: '220 14% 14%',
+    bg300: '220 14% 10%',
+    bg400: '220 14% 6%',
+  },
+  text: {
+    text000: '0 0% 100%',
+    text100: '219 14% 71%', // base05 #abb2bf
+    text200: '219 12% 60%',
+    text300: '219 10% 50%',
+    text400: '223 8% 38%', // base04 #565c64
+    text500: '220 6% 30%',
+    text600: '220 5% 22%',
+  },
+  accent: {
+    brand: '95 38% 62%', // base0B #98c379 (string green)
+    main000: '95 38% 52%',
+    main100: '95 38% 62%',
+    main200: '95 42% 70%',
+    secondary100: '207 82% 66%', // base0D #61afef (function blue)
+  },
+  semantic: {
+    success100: '95 38% 62%', // base0B #98c379
+    success200: '95 35% 70%',
+    successBg: '95 30% 15%',
+    warning100: '39 67% 69%', // base0A #e5c07b
+    warning200: '39 65% 75%',
+    warningBg: '39 30% 15%',
+    danger000: '355 65% 65%', // base08 #e06c75
+    danger100: '355 65% 65%',
+    danger200: '355 60% 72%',
+    dangerBg: '355 40% 15%',
+    danger900: '355 30% 22%',
+    info100: '187 47% 55%', // base0C #56b6c2
+    info200: '187 50% 62%',
+    infoBg: '187 40% 15%',
+  },
+  border: {
+    border100: '220 14% 24%',
+    border200: '220 13% 20%',
+    border300: '218 13% 28%', // base02 #3e4451
+  },
+  special: {
+    alwaysBlack: '0 0% 0%',
+    alwaysWhite: '0 0% 100%',
+    oncolor100: '0 0% 100%',
+  },
+}
+
+export const oneTheme: ThemePreset = {
+  id: 'one',
+  name: 'One',
+  description: 'Atom One palette, string-green accent with five-color syntax tones',
+  light: oneLight,
+  dark: oneDark,
+}
+
+// ============================================
 // Theme Registry
 // ============================================
 
@@ -912,6 +1152,8 @@ export const builtinThemes: ThemePreset[] = [
   oceanTheme,
   draculaTheme,
   obsidianTheme,
+  githubTheme,
+  oneTheme,
 ]
 
 export function getThemePreset(id: string): ThemePreset | undefined {

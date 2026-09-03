@@ -53,7 +53,7 @@ export const MessageErrorView = memo(function MessageErrorView({ error, stateKey
       <div
         ref={headerRef}
         className={`flex items-center gap-2 ${hasDetails ? 'cursor-pointer' : ''}`}
-        onClick={() => hasDetails && withScrollLock(() => setExpanded(!expanded))}
+        onClick={() => hasDetails && withScrollLock(() => setExpanded(!expanded), !expanded)}
       >
         <AlertCircleIcon className={`w-4 h-4 ${colorClass} flex-shrink-0`} />
         <span className={`text-[length:var(--fs-base)] ${colorClass} flex-1 min-w-0 truncate`}>{title}</span>

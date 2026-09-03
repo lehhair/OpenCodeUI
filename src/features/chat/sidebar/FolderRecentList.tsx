@@ -25,6 +25,7 @@ import { pinnedSessionsStore, type PinnedSessionEntry } from '../../../store/pin
 import { SessionListItem } from '../../sessions'
 import { getSelectionRoundClass } from '../../sessions/selectionRound'
 import { SessionChildrenSlot } from './SessionChildrenSlot'
+import { createDraftNewChatSession, isDraftNewChatSession } from './draftNewChatSession'
 
 const DIRECTORY_PAGE_SIZE = 5
 
@@ -788,6 +789,18 @@ function UnavailablePinnedSessionItem({ entry }: { entry: PinnedSessionEntry }) 
   )
 }
 
+function shouldShowDraftNewChatInFolder(options: {
+  isEditMode?: boolean
+  selectedSessionId: string | null
+  currentDirectory?: string
+  folderDirectory: string
+}) {
+  if (options.isEditMode) return false
+  if (options.selectedSessionId) return false
+  if (!options.currentDirectory) return false
+  return isSameDirectory(options.currentDirectory, options.folderDirectory)
+}
+
 interface FolderRecentSectionProps {
   project: FolderRecentProject
   /** 数据服务器（多服务器模式；缺省用活动服务器） */
@@ -902,6 +915,18 @@ function FolderRecentSection({
     const pinnedSet = new Set(pinnedEntries.map(entry => entry.sessionId))
     return sessions.filter(session => !pinnedSet.has(session.id))
   }, [pinnedEntries, sessions])
+
+  const showDraftNewChat = shouldShowDraftNewChatInFolder({
+    isEditMode,
+    selectedSessionId,
+    currentDirectory,
+    folderDirectory: project.worktree,
+  })
+  const draftNewChatTitle = t('header.newChat')
+  const sessionsForFolderList = useMemo(() => {
+    if (!showDraftNewChat) return visibleSessions
+    return [createDraftNewChatSession(project.worktree, draftNewChatTitle), ...visibleSessions]
+  }, [showDraftNewChat, visibleSessions, project.worktree, draftNewChatTitle])
 
   const handleRename = useCallback(
     async (sessionId: string, newTitle: string) => {
@@ -1081,35 +1106,42 @@ function FolderRecentSection({
                   draggableWorkspaceDirectories={draggableWorkspaceDirectories}
                   onReorderWorkspace={onReorderWorkspace}
                 />
-              ) : visibleSessions.length === 0 ? (
+              ) : sessionsForFolderList.length === 0 ? (
                 <div className="px-2 py-1 text-[length:var(--fs-xs)] text-text-400/50">
                   {t('sidebar.noChatsInFolder')}
                 </div>
               ) : (
                 <>
-                  {visibleSessions.map((session, index) => {
-                    const isChecked = selectedSessionIds?.has(session.id) ?? false
+                  {sessionsForFolderList.map((session, index) => {
+                    const isDraft = isDraftNewChatSession(session)
+                    const isChecked = isDraft ? false : (selectedSessionIds?.has(session.id) ?? false)
                     // 上：前一条 session，或（首条时）父文件夹已选中
                     const prevChecked =
                       isEditMode &&
                       (index > 0
-                        ? (selectedSessionIds?.has(visibleSessions[index - 1].id) ?? false)
+                        ? (selectedSessionIds?.has(sessionsForFolderList[index - 1].id) ?? false)
                         : isProjectChecked)
                     // 下：下一条 session，或（末条时）下一个文件夹已选中
                     const nextChecked =
                       isEditMode &&
-                      (index < visibleSessions.length - 1
-                        ? (selectedSessionIds?.has(visibleSessions[index + 1].id) ?? false)
+                      (index < sessionsForFolderList.length - 1
+                        ? (selectedSessionIds?.has(sessionsForFolderList[index + 1].id) ?? false)
                         : nextProjectChecked)
                     return (
                     <div key={session.id}>
                       <SessionListItem
                         session={session}
-                        activeSessionKey={serverId ? `${serverId}::${session.id}` : undefined}
-                        isSelected={!!selectedSessionId && session.id === splitSessionKey(selectedSessionId).sessionId}
-                        onSelect={() => onSelectSession(session)}
-                        onRename={newTitle => handleRename(session.id, newTitle)}
-                        onDelete={() => handleDelete(session.id)}
+                        activeSessionKey={isDraft ? undefined : serverId ? `${serverId}::${session.id}` : undefined}
+                        isSelected={isDraft ? !selectedSessionId : !!selectedSessionId && session.id === splitSessionKey(selectedSessionId).sessionId}
+                        onSelect={() => {
+                          if (!isDraft) onSelectSession(session)
+                        }}
+                        onRename={newTitle => {
+                          if (!isDraft) handleRename(session.id, newTitle)
+                        }}
+                        onDelete={() => {
+                          if (!isDraft) handleDelete(session.id)
+                        }}
                         preferTouchUi={preferTouchUi}
                         density="minimal"
                         showStats={showSessionDiffStats}
@@ -1119,9 +1151,9 @@ function FolderRecentSection({
                         checkedPrev={prevChecked}
                         checkedNext={nextChecked}
                         onToggleCheck={
-                          onToggleSessionSelection
-                            ? options => onToggleSessionSelection(session.id, options)
-                            : undefined
+                          isDraft || !onToggleSessionSelection
+                            ? undefined
+                            : options => onToggleSessionSelection(session.id, options)
                         }
                       />
                       {onSelectChildSession &&

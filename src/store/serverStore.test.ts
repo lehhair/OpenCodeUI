@@ -70,6 +70,51 @@ describe('serverStore clock calibration', () => {
   })
 })
 
+describe('serverStore removeServer', () => {
+  beforeEach(() => {
+    vi.resetModules()
+    localStorage.clear()
+    sessionStorage.clear()
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('removes the default server when other servers exist', async () => {
+    const { serverStore } = await import('./serverStore')
+    serverStore.addServer({ name: 'Remote', url: 'http://remote.test' })
+
+    expect(serverStore.removeServer('local')).toBe(true)
+    expect(serverStore.getStoredServers().some(s => s.id === 'local')).toBe(false)
+  })
+
+  it('switches the active server when removing the active default', async () => {
+    const { serverStore } = await import('./serverStore')
+    const remote = serverStore.addServer({ name: 'Remote', url: 'http://remote.test' })
+
+    serverStore.removeServer('local')
+
+    expect(serverStore.getActiveServerId()).toBe(remote.id)
+  })
+
+  it('refuses to remove the default server when it is the only one', async () => {
+    const { serverStore } = await import('./serverStore')
+
+    expect(serverStore.removeServer('local')).toBe(false)
+    expect(serverStore.getStoredServers().some(s => s.id === 'local')).toBe(true)
+  })
+
+  it('refuses to remove the default server on Tauri desktop', async () => {
+    vi.stubGlobal('__TAURI_INTERNALS__', { invoke: vi.fn() })
+    const { serverStore } = await import('./serverStore')
+    serverStore.addServer({ name: 'Remote', url: 'http://remote.test' })
+
+    expect(serverStore.removeServer('local')).toBe(false)
+    expect(serverStore.getStoredServers().some(s => s.id === 'local')).toBe(true)
+  })
+})
+
 describe('serverStore local runtime URL', () => {
   beforeEach(() => {
     vi.resetModules()

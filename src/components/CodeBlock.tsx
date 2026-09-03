@@ -236,7 +236,7 @@ export const CodeBlock = memo(function CodeBlock({
         className={`rounded-sm overflow-hidden bg-bg-200/25 contain-content ${className}`}
         style={containerStyle}
       >
-        <div className={scrollClasses} style={maxHeight ? { maxHeight } : undefined}>
+        <div data-scrollable className={scrollClasses} style={maxHeight ? { maxHeight } : undefined}>
           {content}
         </div>
       </div>
@@ -275,7 +275,7 @@ export const CodeBlock = memo(function CodeBlock({
       )}
 
       {/* Scrollable content */}
-      <div className={scrollClasses} style={maxHeight ? { maxHeight } : undefined}>
+      <div data-scrollable className={scrollClasses} style={maxHeight ? { maxHeight } : undefined}>
         {content}
       </div>
     </div>

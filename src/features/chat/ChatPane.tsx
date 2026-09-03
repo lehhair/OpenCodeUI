@@ -18,6 +18,8 @@ import { useFolderProjectDrop } from './useFolderProjectDrop'
 import { FolderProjectDropOverlay } from './FolderProjectDropOverlay'
 import { useChatSession, useModels, useModelSelection } from '../../hooks'
 import { useServerStore } from '../../hooks/useServerStore'
+import { followupQueueStore } from '../../store/followupQueueStore'
+import type { RevertHistoryItem } from '../../store/messageStoreTypes'
 import { useCancelHint } from '../../hooks/useCancelHint'
 import { makeSessionKey, sessionKeyToServerId } from '../../utils/sessionKey'
 import { serverStore } from '../../store/serverStore'
@@ -243,7 +245,10 @@ export const ChatPane = memo(function ChatPane({
     visibleMessageIdsRef.current = ids
     setVisibleMessageIds(ids)
   }, [])
-  const [isAtBottom, setIsAtBottom] = useState(true)
+  /** 用户是否在贴底跟随（true=正在跟随，false=用户主动停止）。
+   *  InputBox 折叠 / 回底按钮都由这个信号驱动（!userScrolled），
+   *  不跟几何 dist —— 流式增长时 dist 抖动会导致 isCollapsed 抖，InputFooter 闪烁。 */
+  const [isFollowing, setIsFollowing] = useState(true)
 
   const handleOutlineScrollToMessage = useCallback((messageId: string) => {
     chatAreaRef.current?.scrollToMessageId(messageId)
@@ -295,6 +300,10 @@ export const ChatPane = memo(function ChatPane({
     handleQuestionReject,
     isReplying,
 
+    queuedFollowups,
+    queuedFollowupFailedId,
+    queuedFollowupSendingId,
+
     loadMoreHistory,
     handleRedoAll,
     clearRevert,
@@ -303,6 +312,7 @@ export const ChatPane = memo(function ChatPane({
     registerInputBox,
 
     handleSend,
+    handleSendQueuedNow,
     handleAbort,
     handleCommand,
     handleUndoWithAnimation,
@@ -325,6 +335,53 @@ export const ChatPane = memo(function ChatPane({
     navigateHome,
   })
 
+  const handleRemoveQueuedMessage = useCallback(
+    (id: string) => {
+      if (routeSessionId) {
+        followupQueueStore.remove(routeSessionId, id)
+      }
+    },
+    [routeSessionId],
+  )
+
+  const handleCancelFailedQueuedMessage = useCallback(
+    (id: string) => {
+      if (routeSessionId) {
+        followupQueueStore.clearFailed(routeSessionId)
+        followupQueueStore.remove(routeSessionId, id)
+      }
+    },
+    [routeSessionId],
+  )
+
+  const handleRevertQueuedMessage = useCallback(
+    (id: string) => {
+      if (!routeSessionId) return
+      const item = followupQueueStore.getItem(routeSessionId, id)
+      if (!item) return
+      setQueuedRevertContent({
+        messageId: item.id,
+        text: item.text,
+        attachments: item.attachments,
+        model: item.model,
+        variant: item.variant,
+        agent: item.agent,
+      })
+      followupQueueStore.clearFailed(routeSessionId)
+      followupQueueStore.remove(routeSessionId, id)
+    },
+    [routeSessionId],
+  )
+
+  const handleReorderQueuedMessage = useCallback(
+    (draggedId: string, targetId: string) => {
+      if (routeSessionId) {
+        followupQueueStore.reorder(routeSessionId, draggedId, targetId)
+      }
+    },
+    [routeSessionId],
+  )
+
   const shouldDeferMessages = displayMode === 'split' && !isStreaming && messages.length > 20
   const messageView = useMemo(() => ({ sessionId: routeSessionId, messages }), [routeSessionId, messages])
   // Streaming never consumes the deferred value, so do not feed every token into a
@@ -343,7 +400,7 @@ export const ChatPane = memo(function ChatPane({
   // 切 session remount 时默认视为贴底，避免回底按钮闪一下
   useEffect(() => {
     if (chatAreaMountKey == null) return
-    setIsAtBottom(true)
+    setIsFollowing(true)
     setVisibleMessageIdsStable([])
   }, [chatAreaMountKey, setVisibleMessageIdsStable])
 
@@ -469,7 +526,16 @@ export const ChatPane = memo(function ChatPane({
   // 只在 session 切换（routeSessionId 变化）或 revert/undo 恢复时执行一次。
   // 流式输出期间 messages 变化不会触发，避免覆盖用户的模型选择。
   // ============================================
-  const inputRestoreContent = revertedContent ?? restoredContent
+  // queued-message revert：把队列中的消息拉回输入框编辑时暂存内容
+  const [queuedRevertContent, setQueuedRevertContent] = useState<RevertHistoryItem | null>(null)
+
+  const inputRestoreContent = queuedRevertContent ?? revertedContent ?? restoredContent
+
+  // 清除输入框恢复内容：同时清除 undo 恢复和队列恢复
+  const handleClearInputRevert = useCallback(() => {
+    clearRevert()
+    setQueuedRevertContent(null)
+  }, [clearRevert])
 
   // revert/undo 恢复：inputRestoreContent 变化时立即恢复
   useEffect(() => {
@@ -844,16 +910,11 @@ export const ChatPane = memo(function ChatPane({
         <div className="absolute top-0 left-0 right-0 z-20 pointer-events-none">
           <div className="pointer-events-auto">
             <Header
-              models={visibleModels}
-              modelsLoading={modelsLoading}
-              selectedModelKey={selectedModelKey}
-              onModelChange={handleModelChange}
               onOpenSidebar={onOpenSidebar}
               onToggleRightPanel={onToggleRightPanel}
               onSplitPane={onSplitPane}
               isPaneFullscreen={isPaneFullscreen}
               onTogglePaneFullscreen={onTogglePaneFullscreen}
-              modelSelectorRef={modelSelectorRef}
             />
           </div>
         </div>
@@ -894,7 +955,7 @@ export const ChatPane = memo(function ChatPane({
                 retryStatus={retryStatus}
                 bottomPadding={inputBoxHeight}
                 onVisibleMessageIdsChange={handleVisibleIdsChange}
-                onAtBottomChange={setIsAtBottom}
+                onFollowingChange={setIsFollowing}
               />
             )}
           </ErrorBoundary>
@@ -956,10 +1017,10 @@ export const ChatPane = memo(function ChatPane({
           revertSteps={redoSteps}
           onRedo={handleRedoWithAnimation}
           onRedoAll={handleRedoAll}
-          onClearRevert={clearRevert}
+          onClearRevert={handleClearInputRevert}
           registerInputBox={registerInputBox}
-          isAtBottom={isAtBottom}
-          showScrollToBottom={!isAtBottom}
+          isAtBottom={isFollowing}
+          showScrollToBottom={!isFollowing}
           onScrollToBottom={handleScrollToBottom}
           collapsedPermission={
             !inlineToolRequests && pendingPermissionRequests.length > 0 && permissionCollapsed
@@ -984,6 +1045,14 @@ export const ChatPane = memo(function ChatPane({
                 }
               : undefined
           }
+          queuedItems={queuedFollowups}
+          queuedFailedId={queuedFollowupFailedId}
+          queuedSendingId={queuedFollowupSendingId}
+          onQueuedRemove={handleRemoveQueuedMessage}
+          onQueuedCancelFailed={handleCancelFailedQueuedMessage}
+          onQueuedSendNow={handleSendQueuedNow}
+          onQueuedRevert={handleRevertQueuedMessage}
+          onQueuedReorder={handleReorderQueuedMessage}
         />
       </div>
 
@@ -1025,6 +1094,7 @@ export const ChatPane = memo(function ChatPane({
       <div
         ref={paneRootRef}
         data-chat-pane-root="true"
+        data-pane-id={paneId}
         className={
           showCompactShell
             ? `relative h-full flex flex-col overflow-hidden rounded-lg transition-colors duration-200 ${

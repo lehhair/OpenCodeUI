@@ -14,6 +14,7 @@ import {
   Check,
   Send,
   Plus,
+  Quote,
   GraduationCap,
   Settings,
   Sun,
@@ -123,6 +124,7 @@ export const KeyboardIcon = wrap(Keyboard)
 export const CheckIcon = wrap(Check)
 export const SendIcon = wrap(Send)
 export const PlusIcon = wrap(Plus)
+export const QuoteIcon = wrap(Quote)
 export const TeachIcon = wrap(GraduationCap)
 export const SettingsIcon = wrap(Settings)
 export const SunIcon = wrap(Sun)

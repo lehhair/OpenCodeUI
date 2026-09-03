@@ -65,7 +65,6 @@ interface SidePanelProps {
   isMobile?: boolean
   isExpanded?: boolean
   onToggleSidebar: () => void
-  contextLimit?: number
   onOpenSettings?: () => void
 }
 
@@ -118,7 +117,6 @@ export function SidePanel({
   isMobile = false,
   isExpanded = true,
   onToggleSidebar,
-  contextLimit = 200000,
   onOpenSettings,
 }: SidePanelProps) {
   const { t } = useTranslation(['chat', 'common'])
@@ -1715,7 +1713,6 @@ export function SidePanel({
       <SidebarFooter
         showLabels={showLabels}
         connectionState={connectionState?.state || 'disconnected'}
-        contextLimit={contextLimit}
         onOpenSettings={onOpenSettings}
       />
 

@@ -26,6 +26,18 @@ const TRACK_PAD = 8
 const MIN_THUMB = 32
 const FADE_MS = 800
 
+/**
+ * 拖拽自绘 thumb 时，在 vp 上广播 dragstart / dragend。
+ * useAutoScroll 监听这两个事件来设置/清除 userScrolled，
+ * 否则拖拽 thumb 改了 scrollTop 却没表达「停止跟随」，
+ * 会被 handleScroll 的 drift 自愈立刻拉回底部 → 滚动条拖不动。
+ */
+export const OS_DRAG_START = 'os-scroll-dragstart'
+export const OS_DRAG_END = 'os-scroll-dragend'
+function emitOsDrag(vp: HTMLElement, type: string) {
+  vp.dispatchEvent(new CustomEvent(type, { bubbles: true }))
+}
+
 // ── 方向判断 ────────────────────────────────────────────
 
 /** 带 no-scrollbar / scrollbar-none 的元素故意不要滚动条，跳过 */
@@ -159,6 +171,7 @@ function createAxisThumb(axis: 'v' | 'h', vp: HTMLElement, parent: HTMLElement):
     dragging = true
     thumb.classList.add('os-dragging')
     thumb.setPointerCapture(e.pointerId)
+    emitOsDrag(vp, OS_DRAG_START)
 
     const startPos = axis === 'v' ? e.clientY : e.clientX
     const startScroll = axis === 'v' ? vp.scrollTop : vp.scrollLeft
@@ -182,6 +195,7 @@ function createAxisThumb(axis: 'v' | 'h', vp: HTMLElement, parent: HTMLElement):
       thumb.removeEventListener('pointermove', onMove)
       thumb.removeEventListener('pointerup', onUp)
       scheduleFade()
+      emitOsDrag(vp, OS_DRAG_END)
     }
 
     thumb.addEventListener('pointermove', onMove)
