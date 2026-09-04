@@ -982,6 +982,8 @@ const ToolGroup = memo(function ToolGroup({
   const totalCount = parts.length
   const isAllDone = doneCount === totalCount
   const hasActiveTools = parts.some(isToolPartActive)
+  // 工具组内是否有需要直接展示的附件（attach_file 等）：有则必须展开
+  const hasAttachments = parts.some(p => (p.state.attachments ?? []).length > 0)
   const stepsSummary = descriptiveToolSteps ? buildDescriptiveToolStepsSummary(parts, t) : undefined
 
   // 汇总所有成功完成的工具的 diff stats（失败的不算）
@@ -1003,13 +1005,14 @@ const ToolGroup = memo(function ToolGroup({
 
   // 沉浸模式下：判断工具组是否包含需要用户阅读的工具
   const hasReadableTools = immersiveMode && parts.some(p => isReadableTool(p.tool))
-  // 过程折叠：steps 默认收起，只有权限/提问才自动展开
-  // 其它模式：活跃/流式/可读工具时展开
+  // 过程折叠：steps 默认收起，只有权限/提问/附件才自动展开
+  // 其它模式：活跃/流式/可读工具/附件时展开
   const shouldStartExpanded = processCollapseEnabled
-    ? !!hasPendingInteraction
+    ? !!hasPendingInteraction || hasAttachments
     : !descriptiveToolSteps ||
       hasActiveTools ||
       hasPendingInteraction ||
+      hasAttachments ||
       (immersiveMode && !!isStreaming && hasReadableTools)
 
   const groupStateKey = `message:${parts[0]?.messageID || 'unknown'}:tool-group:${parts[0]?.id || 'empty'}`
@@ -1021,6 +1024,12 @@ const ToolGroup = memo(function ToolGroup({
     useDisclosureScrollLock()
 
   useEffect(() => {
+    // 附件：无论何种模式都强制展开，保证图片/文件直接可见
+    if (hasAttachments) {
+      setExpanded(true, { touched: false, respectUser: true })
+      return
+    }
+
     if (!descriptiveToolSteps) return
 
     // 权限/提问：必须展开让用户操作
@@ -1054,6 +1063,7 @@ const ToolGroup = memo(function ToolGroup({
     processCollapseEnabled,
     hasActiveTools,
     hasPendingInteraction,
+    hasAttachments,
     immersiveMode,
     hasReadableTools,
     isStreaming,

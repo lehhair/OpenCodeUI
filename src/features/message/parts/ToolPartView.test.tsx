@@ -77,6 +77,14 @@ vi.mock('../tools', () => ({
   hasTodos: () => false,
 }))
 
+vi.mock('./AttachmentPartViews', () => ({
+  FilePartView: ({ part, defaultExpanded }: { part: { filename?: string }; defaultExpanded?: boolean }) => (
+    <span data-testid="file-part-view">
+      file:{part.filename}:{String(!!defaultExpanded)}
+    </span>
+  ),
+}))
+
 function createRunningToolPart(): ToolPart {
   return {
     id: 'tool-1',
@@ -89,6 +97,33 @@ function createRunningToolPart(): ToolPart {
       status: 'running',
       title: 'npm run build',
       time: { start: 7_500 },
+    },
+  }
+}
+
+function createAttachedToolPart(): ToolPart {
+  return {
+    id: 'tool-2',
+    sessionID: 'session-1',
+    messageID: 'message-1',
+    type: 'tool',
+    callID: 'call-2',
+    tool: 'attach_file',
+    state: {
+      status: 'completed',
+      title: 'Attach File',
+      time: { start: 7_500 },
+      attachments: [
+        {
+          id: 'att-1',
+          sessionID: 'session-1',
+          messageID: 'message-1',
+          type: 'file',
+          filename: 'image.png',
+          url: 'data:image/png;base64,iVBORw0KGgo=',
+          mime: 'image/png',
+        },
+      ],
     },
   }
 }
@@ -150,5 +185,15 @@ describe('ToolPartView running duration', () => {
 
     rerender(<ToolPartView part={part} descriptive />)
     expect(container.firstElementChild?.className).toContain('pt-1')
+  })
+
+  it('renders state.attachments via FilePartView with defaultExpanded', () => {
+    render(<ToolPartView part={createAttachedToolPart()} />)
+    expect(screen.getByTestId('file-part-view')).toHaveTextContent('file:image.png:true')
+  })
+
+  it('does not render attachments when state has none', () => {
+    render(<ToolPartView part={createRunningToolPart()} />)
+    expect(screen.queryByTestId('file-part-view')).toBeNull()
   })
 })
