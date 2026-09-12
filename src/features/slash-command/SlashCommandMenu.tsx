@@ -6,6 +6,7 @@
 import { useState, useEffect, useLayoutEffect, useRef, useImperativeHandle, forwardRef, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getCommands, type Command } from '../../api/command'
+import { fuzzyScore } from '../../utils/fuzzyMatch'
 import { apiErrorHandler } from '../../utils'
 import { scrollItemIntoView } from '../../utils/scrollUtils'
 
@@ -49,10 +50,14 @@ export const SlashCommandMenu = forwardRef<SlashCommandMenuHandle, SlashCommandM
   const filteredCommands = useMemo(() => {
     if (!isOpen) return []
 
-    const lowerQuery = query.toLowerCase()
-    return commands.filter(
-      cmd => cmd.name.toLowerCase().includes(lowerQuery) || cmd.description?.toLowerCase().includes(lowerQuery),
-    )
+    // 打分式模糊匹配：名字命中（全等>前缀>词边界>子串>缩写）永远压过描述命中，
+    // 按相关度排序，避免「描述里碰巧有这个词的 skill」把正主挤到后面
+    if (!query.trim()) return commands
+    return commands
+      .map(cmd => ({ cmd, score: fuzzyScore(query, cmd.name, cmd.description) }))
+      .filter(({ score }) => score > 0)
+      .sort((a, b) => b.score - a.score)
+      .map(({ cmd }) => cmd)
   }, [commands, isOpen, query])
   const commandColumnWidth = useMemo(() => {
     const maxCommandLength = commands.reduce((max, cmd) => Math.max(max, cmd.name.length + 1), 0)
