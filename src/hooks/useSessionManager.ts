@@ -176,7 +176,12 @@ export function useSessionManager({ sessionId, directory, onLoadComplete, onErro
         return
       }
 
-      messageStore.setLoadState(sid, 'loading')
+      // force 补数据（SSE 重连）时页面已有渲染内容，不回退 loading——
+      // ChatPane 在 loading 状态会卸载 ChatArea，重挂后滚动位置丢失；
+      // 无消息时（首次加载 / 加载失败重试）仍走正常 loading 流程
+      if (!force || !hasExistingMessages) {
+        messageStore.setLoadState(sid, 'loading')
+      }
 
       try {
         // 并行加载 session 信息和消息（传递 directory）

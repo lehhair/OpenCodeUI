@@ -80,4 +80,29 @@ describe('useSessionManager', () => {
       expect.objectContaining({ name: 'APIError' }),
     )
   })
+
+  it('keeps loaded state during force reload with rendered messages (SSE reconnect)', async () => {
+    // 重连后：markAllSessionsStale 已标记 isStale，但消息仍在渲染中
+    messageStoreMock.getSessionState.mockReturnValue({
+      messages: [{ info: { id: 'msg-1', role: 'user' }, parts: [] }],
+      loadState: 'loaded',
+      isStale: true,
+      isStreaming: false,
+    })
+    getSessionMessagesMock.mockResolvedValue([
+      { info: { id: 'msg-1', role: 'user', time: { created: 1, completed: 1 } }, parts: [] },
+    ])
+
+    const { result } = renderHook(() => useSessionManager({ sessionId: null, directory: '/workspace/demo' }))
+
+    await result.current.loadSession('session-1', { force: true })
+
+    // 不回退 loading（ChatPane 在 loading 会卸载 ChatArea，滚动位置丢失）
+    expect(messageStoreMock.setLoadState).not.toHaveBeenCalled()
+    expect(messageStoreMock.setMessages).toHaveBeenCalledWith(
+      'session-1',
+      expect.anything(),
+      expect.anything(),
+    )
+  })
 })
