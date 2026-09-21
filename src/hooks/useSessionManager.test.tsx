@@ -80,4 +80,50 @@ describe('useSessionManager', () => {
       expect.objectContaining({ name: 'APIError' }),
     )
   })
+
+
+  it('preserves the SSE-delivered user message when the initial snapshot is stale-empty', async () => {
+    // 新建会话竞态：SSE 已把用户消息落到 loading 中的会话，
+    // 而初始快照读于发送提交之前（不含用户消息）——快照无权删掉它
+    messageStoreMock.getSessionState.mockReturnValue({
+      messages: [{ info: { id: 'msg-user', role: 'user', time: { created: 200, completed: 200 } }, parts: [] }],
+      loadState: 'loading',
+      isStale: false,
+      isStreaming: false,
+    })
+    getSessionMessagesMock.mockResolvedValue([])
+
+    const { result } = renderHook(() => useSessionManager({ sessionId: null, directory: '/workspace/demo' }))
+
+    await result.current.loadSession('session-1')
+
+    expect(messageStoreMock.setMessages).toHaveBeenCalledWith(
+      'session-1',
+      [expect.objectContaining({ info: expect.objectContaining({ id: 'msg-user' }) })],
+      expect.anything(),
+    )
+  })
+
+  it('drops local-only messages older than the snapshot newest while loading', async () => {
+    // 截断窗口外的旧历史不走 SSE 补齐通道，加载期替换照常丢弃
+    messageStoreMock.getSessionState.mockReturnValue({
+      messages: [{ info: { id: 'msg-old', role: 'user', time: { created: 100, completed: 100 } }, parts: [] }],
+      loadState: 'loading',
+      isStale: false,
+      isStreaming: false,
+    })
+    getSessionMessagesMock.mockResolvedValue([
+      { info: { id: 'msg-new', role: 'user', time: { created: 200, completed: 200 } }, parts: [] },
+    ])
+
+    const { result } = renderHook(() => useSessionManager({ sessionId: null, directory: '/workspace/demo' }))
+
+    await result.current.loadSession('session-1')
+
+    expect(messageStoreMock.setMessages).toHaveBeenCalledWith(
+      'session-1',
+      [expect.objectContaining({ info: expect.objectContaining({ id: 'msg-new' }) })],
+      expect.anything(),
+    )
+  })
 })

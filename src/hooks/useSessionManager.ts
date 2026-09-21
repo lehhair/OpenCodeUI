@@ -94,8 +94,18 @@ function mergeWithLocalStreamingMessages(
     }
   })
 
-  const localOnly = localState.isStreaming
-    ? localState.messages.filter(m => !apiIds.has(m.info.id)).map(toApiMessageWithParts)
+  // 初始加载在途（loading）或仍在流式时，本地独有且不比快照旧的消息，
+  // 必然是在快照查询之后经 SSE 到达的——快照无权删除它们；
+  // 比快照最新的还旧的本地消息属于窗口外历史（截断/会话被清空），照常丢弃
+  const snapshotNewestCreated = apiMessages.reduce(
+    (max, m) => Math.max(max, m.info.time?.created ?? 0),
+    0,
+  )
+  const keepLocalOnly = localState.isStreaming || localState.loadState === 'loading'
+  const localOnly = keepLocalOnly
+    ? localState.messages
+        .filter(m => !apiIds.has(m.info.id) && (m.info.time?.created ?? 0) >= snapshotNewestCreated)
+        .map(toApiMessageWithParts)
     : []
 
   if (localOnly.length === 0) return mergedApi

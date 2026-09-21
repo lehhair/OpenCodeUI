@@ -46,7 +46,7 @@ import { getMessageText, isUserMessage, type AssistantMessageInfo, type Message 
 import { clipboardErrorHandler, copyTextToClipboard, createErrorHandler } from '../utils'
 import { clearSessionRuntimeState } from '../utils/sessionLifecycle'
 import { serverStorage } from '../utils/perServerStorage'
-import { sessionKeyToServerId, splitSessionKey } from '../utils/sessionKey'
+import { makeSessionKey, sessionKeyToServerId, splitSessionKey } from '../utils/sessionKey'
 import { serverStore } from '../store/serverStore'
 import { STORAGE_KEY_SELECTED_AGENT } from '../constants'
 import type { ChatAreaHandle } from '../features/chat'
@@ -54,6 +54,9 @@ import { followupQueueStore, useFollowupQueue } from '../store/followupQueueStor
 import { themeStore } from '../store/themeStore'
 
 const handleError = createErrorHandler('session')
+
+/** 发送后等待 SSE 推送用户消息的兜底时延，超时未收到则主动拉取补齐 */
+const SEND_SSE_FALLBACK_DELAY_MS = 1500
 
 /**
  * Stable empty session state singleton.
@@ -683,7 +686,9 @@ export function useChatSession({
         if (!sessionId) {
           if (!input.allowCreateSession) return false
           const newSession = await createSession()
-          sessionId = newSession.id
+          // store 与路由一律用复合键：SSE / loadSession / 兜底拉取都写复合键，
+          // 裸 id 会让 setStreaming 和 1500ms 兜底落到 UI 永远不读的键上
+          sessionId = makeSessionKey(paneServerId, newSession.id)
           navigateToSession(sessionId, newSession.directory)
         }
 
@@ -725,7 +730,7 @@ export function useChatSession({
           getSessionMessages(pullSessionId, 5, pullDir, paneServerId)
             .then(apiMessages => {
               for (const msg of apiMessages) {
-                messageStore.handleMessageUpdated(msg.info)
+                messageStore.handleMessageUpdated({ ...msg.info, sessionID: pullSessionId })
                 if (msg.parts) {
                   for (const part of msg.parts) {
                     messageStore.handlePartUpdated({
@@ -740,7 +745,7 @@ export function useChatSession({
             .catch(() => {
               // 拉取失败不影响主流程，SSE 重连后仍可补齐
             })
-        }, 1500)
+        }, SEND_SSE_FALLBACK_DELAY_MS)
 
         return true
       } catch (error) {

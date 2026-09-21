@@ -1,6 +1,8 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useChatSession } from './useChatSession'
+import { messageStore } from '../store'
+import { getSessionMessages, sendMessageAsync } from '../api'
 
 const {
   createSessionMock,
@@ -499,5 +501,107 @@ describe('useChatSession busy UI signal', () => {
 
     expect(result.current.isStreaming).toBe(true)
     expect(result.current.messageIsStreaming).toBe(true)
+  })
+})
+
+describe('useChatSession sendMessageNow new-session key scoping', () => {
+  beforeEach(() => {
+    createSessionMock.mockReset()
+    summarizeSessionMock.mockReset()
+    executeCommandMock.mockReset()
+    getSelectableAgentsMock.mockReset()
+    registerSessionConsumerMock.mockReset()
+    updateConsumerSessionIdMock.mockReset()
+    sendNotificationMock.mockReset()
+    isSystemEnabledMock.mockReset()
+    errorHandlerMock.mockReset()
+    getPaneFullAutoModeMock.mockReset()
+    onFullAutoChangeMock.mockReset()
+    autoApproveSubscribeMock.mockReset()
+    shouldAutoApproveMock.mockReset()
+    claimAutoReplyMock.mockReset()
+    releaseAutoReplyMock.mockReset()
+    useSessionFamilyMock.mockReset()
+    handlePermissionReplyMock.mockReset()
+    refreshPendingRequestsMock.mockReset()
+    useSessionStateMock.mockReset()
+    pendingPermissionRequestsMock.length = 0
+    for (const key of Object.keys(activeSessionStatusMap)) {
+      delete activeSessionStatusMap[key]
+    }
+
+    registerSessionConsumerMock.mockReturnValue(vi.fn())
+    getPaneFullAutoModeMock.mockReturnValue('off')
+    onFullAutoChangeMock.mockReturnValue(vi.fn())
+    autoApproveSubscribeMock.mockReturnValue(vi.fn())
+    shouldAutoApproveMock.mockReturnValue(false)
+    claimAutoReplyMock.mockReturnValue(true)
+    useSessionFamilyMock.mockReturnValue([])
+    useSessionStateMock.mockReturnValue(null)
+    handlePermissionReplyMock.mockResolvedValue(true)
+    refreshPendingRequestsMock.mockResolvedValue(undefined)
+    autoApproveState.approvePendingOnFullAuto = false
+    getSelectableAgentsMock.mockResolvedValue([{ name: 'build', mode: 'primary', hidden: false }])
+    isSystemEnabledMock.mockImplementation((type: string) => type !== 'permission')
+
+    vi.mocked(sendMessageAsync).mockReset().mockResolvedValue(undefined)
+    vi.mocked(getSessionMessages).mockReset()
+    vi.mocked(messageStore.getSessionState).mockReset().mockReturnValue({ messages: [] })
+    vi.mocked(messageStore.createSendRollbackSnapshot).mockReset().mockReturnValue(null)
+    vi.mocked(messageStore.setStreaming).mockReset()
+    vi.mocked(messageStore.handleMessageUpdated).mockReset()
+    vi.mocked(messageStore.handlePartUpdated).mockReset()
+
+    vi.useFakeTimers()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+  })
+
+  it('scopes the new session with paneServerId for navigation, streaming flag and the SSE fallback pull', async () => {
+    createSessionMock.mockResolvedValue({ id: 'ses_new', directory: '/workspace/demo' })
+    vi.mocked(getSessionMessages).mockResolvedValue([
+      {
+        info: { id: 'msg_u', sessionID: 'ses_new', role: 'user', time: { created: 1, completed: 1 } },
+        parts: [{ id: 'p1', sessionID: 'ses_new', messageID: 'msg_u', type: 'text', text: 'hi' }],
+      },
+    ])
+    const navigateToSessionProp = vi.fn()
+
+    const { result } = renderHook(() =>
+      useChatSession({
+        paneId: 'pane-1',
+        chatAreaRef: { current: null },
+        currentModel: { id: 'model-1', providerId: 'provider-1', variants: [] } as never,
+        refetchModels: vi.fn(async () => {}),
+        sessionId: null,
+        navigateToSession: navigateToSessionProp,
+        navigateHome: vi.fn(),
+      }),
+    )
+
+    let sendPromise!: Promise<boolean>
+    await act(async () => {
+      sendPromise = result.current.handleSend('hello', [])
+      await vi.advanceTimersByTimeAsync(0)
+    })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1600)
+      await sendPromise
+    })
+
+    const scoped = 'local::ses_new'
+    expect(navigateToSessionProp).toHaveBeenCalledWith(scoped, '/workspace/demo')
+    expect(messageStore.setStreaming).toHaveBeenCalledWith(scoped, true)
+    expect(vi.mocked(sendMessageAsync)).toHaveBeenCalledWith(expect.objectContaining({ sessionId: scoped }), 'local')
+    expect(vi.mocked(getSessionMessages)).toHaveBeenCalledWith(scoped, 5, '/workspace/demo', 'local')
+    expect(messageStore.handleMessageUpdated).toHaveBeenCalledWith(
+      expect.objectContaining({ sessionID: scoped, id: 'msg_u' }),
+    )
+    expect(messageStore.handlePartUpdated).toHaveBeenCalledWith(
+      expect.objectContaining({ sessionID: scoped, messageID: 'msg_u' }),
+    )
   })
 })
