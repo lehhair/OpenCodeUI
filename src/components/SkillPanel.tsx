@@ -65,9 +65,13 @@ export const SkillPanel = memo(function SkillPanel({ isResizing: _isResizing }: 
     <div className="flex flex-col h-full bg-bg-100">
       {/* Header */}
       <div className="relative flex h-10 items-center justify-between px-3">
-          <div className="flex h-6 min-w-0 items-center gap-1.5 text-text-100 text-[length:var(--fs-xs)] font-medium">
+        <div className="flex h-6 min-w-0 items-center gap-1.5 text-text-100 text-[length:var(--fs-xs)] font-medium">
           <span>{t('skillPanel.title')}</span>
-          {!loading && <span className="inline-flex h-4 items-center text-[length:var(--fs-xs)] leading-none text-text-400">({skills.length})</span>}
+          {!loading && (
+            <span className="inline-flex h-4 items-center text-[length:var(--fs-xs)] leading-none text-text-400">
+              ({skills.length})
+            </span>
+          )}
         </div>
         <button
           type="button"
@@ -95,7 +99,10 @@ export const SkillPanel = memo(function SkillPanel({ isResizing: _isResizing }: 
             autoComplete="off"
             className="w-full bg-bg-200/40 hover:bg-bg-200/60 focus:bg-bg-000 border border-transparent focus:border-border-200 rounded-md py-1.5 pl-[30px] pr-2 text-[length:var(--fs-sm)] text-text-100 placeholder:text-text-400/70 focus-visible:ring-1 focus-visible:ring-border-200 focus-visible:ring-inset transition-all"
           />
-          <SearchIcon size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-400 group-focus-within:text-accent-main-100 transition-colors" />
+          <SearchIcon
+            size={13}
+            className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-400 group-focus-within:text-accent-main-100 transition-colors"
+          />
         </div>
         <div className="pointer-events-none absolute inset-x-3 bottom-0 h-px bg-border-200/30" />
       </div>
@@ -165,7 +172,9 @@ const SkillItem = memo(function SkillItem({ skill }: { skill: Skill }) {
         <div className="mx-2 mb-2 ml-7 rounded-md border border-border-200/40 bg-bg-100/50 px-3 py-2">
           <div className="text-[length:var(--fs-sm)] text-text-500 mb-2 font-mono break-all">{skill.location}</div>
           <div className="bg-bg-200/50 rounded-md p-2 overflow-x-auto">
-            <pre className="text-[length:var(--fs-sm)] text-text-200 font-mono whitespace-pre-wrap break-words">{skill.content}</pre>
+            <pre className="text-[length:var(--fs-sm)] text-text-200 font-mono whitespace-pre-wrap break-words">
+              {skill.content}
+            </pre>
           </div>
         </div>
       )}

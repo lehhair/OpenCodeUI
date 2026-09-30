@@ -26,11 +26,11 @@ export function useDisclosureScrollLock(options?: LockScrollAroundAnchorOptions)
     }
   }, [])
 
-  const rootRef = useCallback<RefCallback<HTMLElement>>((node) => {
+  const rootRef = useCallback<RefCallback<HTMLElement>>(node => {
     rootNodeRef.current = node
   }, [])
 
-  const headerRef = useCallback<RefCallback<HTMLElement>>((node) => {
+  const headerRef = useCallback<RefCallback<HTMLElement>>(node => {
     headerNodeRef.current = node
   }, [])
 

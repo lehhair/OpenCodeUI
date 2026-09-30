@@ -61,7 +61,8 @@ export function isWslServerId(id: string): boolean {
   return id.startsWith('wsl:')
 }
 
-export const wslRuntimeRetryable = (runtime: WslServerRuntime) => runtime.kind === 'failed' || runtime.kind === 'stopped'
+export const wslRuntimeRetryable = (runtime: WslServerRuntime) =>
+  runtime.kind === 'failed' || runtime.kind === 'stopped'
 
 export function wslOpencodeAction(check?: WslOpencodeCheck) {
   if (!check) return

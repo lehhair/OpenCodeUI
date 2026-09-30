@@ -5,25 +5,24 @@ import { changeScopeStore } from '../store/changeScopeStore'
 import { layoutStore } from '../store/layoutStore'
 import { FullscreenProvider } from '../contexts'
 
-const { getCurrentProject, initGitProject, getSessionDiff, getLastTurnDiff, getVcsInfo, getVcsDiff } = vi.hoisted(
-  () => ({
-    getCurrentProject: vi.fn(),
-    initGitProject: vi.fn(),
-    getSessionDiff: vi.fn(),
-    getLastTurnDiff: vi.fn(),
-    getVcsInfo: vi.fn(),
-    getVcsDiff: vi.fn(),
-  }),
-)
+const { getCurrentProject, getSessionDiff, getLastTurnDiff, getVcsInfo, getVcsDiff } = vi.hoisted(() => ({
+  getCurrentProject: vi.fn(),
+  getSessionDiff: vi.fn(),
+  getLastTurnDiff: vi.fn(),
+  getVcsInfo: vi.fn(),
+  getVcsDiff: vi.fn(),
+}))
 
 vi.mock('../api/client', () => ({
   getCurrentProject,
-  initGitProject,
 }))
 
 vi.mock('../api/vcs', () => ({
   getVcsInfo,
   getVcsDiff,
+  // 阶段 3a：组件用这个助手把 UI 的变更范围翻译成 V2 的 Vcs.Mode
+  //（真实映射的测试在 src/api/vcs.test.ts，这里只是替身，避免拉入真实 SDK 依赖）
+  toVcsDiffMode: (mode: 'git' | 'branch') => (mode === 'git' ? 'working' : 'branch'),
 }))
 
 vi.mock('../api/session', () => ({
@@ -119,13 +118,6 @@ describe('SessionChangesPanel', () => {
         deletions: 1,
       },
     ])
-    initGitProject.mockResolvedValue({
-      id: 'project-1',
-      worktree: '/repo',
-      vcs: 'git',
-      time: { created: 0, updated: 0 },
-      sandboxes: [],
-    })
   })
 
   afterEach(() => {
@@ -272,7 +264,7 @@ describe('SessionChangesPanel', () => {
     expect(screen.getByRole('menuitemradio', { name: 'Session changes' })).toHaveFocus()
   })
 
-  it('offers git initialization when the project is not a git repository', async () => {
+  it('非 git 目录只显示提示，不再有「初始化 git」按钮（阶段 3b 移除）', async () => {
     getCurrentProject.mockResolvedValueOnce({
       id: 'global',
       worktree: '/repo',
@@ -287,15 +279,8 @@ describe('SessionChangesPanel', () => {
       await Promise.resolve()
     })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Initialize Git repository' }))
-
-    await act(async () => {
-      await Promise.resolve()
-      await Promise.resolve()
-    })
-
-    expect(initGitProject).toHaveBeenCalledWith('/repo', undefined)
-    expect(getLastTurnDiff).toHaveBeenCalledWith('session-1', '/repo', undefined)
+    // V2 删除了 `POST /project/git/init`，UI 入口已整体下架
+    expect(screen.queryByRole('button', { name: 'Initialize Git repository' })).toBeNull()
   })
 
   it('opens the selected change file in the files panel from the context menu', async () => {

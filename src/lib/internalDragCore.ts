@@ -172,10 +172,7 @@ export function getInternalDragPreviewElement() {
   return currentPreview
 }
 
-export function startInternalDrag(
-  event: ReactPointerEvent<HTMLElement>,
-  payload: InternalDragPayload,
-) {
+export function startInternalDrag(event: ReactPointerEvent<HTMLElement>, payload: InternalDragPayload) {
   if (event.button !== 0 || !event.isPrimary) return
   if (event.pointerType === 'touch') return
 

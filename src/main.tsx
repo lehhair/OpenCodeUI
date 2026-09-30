@@ -66,7 +66,9 @@ serverStore.onServerChange((serverId, reason) => {
   // 这是「该服务器端点事实已变」的处理，与 active 无关，任何 reason 都要做
   invalidateSDKClient(serverId)
   if (isTauri()) {
-    void getSDKClientAsync(serverId).catch(err => apiErrorHandler('reinitialize sdk client after server endpoint change', err))
+    void getSDKClientAsync(serverId).catch(err =>
+      apiErrorHandler('reinitialize sdk client after server endpoint change', err),
+    )
   }
 
   // 多服务器模式：messageStore / childSessionStore / todoStore 的数据按 `serverId::sessionId`

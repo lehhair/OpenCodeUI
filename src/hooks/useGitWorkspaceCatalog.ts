@@ -156,8 +156,8 @@ export function useGitWorkspaceCatalog(directories: string[], serverId?: string)
 
   useEffect(() => {
     return subscribeToEvents({
-      onWorktreeReady: () => void refresh(),
-      onWorktreeFailed: () => void refresh(),
+      onWorktreeUpdated: () => void refresh(),
+      onWorktreeResolved: () => void refresh(),
       onReconnected: reason => {
         if (reason !== 'server-switch') void refresh()
       },

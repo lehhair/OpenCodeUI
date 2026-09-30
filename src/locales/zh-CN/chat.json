@@ -4,7 +4,6 @@
     "newChat": "新对话",
     "openSidebar": "打开侧边栏",
     "clickToRename": "点击重命名",
-    "shareSession": "分享会话",
     "closeBottomPanel": "关闭底部面板",
     "openBottomPanel": "打开底部面板",
     "closePanel": "关闭面板",
@@ -49,17 +48,6 @@
   "retryStatus": {
     "retrying": "重试中（第 {{attempt}} 次）",
     "nextIn": "{{label}} 后重试"
-  },
-  "shareDialog": {
-    "title": "分享对话",
-    "publicLink": "公开链接",
-    "publicLinkDesc": "任何拥有此链接的人都可以查看此对话。",
-    "failedCreate": "创建分享链接失败",
-    "failedRemove": "移除分享链接失败",
-    "copyLink": "复制链接",
-    "stopSharing": "停止分享",
-    "createPublicLink": "创建公开链接",
-    "creatingLink": "创建链接中..."
   },
   "questionDialog": {
     "title": "问题",
@@ -139,7 +127,6 @@
     "appearance": "外观",
     "standardWidth": "标准宽度",
     "wideMode": "宽屏模式",
-    "shareChat": "分享对话",
     "settings": "设置",
     "noProjectFoldersYet": "还没有项目文件夹",
     "addProjectDesc": "添加一个项目以按文件夹浏览最近的对话。",
@@ -207,5 +194,10 @@
     "autoApproveAll": "自动放行：全部会话",
     "autoApproveSession": "自动放行：本次会话",
     "autoApproveOffHint": "自动放行：关闭"
+  },
+  "formDialog": {
+    "title": "表单",
+    "openExternal": "打开链接完成授权",
+    "acknowledge": "我已打开并完成"
   }
 }

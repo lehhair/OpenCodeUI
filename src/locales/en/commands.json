@@ -15,8 +15,6 @@
   "focusInputDesc": "Focus message input",
   "newSession": "New Session",
   "newSessionDesc": "Create new chat session",
-  "archiveSession": "Archive Session",
-  "archiveSessionDesc": "Archive current session",
   "previousSession": "Previous Session",
   "previousSessionDesc": "Switch to previous session",
   "nextSession": "Next Session",

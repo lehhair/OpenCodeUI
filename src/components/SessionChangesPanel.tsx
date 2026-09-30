@@ -11,10 +11,10 @@ import { RetryIcon, ChevronRightIcon, MaximizeIcon, ClockIcon, GitBranchIcon, Gi
 import { getMaterialIconUrl } from '../utils/materialIcons'
 import { DiffViewer, useDiffViewerData, type ViewMode } from './DiffViewer'
 import { ViewModeSwitch } from './FullscreenViewer'
-import { getCurrentProject, initGitProject } from '../api/client'
+import { getCurrentProject } from '../api/client'
 import { getLastTurnDiff, getSessionDiff } from '../api/session'
-import { getVcsDiff, getVcsInfo } from '../api/vcs'
-import type { ApiProject, FileDiff, VcsDiffMode, VcsInfo } from '../api/types'
+import { getVcsDiff, getVcsInfo, toVcsDiffMode } from '../api/vcs'
+import type { ApiProject, FileDiff, VcsInfo } from '../api/types'
 import { detectLanguage } from '../utils/languageUtils'
 import { extractContentFromUnifiedDiff } from '../utils/diffUtils'
 import { sessionErrorHandler } from '../utils'
@@ -91,7 +91,6 @@ export const SessionChangesPanel = memo(function SessionChangesPanel({
   const [project, setProject] = useState<ApiProject | null>(null)
   const [vcsInfo, setVcsInfo] = useState<VcsInfo | null>(null)
   const [projectLoading, setProjectLoading] = useState(false)
-  const [initializingGit, setInitializingGit] = useState(false)
   const [loadingModes, setLoadingModes] = useState({ git: false, branch: false, session: false, turn: false })
   const [loadedModes, setLoadedModes] = useState({ git: false, branch: false, session: false, turn: false })
   const [gitDiffs, setGitDiffs] = useState<FileDiff[]>([])
@@ -176,7 +175,7 @@ export const SessionChangesPanel = memo(function SessionChangesPanel({
             : turnDiffs,
     [branchDiffs, changeMode, gitDiffs, sessionDiffs, turnDiffs],
   )
-  const loading = projectLoading || initializingGit || loadingModes[changeMode]
+  const loading = projectLoading || loadingModes[changeMode]
 
   const focusChangeMenuOption = useCallback((mode: ChangeMode) => {
     changeMenuOptionRefs.current[mode]?.focus()
@@ -279,7 +278,9 @@ export const SessionChangesPanel = memo(function SessionChangesPanel({
     (event: React.KeyboardEvent<HTMLDivElement>) => {
       if (changeOptions.length === 0) return
 
-      const currentIndex = changeOptions.findIndex(mode => changeMenuOptionRefs.current[mode] === document.activeElement)
+      const currentIndex = changeOptions.findIndex(
+        mode => changeMenuOptionRefs.current[mode] === document.activeElement,
+      )
       if (event.key === 'Escape') {
         event.preventDefault()
         setChangeMenuOpen(false)
@@ -307,7 +308,10 @@ export const SessionChangesPanel = memo(function SessionChangesPanel({
         focusByIndex(nextIndex)
       } else if (event.key === 'ArrowUp') {
         event.preventDefault()
-        const nextIndex = currentIndex === -1 ? changeOptions.length - 1 : (currentIndex - 1 + changeOptions.length) % changeOptions.length
+        const nextIndex =
+          currentIndex === -1
+            ? changeOptions.length - 1
+            : (currentIndex - 1 + changeOptions.length) % changeOptions.length
         focusByIndex(nextIndex)
       } else if (event.key === 'Home') {
         event.preventDefault()
@@ -366,7 +370,8 @@ export const SessionChangesPanel = memo(function SessionChangesPanel({
       try {
         let data: FileDiff[]
         if (mode === 'git' || mode === 'branch') {
-          data = await getVcsDiff(mode as VcsDiffMode, directory, serverId)
+          // ⚠️ UI 的 'git' 在 V2 叫 'working'（枚举值不兼容，传错直接 400）
+          data = await getVcsDiff(toVcsDiffMode(mode), directory, serverId)
         } else if (mode === 'session') {
           data = await getSessionDiff(sessionId, directory, serverId)
         } else {
@@ -461,29 +466,10 @@ export const SessionChangesPanel = memo(function SessionChangesPanel({
   // 自动刷新：session idle / 窗口聚焦 / SSE 重连
   useAutoRefresh(consumerId, sessionId ?? null, handleRefresh, !!sessionId)
 
-  const handleInitGit = useCallback(async () => {
-    setInitializingGit(true)
-    setError(null)
-
-    try {
-      const nextProject = await initGitProject(directory, serverId)
-      setProject(nextProject)
-      setVcsInfo(null)
-      setGitDiffs([])
-      setBranchDiffs([])
-      setSessionDiffs([])
-      setTurnDiffs([])
-      setLoadedModes({ git: false, branch: false, session: false, turn: false })
-      setLoadingModes({ git: false, branch: false, session: false, turn: false })
-      setChangeMenuOpen(false)
-      void loadProjectState()
-    } catch (err) {
-      sessionErrorHandler('init git project', err)
-      setError(t('sessionChanges.failedToInitGit'))
-    } finally {
-      setInitializingGit(false)
-    }
-  }, [directory, loadProjectState, t, serverId])
+  // ⛔ 阶段 3b 已删除「初始化 git」按钮与 handleInitGit：
+  //   V2 删除了 `POST /project/git/init`，没有替代端点
+  //   —— git 仓库改由「location 首次被使用时自动初始化」。
+  //   官方 V2 app 也没有这个入口。非 git 目录现在只显示「无 git」提示。
 
   // 选中文件
   const handleSelectFile = useCallback((file: string) => {
@@ -595,7 +581,11 @@ export const SessionChangesPanel = memo(function SessionChangesPanel({
   const showPreview = !loading && selectedDiff !== null && !(error && diffs.length === 0)
 
   if (projectLoading && !project) {
-    return <div className="p-4 text-center text-text-400 text-[length:var(--fs-sm)]">{t('sessionChanges.loadingChanges')}</div>
+    return (
+      <div className="p-4 text-center text-text-400 text-[length:var(--fs-sm)]">
+        {t('sessionChanges.loadingChanges')}
+      </div>
+    )
   }
 
   if (!project && error) {
@@ -610,13 +600,6 @@ export const SessionChangesPanel = memo(function SessionChangesPanel({
             <div className="text-[length:var(--fs-base)] font-medium text-text-200">{t('sessionChanges.noGit')}</div>
             <div className="text-[length:var(--fs-sm)] text-text-400">{t('sessionChanges.noGitHint')}</div>
           </div>
-          <button
-            onClick={handleInitGit}
-            disabled={initializingGit}
-            className="inline-flex items-center justify-center rounded px-3 py-1.5 text-[length:var(--fs-sm)] font-medium bg-accent-main-100 text-white hover:bg-accent-main-90 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
-          >
-            {initializingGit ? t('sessionChanges.initializingGit') : t('sessionChanges.initGit')}
-          </button>
           {error && <div className="text-[length:var(--fs-sm)] text-danger-100">{error}</div>}
         </div>
       </div>
@@ -736,7 +719,8 @@ export const SessionChangesPanel = memo(function SessionChangesPanel({
                           changeMenuOpen &&
                           ((changeMenuOpenFocusRef.current === 'selected' && isSelected) ||
                             (changeMenuOpenFocusRef.current === 'first' && mode === changeOptions[0]) ||
-                            (changeMenuOpenFocusRef.current === 'last' && mode === changeOptions[changeOptions.length - 1]))
+                            (changeMenuOpenFocusRef.current === 'last' &&
+                              mode === changeOptions[changeOptions.length - 1]))
 
                         if (node && shouldFocusNode) {
                           node.focus()
@@ -836,7 +820,9 @@ export const SessionChangesPanel = memo(function SessionChangesPanel({
         {/* File List */}
         <div className="flex-1 overflow-auto panel-scrollbar-y">
           {loading ? (
-            <div className="p-4 text-center text-text-400 text-[length:var(--fs-sm)]">{t('sessionChanges.loadingChanges')}</div>
+            <div className="p-4 text-center text-text-400 text-[length:var(--fs-sm)]">
+              {t('sessionChanges.loadingChanges')}
+            </div>
           ) : error && diffs.length === 0 ? (
             <div className="p-4 text-center text-danger-100 text-[length:var(--fs-sm)]">{error}</div>
           ) : diffs.length === 0 ? (
@@ -979,12 +965,16 @@ const DiffPreviewPanel = memo(function DiffPreviewPanel({
   onClose,
 }: DiffPreviewPanelProps) {
   const language = detectLanguage(diff.file) || 'text'
-  // 优先用 patch 提取 before/after，回退到直接的 before/after 字段（旧版后端兼容）
+  // 从 patch 提取 before/after
+  //
+  // ⛔ 阶段 3b 删掉了原来的「回退到直接的 before/after 字段（旧版后端兼容）」分支：
+  //    V2 的 `FileDiff.Info`（`packages/schema/src/file-diff.ts`）是
+  //    `{ file, patch, additions, deletions, status }` —— **`patch` 必填、且没有 before/after**
+  //    → 那个回退分支是死代码（阶段 3a 已核实，见主文档 §9.3）。
   const { before, after } = useMemo(() => {
     if (diff.patch) return extractContentFromUnifiedDiff(diff.patch)
-    if (diff.before !== undefined && diff.after !== undefined) return { before: diff.before, after: diff.after }
     return { before: '', after: '' }
-  }, [diff.patch, diff.before, diff.after])
+  }, [diff.patch])
   const diffViewerData = useDiffViewerData(before, after, language, isResizing)
   const { t } = useTranslation(['components', 'common'])
   const [fullscreenViewMode, setFullscreenViewMode] = useState<ViewMode>(viewMode)
@@ -1067,7 +1057,14 @@ const DiffPreviewPanel = memo(function DiffPreviewPanel({
 
       {/* Diff Content - DiffViewer 自带滚动 */}
       <div className="flex-1 min-h-0">
-        <DiffViewer before={before} after={after} language={language} viewMode={viewMode} isResizing={isResizing} data={diffViewerData} />
+        <DiffViewer
+          before={before}
+          after={after}
+          language={language}
+          viewMode={viewMode}
+          isResizing={isResizing}
+          data={diffViewerData}
+        />
       </div>
     </div>
   )
@@ -1080,14 +1077,11 @@ const DiffPreviewPanel = memo(function DiffPreviewPanel({
 type FileStatus = 'added' | 'modified' | 'deleted'
 
 function getFileStatus(diff: FileDiff): FileStatus {
+  // V2 的 `FileDiff.Info.status` 是**必填**，所以正常路径第一行就返回了
   if (diff.status) return diff.status as FileStatus
   if (diff.deletions === 0 && diff.additions > 0) return 'added'
   if (diff.additions === 0 && diff.deletions > 0) return 'deleted'
-  // 旧版 before/after 兼容
-  if (diff.before !== undefined && diff.after !== undefined) {
-    if (!diff.before.trim()) return 'added'
-    if (!diff.after.trim()) return 'deleted'
-  }
+  // ⛔ 阶段 3b 删掉了「旧版 before/after 兼容」分支（V2 的 FileDiff 没有这两个字段，见主文档 §9.3）
   return 'modified'
 }
 

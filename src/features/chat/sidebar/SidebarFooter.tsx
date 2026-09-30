@@ -1,17 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { createPortal } from 'react-dom'
-import { ShareDialog } from '../ShareDialog'
 import { ContextDetailsDialog } from './ContextDetailsDialog'
-import {
-  CogIcon,
-  SunIcon,
-  MoonIcon,
-  SystemIcon,
-  MaximizeIcon,
-  MinimizeIcon,
-  ShareIcon,
-} from '../../../components/Icons'
+import { CogIcon, SunIcon, MoonIcon, SystemIcon, MaximizeIcon, MinimizeIcon } from '../../../components/Icons'
 import { CircularProgress } from '../../../components/CircularProgress'
 import { formatTokens, formatCost, useTheme, useSessionStats } from '../../../hooks'
 import { useHasMessages } from '../../../store'
@@ -86,7 +77,6 @@ export function SidebarFooter({
   const stats = useSessionStats(contextLimit)
   const [isOpen, setIsOpen] = useState(false)
   const [menuPos, setMenuPos] = useState({ top: 0, left: 0, width: 260, fromBottom: false })
-  const [shareDialogOpen, setShareDialogOpen] = useState(false)
   const [contextDialogOpen, setContextDialogOpen] = useState(false)
   const [isVisible, setIsVisible] = useState(false)
   const prevShowLabelsRef = useRef(showLabels)
@@ -307,17 +297,6 @@ export function SidebarFooter({
             <button
               onClick={() => {
                 closeMenu()
-                setShareDialogOpen(true)
-              }}
-              className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-[length:var(--fs-sm)] text-text-300 hover:text-text-100 hover:bg-bg-200/50 transition-colors text-left"
-            >
-              <ShareIcon size={14} />
-              <span>{t('sidebar.shareChat')}</span>
-            </button>
-
-            <button
-              onClick={() => {
-                closeMenu()
                 onOpenSettings?.()
               }}
               className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-[length:var(--fs-sm)] text-text-300 hover:text-text-100 hover:bg-bg-200/50 transition-colors text-left"
@@ -383,7 +362,6 @@ export function SidebarFooter({
       </div>
 
       {floatingMenu}
-      <ShareDialog isOpen={shareDialogOpen} onClose={() => setShareDialogOpen(false)} />
       <ContextDetailsDialog
         isOpen={contextDialogOpen}
         onClose={() => setContextDialogOpen(false)}

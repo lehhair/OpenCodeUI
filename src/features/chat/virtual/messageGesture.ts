@@ -27,8 +27,14 @@ export const markBoundaryGesture = (input: {
   onMarkScrollGesture: (target?: EventTarget | null) => void
 }) => {
   const nested = (input.target instanceof Element ? input.target : undefined)?.closest('[data-scrollable]')
-  if (!nested || nested === input.root) { input.onMarkScrollGesture(input.root); return }
-  if (nested instanceof HTMLElement && shouldMarkBoundary(input.delta, nested.scrollTop, nested.scrollHeight, nested.clientHeight)) {
+  if (!nested || nested === input.root) {
+    input.onMarkScrollGesture(input.root)
+    return
+  }
+  if (
+    nested instanceof HTMLElement &&
+    shouldMarkBoundary(input.delta, nested.scrollTop, nested.scrollHeight, nested.clientHeight)
+  ) {
     input.onMarkScrollGesture(input.root)
   }
 }

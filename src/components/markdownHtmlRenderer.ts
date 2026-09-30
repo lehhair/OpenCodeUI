@@ -128,7 +128,9 @@ const INLINE_MATH_PATTERNS = MARKED_INLINE_MATH_DELIMITERS.map(delimiter => ({
   // `$` / `$$` 保持宽松（货币、简写也能渲染，与原 text 层行为一致）；
   // `\(` / `\[` 需要明显的公式内容（避免转义括号被误判）。
   gate: delimiter.left.startsWith('\\'),
-  pattern: new RegExp(`^${escapeRegex(delimiter.left)}${delimiter.left === '$' ? '(?!\\$)' : ''}(${delimiter.display ? '[\\s\\S]*?' : '[^\\n]*?'})${escapeRegex(delimiter.right)}`),
+  pattern: new RegExp(
+    `^${escapeRegex(delimiter.left)}${delimiter.left === '$' ? '(?!\\$)' : ''}(${delimiter.display ? '[\\s\\S]*?' : '[^\\n]*?'})${escapeRegex(delimiter.right)}`,
+  ),
 }))
 
 marked.use({
@@ -393,7 +395,9 @@ function createMarkdownHtmlRenderer(isReasoning: boolean) {
     const className = isReasoning
       ? 'text-[length:var(--fs-sm)] text-text-400 pl-1 leading-5'
       : 'text-text-200 pl-1 leading-7'
-    const checkbox = task ? `<input type="checkbox" ${checked ? 'checked' : ''} disabled class="mr-2 align-middle">` : ''
+    const checkbox = task
+      ? `<input type="checkbox" ${checked ? 'checked' : ''} disabled class="mr-2 align-middle">`
+      : ''
     const content = tokens ? this.parser.parse(tokens) : ''
     return `<li class="${className}">${checkbox}${content}</li>`
   }
@@ -420,7 +424,9 @@ function renderFootnoteDefinitionsHtml(src: string, isReasoning: boolean): strin
     const id = getFootnoteId(label)
     const body = marked.parseInline(content, { renderer }) as string
     const className = isReasoning ? 'text-[length:var(--fs-sm)] text-text-400 leading-5' : 'text-text-300 leading-6'
-    items.push(`<li id="fn-${escapeAttribute(id)}" class="${className}"><span class="font-medium text-text-400">${escapeHtml(label)}.</span> ${body} <a href="#fnref-${escapeAttribute(id)}" class="font-medium text-accent-main-100 underline underline-offset-2">back</a></li>`)
+    items.push(
+      `<li id="fn-${escapeAttribute(id)}" class="${className}"><span class="font-medium text-text-400">${escapeHtml(label)}.</span> ${body} <a href="#fnref-${escapeAttribute(id)}" class="font-medium text-accent-main-100 underline underline-offset-2">back</a></li>`,
+    )
   }
 
   const listClass = isReasoning
@@ -547,10 +553,12 @@ function enhanceSafeHtml(template: HTMLTemplateElement) {
   template.content.querySelectorAll<HTMLMediaElement>('audio, video').forEach(media => {
     media.removeAttribute('autoplay')
   })
-  template.content.querySelectorAll<HTMLMediaElement | HTMLSourceElement>('audio[src], video[src], source[src]').forEach(media => {
-    const src = media.getAttribute('src')?.trim() ?? ''
-    if (src && !/^(?:https?:|\/)/i.test(src)) media.removeAttribute('src')
-  })
+  template.content
+    .querySelectorAll<HTMLMediaElement | HTMLSourceElement>('audio[src], video[src], source[src]')
+    .forEach(media => {
+      const src = media.getAttribute('src')?.trim() ?? ''
+      if (src && !/^(?:https?:|\/)/i.test(src)) media.removeAttribute('src')
+    })
 }
 
 function sanitizeHtml(html: string): string {

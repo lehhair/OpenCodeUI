@@ -274,8 +274,7 @@ export function SettingsDialog({ isOpen, onClose, initialTab = 'servers' }: Sett
               (!item.targetContext || candidate.dataset.settingContext === item.targetContext),
           )
           const target =
-            matchingTargets[0] ??
-            candidates.find(candidate => candidate.dataset.settingLabel === item.fallbackLabel)
+            matchingTargets[0] ?? candidates.find(candidate => candidate.dataset.settingLabel === item.fallbackLabel)
           if (!target) return
 
           scrollRef.current?.querySelector('.settings-search-highlight')?.classList.remove('settings-search-highlight')
@@ -365,11 +364,7 @@ export function SettingsDialog({ isOpen, onClose, initialTab = 'servers' }: Sett
                   tabIndex={vt.id === tab ? 0 : -1}
                   onClick={() => switchTab(vt.id)}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[length:var(--fs-md)] font-medium transition-colors whitespace-nowrap shrink-0
-                    ${
-                      vt.id === tab
-                        ? 'bg-bg-100/80 text-text-100'
-                        : 'text-text-400 active:bg-bg-100/40'
-                    }`}
+                    ${vt.id === tab ? 'bg-bg-100/80 text-text-100' : 'text-text-400 active:bg-bg-100/40'}`}
                 >
                   {vt.icon}
                   {vt.label}

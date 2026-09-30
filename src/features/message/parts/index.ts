@@ -5,4 +5,5 @@ export { FilePartView, AgentPartView, SyntheticTextPartView } from './Attachment
 export { StepFinishPartView } from './StepFinishPartView'
 export { SubtaskPartView } from './SubtaskPartView'
 export { RetryPartView, CompactionPartView, PatchPartView } from './SystemPartViews'
+export { SessionMarkerPartView } from './SessionMarkerPartView'
 export { MessageErrorView } from './MessageErrorView'

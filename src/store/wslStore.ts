@@ -227,9 +227,7 @@ class WslStore {
         name: config.distro,
         url: runtime.url,
         auth:
-          runtime.username && runtime.password
-            ? { username: runtime.username, password: runtime.password }
-            : undefined,
+          runtime.username && runtime.password ? { username: runtime.username, password: runtime.password } : undefined,
       })
       // 就绪的 WSL 服务器自动进入多服务器侧边栏（setSubscribed 幂等，重复调用无副作用）
       multiServerStore.setSubscribed(config.id, true)

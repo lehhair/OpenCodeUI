@@ -2,13 +2,7 @@ import { render, screen } from '@testing-library/react'
 import { createRef } from 'react'
 import { describe, expect, it } from 'vitest'
 import { EXPAND_MOTION } from '../../constants/expandMotion'
-import {
-  chevronClass,
-  expandFadeGridClass,
-  expandGridClass,
-  MessageExpandPanel,
-  MSG_EXPAND,
-} from './messageExpand'
+import { chevronClass, expandFadeGridClass, expandGridClass, MessageExpandPanel, MSG_EXPAND } from './messageExpand'
 
 describe('messageExpand', () => {
   it('keeps panel transition aligned with global expand motion', () => {
@@ -46,12 +40,7 @@ describe('messageExpand', () => {
   it('keeps compositor refs on the actual body node when requested', () => {
     const contentRef = createRef<HTMLDivElement>()
     render(
-      <MessageExpandPanel
-        open
-        contentRef={contentRef}
-        contentClassName="body-padding"
-        innerClassName="overflow-hidden"
-      >
+      <MessageExpandPanel open contentRef={contentRef} contentClassName="body-padding" innerClassName="overflow-hidden">
         <span>body</span>
       </MessageExpandPanel>,
     )

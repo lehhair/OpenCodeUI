@@ -26,7 +26,16 @@ describe('Settings UI primitives', () => {
   it('moves focus with the selected segmented option', () => {
     function Harness() {
       const [value, setValue] = useState<'one' | 'two'>('one')
-      return <SegmentedControl value={value} options={[{ value: 'one', label: 'One' }, { value: 'two', label: 'Two' }]} onChange={setValue} />
+      return (
+        <SegmentedControl
+          value={value}
+          options={[
+            { value: 'one', label: 'One' },
+            { value: 'two', label: 'Two' },
+          ]}
+          onChange={setValue}
+        />
+      )
     }
 
     render(<Harness />)
@@ -41,7 +50,10 @@ describe('Settings UI primitives', () => {
     render(
       <SegmentedControl
         value="one"
-        options={[{ value: 'one', label: 'One' }, { value: 'two', label: 'Two' }]}
+        options={[
+          { value: 'one', label: 'One' },
+          { value: 'two', label: 'Two' },
+        ]}
         onChange={() => false}
       />,
     )

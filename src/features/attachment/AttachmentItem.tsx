@@ -337,7 +337,8 @@ function ActionBar({ attachment, hasContent, hasDownloadable, onOpenDetail, show
 
   if (!hasContent && !hasDownloadable) return null
 
-  const btnBase = 'inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[length:var(--fs-xxs)] transition-colors duration-150'
+  const btnBase =
+    'inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[length:var(--fs-xxs)] transition-colors duration-150'
 
   return (
     <div

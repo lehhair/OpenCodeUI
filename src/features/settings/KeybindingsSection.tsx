@@ -19,7 +19,6 @@ const ACTION_TRANSLATION_KEYS: Record<KeybindingAction, { label: string; descrip
   toggleRightPanel: { label: 'toggleRightPanel', description: 'toggleRightPanelDesc' },
   focusInput: { label: 'focusInput', description: 'focusInputDesc' },
   newSession: { label: 'newSession', description: 'newSessionDesc' },
-  archiveSession: { label: 'archiveSession', description: 'archiveSessionDesc' },
   previousSession: { label: 'previousSession', description: 'previousSessionDesc' },
   nextSession: { label: 'nextSession', description: 'nextSessionDesc' },
   toggleTerminal: { label: 'toggleTerminal', description: 'toggleTerminalDesc' },
@@ -327,7 +326,6 @@ export function KeybindingsSection() {
           ))
         )}
       </div>
-
     </SettingsSection>
   )
 }

@@ -355,9 +355,7 @@ export const ContentBlock = memo(function ContentBlock({
       <div
         data-content-block-body
         onTransitionEnd={handleBodyTransitionEnd}
-        className={`grid ${panelClassName} ${
-          layoutOpen ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
-        }`}
+        className={`grid ${panelClassName} ${layoutOpen ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}
       >
         <div className="overflow-hidden min-h-0">
           {shouldRenderContent && hasContent && (

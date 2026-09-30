@@ -81,7 +81,9 @@ export const SlashCommandMenu = forwardRef<SlashCommandMenuHandle, SlashCommandM
       }
       if (shadowEl === undefined) {
         shadowEl =
-          parent.closest<HTMLElement>('[data-chat-pane-root]')?.querySelector<HTMLElement>('[data-chat-header-shadow]') ?? null
+          parent
+            .closest<HTMLElement>('[data-chat-pane-root]')
+            ?.querySelector<HTMLElement>('[data-chat-header-shadow]') ?? null
       }
       const parentRect = parent.getBoundingClientRect()
       // 阴影底边 = 菜单顶部不可越过的线（header + 渐变阴影）。
@@ -220,7 +222,9 @@ export const SlashCommandMenu = forwardRef<SlashCommandMenuHandle, SlashCommandM
     >
       {/* Items List */}
       <div ref={listRef} className="flex-1 overflow-y-auto custom-scrollbar p-1.5">
-        {loading && <div className="px-2 py-4 text-center text-[length:var(--fs-base)] text-text-400">{t('common:loading')}</div>}
+        {loading && (
+          <div className="px-2 py-4 text-center text-[length:var(--fs-base)] text-text-400">{t('common:loading')}</div>
+        )}
 
         {!loading && filteredCommands.length === 0 && (
           <div className="px-2 py-4 text-center text-[length:var(--fs-base)] text-text-400">
@@ -247,9 +251,13 @@ export const SlashCommandMenu = forwardRef<SlashCommandMenuHandle, SlashCommandM
               /{cmd.name}
             </span>
             <div className="flex-1 min-w-0">
-              {cmd.description && <div className="text-[length:var(--fs-sm)] text-text-400 truncate">{cmd.description}</div>}
+              {cmd.description && (
+                <div className="text-[length:var(--fs-sm)] text-text-400 truncate">{cmd.description}</div>
+              )}
             </div>
-            {cmd.keybind && <span className="text-[length:var(--fs-sm)] text-text-500 font-mono flex-shrink-0">{cmd.keybind}</span>}
+            {cmd.keybind && (
+              <span className="text-[length:var(--fs-sm)] text-text-500 font-mono flex-shrink-0">{cmd.keybind}</span>
+            )}
           </button>
         ))}
       </div>

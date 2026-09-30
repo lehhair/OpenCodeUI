@@ -47,8 +47,7 @@ function requestError(err: unknown) {
   notificationStore.push('error', message, message, '')
 }
 
-const tagClass =
-  'shrink-0 text-[length:var(--fs-xs)] font-medium text-info-100 bg-info-100/10 px-1.5 py-0.5 rounded'
+const tagClass = 'shrink-0 text-[length:var(--fs-xs)] font-medium text-info-100 bg-info-100/10 px-1.5 py-0.5 rounded'
 const actionButtonClass =
   'h-7 px-2 rounded-md text-[length:var(--fs-xs)] font-medium text-text-400 hover:text-accent-main-100 hover:bg-accent-main-100/10 transition-colors'
 

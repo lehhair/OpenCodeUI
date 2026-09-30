@@ -64,9 +64,9 @@ export function useUiDisclosureState(key: string, fallback: boolean) {
     (next: boolean | ((prev: boolean) => boolean), options?: { touched?: boolean; respectUser?: boolean }) => {
       setCached(prev => {
         const previousState = prev.key === key ? prev.state : getUiDisclosureState(key, fallback)
-        if (options?.respectUser && previousState.touched) return prev.key === key ? prev : { key, state: previousState }
-        const resolved =
-          typeof next === 'function' ? (next as (prev: boolean) => boolean)(previousState.value) : next
+        if (options?.respectUser && previousState.touched)
+          return prev.key === key ? prev : { key, state: previousState }
+        const resolved = typeof next === 'function' ? (next as (prev: boolean) => boolean)(previousState.value) : next
         const touched = options?.touched ?? true
         const nextState = { value: resolved, touched: previousState.touched || touched }
         disclosureStateCache.set(key, nextState)

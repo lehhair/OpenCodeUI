@@ -26,7 +26,9 @@ describe('SystemPartViews', () => {
 
   beforeEach(() => {
     vi.useFakeTimers()
-    vi.spyOn(window, 'requestAnimationFrame').mockImplementation(cb => window.setTimeout(() => cb(performance.now()), 16))
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation(cb =>
+      window.setTimeout(() => cb(performance.now()), 16),
+    )
     vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(id => {
       clearTimeout(id)
     })

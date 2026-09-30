@@ -476,6 +476,17 @@ describe('serverStore removeServer default preference cleanup', () => {
 })
 
 describe('serverStore health check', () => {
+  /**
+   * OpenCode V2 `/api/info` 的真实响应形状（实测 v2.0.19）。
+   * ⚠️ 注意**没有 `healthy` 字段** —— 那是 V1 `/global/health` 的东西。
+   */
+  const openCodeInfoBody = {
+    version: '2.0.19',
+    pid: 76002,
+    urls: ['http://127.0.0.1:4096'],
+    paths: { tmp: '/tmp/opencode' },
+  }
+
   beforeEach(() => {
     vi.resetModules()
     vi.stubGlobal('fetch', vi.fn())
@@ -487,14 +498,35 @@ describe('serverStore health check', () => {
     vi.unstubAllGlobals()
   })
 
-  it('marks a valid OpenCode health response as online', async () => {
-    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ healthy: true, version: '1.16.0' }))
+  it('marks a valid OpenCode /api/info response as online', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse(openCodeInfoBody))
     const { serverStore } = await import('./serverStore')
 
     const health = await serverStore.checkHealth('local')
 
     expect(health.status).toBe('online')
-    expect(health.version).toBe('1.16.0')
+    expect(health.version).toBe('2.0.19')
+  })
+
+  it('queries the V2 /api/info endpoint instead of the removed /global/health', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse(openCodeInfoBody))
+    const { serverStore } = await import('./serverStore')
+
+    await serverStore.checkHealth('local')
+
+    const requestedUrl = String(vi.mocked(fetch).mock.calls[0][0])
+    expect(requestedUrl).toMatch(/\/api\/info$/)
+    expect(requestedUrl).not.toMatch(/global\/health/)
+  })
+
+  it('rejects the legacy V1 health JSON (no healthy field in V2)', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ healthy: true, version: '1.16.0' }))
+    const { serverStore } = await import('./serverStore')
+
+    const health = await serverStore.checkHealth('local')
+
+    expect(health.status).toBe('error')
+    expect(health.error).toBe('Not an OpenCode server')
   })
 
   it('rejects HTML responses even when the status is 200', async () => {
@@ -512,7 +544,7 @@ describe('serverStore health check', () => {
     expect(health.error).toMatch(/HTML/)
   })
 
-  it('rejects JSON that is not an OpenCode health response', async () => {
+  it('rejects JSON that is not an OpenCode /api/info response', async () => {
     vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ ok: true }))
     const { serverStore } = await import('./serverStore')
 
@@ -535,7 +567,7 @@ describe('serverStore health check', () => {
     const staleResponse = createDeferred<Response>()
     vi.mocked(fetch)
       .mockImplementationOnce(() => staleResponse.promise)
-      .mockResolvedValueOnce(jsonResponse({ healthy: true, version: '1.16.0' }))
+      .mockResolvedValueOnce(jsonResponse(openCodeInfoBody))
 
     const { serverStore } = await import('./serverStore')
 

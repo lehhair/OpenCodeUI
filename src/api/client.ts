@@ -1,25 +1,11 @@
 // ============================================
 // API Client for OpenCode Backend
-// 基于 @opencode-ai/sdk: /config, /project, /provider 相关接口
+// 基于 @opencode/client（OpenCode V2）: model / provider / project / location
 // ============================================
 
-import { getSDKClient, unwrap } from './sdk'
-import { formatPathForApi } from '../utils/directoryUtils'
+import { getSDKClient } from './sdk'
+import { locationInput, toInternalProject, toUiModelInfos } from './v2Convert'
 import type { ModelInfo, ApiProject, ApiPath } from './types'
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value)
-}
-
-function requireRecord(value: unknown, message: string): Record<string, unknown> {
-  if (isRecord(value)) return value
-  throw new Error(message)
-}
-
-function requireArray<T = unknown>(value: unknown, message: string): T[] {
-  if (Array.isArray(value)) return value as T[]
-  throw new Error(message)
-}
 
 // Re-export all types
 export * from './types'
@@ -31,6 +17,7 @@ export { fromFilePart, fromAgentPart } from '../features/attachment'
 export * from './session'
 export * from './message'
 export * from './permission'
+export * from './form'
 export * from './file'
 export * from './agent'
 export * from './skill'
@@ -42,124 +29,159 @@ export * from './pty'
 export * from './worktree'
 export * from './command'
 export * from './global'
-export * from './tool'
-export * from './lsp'
+// ⛔ 阶段 3b 已删除 `./tool` 与 `./lsp`：
+//   - `tool.ts`：V2 删除了 `/experimental/tool` 与 `/experimental/tool/ids`，本仓库零调用点
+//   - `lsp.ts` ：V2 不再运行语言服务器（`/lsp`、`/formatter` 端点已删），本仓库零调用点
 
 // ============================================
 // Model API Functions
-// 基于 SDK: config.providers()
 // ============================================
+//
+// V1 用 `GET /config/providers` 一次性拿到
+// `{ providers: { [id]: { models: { [id]: Model } } }, default }`。
+// V2 把它拆成两个平铺列表：
+//   - `GET /api/model`    → Model.Info[]
+//   - `GET /api/provider` → Provider.Info[]
+// 前端需要自己 join（providerID 关联），见 v2Convert.toUiModelInfos()。
 
+/**
+ * 获取当前可用的模型列表（已 join 上 provider 名称）
+ */
 export async function getActiveModels(directory?: string, serverId?: string): Promise<ModelInfo[]> {
   const sdk = getSDKClient(serverId)
-  const data = requireRecord(
-    unwrap(await sdk.config.providers({ directory: formatPathForApi(directory, serverId) })),
-    'Invalid OpenCode providers response',
-  )
-  const providers = requireArray<Record<string, unknown>>(data.providers, 'Invalid OpenCode providers response')
-  const models: ModelInfo[] = []
-
-  for (const provider of providers) {
-    const providerModels = isRecord(provider.models) ? provider.models : {}
-    for (const [, rawModel] of Object.entries(providerModels)) {
-      if (!isRecord(rawModel)) continue
-      const model = rawModel
-      if (model.status === 'active') {
-        const limit = isRecord(model.limit) ? model.limit : {}
-        const capabilities = isRecord(model.capabilities) ? model.capabilities : {}
-        const inputCapabilities = isRecord(capabilities.input) ? capabilities.input : {}
-        const variants = isRecord(model.variants) ? Object.keys(model.variants) : []
-        const modelId = typeof model.id === 'string' ? model.id : ''
-        if (!modelId) continue
-
-        models.push({
-          id: modelId,
-          name: typeof model.name === 'string' ? model.name : modelId,
-          providerId: typeof provider.id === 'string' ? provider.id : '',
-          providerName: typeof provider.name === 'string' ? provider.name : typeof provider.id === 'string' ? provider.id : '',
-          family: typeof model.family === 'string' ? model.family : '',
-          contextLimit: typeof limit.context === 'number' ? limit.context : 0,
-          outputLimit: typeof limit.output === 'number' ? limit.output : 0,
-          supportsReasoning: capabilities.reasoning === true,
-          supportsImages: inputCapabilities.image === true,
-          supportsPdf: inputCapabilities.pdf === true,
-          supportsAudio: inputCapabilities.audio === true,
-          supportsVideo: inputCapabilities.video === true,
-          supportsToolcall: capabilities.toolcall === true,
-          variants,
-        })
-      }
-    }
-  }
-
-  return models
+  const location = locationInput(directory, serverId, 'GET /api/model + /api/provider')
+  const [models, providers] = await Promise.all([sdk.model.list(location), sdk.provider.list(location)])
+  return toUiModelInfos(models.data, providers.data)
 }
 
+/**
+ * 获取默认模型
+ *
+ * V1: `config.providers()` 的 `default` 字段是 `{ [providerID]: modelID }` 映射
+ * V2: `GET /api/model/default` 只返回**单个** Model.Info（或 null）
+ * → 这里把单个默认模型包装成「只含一个键」的映射，保持下游 `Record<string,string>` 的约定。
+ *   （该函数当前全仓库无调用点，属于保留接口。）
+ */
 export async function getDefaultModels(directory?: string): Promise<Record<string, string>> {
   const sdk = getSDKClient()
-  const data = requireRecord(
-    unwrap(await sdk.config.providers({ directory: formatPathForApi(directory) })),
-    'Invalid OpenCode providers response',
-  )
-  const defaults = requireRecord(data.default, 'Invalid OpenCode default model response')
-  return Object.fromEntries(Object.entries(defaults).filter((entry): entry is [string, string] => typeof entry[1] === 'string'))
+  const result = await sdk.model.default(locationInput(directory, undefined, 'GET /api/model/default'))
+  if (!result.data) return {}
+  const model = result.data
+  return { [model.providerID]: model.modelID || model.id }
 }
 
 // ============================================
 // Project API Functions
-// 基于 SDK: project.*
 // ============================================
 
 /**
  * 获取当前项目
+ *
+ * V1: `sdk.project.current({ directory })`
+ * V2: **已删除**；替代品是 `GET /api/location`（返回 `{directory, project:{id,directory,canonical}}`），
+ *     但它**不含 `vcs` / `time` / `sandboxes` / `name`** —— 而 `project.vcs` 是 UI
+ *     判断「是否显示 git 相关 diff 选项」的依据，缺了会误判。
+ * → 所以这里额外查一次 `GET /api/project` 按 id 取回完整项目对象。
+ *   （`useProject` 里本来就会并发调用 `getProjects()`，代价可接受；属阶段 1 的务实取舍。）
  */
 export async function getCurrentProject(directory?: string, serverId?: string): Promise<ApiProject> {
   const sdk = getSDKClient(serverId)
-  return unwrap(await sdk.project.current({ directory: formatPathForApi(directory, serverId) }))
+  const location = await sdk.location.get(locationInput(directory, serverId, 'GET /api/location'))
+  const all = await sdk.project.list()
+  const full = all.find(project => project.id === location.project.id)
+  if (full) return toInternalProject(full)
+
+  // 兜底：project.list 里找不到时，用 location 能给的信息拼一个最小对象
+  return {
+    id: location.project.id,
+    worktree: location.project.canonical,
+    time: { created: 0, updated: 0 },
+    sandboxes: [],
+  }
 }
 
 /**
  * 获取项目列表
+ *
+ * V1: `sdk.project.list({ directory })`（返回裸数组）
+ * V2: `sdk.project.list()`（返回裸数组，但**不接受目录参数** —— 它是全局项目表）
  */
-export async function getProjects(directory?: string, serverId?: string): Promise<ApiProject[]> {
+export async function getProjects(_directory?: string, serverId?: string): Promise<ApiProject[]> {
   const sdk = getSDKClient(serverId)
-  return requireArray<ApiProject>(unwrap(await sdk.project.list({ directory: formatPathForApi(directory, serverId) })), 'Invalid OpenCode project list response')
+  // V2 的 project.list 没有任何入参；传 directory 反而会被当成 RequestOptions 而报错
+  const projects = await sdk.project.list()
+  return projects.map(toInternalProject)
 }
 
-/**
- * 初始化 Git 仓库
- */
-export async function initGitProject(directory?: string, serverId?: string): Promise<ApiProject> {
-  const sdk = getSDKClient(serverId)
-  return unwrap(await sdk.project.initGit({ directory: formatPathForApi(directory, serverId) }))
-}
+// ⛔ 阶段 3b 已移除 `initGitProject()`：
+//   V2 删除了 `POST /project/git/init`，且没有替代端点
+//   —— git 仓库改由「location 首次被使用时自动初始化」。
+//   对应的 UI 入口（SessionChangesPanel 的「初始化 git」按钮）已一并删除。
 
 /**
  * 更新项目
+ *
+ * V1: `PATCH /project/{id}?directory=…`
+ * V2: `PATCH /api/project/{projectID}`（SDK：`project.update`）
+ *
+ * ⚠️ 两处差异：
+ *   1. 路径参数从 `directory` 查询参数改成 **`projectID`** —— 所以第二个位置参数
+ *      `directory`（location 作用域）在 V2 里**没有任何用处**，保留只是为了不改签名。
+ *   2. V2 的 body 是 `{ canonical?, name?, icon?, commands? }`；返回**完整的 Project**
+ *      → 这里用 `toInternalProject()` 转回内部形状（`canonical` → `worktree`）。
+ *
+ * ⚠️ 该函数当前**全仓库零调用点**，属保留接口。
  */
 export async function updateProject(
   projectId: string,
   params: {
+    /** V2 的 `canonical`（项目根目录，内部模型里叫 `worktree`） */
+    canonical?: string
     name?: string
     icon?: { url?: string; override?: string; color?: string }
+    commands?: { start?: string }
   },
-  directory?: string,
+  _directory?: string,
 ): Promise<ApiProject> {
   const sdk = getSDKClient()
-  return unwrap(
-    await sdk.project.update({
-      projectID: projectId,
-      directory: formatPathForApi(directory),
-      ...params,
-    }),
-  )
+  const project = await sdk.project.update({ projectID: projectId, ...params })
+  return toInternalProject(project)
 }
 
 // ============================================
-// Path API Functions
+// Location API Functions（V1 的 GET /path）
 // ============================================
 
+/**
+ * 获取服务器路径信息
+ *
+ * 🔴 V1 的 `GET /path` 在 V2 中**被删除**，最接近的是 `GET /api/location`。
+ * 但两者字段**不对等**：
+ *   V1 `Path`  = { home, state, config, worktree, directory }
+ *   V2 Location = { directory, project: { id, directory, canonical } }
+ *
+ * V2 **没有任何端点能拿到 home / state / config**（`GET /api/info` 的 `paths` 只有 `tmp`）。
+ * 处理方式：
+ *   - `worktree` ← `project.canonical`
+ *   - `directory` ← `directory`
+ *   - `home` / `state` / `config` → 无来源。`home` 被「目录选择器」当作默认起始路径用，
+ *     给空串会让它落到文件系统根目录，体验很差 → 这里退而用**当前目录**兜底，
+ *     并在阶段 1 报告中记为「文档未覆盖的缺口」。
+ */
 export async function getPath(serverId?: string): Promise<ApiPath> {
   const sdk = getSDKClient(serverId)
-  return requireRecord(unwrap(await sdk.path.get()), 'Invalid OpenCode path response') as unknown as ApiPath
+  const location = await sdk.location.get()
+  return {
+    home: location.directory,
+    state: '',
+    config: '',
+    worktree: location.project.canonical,
+    directory: location.directory,
+  }
+}
+
+/** 保留给需要「当前 location 原始信息」的调用方（V2 原生形状） */
+export async function getLocation(directory?: string, serverId?: string) {
+  const sdk = getSDKClient(serverId)
+  return sdk.location.get(locationInput(directory, serverId, 'GET /api/location'))
 }

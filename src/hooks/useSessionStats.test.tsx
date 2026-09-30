@@ -1,8 +1,8 @@
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { ApiMessage, ApiMessageWithParts, ApiPart } from '../api/types'
 import { messageStore } from '../store/messageStore'
 import { useSessionStats } from './useSessionStats'
+import { v2Assistant, v2Compaction, v2User } from '../test/fixtures/v2Messages'
 
 vi.mock('../store/paneLayoutStore', () => ({
   paneLayoutStore: {
@@ -11,36 +11,9 @@ vi.mock('../store/paneLayoutStore', () => ({
   },
 }))
 
-function createUserMessage(id: string, created: number): ApiMessage {
-  return {
-    id,
-    sessionID: 'session-1',
-    role: 'user',
-    time: { created },
-    agent: 'build',
-    model: { providerID: 'provider-1', modelID: 'model-1' },
-  }
-}
-
-function createTextPart(
-  id: string,
-  messageID: string,
-  text: string,
-): ApiPart & { sessionID: string; messageID: string } {
-  return {
-    id,
-    sessionID: 'session-1',
-    messageID,
-    type: 'text',
-    text,
-  }
-}
-
-function createMessageWithParts(id: string, text: string, created: number): ApiMessageWithParts {
-  return {
-    info: createUserMessage(id, created),
-    parts: [createTextPart(`part-${id}`, id, text)],
-  }
+/** 造一条 V2 user 消息（读侧夹具） */
+function createUserMessage(id: string, created: number) {
+  return v2User(id, `text of ${id}`, { time: { created } })
 }
 
 describe('useSessionStats', () => {
@@ -49,64 +22,16 @@ describe('useSessionStats', () => {
   })
 
   it('returns estimated context after a compaction turn', async () => {
+    // V2 下「压缩」不再是挂在消息上的 compaction part + summary 标志，
+    // 而是**独立的 compaction 消息类型**（见迁移文档 §5.2 / §5.3）。
     messageStore.setMessages('session-1', [
-      {
-        info: {
-          id: 'user-1',
-          role: 'user',
-          time: { created: 1 },
-          sessionID: 'session-1',
-          agent: 'build',
-          model: { providerID: 'p', modelID: 'm' },
-        },
-        parts: [{ type: 'text', text: 'hello world', id: 'p1', sessionID: 's1', messageID: 'user-1' }],
-      },
-      {
-        info: {
-          id: 'assistant-1',
-          role: 'assistant',
-          sessionID: 'session-1',
-          time: { created: 2 },
-          parentID: 'user-1',
-          modelID: 'model',
-          providerID: 'provider',
-          mode: 'chat',
-          agent: 'default',
-          path: { cwd: '/', root: '/' },
-          cost: 0,
-          tokens: { input: 12000, output: 800, reasoning: 200, cache: { read: 0, write: 0 } },
-        },
-        parts: [{ type: 'text', text: 'long reply', id: 'p2', sessionID: 's1', messageID: 'assistant-1' }],
-      },
-      {
-        info: {
-          id: 'user-2',
-          role: 'user',
-          time: { created: 3 },
-          sessionID: 'session-1',
-          agent: 'build',
-          model: { providerID: 'p', modelID: 'm' },
-        },
-        parts: [{ type: 'compaction', id: 'p3', sessionID: 's1', messageID: 'user-2', auto: false }],
-      },
-      {
-        info: {
-          id: 'assistant-2',
-          role: 'assistant',
-          sessionID: 'session-1',
-          time: { created: 4 },
-          parentID: 'user-2',
-          modelID: 'model',
-          providerID: 'provider',
-          mode: 'compaction',
-          agent: 'compaction',
-          path: { cwd: '/', root: '/' },
-          cost: 0,
-          summary: true,
-          tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
-        },
-        parts: [{ type: 'text', text: 'short summary', id: 'p4', sessionID: 's1', messageID: 'assistant-2' }],
-      },
+      v2User('user-1', 'hello world', { time: { created: 1 } }),
+      v2Assistant('assistant-1', 'long reply', {
+        time: { created: 2 },
+        tokens: { input: 12000, output: 800, reasoning: 200, cache: { read: 0, write: 0 } },
+      }),
+      v2Compaction('compaction-1'),
+      v2Assistant('assistant-2', 'short summary', { time: { created: 4 } }),
     ])
 
     await act(async () => {
@@ -121,7 +46,7 @@ describe('useSessionStats', () => {
   })
 
   it('reuses the same stats object when numeric fields do not change', async () => {
-    messageStore.setMessages('session-1', [createMessageWithParts('message-1', 'one', 1)])
+    messageStore.setMessages('session-1', [createUserMessage('message-1', 1)])
     await act(async () => {
       await new Promise(resolve => requestAnimationFrame(resolve))
     })

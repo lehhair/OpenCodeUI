@@ -21,11 +21,7 @@ import { ExpandableSection } from '../../../components/ui'
 import { GripVerticalIcon } from '../../../components/Icons'
 import { subscribePerServerStorageVersion, getStorageVersion } from '../../../utils/perServerStorage'
 import { useDirectory } from '../../../contexts/useDirectory'
-import {
-  readServerWorkspaces,
-  addServerWorkspace,
-  reorderServerWorkspaces,
-} from '../../../utils/serverWorkspaces'
+import { readServerWorkspaces, addServerWorkspace, reorderServerWorkspaces } from '../../../utils/serverWorkspaces'
 import { deleteSession, updateSession, type ApiSession } from '../../../api'
 import { isSameDirectory } from '../../../utils'
 import { clearSessionRuntimeState } from '../../../utils/sessionLifecycle'
@@ -54,8 +50,7 @@ interface MultiServerFolderListProps {
 
 function useServerConnectionState(serverId: string): ConnectionInfo {
   const subscribe = useCallback(
-    (onStoreChange: () => void) =>
-      serverId ? subscribeToServerConnectionState(serverId, onStoreChange) : () => {},
+    (onStoreChange: () => void) => (serverId ? subscribeToServerConnectionState(serverId, onStoreChange) : () => {}),
     [serverId],
   )
   const getSnapshot = useCallback(() => getServerConnectionInfo(serverId), [serverId])
@@ -120,11 +115,7 @@ const ServerFolderGroup = memo(function ServerFolderGroup({
 
   // 该服务器的工作区 = 该服务器 per-server storage 的 saved-directories（与单服务器模式同一套存储）
   // 版本号在写入时递增 → 触发重渲染并重读数据
-  const storageVersion = useSyncExternalStore(
-    subscribePerServerStorageVersion,
-    getStorageVersion,
-    getStorageVersion,
-  )
+  const storageVersion = useSyncExternalStore(subscribePerServerStorageVersion, getStorageVersion, getStorageVersion)
   const workspaces = useMemo(() => {
     void storageVersion
     return readServerWorkspaces(serverId)
@@ -139,19 +130,14 @@ const ServerFolderGroup = memo(function ServerFolderGroup({
       sectionKind: 'project',
       canReorder: true,
     }
-    return [
-      globalProject,
-      ...workspaces.map(dir => ({ ...createDirectoryProject(dir, 'project'), canReorder: true })),
-    ]
+    return [globalProject, ...workspaces.map(dir => ({ ...createDirectoryProject(dir, 'project'), canReorder: true }))]
   }, [workspaces, t])
 
   // 仅当当前选中的 session 属于本服务器时才高亮（复合 key 前缀匹配），
   // 避免多个服务器连同一后端时同名 session 串高亮
   const localSelectedSessionId = useMemo(() => {
     const prefix = `${serverId}::`
-    return selectedSessionId && selectedSessionId.startsWith(prefix)
-      ? selectedSessionId.slice(prefix.length)
-      : null
+    return selectedSessionId && selectedSessionId.startsWith(prefix) ? selectedSessionId.slice(prefix.length) : null
   }, [serverId, selectedSessionId])
 
   // 与文件夹模式（SidePanel.handleSelectFolderProject）完全一致的点击行为：
@@ -186,9 +172,7 @@ const ServerFolderGroup = memo(function ServerFolderGroup({
       onTouchMove={onTouchMove}
       onTouchEnd={onTouchEnd}
       className={`relative transition-all duration-150 group/folder ${
-        isDragged
-          ? 'z-10 shadow-lg shadow-black/20 ring-1 ring-inset ring-accent-main-100/30 rounded-md bg-bg-100'
-          : ''
+        isDragged ? 'z-10 shadow-lg shadow-black/20 ring-1 ring-inset ring-accent-main-100/30 rounded-md bg-bg-100' : ''
       }`}
     >
       {/* 服务器节点行 — 与文件夹行结构完全一致（含 drag-handle），图标位换成连接状态点 */}
@@ -220,9 +204,7 @@ const ServerFolderGroup = memo(function ServerFolderGroup({
           <span className="min-w-0 flex-1 truncate text-[length:var(--fs-sm)] font-medium text-text-300">
             {displayName}
             {isWslServerId(serverId) && (
-              <span
-                className="ml-1.5 shrink-0 text-[length:var(--fs-xs)] font-medium text-info-100 bg-info-100/10 px-1.5 py-0.5 rounded"
-              >
+              <span className="ml-1.5 shrink-0 text-[length:var(--fs-xs)] font-medium text-info-100 bg-info-100/10 px-1.5 py-0.5 rounded">
                 {t('wsl.server.label', { ns: 'settings' })}
               </span>
             )}
@@ -247,37 +229,37 @@ const ServerFolderGroup = memo(function ServerFolderGroup({
             key={serverId}
             serverId={serverId}
             projects={projects}
-              currentDirectory={currentDirectory}
-              selectedSessionId={localSelectedSessionId}
-              expandedProjectIds={expandedProjectIds}
-              onExpandedProjectIdsChange={setExpandedProjectIds}
-              onSelectProject={handleSelectProject}
-              onSelectSession={session => {
-                // 全局文件夹（无工作区归属）点 session：自动把目录加入该服务器工作区（与文件夹模式一致）
-                if (session.directory) {
-                  addServerWorkspace(serverId, session.directory)
-                }
-                onSelectSession({ ...session, serverId } as ApiSession & { serverId?: string })
-              }}
-              onRenameSession={async session => {
-                await updateSession(session.id, { title: session.title }, session.directory, serverId)
-              }}
-              onDeleteSession={async session => {
-                try {
-                  await deleteSession(session.id, session.directory, serverId)
-                  clearSessionRuntimeState(`${serverId}::${session.id}`)
-                } catch (e) {
-                  uiErrorHandler('delete session', e)
-                }
-              }}
-              onReorderProject={(draggedPath, targetPath) => {
-                reorderServerWorkspaces(serverId, draggedPath, targetPath)
-              }}
-              expandedChildSessionIds={expandedChildSessionIds}
-              inlineChildSessions={inlineChildSessions}
-              onSelectChildSession={onSelectChildSession}
-              pinnedSessions={[]}
-            />
+            currentDirectory={currentDirectory}
+            selectedSessionId={localSelectedSessionId}
+            expandedProjectIds={expandedProjectIds}
+            onExpandedProjectIdsChange={setExpandedProjectIds}
+            onSelectProject={handleSelectProject}
+            onSelectSession={session => {
+              // 全局文件夹（无工作区归属）点 session：自动把目录加入该服务器工作区（与文件夹模式一致）
+              if (session.directory) {
+                addServerWorkspace(serverId, session.directory)
+              }
+              onSelectSession({ ...session, serverId } as ApiSession & { serverId?: string })
+            }}
+            onRenameSession={async session => {
+              await updateSession(session.id, { title: session.title }, session.directory, serverId)
+            }}
+            onDeleteSession={async session => {
+              try {
+                await deleteSession(session.id, session.directory, serverId)
+                clearSessionRuntimeState(`${serverId}::${session.id}`)
+              } catch (e) {
+                uiErrorHandler('delete session', e)
+              }
+            }}
+            onReorderProject={(draggedPath, targetPath) => {
+              reorderServerWorkspaces(serverId, draggedPath, targetPath)
+            }}
+            expandedChildSessionIds={expandedChildSessionIds}
+            inlineChildSessions={inlineChildSessions}
+            onSelectChildSession={onSelectChildSession}
+            pinnedSessions={[]}
+          />
         </div>
       </ExpandableSection>
     </div>
@@ -345,10 +327,7 @@ export function MultiServerFolderList({
   }, [])
 
   // 稳定回调（ServerFolderGroup 是 memo 组件：内联箭头会让每次父级重渲染都穿透 memo）
-  const makeToggleExpanded = useCallback(
-    (serverId: string) => () => handleToggleServer(serverId),
-    [handleToggleServer],
-  )
+  const makeToggleExpanded = useCallback((serverId: string) => () => handleToggleServer(serverId), [handleToggleServer])
   const makeRegisterRef = useCallback(
     (serverId: string) => (el: HTMLDivElement | null) => registerRef(serverId, el),
     [registerRef],

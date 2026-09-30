@@ -209,7 +209,8 @@ function updateHtmlContainerStack(raw: string, state: HtmlContainerState): numbe
   return null
 }
 
-const HTML_ARTIFACT_ROOT_PATTERN = /^\s*(?:<!--[\s\S]*?-->\s*)*<(?:address|article|aside|blockquote|center|details|dialog|div|dl|fieldset|figure|footer|form|header|html|main|nav|ol|section|svg|table|ul)\b/i
+const HTML_ARTIFACT_ROOT_PATTERN =
+  /^\s*(?:<!--[\s\S]*?-->\s*)*<(?:address|article|aside|blockquote|center|details|dialog|div|dl|fieldset|figure|footer|form|header|html|main|nav|ol|section|svg|table|ul)\b/i
 
 function mergeHtmlArtifactBlocks(blocks: MarkdownSourceBlock[]): MarkdownSourceBlock[] {
   const merged: MarkdownSourceBlock[] = []
@@ -376,7 +377,13 @@ export function splitMarkdownStream(markdown: string, isStreaming: boolean): Mar
     if (!markdown) return [{ key: 'html:0', src: '', mode: 'full' }]
     const { blocks, referenceDefinitions } = splitMarkdownBlocks(markdown)
     if (blocks.length === 1 && blocks[0]?.token?.type !== 'code' && blocks[0]?.token?.type !== 'table') {
-      return [{ key: 'html:0', src: appendReferenceDefinitions(blocks[0]?.raw ?? markdown, referenceDefinitions), mode: 'full' }]
+      return [
+        {
+          key: 'html:0',
+          src: appendReferenceDefinitions(blocks[0]?.raw ?? markdown, referenceDefinitions),
+          mode: 'full',
+        },
+      ]
     }
     return blocks.map(block => {
       if (block.token?.type === 'code') {
@@ -414,7 +421,13 @@ export function splitMarkdownStream(markdown: string, isStreaming: boolean): Mar
   const fenceStart = getTrailingOpenFenceStart(markdown)
   const { blocks, referenceDefinitions } = splitMarkdownBlocks(markdown)
   if (blocks.length === 1 && blocks[0]?.token?.type !== 'code' && blocks[0]?.token?.type !== 'table') {
-    return [{ key: 'html:0', src: appendReferenceDefinitions(blocks[0]?.raw ?? markdown, referenceDefinitions), mode: 'live' }]
+    return [
+      {
+        key: 'html:0',
+        src: appendReferenceDefinitions(blocks[0]?.raw ?? markdown, referenceDefinitions),
+        mode: 'live',
+      },
+    ]
   }
 
   return blocks.map(block => {

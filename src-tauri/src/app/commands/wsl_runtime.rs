@@ -204,12 +204,37 @@ pub async fn install_wsl_distro(name: &str, token: Option<&CancellationToken>) -
 }
 
 /// 在发行版中安装 opencode（官方安装脚本，安装最新版）
+/// 在发行版中安装 opencode（官方 installOpencode → `RemoteCli.installScript`）
+///
+/// 🔴 **阶段 4 实测修正：原来用的是 V1 安装脚本。**
+///    原写法 `https://opencode.ai/install` 内部从 GitHub Releases 的
+///    `releases/latest/download/...` 取包，而 GitHub 的 `latest` 现在停在
+///    **v1.18.33（V1）**（实测 `api.github.com/.../releases/latest` → `tag_name: v1.18.33`；
+///    全仓库 500 个 release 零个 v2，npm 的 `opencode-ai` 也没有 v2）
+///    → **用户点「安装 opencode」会装成 V1，装完照样连不上**（本 UI 只支持 V2）。
+///
+///    v2 的真实安装脚本是 `https://opencode.ai/v2/install`：
+///    - 实测与官方桌面版用的 `raw.githubusercontent.com/anomalyco/opencode/v2/install`
+///      **内容逐字节一致**（`diff` 为空）；
+///    - 它从 npm 的 `@opencode/cli-<target>` 取包；不带 `--version` 时先查
+///      `https://opencode.ai/update/api/latest/cli/npm` 拿最新 v2 版本（实测返回 `2.0.20`）；
+///    - 落点仍是 **`$HOME/.opencode/bin/opencode`** —— 正是 `resolve_opencode` 查找的位置。
+///
+///    ⚠️ 有意**不传 `--version`**：官方桌面版会钉住「它自己捆绑的 CLI 版本」以便比对，
+///    而 OpenCodeUI **不捆绑 CLI**（`expected_version` 恒为 null，见 `wsl_types.rs` 的说明），
+///    钉死某个版本反而可能把用户已装好的新版 v2 降级。
+///    需要钉版本时改成：
+///    `curl -fsSL https://opencode.ai/v2/install | bash -s -- --version 2.0.19`
+///
+///    ⚠️ 已知代价（如实）：v2 安装脚本从 **npm 官方源**取包，国内网络可能较慢。
+///    它没有可切换的镜像参数 —— 网络受限时请让用户手动安装 opencode 到
+///    `$HOME/.opencode/bin/opencode`（`resolve_opencode` 只认这个路径）。
 pub async fn install_wsl_opencode(distro: &str, token: Option<&CancellationToken>) -> Result<WslCommandResult, String> {
     run_wsl_command(
         &[
             "bash".to_string(),
             "-lc".to_string(),
-            "curl -fsSL https://opencode.ai/install | bash".to_string(),
+            "curl -fsSL https://opencode.ai/v2/install | bash".to_string(),
         ],
         Some(distro),
         None,
@@ -429,7 +454,37 @@ pub async fn probe_distro(name: &str, token: Option<&CancellationToken>) -> Resu
     })
 }
 
-/// 检查发行版中是否安装了 opencode（官方 resolveWslOpencode）
+/// 检查发行版中是否安装了 opencode（官方 `resolveWslCli`）
+///
+/// ── ✅ 阶段 4 复核结论：**本项目与官方 v2.0.19 的 WSL 行为完全一致，无需修改** ──
+///
+/// 阶段 3b 报告 §5.5 曾写「官方 `discoverScript()` 还会先试 `command -v opencode`，
+/// 所以 npm/bun 全局安装的用户会被误判未安装」。**该结论不成立**（实测复核源码）：
+///
+///   `packages/desktop/src/main/wsl/runtime.ts:339`
+///     `resolveWslCli(distro) → RemoteCli.discoverScript()`   ← **不传任何 options**
+///   `packages/desktop/src/main/remote/cli.ts:26`
+///     ``cli=${options.fromPath ? "$(command -v opencode || true)" : '""'}``
+///     → `fromPath` 为 undefined 时，第一行就是 `cli=""`，**根本不会调用 `command -v`**；
+///       随后只判断 `$HOME/.opencode/bin/opencode`。
+///
+///   `command -v opencode` 那条分支只有 **SSH** 路径会走：
+///   `packages/desktop/src/main/ssh/bootstrap.ts:20`
+///     `discoverScript({ fromPath: true, cache: { … } })`
+///   —— 3b 是把 **SSH 的行为错当成 WSL 的行为**了。
+///
+/// 所以本函数「只查 `$HOME/.opencode/bin/opencode`」正是官方 WSL 的语义
+/// （官方安装脚本 `opencode.ai/v2/install` 的落点也是这个路径，见 `install_wsl_opencode`）。
+///
+/// ── 为什么**不**顺手加上 `command -v opencode` 兜底 ──
+/// 1. 会**偏离官方 WSL 语义**，而官方的设计意图很明确：WSL 里要的是**受管安装**，
+///    这样版本可控、可被安装/升级按钮修复（SSH 才允许走 PATH 里的任意 opencode）。
+/// 2. **有实际风险**：WSL 默认把 Windows 的 PATH 追加进 Linux PATH，
+///    而本项目的启动脚本要专门剔除 `/mnt/*` 才敢 `exec`（见 `wsl_commands.rs` 的
+///    `PATH=$(awk … '$0 !~ /^\/mnt\//' …)`）。`command -v opencode` 在本探测里
+///    **没有**剔 `/mnt/*`，很可能解析到 Windows 侧的 `opencode.exe`，
+///    随后 `read_command_version` 会去执行它、启动脚本还会 `exec` 这个 Windows 路径 → 更糟。
+/// 3. YAGNI：真要在 WSL 用 opencode，官方路径就是安装脚本；装完即可被本函数找到。
 pub async fn resolve_opencode(distro: &str, token: Option<&CancellationToken>) -> Result<Option<String>, String> {
     let result = run_wsl_command(
         &[

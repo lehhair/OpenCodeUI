@@ -4,21 +4,17 @@
 //
 // 这些类型扩展了 API 类型，添加了 UI 层特有的状态
 //
-
-import type { Message as ApiMessage, Part as ApiPart } from './api'
-
-/**
- * UI 层消息类型
- * 扩展 API 消息，添加 UI 状态
- */
-export interface UIMessage {
-  /** API 消息信息 */
-  info: ApiMessage
-  /** 消息内容部分 */
-  parts: ApiPart[]
-  /** 是否正在流式传输 */
-  isStreaming?: boolean
-}
+// ── 阶段 2b 的清理 ────────────────────────────────────────────────────
+//
+// 这里原先有一个 `UIMessage`（`{info: ApiMessage, parts: ApiPart[], isStreaming?}`）
+// 和它依赖的 V1 `ApiMessage` / `ApiPart` 别名。它们是**阶段 2a 之前**的产物：
+// 阶段 2a 已经把 UI 展示模型正式落到 `src/types/message.ts`
+// （`Message = {info: MessageInfo, parts: Part[], isStreaming?}`），
+// 渲染层与 store 全部用那一份。
+//
+// `UIMessage` 全仓库零引用（阶段 2b 逐个 grep 核对），其依赖的 V1 别名
+// 又随 `v1Model.ts` 的 A 桶一起删除 → 一并删除。
+// 需要 UI 消息类型请用 `import type { Message } from './message'`。
 
 // ============================================
 // Attachment Types - 从现有组件导出
@@ -82,28 +78,7 @@ export interface RouteState {
  */
 export type ThemeMode = 'light' | 'dark' | 'system'
 
-// ============================================
-// Revert Types
-// ============================================
-
-import type { Attachment } from '../features/attachment/types'
-
-/**
- * 撤销历史项
- */
-export interface RevertHistoryItem {
-  messageId: string
-  text: string
-  attachments: Attachment[]
-  model?: { providerID: string; modelID: string; variant?: string }
-  variant?: string
-  agent?: string
-}
-
-/**
- * 撤销状态
- */
-export interface RevertState {
-  messageId: string
-  history: RevertHistoryItem[]
-}
+// ⛔ 阶段 3b 已删除本文件里重复的 Revert 类型（`RevertState` / `RevertHistoryItem`）：
+//    它们是阶段 2a 之前的产物，**全仓库零引用**（逐个 grep 核对）。
+//    真正在用的那份定义在 `src/store/messageStoreTypes.ts`（`messageStore` 与
+//    `useSessionManager` 消费它）。此处删除以免两处定义漂移。

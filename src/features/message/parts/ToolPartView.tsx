@@ -12,11 +12,9 @@ import { useUiDisclosureState } from '../../../utils/uiDisclosureState'
 import {
   useInlineToolRequests,
   findPermissionRequestForTool,
-  findQuestionRequestForTool,
   type TaskChildSessionRef,
 } from '../../chat/InlineToolRequestContext'
 import { InlinePermission } from '../../chat/InlinePermission'
-import { InlineQuestion } from '../../chat/InlineQuestion'
 import {
   getToolIcon,
   extractToolData,
@@ -68,21 +66,10 @@ export const ToolPartView = memo(function ToolPartView({
   const duration = rawDuration !== undefined && isActive ? Math.max(0, rawDuration) : rawDuration
   const { inlineToolRequests, immersiveMode, compactInlinePermission } = useTheme()
 
-  const {
-    serverId,
-    pendingPermissions,
-    pendingQuestions,
-    onPermissionReply,
-    onQuestionReply,
-    onQuestionReject,
-    isReplying,
-  } = useInlineToolRequests()
+  const { serverId, pendingPermissions, onPermissionReply, isReplying } = useInlineToolRequests()
   const childSession = getTaskChildSessionRef(part, serverId)
   const permissionRequest = inlineToolRequests
     ? findPermissionRequestForTool(pendingPermissions, part.callID, childSession)
-    : undefined
-  const questionRequest = inlineToolRequests
-    ? findQuestionRequestForTool(pendingQuestions, part.callID, childSession)
     : undefined
 
   const toolDone = state.status === 'completed' || state.status === 'error'
@@ -115,7 +102,7 @@ export const ToolPartView = memo(function ToolPartView({
   // 权限已批准但工具还没完成 → 保留渲染
   const permissionResolved = !permissionRequest && !!cachedPermissionRequest && isFilePermission && !toolDone
 
-  const hasPendingInteraction = !!permissionRequest || !!questionRequest
+  const hasPendingInteraction = !!permissionRequest
   // 精简模式：非 edit/write 权限时不隐藏 ToolBody（ToolBody 已经渲染了命令内容）
   const isEditWritePermission =
     permissionRequest?.permission === 'edit' || permissionRequest?.permission === 'write' || permissionResolved
@@ -138,8 +125,12 @@ export const ToolPartView = memo(function ToolPartView({
   const { rootRef, headerRef, withScrollLock } = useDisclosureScrollLock()
   const effectiveExpanded = expanded || hasPendingInteraction || permissionResolved || isChildFullscreen
   // Android expand: instant layout + max-height fake; collapse: original grid-rows.
-  const { contentRef: expandContentRef, layoutOpen, keepMounted, panelClassName } =
-    useCompositorExpand(effectiveExpanded)
+  const {
+    contentRef: expandContentRef,
+    layoutOpen,
+    keepMounted,
+    panelClassName,
+  } = useCompositorExpand(effectiveExpanded)
   // 展开即挂 body：默认展开的工具 header/body 同帧，不再先 header 后 body
   const shouldRenderBody = useMessageExpandRender(keepMounted)
   const toggleExpanded = useCallback(() => {
@@ -218,16 +209,6 @@ export const ToolPartView = memo(function ToolPartView({
             isReplying={isReplying}
             resolved={permissionResolved}
             contentHidden={permissionContentHidden}
-          />
-        </div>
-      )}
-      {questionRequest && (
-        <div className={MSG_SPACING.inner}>
-          <InlineQuestion
-            request={questionRequest}
-            onReply={onQuestionReply}
-            onReject={onQuestionReject}
-            isReplying={isReplying}
           />
         </div>
       )}
@@ -311,7 +292,10 @@ export const ToolPartView = memo(function ToolPartView({
   // Grid: [14px icon] [gap 6px] [content] — mirrors ReasoningPartView alignment
   if (compact) {
     return (
-      <div ref={rootRef} className={`group relative grid grid-cols-[14px_minmax(0,1fr)] gap-x-1.5 items-start ${MSG_SPACING.item}`}>
+      <div
+        ref={rootRef}
+        className={`group relative grid grid-cols-[14px_minmax(0,1fr)] gap-x-1.5 items-start ${MSG_SPACING.item}`}
+      >
         {/* Icon column — fixed, outside of interactive area */}
         <span className="inline-flex h-9 w-[14px] items-center justify-center shrink-0">{toolIcon}</span>
 

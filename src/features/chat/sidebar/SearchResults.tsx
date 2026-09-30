@@ -37,17 +37,12 @@ function statusDotClass(state: ConnectionInfo['state']): string {
 
 /** 关键词分词（空格分隔，任一分词命中即匹配） */
 function splitTerms(search: string): string[] {
-  return search
-    .trim()
-    .toLowerCase()
-    .split(/\s+/)
-    .filter(Boolean)
+  return search.trim().toLowerCase().split(/\s+/).filter(Boolean)
 }
 
 function useServerConnectionState(serverId: string): ConnectionInfo {
   const subscribe = useCallback(
-    (onStoreChange: () => void) =>
-      serverId ? subscribeToServerConnectionState(serverId, onStoreChange) : () => {},
+    (onStoreChange: () => void) => (serverId ? subscribeToServerConnectionState(serverId, onStoreChange) : () => {}),
     [serverId],
   )
   const getSnapshot = useCallback(() => getServerConnectionInfo(serverId), [serverId])

@@ -44,7 +44,6 @@ export function inferImageDimensions(src: string): ImageDimensions | null {
     if (validDimensions(queryWidth, queryHeight)) return { width: queryWidth, height: queryHeight }
 
     return inferFilenameDimensions(filename)
-
   } catch {
     return null
   }

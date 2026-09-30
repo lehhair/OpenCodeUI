@@ -819,9 +819,7 @@ export function reuseProcessTimelineItems(
 function assistantHasLiveWork(message: Message): boolean {
   if (message.info.role !== 'assistant') return false
   if (message.info.time.completed == null || message.isStreaming) return true
-  return message.parts.some(
-    p => p.type === 'tool' && (p.state.status === 'running' || p.state.status === 'pending'),
-  )
+  return message.parts.some(p => p.type === 'tool' && (p.state.status === 'running' || p.state.status === 'pending'))
 }
 
 function resolveTurnDurationMs(
@@ -974,9 +972,7 @@ export function buildProcessTimeline(
     const finalAssistant = assistants.length > 0 ? assistants[assistants.length - 1] : null
     const finalId = finalAssistant?.info.id ?? null
     const startedAt = turn.user.info.time.created
-    const durationMs = turnIsActive
-      ? undefined
-      : resolveTurnDurationMs(assistants, startedAt, turnDurationMap)
+    const durationMs = turnIsActive ? undefined : resolveTurnDurationMs(assistants, startedAt, turnDurationMap)
 
     // 进行中：全部进壳；结束：中间全进 + 末尾仅 process
     const children: Array<{ message: Message; processContentScope: 'process' | 'inline' }> = []
@@ -999,8 +995,7 @@ export function buildProcessTimeline(
       }
     }
 
-    const finalOutside =
-      !turnIsActive && finalAssistant && messageHasFinal(finalAssistant) ? finalAssistant : undefined
+    const finalOutside = !turnIsActive && finalAssistant && messageHasFinal(finalAssistant) ? finalAssistant : undefined
 
     // 进行中或有过程内容 → 挂壳
     // 更晚的空 pending 回合：turnIsActive=false 且无 children → 不挂壳（只显示 user）

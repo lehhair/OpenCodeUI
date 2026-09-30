@@ -50,11 +50,15 @@ describe('HTML sandbox storage', () => {
     const sandboxWindow = {} as Window & typeof globalThis
     Object.defineProperty(sandboxWindow, 'localStorage', {
       configurable: true,
-      get: () => { throw new DOMException('opaque origin', 'SecurityError') },
+      get: () => {
+        throw new DOMException('opaque origin', 'SecurityError')
+      },
     })
     Object.defineProperty(sandboxWindow, 'sessionStorage', {
       configurable: true,
-      get: () => { throw new DOMException('opaque origin', 'SecurityError') },
+      get: () => {
+        throw new DOMException('opaque origin', 'SecurityError')
+      },
     })
     Function('window', 'DOMException', source)(sandboxWindow, DOMException)
     return sandboxWindow

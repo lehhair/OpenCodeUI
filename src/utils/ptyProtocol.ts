@@ -1,8 +1,6 @@
 const decoder = new TextDecoder()
 
-export type PtyFrame =
-  | { kind: 'data'; data: string }
-  | { kind: 'control'; cursor: number }
+export type PtyFrame = { kind: 'data'; data: string } | { kind: 'control'; cursor: number }
 
 function parseControlPayload(payload: string): PtyFrame | null {
   try {

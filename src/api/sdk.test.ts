@@ -1,18 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { createOpencodeClientMock, getActiveBaseUrlMock, getActiveAuthMock, isTauriMock } = vi.hoisted(() => ({
-  createOpencodeClientMock: vi.fn((config: unknown) => ({ config })),
+const { makeMock, getActiveBaseUrlMock, getActiveAuthMock, isTauriMock } = vi.hoisted(() => ({
+  makeMock: vi.fn((config: unknown) => ({ config })),
   getActiveBaseUrlMock: vi.fn(() => 'http://127.0.0.1:4096'),
   getActiveAuthMock: vi.fn(() => null),
   isTauriMock: vi.fn(() => false),
 }))
 
-vi.mock('@opencode-ai/sdk/v2/client', () => ({
-  createOpencodeClient: createOpencodeClientMock,
+// OpenCode V2：包名从 @opencode-ai/sdk 换成 @opencode/client，工厂从
+// createOpencodeClient() 换成 OpenCode.make()
+vi.mock('@opencode/client', () => ({
+  OpenCode: { make: makeMock },
 }))
 
 vi.mock('../store/serverStore', () => ({
-  makeBasicAuthHeader: vi.fn(() => 'Basic token'),
   serverStore: {
     getActiveBaseUrl: getActiveBaseUrlMock,
     getActiveAuth: getActiveAuthMock,
@@ -52,7 +53,7 @@ describe('sdk request lifecycle', () => {
     })
 
     const client = getSDKClient() as unknown as MockClient
-    const request = client.config.fetch('http://127.0.0.1:4096/project/current')
+    const request = client.config.fetch('http://127.0.0.1:4096/api/location')
 
     abortInFlightApiRequests('Server endpoint changed')
 
@@ -67,9 +68,33 @@ describe('sdk request lifecycle', () => {
 
     abortInFlightApiRequests('Server endpoint changed')
 
-    await expect(client.config.fetch('http://127.0.0.1:4096/project/current')).rejects.toMatchObject({
+    await expect(client.config.fetch('http://127.0.0.1:4096/api/location')).rejects.toMatchObject({
       name: 'AbortError',
     })
     expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
+  it('creates the client through OpenCode.make with baseUrl and injected fetch', async () => {
+    const { getSDKClient } = await import('./sdk')
+
+    getSDKClient()
+
+    expect(makeMock).toHaveBeenCalled()
+    const options = makeMock.mock.calls.at(-1)?.[0] as { baseUrl: string; fetch: unknown }
+    expect(options.baseUrl).toBe('http://127.0.0.1:4096')
+    expect(typeof options.fetch).toBe('function')
+  })
+
+  it('always authenticates as the hard-coded "opencode" user', async () => {
+    // V2 服务端把用户名硬编码为 "opencode"（packages/server/src/auth.ts:20），
+    // 其他用户名一律 401 → 必须忽略 serverStore 里存的 username
+    getActiveAuthMock.mockReturnValue({ username: 'someone-else', password: 'pw' } as never)
+    const { getSDKClient } = await import('./sdk')
+
+    getSDKClient()
+
+    const options = makeMock.mock.calls.at(-1)?.[0] as { headers: Record<string, string> }
+    // btoa('opencode:pw')
+    expect(options.headers.Authorization).toBe('Basic ' + btoa('opencode:pw'))
   })
 })

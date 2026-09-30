@@ -137,7 +137,7 @@ export function InputToolbar({
     if (items.length === 0) return
 
     const selectedItem = menu.querySelector<HTMLButtonElement>('[role="menuitemradio"][aria-checked="true"]')
-    const target = mode === 'first' ? items[0] : mode === 'last' ? items[items.length - 1] : selectedItem ?? items[0]
+    const target = mode === 'first' ? items[0] : mode === 'last' ? items[items.length - 1] : (selectedItem ?? items[0])
     target?.focus()
   }, [])
 
@@ -172,7 +172,12 @@ export function InputToolbar({
   }, [])
 
   const handleMenuKeyDown = useCallback(
-    (event: React.KeyboardEvent<HTMLDivElement>, menu: HTMLDivElement | null, onClose: () => void, trigger: HTMLButtonElement | null) => {
+    (
+      event: React.KeyboardEvent<HTMLDivElement>,
+      menu: HTMLDivElement | null,
+      onClose: () => void,
+      trigger: HTMLButtonElement | null,
+    ) => {
       const items = Array.from(menu?.querySelectorAll<HTMLButtonElement>('[role="menuitemradio"], button') ?? [])
       if (items.length === 0) {
         if (event.key === 'Escape') {
@@ -358,7 +363,9 @@ export function InputToolbar({
               >
                 <AgentIcon />
               </span>
-              <span className="text-[length:var(--fs-sm)] text-text-300 capitalize truncate">{selectedAgent || 'build'}</span>
+              <span className="text-[length:var(--fs-sm)] text-text-300 capitalize truncate">
+                {selectedAgent || 'build'}
+              </span>
               <span className={`text-text-400 shrink-0 ${isCompact ? 'hidden' : ''}`}>
                 <ChevronDownIcon />
               </span>
@@ -459,7 +466,12 @@ export function InputToolbar({
                 role="menu"
                 aria-label="Variant menu"
                 onKeyDown={event =>
-                  handleMenuKeyDown(event, variantMenuRef.current, () => setVariantMenuOpen(false), variantTriggerRef.current)
+                  handleMenuKeyDown(
+                    event,
+                    variantMenuRef.current,
+                    () => setVariantMenuOpen(false),
+                    variantTriggerRef.current,
+                  )
                 }
               >
                 <MenuItem

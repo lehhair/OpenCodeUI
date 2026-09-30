@@ -351,12 +351,7 @@ function reconcile(vp: HTMLElement, entry: Entry) {
 // ── 扫描 DOM ────────────────────────────────────────────
 
 function tryAttach(el: HTMLElement) {
-  if (
-    entries.has(el) ||
-    el.hasAttribute(ATTR) ||
-    el.classList.contains('os-thumb') ||
-    !isScrollable(el)
-  ) {
+  if (entries.has(el) || el.hasAttribute(ATTR) || el.classList.contains('os-thumb') || !isScrollable(el)) {
     return
   }
   attach(el)

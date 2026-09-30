@@ -43,6 +43,10 @@ A third-party Web frontend for [OpenCode](https://github.com/anomalyco/opencode)
 
 ## Quick Start
 
+> ⚠️ **OpenCode v2 required** (e.g. `v2.0.19`). **This UI only supports V2 and does not work with v1.x** —
+> if the backend is still v1, the UI will load but sending a message will fail.
+> Run `opencode --version` to check; the version number should start with `v2.`.
+
 No deployment needed — after starting the OpenCode backend locally, access the hosted frontend directly:
 
 ```bash
@@ -83,7 +87,10 @@ After you enter the username/password in the frontend's server connection dialog
 If you use a custom Caddyfile (or hit 401 auth failures), add this to the `reverse_proxy` block:
 
 ```caddyfile
-handle_path /api/* {
+# 🔴 OpenCode V2: use `handle` (NOT `handle_path`) — V2 endpoints already include
+#    the /api prefix; handle_path strips it and requests hit non-existent paths
+#    (the backend returns the SPA fallback HTML instead of JSON).
+handle /api/* {
 	reverse_proxy your-opencode-serve:4096 {
 		header_up Host {upstream_hostport}
 		header_up Authorization {http.request.header.Authorization}
@@ -263,7 +270,8 @@ preview.example.com {
 
 ## Local Development
 
-Requires a running [OpenCode](https://github.com/anomalyco/opencode) backend.
+Requires a running [OpenCode](https://github.com/anomalyco/opencode) **v2** backend
+(**this UI only supports V2 and does not work with v1.x**; run `opencode --version` and make sure it starts with `v2.`).
 
 ```bash
 opencode serve

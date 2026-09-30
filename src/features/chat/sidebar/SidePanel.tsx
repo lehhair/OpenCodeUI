@@ -542,7 +542,7 @@ export function SidePanel({
     for (const entry of busySessions) {
       const pid = findParentId(entry.sessionId)
       // 单服务器：父必须在当前列表（rootSessionIds）；多服务器：父在各自服务器列表，放宽
-      const pidOk = multiServerConfig.enabled ? !!pid : (pid ? rootSessionIds.has(pid) : false)
+      const pidOk = multiServerConfig.enabled ? !!pid : pid ? rootSessionIds.has(pid) : false
       if (pid && pidOk) {
         const rawId = splitSessionKey(entry.sessionId).sessionId
         // sessionLookup 只含 active 服务器会话；其他服务器的子 session 用 entry 构造
@@ -644,9 +644,7 @@ export function SidePanel({
   const focusedServerWorkspaces = useMemo(() => {
     if (!multiServerConfig.enabled) return [] as (typeof savedDirectories)[number][]
     const serverId = multiServerStore.getFocusedServerId()
-    return readServerWorkspaces(serverId).map(
-      dir => ({ path: dir, addedAt: 0 } as (typeof savedDirectories)[number]),
-    )
+    return readServerWorkspaces(serverId).map(dir => ({ path: dir, addedAt: 0 }) as (typeof savedDirectories)[number])
   }, [multiServerConfig, storageVersionSnapshot])
 
   const selectorProjectGroups = useMemo<ProjectItem[]>(() => {
@@ -942,9 +940,7 @@ export function SidePanel({
             entry={entry}
             resolvedSession={resolvedSession}
             isSelected={entry.sessionId === selectedSessionId}
-            onSelect={session =>
-              handleSelectActive({ ...session, serverId } as ApiSession & { serverId?: string })
-            }
+            onSelect={session => handleSelectActive({ ...session, serverId } as ApiSession & { serverId?: string })}
           />
           {childEntries.map(childEntry => renderActiveSessionNode(childEntry, level + 1))}
         </div>
@@ -1496,10 +1492,7 @@ export function SidePanel({
 
           {/* Recents Tab */}
           {sidebarTab === 'recents' && (
-            <div
-              ref={recentsSelectionRootRef}
-              className={`flex-1 overflow-hidden ${isEditMode ? 'select-none' : ''}`}
-            >
+            <div ref={recentsSelectionRootRef} className={`flex-1 overflow-hidden ${isEditMode ? 'select-none' : ''}`}>
               {multiServerConfig.enabled ? (
                 subscribedServerIds.length > 0 ? (
                   search ? (
@@ -1535,11 +1528,7 @@ export function SidePanel({
               ) : sidebarFolderRecents ? (
                 search ? (
                   /* 文件夹模式 + 搜索：文件夹 + session 一起搜（单服务器：无服务器组头） */
-                  <SearchResults
-                    search={search}
-                    selectedSessionId={selectedSessionId}
-                    onSelectSession={handleSelect}
-                  />
+                  <SearchResults search={search} selectedSessionId={selectedSessionId} onSelectSession={handleSelect} />
                 ) : (
                   <FolderRecentList
                     projects={folderProjects}
@@ -1610,9 +1599,7 @@ export function SidePanel({
                       <div className="px-[6px] pt-0.5 pb-1 text-[length:var(--fs-xxs)] font-medium uppercase tracking-wider text-text-400">
                         {serverStore.getServer(serverId)?.name ?? serverId}
                       </div>
-                      <div className="space-y-0.5">
-                        {roots.map(entry => renderActiveSessionNode(entry))}
-                      </div>
+                      <div className="space-y-0.5">{roots.map(entry => renderActiveSessionNode(entry))}</div>
                     </div>
                   ))}
 

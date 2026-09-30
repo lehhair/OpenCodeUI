@@ -41,9 +41,12 @@ export function useKeybindingStore() {
     return keybindingStore.getKey(action)
   }, [])
 
-  const isKeyUsed = useCallback((keyStr: string, excludeAction?: KeybindingAction, scope?: KeybindingConfig['scope']) => {
-    return keybindingStore.isKeyUsed(keyStr, excludeAction, scope)
-  }, [])
+  const isKeyUsed = useCallback(
+    (keyStr: string, excludeAction?: KeybindingAction, scope?: KeybindingConfig['scope']) => {
+      return keybindingStore.isKeyUsed(keyStr, excludeAction, scope)
+    },
+    [],
+  )
 
   const getByCategory = useCallback((category: KeybindingConfig['category']) => {
     return keybindingStore.getByCategory(category)

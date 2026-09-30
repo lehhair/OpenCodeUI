@@ -21,7 +21,12 @@ describe('HtmlFilePreviewFrame', () => {
   })
 
   it('renders a file as a script-enabled opaque-origin sandbox', () => {
-    render(<HtmlFilePreviewFrame html={'<main>Preview</main><script>document.body.dataset.ready="yes"</script>'} title="index.html" />)
+    render(
+      <HtmlFilePreviewFrame
+        html={'<main>Preview</main><script>document.body.dataset.ready="yes"</script>'}
+        title="index.html"
+      />,
+    )
 
     const frame = screen.getByTitle('index.html')
     expect(frame).toHaveAttribute('sandbox', 'allow-scripts')

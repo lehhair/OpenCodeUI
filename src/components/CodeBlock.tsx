@@ -1,4 +1,13 @@
-import { memo, useCallback, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
+import {
+  memo,
+  useCallback,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type ReactNode,
+} from 'react'
 import { useInputCapabilities } from '../hooks/useInputCapabilities'
 import { useSyntaxHighlight, useStreamingSyntaxHighlight, type HighlightTokens } from '../hooks/useSyntaxHighlight'
 import { themeStore } from '../store/themeStore'
@@ -60,7 +69,13 @@ function sameFlatToken(left: FlatHighlightToken, right: FlatHighlightToken | und
   return !!right && left.content === right.content && left.color === right.color
 }
 
-const StreamingCodeTokens = memo(function StreamingCodeTokens({ tokens, suffix }: { tokens: HighlightTokens; suffix: string }) {
+const StreamingCodeTokens = memo(function StreamingCodeTokens({
+  tokens,
+  suffix,
+}: {
+  tokens: HighlightTokens
+  suffix: string
+}) {
   const codeRef = useRef<HTMLElement | null>(null)
   const previousRef = useRef<FlatHighlightToken[]>([])
   const flatTokens = useMemo(() => flattenTokens(tokens, suffix), [suffix, tokens])

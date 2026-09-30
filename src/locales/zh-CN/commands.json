@@ -15,8 +15,6 @@
   "focusInputDesc": "聚焦消息输入框",
   "newSession": "新建会话",
   "newSessionDesc": "创建新的对话会话",
-  "archiveSession": "归档会话",
-  "archiveSessionDesc": "归档当前会话",
   "previousSession": "上一个会话",
   "previousSessionDesc": "切换到上一个会话",
   "nextSession": "下一个会话",

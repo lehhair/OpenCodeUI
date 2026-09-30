@@ -33,7 +33,11 @@ export function WorkspaceSettings() {
   return (
     <div>
       <SettingsSection title={t('workspace.layout')} description={t('workspace.layoutDesc')}>
-        <SettingRow label={t('appearance.wideMode')} description={t('appearance.wideModeDesc')} onClick={toggleWideMode}>
+        <SettingRow
+          label={t('appearance.wideMode')}
+          description={t('appearance.wideModeDesc')}
+          onClick={toggleWideMode}
+        >
           <Toggle enabled={isWideMode} onChange={toggleWideMode} />
         </SettingRow>
 

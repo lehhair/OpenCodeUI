@@ -28,4 +28,5 @@ services:
         NPM_CONFIG_REGISTRY: ${NPM_CONFIG_REGISTRY:-https://registry.npmmirror.com}
         NODEJS_ORG_MIRROR: ${NODEJS_ORG_MIRROR:-https://npmmirror.com/mirrors/node}
         MISE_INSTALL_URL: ${MISE_INSTALL_URL:-https://mise.run}
-        OPENCODE_INSTALL_URL: ${OPENCODE_INSTALL_URL:-https://opencode.ai/install}
+        # opencode 版本（本 UI 只支持 V2）。Dockerfile 用它拼下载地址并校验哈希。
+        OPENCODE_VERSION: ${OPENCODE_VERSION:-2.0.19}

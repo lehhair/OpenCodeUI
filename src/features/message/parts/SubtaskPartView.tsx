@@ -105,7 +105,9 @@ export const SubtaskPartView = memo(function SubtaskPartView({ part }: SubtaskPa
           <div className="px-4 py-3 border-t border-border-200/40 space-y-3">
             {/* Prompt preview */}
             <div>
-              <p className="text-[length:var(--fs-xxs)] text-text-500 uppercase tracking-wider mb-1">{t('subtask.task')}</p>
+              <p className="text-[length:var(--fs-xxs)] text-text-500 uppercase tracking-wider mb-1">
+                {t('subtask.task')}
+              </p>
               <p className="text-[length:var(--fs-sm)] text-text-300 whitespace-pre-wrap line-clamp-4">{part.prompt}</p>
             </div>
 

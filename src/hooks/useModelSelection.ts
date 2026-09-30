@@ -35,7 +35,9 @@ interface UseModelSelectionReturn {
 export function useModelSelection({ models, sessionId = null }: UseModelSelectionOptions): UseModelSelectionReturn {
   const sessionSelection = sessionId ? getSessionModelSelection(sessionId) : undefined
   const initialSessionSelection = sessionId ? getSessionModelSelection(sessionId) : undefined
-  const initialSessionModel = initialSessionSelection ? findModelByKey(models, initialSessionSelection.modelKey) : undefined
+  const initialSessionModel = initialSessionSelection
+    ? findModelByKey(models, initialSessionSelection.modelKey)
+    : undefined
 
   const [{ selectedModelKey, selectedVariant }, setSelection] = useState<{
     selectedModelKey: string | null

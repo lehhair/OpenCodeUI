@@ -17,20 +17,14 @@ export const MSG_EXPAND = {
   clipPath: EXPAND_MOTION.clipPath,
 } as const
 
-export function expandGridClass(
-  open: boolean,
-  animate = true,
-  panelClassName: string = MSG_EXPAND.panel,
-): string {
+export function expandGridClass(open: boolean, animate = true, panelClassName: string = MSG_EXPAND.panel): string {
   const rows = open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
   if (!animate) return `grid ${rows}`
   return `grid ${panelClassName} ${rows}`
 }
 
 export function expandFadeGridClass(open: boolean): string {
-  return `grid ${MSG_EXPAND.panelFade} ${
-    open ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
-  }`
+  return `grid ${MSG_EXPAND.panelFade} ${open ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`
 }
 
 const CHEVRON_SIZE = {
@@ -42,9 +36,7 @@ export type ChevronSize = keyof typeof CHEVRON_SIZE
 
 /** size=sm 给思考/小行；md 给卡片默认 chevron */
 export function chevronClass(open: boolean, size: ChevronSize = 'md', extra = ''): string {
-  return [CHEVRON_SIZE[size], MSG_EXPAND.chevron, open ? '' : '-rotate-90', extra]
-    .filter(Boolean)
-    .join(' ')
+  return [CHEVRON_SIZE[size], MSG_EXPAND.chevron, open ? '' : '-rotate-90', extra].filter(Boolean).join(' ')
 }
 
 /** 消息流统一 unmount 延迟，与 MSG_EXPAND.unmountDelayMs 同源 */
@@ -87,10 +79,7 @@ export function MessageExpandPanel({
   className,
   innerClassName = 'min-h-0 min-w-0 overflow-hidden',
 }: MessageExpandPanelProps) {
-  const outerClass =
-    variant === 'fade'
-      ? expandFadeGridClass(open)
-      : expandGridClass(open, animate, panelClassName)
+  const outerClass = variant === 'fade' ? expandFadeGridClass(open) : expandGridClass(open, animate, panelClassName)
   const style: CSSProperties | undefined = clip ? { clipPath: MSG_EXPAND.clipPath } : undefined
 
   return (

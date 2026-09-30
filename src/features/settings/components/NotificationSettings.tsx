@@ -366,7 +366,14 @@ function EventSoundCard({
 
       {/* Upload row */}
       <div className="flex flex-wrap items-center gap-2 mt-1">
-        <input ref={fileInputRef} type="file" accept="audio/*" onChange={handleFileUpload} disabled={audioBusy !== null} className="hidden" />
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="audio/*"
+          onChange={handleFileUpload}
+          disabled={audioBusy !== null}
+          className="hidden"
+        />
         <button
           type="button"
           onClick={() => fileInputRef.current?.click()}
@@ -375,7 +382,9 @@ function EventSoundCard({
         >
           {hasCustom ? t('notifications.replaceAudio') : t('notifications.uploadAudio')}
         </button>
-        <span className="w-full text-[length:var(--fs-xs)] text-text-500 sm:ml-auto sm:w-auto">{t('notifications.supportedFormats')}</span>
+        <span className="w-full text-[length:var(--fs-xs)] text-text-500 sm:ml-auto sm:w-auto">
+          {t('notifications.supportedFormats')}
+        </span>
       </div>
 
       {/* Upload Error */}
@@ -418,7 +427,10 @@ export function NotificationSettings() {
 
   return (
     <div>
-      <SettingsSection title={t('notifications.systemNotifications')} description={t('notifications.systemNotificationsDesc')}>
+      <SettingsSection
+        title={t('notifications.systemNotifications')}
+        description={t('notifications.systemNotificationsDesc')}
+      >
         {notificationsSupported ? (
           <div className="space-y-3">
             <SettingRow
@@ -434,17 +446,13 @@ export function NotificationSettings() {
               <Toggle
                 enabled={notificationsEnabled && notificationPermission !== 'denied'}
                 disabled={notificationPermission === 'denied'}
-                onChange={() =>
-                  notificationPermission !== 'denied' && setNotificationsEnabled(!notificationsEnabled)
-                }
+                onChange={() => notificationPermission !== 'denied' && setNotificationsEnabled(!notificationsEnabled)}
               />
             </SettingRow>
 
             <SettingRow
               label={t('notifications.testNotification')}
-              description={
-                notificationsEnabled ? t('notifications.sendSampleDesc') : t('notifications.enableToTest')
-              }
+              description={notificationsEnabled ? t('notifications.sendSampleDesc') : t('notifications.enableToTest')}
             >
               <Button
                 size="sm"
@@ -457,7 +465,10 @@ export function NotificationSettings() {
             </SettingRow>
 
             {notificationsEnabled && notificationPermission !== 'denied' && (
-              <SettingsSubgroup title={t('notifications.notificationTypes')} description={t('notifications.notificationTypesDesc')}>
+              <SettingsSubgroup
+                title={t('notifications.notificationTypes')}
+                description={t('notifications.notificationTypesDesc')}
+              >
                 {EVENT_TYPES.map(evt => (
                   <EventEnableRow
                     key={evt.type}
@@ -498,10 +509,7 @@ export function NotificationSettings() {
               icon={soundSettings.enabled ? <VolumeIcon size={14} /> : <VolumeOffIcon size={14} />}
               onClick={() => soundStore.setEnabled(!soundSettings.enabled)}
             >
-              <Toggle
-                enabled={soundSettings.enabled}
-                onChange={() => soundStore.setEnabled(!soundSettings.enabled)}
-              />
+              <Toggle enabled={soundSettings.enabled} onChange={() => soundStore.setEnabled(!soundSettings.enabled)} />
             </SettingRow>
 
             <SettingRow

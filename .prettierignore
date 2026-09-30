@@ -2,4 +2,6 @@ dist
 node_modules
 public/material-icons
 src-tauri/target
+# cargo check / tauri-build 生成的 schema（src-tauri/.gitignore 已忽略，非源码）
+src-tauri/gen/schemas
 coverage

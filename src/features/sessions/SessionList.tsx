@@ -292,8 +292,7 @@ export function SessionList({
               const showPinnedDivider = pinnedDividerAfterIds?.has(session.id)
               const showUnavailableAfter = hasUnavailablePinned && index === lastAvailablePinnedIndex
               const isChecked = selectedSessionIds?.has(session.id) ?? false
-              const prevChecked =
-                isEditMode && index > 0 && (selectedSessionIds?.has(sessions[index - 1].id) ?? false)
+              const prevChecked = isEditMode && index > 0 && (selectedSessionIds?.has(sessions[index - 1].id) ?? false)
               const nextChecked =
                 isEditMode &&
                 index < sessions.length - 1 &&
@@ -583,15 +582,12 @@ export function SessionListItem({
     if (isEditMode || isEditing) {
       return
     }
-    startInternalDrag(
-      e,
-      {
-        kind: 'session',
-        sessionId: session.id,
-        serverId: activeSessionKey ? splitSessionKey(activeSessionKey).serverId : undefined,
-        directory: session.directory,
-      },
-    )
+    startInternalDrag(e, {
+      kind: 'session',
+      sessionId: session.id,
+      serverId: activeSessionKey ? splitSessionKey(activeSessionKey).serverId : undefined,
+      directory: session.directory,
+    })
   }
 
   const isDraggable = !isEditMode && !isEditing
@@ -805,9 +801,7 @@ export function SessionListItem({
         >
           <p
             className={`${isCompact ? 'text-[length:var(--fs-md)]' : 'text-[length:var(--fs-base)]'} truncate font-medium ${
-              (isEditMode ? isChecked : isSelected)
-                ? 'text-text-100'
-                : 'text-text-200 group-hover:text-text-100'
+              (isEditMode ? isChecked : isSelected) ? 'text-text-100' : 'text-text-200 group-hover:text-text-100'
             }`}
             title={session.title || t('sessions.untitledChat')}
           >
@@ -848,7 +842,9 @@ export function SessionListItem({
                   {session.summary.additions > 0 && (
                     <span className="text-success-100">+{session.summary.additions}</span>
                   )}
-                  {session.summary.deletions > 0 && <span className="text-danger-100">-{session.summary.deletions}</span>}
+                  {session.summary.deletions > 0 && (
+                    <span className="text-danger-100">-{session.summary.deletions}</span>
+                  )}
                   {session.summary.files > 0 && <span>{session.summary.files}f</span>}
                 </span>
               </>
@@ -936,7 +932,9 @@ function UnavailablePinnedSessionItem({
         >
           {title}
         </p>
-        <div className={`flex items-center ${isCompact ? 'mt-1' : 'mt-1.5'} h-4 text-[length:var(--fs-xxs)] text-text-500`}>
+        <div
+          className={`flex items-center ${isCompact ? 'mt-1' : 'mt-1.5'} h-4 text-[length:var(--fs-xxs)] text-text-500`}
+        >
           <span>{t('sessions.unavailable')}</span>
         </div>
       </div>

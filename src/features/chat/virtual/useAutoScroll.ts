@@ -32,29 +32,37 @@ export function useAutoScroll(bottomThreshold = 10) {
     if (!target) return
     autoMark.current = { top: target.scrollHeight - target.clientHeight, time: Date.now() }
     if (autoTimer.current) clearTimeout(autoTimer.current)
-    autoTimer.current = setTimeout(() => { autoMark.current = undefined }, AUTO_TTL)
+    autoTimer.current = setTimeout(() => {
+      autoMark.current = undefined
+    }, AUTO_TTL)
   }, [])
 
   const isAuto = useCallback((el: HTMLElement) => {
     const a = autoMark.current
     if (!a) return false
-    if (Date.now() - a.time > AUTO_TTL) { autoMark.current = undefined; return false }
+    if (Date.now() - a.time > AUTO_TTL) {
+      autoMark.current = undefined
+      return false
+    }
     return Math.abs(el.scrollTop - a.top) < AUTO_TOLERANCE
   }, [])
 
-  const scrollToBottom = useCallback((force: boolean) => {
-    const el = scrollElRef.current
-    if (!el) return
-    if (force && userScrolledRef.current) setScrolled(false)
-    if (!force && userScrolledRef.current) return
-    const max = Math.max(0, el.scrollHeight - el.clientHeight)
-    if (max - el.scrollTop < 2) {
+  const scrollToBottom = useCallback(
+    (force: boolean) => {
+      const el = scrollElRef.current
+      if (!el) return
+      if (force && userScrolledRef.current) setScrolled(false)
+      if (!force && userScrolledRef.current) return
+      const max = Math.max(0, el.scrollHeight - el.clientHeight)
+      if (max - el.scrollTop < 2) {
+        markAuto(el)
+        return
+      }
       markAuto(el)
-      return
-    }
-    markAuto(el)
-    el.scrollTop = max
-  }, [markAuto, setScrolled])
+      el.scrollTop = max
+    },
+    [markAuto, setScrolled],
+  )
 
   const stop = useCallback(() => {
     const el = scrollElRef.current
@@ -92,27 +100,30 @@ export function useAutoScroll(bottomThreshold = 10) {
     stop()
   }, [bottomThreshold, isAuto, scrollToBottom, setScrolled, stop])
 
-  const handleWheel = useCallback((e: WheelEvent) => {
-    const el = scrollElRef.current
-    if (!el) return
-    const max = el.scrollHeight - el.clientHeight
-    // 容器无溢出时忽略所有 wheel 事件——空白页 spacer 产生的小溢出不该触发折叠
-    if (max <= 1) return
-    if (e.deltaY >= 0) {
-      // 下滚回底时恢复贴底跟随：用户主动下滚到阈值内才清 userScrolled。
-      // 流式增长推回不会走这里（不是 wheel 事件）。
-      if (userScrolledRef.current) {
-        if (max - el.scrollTop < bottomThreshold) setScrolled(false)
+  const handleWheel = useCallback(
+    (e: WheelEvent) => {
+      const el = scrollElRef.current
+      if (!el) return
+      const max = el.scrollHeight - el.clientHeight
+      // 容器无溢出时忽略所有 wheel 事件——空白页 spacer 产生的小溢出不该触发折叠
+      if (max <= 1) return
+      if (e.deltaY >= 0) {
+        // 下滚回底时恢复贴底跟随：用户主动下滚到阈值内才清 userScrolled。
+        // 流式增长推回不会走这里（不是 wheel 事件）。
+        if (userScrolledRef.current) {
+          if (max - el.scrollTop < bottomThreshold) setScrolled(false)
+        }
+        return
       }
-      return
-    }
-    // 上滚立刻离底。清除 auto 标记避免后续 scroll 事件被误判为程序滚动。
-    autoMark.current = undefined
-    const nested = (e.target instanceof Element ? e.target : undefined)?.closest('[data-scrollable]')
-    if (nested && nested !== el) return
-    // 直接写 ref，不等 React re-render——同帧的 RO/measure 必须立刻看到离底
-    if (!userScrolledRef.current) setScrolled(true)
-  }, [bottomThreshold, setScrolled])
+      // 上滚立刻离底。清除 auto 标记避免后续 scroll 事件被误判为程序滚动。
+      autoMark.current = undefined
+      const nested = (e.target instanceof Element ? e.target : undefined)?.closest('[data-scrollable]')
+      if (nested && nested !== el) return
+      // 直接写 ref，不等 React re-render——同帧的 RO/measure 必须立刻看到离底
+      if (!userScrolledRef.current) setScrolled(true)
+    },
+    [bottomThreshold, setScrolled],
+  )
 
   const handleInteraction = useCallback(() => {
     const sel = window.getSelection()
@@ -133,7 +144,12 @@ export function useAutoScroll(bottomThreshold = 10) {
   // contentRef RO 会在 item 首次测量时触发（container height 变化），
   // 把 scrollTop 拉回底部，覆盖 applyScrollAdjustment 的正确行为。
 
-  useEffect(() => () => { if (autoTimer.current) clearTimeout(autoTimer.current) }, [])
+  useEffect(
+    () => () => {
+      if (autoTimer.current) clearTimeout(autoTimer.current)
+    },
+    [],
+  )
 
   const reset = useCallback(() => {
     setScrolled(false)
@@ -146,22 +162,35 @@ export function useAutoScroll(bottomThreshold = 10) {
   const scrollToBottomCb = useCallback(() => scrollToBottom(false), [scrollToBottom])
   const forceScrollToBottom = useCallback(() => scrollToBottom(true), [scrollToBottom])
 
-  return useMemo(() => ({
-    setScrollRef,
-    setContentRef,
-    handleScroll,
-    handleWheel,
-    handleInteraction,
-    pause: stop,
-    reset,
-    resume,
-    markAuto,
-    scrollToBottom: scrollToBottomCb,
-    forceScrollToBottom,
-    userScrolledRef,
-    userScrolled,
-  }), [
-    setScrollRef, setContentRef, handleScroll, handleWheel, handleInteraction,
-    stop, reset, resume, markAuto, scrollToBottomCb, forceScrollToBottom, userScrolled,
-  ])
+  return useMemo(
+    () => ({
+      setScrollRef,
+      setContentRef,
+      handleScroll,
+      handleWheel,
+      handleInteraction,
+      pause: stop,
+      reset,
+      resume,
+      markAuto,
+      scrollToBottom: scrollToBottomCb,
+      forceScrollToBottom,
+      userScrolledRef,
+      userScrolled,
+    }),
+    [
+      setScrollRef,
+      setContentRef,
+      handleScroll,
+      handleWheel,
+      handleInteraction,
+      stop,
+      reset,
+      resume,
+      markAuto,
+      scrollToBottomCb,
+      forceScrollToBottom,
+      userScrolled,
+    ],
+  )
 }

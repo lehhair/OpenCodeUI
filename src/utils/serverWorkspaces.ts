@@ -55,11 +55,7 @@ export function addServerWorkspace(serverId: string, directory: string): boolean
 }
 
 /** 重排某服务器的工作区（写入 per-server saved-directories） */
-export function reorderServerWorkspaces(
-  serverId: string,
-  draggedPath: string,
-  targetPath: string,
-): void {
+export function reorderServerWorkspaces(serverId: string, draggedPath: string, targetPath: string): void {
   const saved = readServerSavedDirectories(serverId)
   const next = [...saved]
   const from = next.findIndex(d => isSameDirectory(d.path, draggedPath))

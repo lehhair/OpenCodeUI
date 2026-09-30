@@ -148,7 +148,8 @@ body,
 }
 
 @keyframes settings-search-highlight {
-  0%, 24% {
+  0%,
+  24% {
     background-color: hsl(var(--accent-main-100) / 0.14);
     box-shadow: 0 0 0 1px hsl(var(--accent-main-100) / 0.38);
   }
@@ -369,9 +370,10 @@ body,
     'Segoe UI Emoji';
   --font-sans: var(--font-ui-sans);
   --font-ui-serif: 'Georgia', 'Noto Serif', serif;
-  --font-mono: 'Fira Code', 'Noto Sans Mono CJK SC', 'JetBrains Mono', 'Cascadia Code', 'SFMono-Regular',
-    'SF Mono', Menlo, Consolas, 'Liberation Mono', 'Noto Sans Mono', 'Ubuntu Mono',
-    'WenQuanYi Micro Hei Mono', 'DejaVu Sans Mono', 'Noto Sans CJK SC', ui-monospace, monospace;
+  --font-mono:
+    'Fira Code', 'Noto Sans Mono CJK SC', 'JetBrains Mono', 'Cascadia Code', 'SFMono-Regular', 'SF Mono', Menlo,
+    Consolas, 'Liberation Mono', 'Noto Sans Mono', 'Ubuntu Mono', 'WenQuanYi Micro Hei Mono', 'DejaVu Sans Mono',
+    'Noto Sans CJK SC', ui-monospace, monospace;
 }
 
 :root[data-mode='dark'] {
@@ -401,9 +403,10 @@ body,
     'Segoe UI Emoji';
   --font-sans: var(--font-ui-sans);
   --font-ui-serif: 'Georgia', 'Noto Serif', serif;
-  --font-mono: 'Fira Code', 'Noto Sans Mono CJK SC', 'JetBrains Mono', 'Cascadia Code', 'SFMono-Regular',
-    'SF Mono', Menlo, Consolas, 'Liberation Mono', 'Noto Sans Mono', 'Ubuntu Mono',
-    'WenQuanYi Micro Hei Mono', 'DejaVu Sans Mono', 'Noto Sans CJK SC', ui-monospace, monospace;
+  --font-mono:
+    'Fira Code', 'Noto Sans Mono CJK SC', 'JetBrains Mono', 'Cascadia Code', 'SFMono-Regular', 'SF Mono', Menlo,
+    Consolas, 'Liberation Mono', 'Noto Sans Mono', 'Ubuntu Mono', 'WenQuanYi Micro Hei Mono', 'DejaVu Sans Mono',
+    'Noto Sans CJK SC', ui-monospace, monospace;
 
   /* Background - 灰调晨雾 */
   --bg-000: 150 10% 99%;
@@ -525,7 +528,10 @@ body {
   margin-bottom: 1rem;
 }
 
-.markdown-content.text-\[length\:var\(--fs-sm\)\] .markdown-stream-block:not(:first-child) > :first-child > :first-child {
+.markdown-content.text-\[length\:var\(--fs-sm\)\]
+  .markdown-stream-block:not(:first-child)
+  > :first-child
+  > :first-child {
   margin-top: 0.5rem;
 }
 
@@ -632,7 +638,8 @@ body {
   color: hsl(var(--text-300));
 }
 
-.markdown-content .markdown-html-control:is(input:not([type='checkbox']):not([type='radio']), textarea, select, button) {
+.markdown-content
+  .markdown-html-control:is(input:not([type='checkbox']):not([type='radio']), textarea, select, button) {
   max-width: 100%;
   border: 1px solid hsl(var(--border-200) / 0.75);
   border-radius: 5px;
@@ -660,7 +667,8 @@ body {
   outline-offset: 2px;
 }
 
-.markdown-content :is(.markdown-html-control[type='checkbox'], .markdown-html-control[type='radio'], .markdown-html-progress) {
+.markdown-content
+  :is(.markdown-html-control[type='checkbox'], .markdown-html-control[type='radio'], .markdown-html-progress) {
   accent-color: hsl(var(--accent-main-100));
 }
 

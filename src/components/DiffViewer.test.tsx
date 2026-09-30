@@ -67,7 +67,13 @@ describe('DiffViewer', () => {
 
   it('keeps split word-diff changed text themed when syntax highlighting is unavailable', () => {
     const { container } = render(
-      <DiffViewer before={['node_modules', '.git', '.gitignore'].join('\n')} after={['node_modules', 'root', '.gitignore'].join('\n')} language="text" viewMode="split" wordWrap={true} />,
+      <DiffViewer
+        before={['node_modules', '.git', '.gitignore'].join('\n')}
+        after={['node_modules', 'root', '.gitignore'].join('\n')}
+        language="text"
+        viewMode="split"
+        wordWrap={true}
+      />,
     )
 
     const changedSegments = Array.from(container.querySelectorAll('span')).filter(

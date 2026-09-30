@@ -1,8 +1,35 @@
 /**
- * QuestionRenderer - 提问工具专用渲染器
+ * QuestionRenderer - 提问（`question` 工具）专用渲染器
  *
- * 从 input 获取问题结构，从 output 解析用户答案，
- * 用和 InlineQuestion 一致的视觉风格渲染已回答状态（只读）。
+ * 从 `input.questions` 拿问题结构，从 `state.metadata.answers` / `output` 解析用户答案，
+ * 渲染**已回答状态**（只读）。
+ *
+ * ── 阶段 3b 复核结论：**这是 V2 的活代码，不要删** ────────────────────────
+ *
+ * 阶段 3a 报告曾把本文件归入「V1 question 体系的残留、归 3b 删除」，
+ * 理由是「V2 用 Form 取代了 question」。**该前提不成立**（阶段 3b 实测）：
+ *
+ *   1. v2.0.19 **仍然有 `question` 工具**（`packages/core/src/tool/plugin/question.ts`，
+ *      `export const name = "question"`）。它内部改调 `Form.Service.ask(...)` 弹表单，
+ *      但**工具调用本身照旧落进消息历史**，形态与 V1 一致：
+ *        input:    `{ questions: [{ question, header, options[{label,description}], multiple? }] }`
+ *        content:  `[{ type:'text', text: 'User has answered your questions: "Q"="A". …' }]`
+ *        metadata: `{ answers: [["A"]], truncated: false }`
+ *      （`toModelContent()` 生成的正是上面这种 `"问题"="答案"` 文本，
+ *        所以本文件的 `parseAnswersFromOutput` 依然对得上。）
+ *
+ *   2. **本地库实测有 54 条这样的 `question` 工具调用**，且它们所在的会话
+ *      **都在 `session_v2` 表里**（即在 V2 的会话列表里可见）→ 删掉本渲染器
+ *      会让这 54 条历史消息退化成「默认工具卡片」，属于功能倒退。
+ *
+ * 真正被 Form 取代的是**交互入口**：
+ *   `InlineQuestion.tsx` / `QuestionDialog.tsx` / `InlineToolRequestContext.pendingQuestions`
+ *   —— 这些已在阶段 3b 删除（表单统一由底部的 `FormDialog` 渲染与回复）。
+ *
+ * ⚠️ 顺带记录一条 3a 报告的事实修正（见 `InlineToolRequestContext.tsx` 顶部注释）：
+ *   `Form.Info` **有** 可选的 `metadata`，`question` 工具用它把表单绑回工具调用
+ *   （`metadata: { kind:'question', tool:{ messageID, id } }`）→ 将来若想做「表单内联渲染」，
+ *   匹配键是 `form.metadata.tool.id === part.callID`。
  */
 
 import { useMemo } from 'react'
@@ -49,7 +76,7 @@ export function QuestionRenderer({ part, data }: ToolRendererProps) {
     return buildQAList(inputObj, output, metadata)
   }, [inputObj, output, metadata])
 
-  // 运行中不渲染（InlineQuestion 接管交互）
+  // 运行中不渲染（表单由底部的 FormDialog 接管交互）
   if (isActive) {
     return null
   }
@@ -85,7 +112,7 @@ function AnsweredQuestion({ qa }: { qa: QAPair }) {
         <div className="text-[length:var(--fs-md)] text-text-100">{qa.question}</div>
       </div>
 
-      {/* 选项 — 和 InlineQuestion 一致的按钮组，已选中的高亮 */}
+      {/* 选项 — 按钮组，已选中的高亮 */}
       <div className="flex flex-wrap gap-1.5">
         {qa.options.map((option, idx) => {
           const isSelected = qa.answers.includes(option.label)

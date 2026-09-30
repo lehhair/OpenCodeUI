@@ -12,7 +12,7 @@ import type {
   PermissionRuleConfig as SDKPermissionRuleConfig,
   ProviderConfig as SDKProviderConfig,
   ServerConfig as SDKServerConfig,
-} from '@opencode-ai/sdk/v2/client'
+} from './v1Model'
 
 export type LogLevel = SDKLogLevel
 

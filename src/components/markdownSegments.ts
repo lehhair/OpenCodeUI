@@ -63,7 +63,10 @@ export function findUnescaped(text: string, marker: string, start: number): numb
 }
 
 export function getFootnoteId(label: string): string {
-  const normalized = label.trim().toLowerCase().replace(/[^a-z0-9_-]+/g, '-')
+  const normalized = label
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, '-')
   return normalized || 'note'
 }
 

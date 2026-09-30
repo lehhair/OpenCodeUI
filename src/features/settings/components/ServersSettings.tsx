@@ -95,10 +95,7 @@ function ServerItem({
           className="min-w-0 flex-1 overflow-hidden bg-transparent border-none p-0 text-left"
         >
           <div className="min-w-0">
-            <div
-              className="text-[length:var(--fs-md)] font-medium text-text-100 truncate"
-              title={server.name}
-            >
+            <div className="text-[length:var(--fs-md)] font-medium text-text-100 truncate" title={server.name}>
               {server.name}
             </div>
             <div className="text-[length:var(--fs-xs)] text-text-400 truncate font-mono flex items-center gap-1 mt-0.5 min-w-0">
@@ -277,7 +274,9 @@ function EditServerForm({
       {showAuth && (
         <>
           <div>
-            <label className="block text-[length:var(--fs-xs)] font-medium text-text-300 mb-1">{t('servers.username')}</label>
+            <label className="block text-[length:var(--fs-xs)] font-medium text-text-300 mb-1">
+              {t('servers.username')}
+            </label>
             <input
               type="text"
               value={username}
@@ -290,7 +289,9 @@ function EditServerForm({
             />
           </div>
           <div>
-            <label className="block text-[length:var(--fs-xs)] font-medium text-text-300 mb-1">{t('servers.password')}</label>
+            <label className="block text-[length:var(--fs-xs)] font-medium text-text-300 mb-1">
+              {t('servers.password')}
+            </label>
             <input
               type="password"
               value={password}
@@ -425,7 +426,9 @@ function AddServerForm({
       {showAuth && (
         <>
           <div>
-            <label className="block text-[length:var(--fs-xs)] font-medium text-text-300 mb-1">{t('servers.username')}</label>
+            <label className="block text-[length:var(--fs-xs)] font-medium text-text-300 mb-1">
+              {t('servers.username')}
+            </label>
             <input
               type="text"
               value={username}
@@ -438,7 +441,9 @@ function AddServerForm({
             />
           </div>
           <div>
-            <label className="block text-[length:var(--fs-xs)] font-medium text-text-300 mb-1">{t('servers.password')}</label>
+            <label className="block text-[length:var(--fs-xs)] font-medium text-text-300 mb-1">
+              {t('servers.password')}
+            </label>
             <input
               type="password"
               value={password}
@@ -465,7 +470,9 @@ function AddServerForm({
             </div>
           )}
 
-          <div className="text-[length:var(--fs-xs)] text-text-400 leading-relaxed">{t('servers.credentialsStorage')}</div>
+          <div className="text-[length:var(--fs-xs)] text-text-400 leading-relaxed">
+            {t('servers.credentialsStorage')}
+          </div>
         </>
       )}
 
@@ -586,7 +593,8 @@ export function ServersSettings() {
           description={
             multiServerConfig.enabled
               ? t('servers.subscribedCountHint', {
-                  defaultValue: '{{count}} servers subscribed. Use the plug icon on each server to join/leave the whitelist.',
+                  defaultValue:
+                    '{{count}} servers subscribed. Use the plug icon on each server to join/leave the whitelist.',
                   count: subscribedCount,
                 })
               : t('servers.multiServerModeOffHint', {
@@ -631,11 +639,17 @@ export function ServersSettings() {
                   <div ref={addMenuContentRef}>
                     <MenuItem
                       label={t('servers.addRemote')}
-                      onClick={() => { setAddMenuOpen(false); setAddingServer(true) }}
+                      onClick={() => {
+                        setAddMenuOpen(false)
+                        setAddingServer(true)
+                      }}
                     />
                     <MenuItem
                       label={t('servers.addWsl')}
-                      onClick={() => { setAddMenuOpen(false); setAddingWslServer(true) }}
+                      onClick={() => {
+                        setAddMenuOpen(false)
+                        setAddingWslServer(true)
+                      }}
                     />
                   </div>
                 </DropdownMenu>
@@ -718,22 +732,24 @@ export function ServersSettings() {
             />
           ))}
 
-        {addingServer && (
-          <AddServerForm
-            onAdd={(n, u, user, pass) => {
-              const auth = pass ? { username: user || 'opencode', password: pass } : undefined
-              const s = addServer({ name: n, url: u, auth })
-              setAddingServer(false)
-              void checkHealth(s.id)
-            }}
-            onCancel={() => setAddingServer(false)}
-          />
-        )}
+          {addingServer && (
+            <AddServerForm
+              onAdd={(n, u, user, pass) => {
+                const auth = pass ? { username: user || 'opencode', password: pass } : undefined
+                const s = addServer({ name: n, url: u, auth })
+                setAddingServer(false)
+                void checkHealth(s.id)
+              }}
+              onCancel={() => setAddingServer(false)}
+            />
+          )}
 
-        {servers.length === 0 && unreadyWslItems.length === 0 && !addingServer && (
-          <div className="text-[length:var(--fs-md)] text-text-400 text-center py-8">{t('servers.noServersConfigured')}</div>
-        )}
-      </div>
+          {servers.length === 0 && unreadyWslItems.length === 0 && !addingServer && (
+            <div className="text-[length:var(--fs-md)] text-text-400 text-center py-8">
+              {t('servers.noServersConfigured')}
+            </div>
+          )}
+        </div>
       </SettingsSection>
 
       <DialogAddWslServer

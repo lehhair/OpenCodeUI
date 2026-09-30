@@ -21,13 +21,14 @@ import {
   reconnectServerSSE,
   getSessionStatus,
   getPendingPermissions,
-  getPendingQuestions,
+  listPendingForms,
 } from '../api'
 import type { EventCallbacks } from '../types/api/event'
 import { replyPermission } from '../api/permission'
 import { autoApproveStore } from '../store/autoApproveStore'
 import { multiServerStore } from '../store/multiServerStore'
-import type { ApiMessage, ApiPart, ApiPermissionRequest, ApiQuestionRequest } from '../api/types'
+import type { ApiPermissionRequest } from '../api/types'
+import type { FormInfo } from '../types/api/form'
 import type { SessionStatusMap } from '../types/api/session'
 
 // ============================================
@@ -41,9 +42,15 @@ import type { SessionStatusMap } from '../types/api/session'
 export interface SessionEventCallbacks {
   onPermissionAsked?: (request: ApiPermissionRequest) => void
   onPermissionReplied?: (data: { sessionID: string; requestID: string }) => void
-  onQuestionAsked?: (request: ApiQuestionRequest) => void
-  onQuestionReplied?: (data: { sessionID: string; requestID: string }) => void
-  onQuestionRejected?: (data: { sessionID: string; requestID: string }) => void
+  /**
+   * V2 的 Form 事件（取代 V1 的 question）
+   *
+   * ⚠️ 阶段 3a：表单渲染器已落地，这里开始**真正向会话消费者分发**。
+   *    阶段 2b 只做 pending 登记（不向消费者分发），因为当时还没有渲染器。
+   */
+  onFormCreated?: (form: FormInfo) => void
+  onFormReplied?: (data: { sessionID: string; formID: string }) => void
+  onFormCancelled?: (data: { sessionID: string; formID: string }) => void
   onScrollRequest?: () => void
   onSessionIdle?: (sessionID: string) => void
   onSessionError?: (sessionID: string) => void
@@ -140,7 +147,7 @@ interface PendingRequest<T> {
 }
 
 const pendingPermissions = new Map<string, PendingRequest<ApiPermissionRequest>[]>()
-const pendingQuestions = new Map<string, PendingRequest<ApiQuestionRequest>[]>()
+const pendingForms = new Map<string, PendingRequest<FormInfo>[]>()
 
 // 5秒后过期，防止内存泄漏
 const PENDING_TIMEOUT = 5000
@@ -195,22 +202,22 @@ async function fetchActiveScopeData(directories: string[] | undefined, serverId:
   const scopes = directories && directories.length > 0 ? directories : [undefined]
   const results = await Promise.all(
     scopes.map(async directory => {
-      const [statusMap, permissions, questions] = await Promise.all([
+      const [statusMap, permissions, forms] = await Promise.all([
         getSessionStatus(directory, serverId).catch(() => ({}) as SessionStatusMap),
         getPendingPermissions(undefined, directory, serverId).catch(() => []),
-        getPendingQuestions(undefined, directory, serverId).catch(() => []),
+        listPendingForms(directory, serverId).catch(() => []),
       ])
 
-      return { directory, statusMap, permissions, questions }
+      return { directory, statusMap, permissions, forms }
     }),
   )
 
   const mergedStatusMap: SessionStatusMap = {}
   const permissionMap = new Map<string, ApiPermissionRequest>()
-  const questionMap = new Map<string, ApiQuestionRequest>()
+  const formMap = new Map<string, FormInfo>()
   const sessionMetaEntries: Array<{ sessionId: string; directory?: string }> = []
 
-  results.forEach(({ directory, statusMap, permissions, questions }) => {
+  results.forEach(({ directory, statusMap, permissions, forms }) => {
     // statusMap 的 key 复合化（事件/store 内部统一用 serverId::sessionId）
     for (const [sid, status] of Object.entries(statusMap)) {
       mergedStatusMap[makeSessionKey(serverId, sid)] = status
@@ -229,18 +236,18 @@ async function fetchActiveScopeData(directories: string[] | undefined, serverId:
       permissionMap.set(permission.id, { ...permission, sessionID: makeSessionKey(serverId, permission.sessionID) })
     })
 
-    questions.forEach(question => {
+    forms.forEach(form => {
       if (directory) {
-        sessionMetaEntries.push({ sessionId: makeSessionKey(serverId, question.sessionID), directory })
+        sessionMetaEntries.push({ sessionId: makeSessionKey(serverId, form.sessionID), directory })
       }
-      questionMap.set(question.id, { ...question, sessionID: makeSessionKey(serverId, question.sessionID) })
+      formMap.set(form.id, { ...form, sessionID: makeSessionKey(serverId, form.sessionID) })
     })
   })
 
   return {
     statusMap: mergedStatusMap,
     permissions: Array.from(permissionMap.values()),
-    questions: Array.from(questionMap.values()),
+    forms: Array.from(formMap.values()),
     sessionMetaEntries,
   }
 }
@@ -405,14 +412,14 @@ export function useGlobalEvents(directories?: string[]) {
       fetchVersions.set(serverId, currentVersion)
       activeFetchVersions.set(serverId, currentVersion)
       void fetchActiveScopeData(directoriesRef.current, serverId)
-        .then(({ statusMap, permissions, questions, sessionMetaEntries }) => {
+        .then(({ statusMap, permissions, forms, sessionMetaEntries }) => {
           if (disposed || currentVersion !== fetchVersions.get(serverId)) return
           if (effectiveStrategy === 'merge') {
             activeSessionStore.mergeStatusRefresh(statusMap)
-            activeSessionStore.mergePendingRequests(permissions, questions)
+            activeSessionStore.mergePendingRequests(permissions, forms)
           } else {
             activeSessionStore.initialize(statusMap)
-            activeSessionStore.initializePendingRequests(permissions, questions)
+            activeSessionStore.initializePendingRequests(permissions, forms)
           }
           const currentDirectories = directoriesRef.current
           const currentScopeKey = getScopeKey(directoriesRef.current)
@@ -423,7 +430,12 @@ export function useGlobalEvents(directories?: string[]) {
               ? !currentDirectories || currentDirectories.length === 0 || currentDirectories.includes(pending.directory)
               : pending.scopeKey === currentScopeKey
             if (!matchesScope) continue
-            activeSessionStore.addPendingRequest(pending.requestId, pending.sessionId, pending.type, pending.description)
+            activeSessionStore.addPendingRequest(
+              pending.requestId,
+              pending.sessionId,
+              pending.type,
+              pending.description,
+            )
           }
           activeSessionStore.setSessionMetaBulk(sessionMetaEntries)
         })
@@ -505,22 +517,18 @@ export function useGlobalEvents(directories?: string[]) {
 
       return {
         // ============================================
-        // Message Events → messageStore
+        // Message Events → messageStore（V2 形状，阶段 2b 重写）
         // ============================================
 
-        onMessageUpdated: (apiMsg: ApiMessage) => {
-          messageStore.handleMessageUpdated({ ...apiMsg, sessionID: scope(apiMsg.sessionID) })
+        onMessageUpdated: data => {
+          messageStore.handleMessageUpdated({ ...data, sessionID: scope(data.sessionID) })
+          scheduleScroll(scope(data.sessionID))
         },
 
-        onPartUpdated: (apiPart: ApiPart) => {
-          if ('sessionID' in apiPart && 'messageID' in apiPart) {
-            const scopedId = scope(apiPart.sessionID)
-            messageStore.handlePartUpdated({
-              ...(apiPart as ApiPart & { sessionID: string; messageID: string }),
-              sessionID: scopedId,
-            })
-            scheduleScroll(scopedId)
-          }
+        onPartUpdated: data => {
+          const scopedId = scope(data.sessionID)
+          messageStore.handlePartUpdated({ ...data, sessionID: scopedId })
+          scheduleScroll(scopedId)
         },
 
         onPartDelta: data => {
@@ -529,8 +537,10 @@ export function useGlobalEvents(directories?: string[]) {
           scheduleScroll(scopedId)
         },
 
-        onPartRemoved: data => {
-          messageStore.handlePartRemoved({ ...data, sessionID: scope(data.sessionID) })
+        onMessagesInvalidated: sessionID => {
+          // V2：取消/回退会重写服务端转录，本地增量已不可信 → 标记 stale，
+          // 由 useSessionManager 的 canUseCached 失效后**重拉一次全量消息**
+          messageStore.handleSessionInvalidated(scope(sessionID))
         },
 
         // ============================================
@@ -548,8 +558,8 @@ export function useGlobalEvents(directories?: string[]) {
               for (const req of drainPending(pendingPermissions, scopedId)) {
                 dispatchToConsumers(req.sessionID, cb => cb.onPermissionAsked?.(req))
               }
-              for (const req of drainPending(pendingQuestions, scopedId)) {
-                dispatchToConsumers(req.sessionID, cb => cb.onQuestionAsked?.(req))
+              for (const form of drainPending(pendingForms, scopedId)) {
+                dispatchToConsumers(form.sessionID, cb => cb.onFormCreated?.(form))
               }
             }
           }
@@ -559,7 +569,7 @@ export function useGlobalEvents(directories?: string[]) {
 
           // 清理过期缓存
           cleanupExpired(pendingPermissions)
-          cleanupExpired(pendingQuestions)
+          cleanupExpired(pendingForms)
         },
 
         onSessionIdle: data => {
@@ -569,15 +579,18 @@ export function useGlobalEvents(directories?: string[]) {
           dispatchToConsumers(scopedId, cb => cb.onSessionIdle?.(scopedId))
         },
 
-        onSessionError: error => {
-          const isAbort = error.name === 'MessageAbortedError' || error.name === 'AbortError'
+        onSessionError: data => {
+          const error = data.error
+          // ⚠️ V2 的错误 `type` 是**开放字符串**（`aborted` / `provider.error` / …），
+          //    不再有 V1 的 `MessageAbortedError` 这种具名判别值 → 按关键字判断中止。
+          const isAbort = typeof error?.type === 'string' && error.type.toLowerCase().includes('abort')
           if (!isAbort && import.meta.env.DEV) {
             console.warn('[GlobalEvents] Session error:', error)
           }
-          if (error.sessionID == null || error.sessionID.length < 1) {
+          if (data.sessionID == null || data.sessionID.length < 1) {
             return // Don't handle errors with no sessionID
           }
-          const scopedId = scope(error.sessionID)
+          const scopedId = scope(data.sessionID)
           messageStore.handleSessionError(scopedId)
           childSessionStore.markError(scopedId)
           if (!isAbort) {
@@ -586,7 +599,7 @@ export function useGlobalEvents(directories?: string[]) {
             // 通知（跳过当前 session family）
             if (!belongsToCurrentSession(scopedId)) {
               const meta = activeSessionStore.getSessionMeta(scopedId)
-              const sessionLabel = meta?.title || error.sessionID.slice(0, 8)
+              const sessionLabel = meta?.title || data.sessionID.slice(0, 8)
               notificationStore.push('error', sessionLabel, 'Session error', scopedId, meta?.directory)
             } else if (isSessionDirectlyOpen(scopedId) && soundStore.getSnapshot().currentSessionEnabled) {
               playNotificationSoundDeduped('error')
@@ -595,22 +608,24 @@ export function useGlobalEvents(directories?: string[]) {
           dispatchToConsumers(scopedId, cb => cb.onSessionError?.(scopedId))
         },
 
-        onSessionUpdated: session => {
-          const scopedId = scope(session.id)
-          // 更新 session meta 供 active tab 使用
-          activeSessionStore.setSessionMeta(scopedId, session.title, session.directory)
-          if (session.parentID) {
-            childSessionStore.registerChildSession(session, serverId)
-          }
+        onSessionUpdated: patch => {
+          // V2 的 `session.renamed` / `session.metadata.updated` / `session.moved` /
+          // `session.agent.selected` / `session.model.selected` 都是**部分字段**补丁，
+          // 缺省表示该项没变 → 只更新给到的字段。
+          const scopedId = scope(patch.id)
+          const existing = activeSessionStore.getSessionMeta(scopedId)
+          const title = patch.title ?? existing?.title
+          const directory = patch.directory ?? existing?.directory
+          activeSessionStore.setSessionMeta(scopedId, title, directory)
 
           // 同步标题到 messageStore，让 Header 等依赖 messageStore 的组件实时更新
-          if (session.title && messageStore.getSessionState(scopedId)) {
-            messageStore.updateSessionMetadata(scopedId, { title: session.title })
+          if (patch.title && messageStore.getSessionState(scopedId)) {
+            messageStore.updateSessionMetadata(scopedId, { title: patch.title })
           }
         },
 
-        onSessionDeleted: sessionId => {
-          const scopedId = scope(sessionId)
+        onSessionDeleted: data => {
+          const scopedId = scope(data.sessionID)
           const removedSessionIds = childSessionStore.getSessionAndDescendants(scopedId)
           clearSessionRuntimeState(scopedId)
           for (const id of removedSessionIds) paneLayoutStore.clearSession(id)
@@ -671,6 +686,9 @@ export function useGlobalEvents(directories?: string[]) {
             playNotificationSoundDeduped('permission')
           }
 
+          // ⚠️ V2 的 `permission.asked` 载荷字段与 V1 不同（`action`/`resources`/`save`），
+          //    已由 `v2Convert.toInternalPermissionRequest()` 转回内部模型 →
+          //    这里的 pending 登记与消费者分发逻辑保持不变。
           if (belongsToCurrentSession(scopedId)) {
             dispatchToConsumers(scopedId, cb => cb.onPermissionAsked?.({ ...request, sessionID: scopedId }))
           } else {
@@ -683,20 +701,28 @@ export function useGlobalEvents(directories?: string[]) {
         },
 
         // ============================================
-        // Question Events
+        // Form Events（V2 取代了 V1 的 question 体系）
         // ============================================
+        //
+        // ✅ 阶段 3a：表单渲染器（`src/features/chat/FormDialog.tsx`）已落地，
+        //    所以这里**真正向会话消费者分发**（阶段 2b 时只做 pending 登记，
+        //    因为当时还没有渲染器）。
+        //
+        // ⚠️ 注意 `form.created` 的载荷是 `{ form: FormInfo }`（**包了一层 `form`**），
+        //    而 `form.replied` / `form.cancelled` 的载荷是**扁平的** `{id, sessionID, ...}`
+        //    —— 这个不一致是 V2 自身的（阶段 2b 实测确认），不要"顺手统一"。
 
-        onQuestionAsked: request => {
-          const scopedId = scope(request.sessionID)
+        onFormCreated: data => {
+          const form = data.form
+          const scopedId = scope(form.sessionID)
           const meta = activeSessionStore.getSessionMeta(scopedId)
-          const sessionLabel = meta?.title || request.sessionID.slice(0, 8)
-          const desc = request.questions?.[0]?.header || 'AI is waiting for your input'
+          const sessionLabel = meta?.title || form.sessionID.slice(0, 8)
+          const desc = form.title || 'AI is waiting for your input'
 
-          // Active 列表：注册 pending request
-          activeSessionStore.addPendingRequest(request.id, scopedId, 'question', desc)
+          activeSessionStore.addPendingRequest(form.id, scopedId, 'question', desc)
           if (activeFetchVersions.get(serverId) !== 0) {
-            latePendingRequests.set(request.id, {
-              requestId: request.id,
+            latePendingRequests.set(form.id, {
+              requestId: form.id,
               sessionId: scopedId,
               type: 'question',
               description: desc,
@@ -705,40 +731,34 @@ export function useGlobalEvents(directories?: string[]) {
             })
           }
 
-          // Toast 通知
           if (!belongsToCurrentSession(scopedId)) {
             notificationStore.push('question', `${sessionLabel} — Question`, desc, scopedId, meta?.directory)
           } else if (isSessionDirectlyOpen(scopedId) && soundStore.getSnapshot().currentSessionEnabled) {
             playNotificationSoundDeduped('question')
           }
 
+          // 分发给会话消费者（ChatPane 会把它喂给 FormDialog）
           if (belongsToCurrentSession(scopedId)) {
-            dispatchToConsumers(scopedId, cb => cb.onQuestionAsked?.({ ...request, sessionID: scopedId }))
+            dispatchToConsumers(scopedId, cb => cb.onFormCreated?.({ ...form, sessionID: scopedId }))
           } else {
-            addPending(pendingQuestions, scopedId, { ...request, sessionID: scopedId })
+            addPending(pendingForms, scopedId, { ...form, sessionID: scopedId })
           }
         },
 
-        onQuestionReplied: data => {
+        onFormReplied: data => {
           const scopedId = scope(data.sessionID)
-          removePendingByRequestId(pendingQuestions, scopedId, data.requestID)
-          latePendingRequests.delete(data.requestID)
-          activeSessionStore.resolvePendingRequest(data.requestID)
-
-          if (belongsToCurrentSession(scopedId)) {
-            dispatchToConsumers(scopedId, cb => cb.onQuestionReplied?.({ ...data, sessionID: scopedId }))
-          }
+          removePendingByRequestId(pendingForms, scopedId, data.id)
+          latePendingRequests.delete(data.id)
+          activeSessionStore.resolvePendingRequest(data.id)
+          dispatchToConsumers(scopedId, cb => cb.onFormReplied?.({ sessionID: scopedId, formID: data.id }))
         },
 
-        onQuestionRejected: data => {
+        onFormCancelled: data => {
           const scopedId = scope(data.sessionID)
-          removePendingByRequestId(pendingQuestions, scopedId, data.requestID)
-          latePendingRequests.delete(data.requestID)
-          activeSessionStore.resolvePendingRequest(data.requestID)
-
-          if (belongsToCurrentSession(scopedId)) {
-            dispatchToConsumers(scopedId, cb => cb.onQuestionRejected?.({ ...data, sessionID: scopedId }))
-          }
+          removePendingByRequestId(pendingForms, scopedId, data.id)
+          latePendingRequests.delete(data.id)
+          activeSessionStore.resolvePendingRequest(data.id)
+          dispatchToConsumers(scopedId, cb => cb.onFormCancelled?.({ sessionID: scopedId, formID: data.id }))
         },
 
         // ============================================
@@ -778,7 +798,11 @@ export function useGlobalEvents(directories?: string[]) {
           refreshServerHealth(serverId)
           // 重连后重新拉取全量状态 + pending requests
           fetchAndInitialize(serverId)
-          // 通知所有 pub/sub 消费者
+          // 🔴 V2 的流是**易失**的（不回放，断线期间的事件永久丢失）→
+          //    恢复动作必须是「重订阅 + 重拉一次全量消息」：
+          //    先把所有已缓存 session 标记为 stale（下次读取时强制重拉），
+          //    再通知各 pane 的消费者立即重拉当前会话。
+          messageStore.markAllSessionsStale()
           for (const consumer of sessionConsumers.values()) {
             consumer.callbacks.onReconnected?.(reason)
           }

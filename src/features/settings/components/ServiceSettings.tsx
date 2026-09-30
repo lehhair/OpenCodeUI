@@ -116,9 +116,9 @@ export function ServiceSettings() {
     serviceStore.setStarting(true)
     try {
       const { invoke } = await import('@tauri-apps/api/core')
-      const detected = await invoke<string | null>('detect_opencode_binary', { envVars: serviceStore.envVarsRecord }).catch(
-        () => null,
-      )
+      const detected = await invoke<string | null>('detect_opencode_binary', {
+        envVars: serviceStore.envVarsRecord,
+      }).catch(() => null)
       if (operation !== serviceOperationRef.current) return
       serviceStore.setDetectedBinaryPath(detected)
       const result = await invoke<StartOpencodeServiceResult>('start_opencode_service', {
@@ -252,7 +252,12 @@ export function ServiceSettings() {
       >
         <div className="flex items-center gap-1.5">
           {!serviceStarting && !serviceRunning && (
-            <Button size="sm" variant="ghost" onClick={handleStartService} disabled={checkingService || stoppingService}>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={handleStartService}
+              disabled={checkingService || stoppingService}
+            >
               {t('common:start')}
             </Button>
           )}
@@ -262,7 +267,12 @@ export function ServiceSettings() {
               {t('common:stop')}
             </Button>
           )}
-          <Button size="sm" variant="ghost" onClick={handleCheckService} disabled={serviceStarting || checkingService || stoppingService}>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={handleCheckService}
+            disabled={serviceStarting || checkingService || stoppingService}
+          >
             {t('common:refresh')}
           </Button>
         </div>

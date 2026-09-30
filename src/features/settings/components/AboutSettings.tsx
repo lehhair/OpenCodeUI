@@ -110,7 +110,9 @@ export function AboutSettings() {
           </div>
           <div className="flex items-center justify-between gap-4 py-2.5">
             <div className="text-[length:var(--fs-sm)] text-text-300">{t('about.latestVersion')}</div>
-            <div className="shrink-0 text-[length:var(--fs-sm)] font-semibold text-text-100 font-mono tabular-nums">{latestVersion}</div>
+            <div className="shrink-0 text-[length:var(--fs-sm)] font-semibold text-text-100 font-mono tabular-nums">
+              {latestVersion}
+            </div>
           </div>
         </div>
 

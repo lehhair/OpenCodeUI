@@ -1,7 +1,20 @@
-import { memo, useCallback, useEffect, useState, useRef, type ReactNode, type WheelEvent as ReactWheelEvent } from 'react'
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useState,
+  useRef,
+  type ReactNode,
+  type WheelEvent as ReactWheelEvent,
+} from 'react'
 import { CloseIcon } from './Icons'
 import { getMaterialIconUrl } from '../utils/materialIcons'
-import { getInternalDragSnapshot, startInternalDrag, subscribeInternalDrag, subscribeInternalDrop } from '../lib/internalDragCore'
+import {
+  getInternalDragSnapshot,
+  startInternalDrag,
+  subscribeInternalDrag,
+  subscribeInternalDrop,
+} from '../lib/internalDragCore'
 import { useDragEdgeAutoScroll } from '../hooks/useDragEdgeAutoScroll'
 
 export interface PreviewTabsBarItem {
@@ -53,7 +66,9 @@ export const PreviewTabsBar = memo(function PreviewTabsBar({
       }
 
       setDraggedId(active.payload.id)
-      const target = document.elementFromPoint(active.current.x, active.current.y)?.closest<HTMLElement>('[data-preview-tab-id]')
+      const target = document
+        .elementFromPoint(active.current.x, active.current.y)
+        ?.closest<HTMLElement>('[data-preview-tab-id]')
       const targetId = target?.dataset.previewTabId
       setDragOverId(targetId && targetId !== active.payload.id ? targetId : null)
     })
@@ -62,7 +77,9 @@ export const PreviewTabsBar = memo(function PreviewTabsBar({
   useEffect(() => {
     return subscribeInternalDrop(event => {
       if (event.payload.kind !== 'preview-tab') return
-      const target = document.elementFromPoint(event.point.x, event.point.y)?.closest<HTMLElement>('[data-preview-tab-id]')
+      const target = document
+        .elementFromPoint(event.point.x, event.point.y)
+        ?.closest<HTMLElement>('[data-preview-tab-id]')
       const targetId = target?.dataset.previewTabId
       if (targetId && targetId !== event.payload.id) {
         onReorder(event.payload.id, targetId)

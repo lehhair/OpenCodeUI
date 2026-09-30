@@ -4,12 +4,15 @@
  * 核心契约：task 工具匹配子 session 的内嵌请求时，复合 key 必须用「pane 绑定的服务器」合成。
  * 工具 metadata 里的 sessionId 是原始 id，若用 splitSessionKey 猜服务器会回退到全局活动服务器，
  * 而 childSessionStore 按真实服务器注册子 session —— 多服务器 / WSL 下孙 session 的请求
- * 永远关联不到 task 工具，内嵌权限 / 提问 UI 不出现。
+ * 永远关联不到 task 工具，内嵌权限 UI 不出现。
+ *
+ * ⚠️ 阶段 3b：question 内联通道已删除（表单统一走底部 FormDialog），
+ *   本文件只保留权限请求的契约测试。
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { findPermissionRequestForTool, findQuestionRequestForTool } from './InlineToolRequestContext'
-import type { ApiPermissionRequest, ApiQuestionRequest } from '../../api'
+import { findPermissionRequestForTool } from './InlineToolRequestContext'
+import type { ApiPermissionRequest } from '../../api'
 
 const { childSessionStoreMock } = vi.hoisted(() => {
   // 仿真 childSessionStore 的存储语义：key 一律是复合 `${serverId}::${sessionId}`，按父子链递归查找
@@ -69,20 +72,5 @@ describe('task 工具按 pane 服务器匹配子 session 请求', () => {
     })
 
     expect(matched).toBe(permission)
-  })
-
-  it('孙 session 发出的提问请求同样按 pane 服务器匹配', () => {
-    const question: ApiQuestionRequest = {
-      id: 'ques-1',
-      sessionID: `${PANE_SERVER}::ses_grand`,
-      questions: [],
-    }
-
-    const matched = findQuestionRequestForTool([question], 'call-unknown', {
-      sessionKey: 'ses_child',
-      serverId: PANE_SERVER,
-    })
-
-    expect(matched).toBe(question)
   })
 })

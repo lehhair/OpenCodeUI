@@ -98,7 +98,14 @@
     "contextCompacted": "历史已压缩",
     "autoPrefix": "自动",
     "filesChanged": "{{count}} 个文件变更",
-    "filesChanged_other": "{{count}} 个文件变更"
+    "filesChanged_other": "{{count}} 个文件变更",
+    "marker": {
+      "synthetic": "命令输出",
+      "shellRunning": "执行中",
+      "shellExited": "已完成",
+      "shellTimeout": "超时",
+      "shellKilled": "已终止"
+    }
   },
   "subtask": {
     "running": "运行中",

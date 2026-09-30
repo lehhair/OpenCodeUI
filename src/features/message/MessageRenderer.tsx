@@ -12,7 +12,6 @@ import { useTheme } from '../../hooks/useTheme'
 import {
   useInlineToolRequests,
   findPermissionRequestForTool,
-  findQuestionRequestForTool,
   type TaskChildSessionRef,
 } from '../chat/InlineToolRequestContext'
 import {
@@ -26,6 +25,7 @@ import {
   SubtaskPartView,
   RetryPartView,
   CompactionPartView,
+  SessionMarkerPartView,
   MessageErrorView,
 } from './parts'
 import { extractToolData } from './tools'
@@ -81,12 +81,7 @@ const ProcessCollapseHeader = memo(function ProcessCollapseHeader({
   const liveMs = isActive && startedAt != null ? Math.max(0, now - startedAt) : null
   const lastLiveMsRef = useRef(0)
   if (liveMs != null) lastLiveMsRef.current = liveMs
-  const displayMs =
-    liveMs != null
-      ? liveMs
-      : durationMs != null && durationMs > 0
-        ? durationMs
-        : lastLiveMsRef.current
+  const displayMs = liveMs != null ? liveMs : durationMs != null && durationMs > 0 ? durationMs : lastLiveMsRef.current
   // Working/Worked：整秒无小数；超过 1 分钟带 m（如 3m 12s）
   const durationLabel = formatProcessDuration(displayMs)
   const label = isActive
@@ -238,12 +233,8 @@ export function splitProcessRenderItems(items: RenderItem[]): ProcessSplit {
   const finalItems = items.slice(textRunStart, textRunEnd + 1)
   const before = items.slice(0, textRunStart)
   const after = items.slice(textRunEnd + 1)
-  const afterProcess = after.filter(
-    item => !(item.type === 'single' && item.part.type === 'step-finish'),
-  )
-  const afterStepFinish = after.filter(
-    item => item.type === 'single' && item.part.type === 'step-finish',
-  )
+  const afterProcess = after.filter(item => !(item.type === 'single' && item.part.type === 'step-finish'))
+  const afterStepFinish = after.filter(item => item.type === 'single' && item.part.type === 'step-finish')
   const processItems = afterProcess.length > 0 ? [...before, ...afterProcess] : before
   const mergedFinal = afterStepFinish.length > 0 ? [...finalItems, ...afterStepFinish] : finalItems
 
@@ -328,6 +319,13 @@ export const MessageRenderer = memo(function MessageRenderer({
     )
   }
 
+  // ⚠️ V2 新增：非 user / assistant 的消息（system / synthetic / skill / shell /
+  // idle / compaction / *-switched）。它们走独立的轻量视图，
+  // **不能**落进 AssistantMessageView —— 那里会把 info 当成 AssistantMessageInfo 读。
+  if (info.role === 'system') {
+    return <SystemMessageView message={message} />
+  }
+
   return (
     <AssistantMessageView
       message={message}
@@ -339,6 +337,35 @@ export const MessageRenderer = memo(function MessageRenderer({
       forkMessageId={forkMessageId}
       onEnsureParts={onEnsureParts}
     />
+  )
+})
+
+// ============================================
+// System Message View（V2 新增消息类型）
+// ============================================
+//
+// 覆盖 V2 的 9 种非 user/assistant 消息。它们的 parts 由转换层统一包成
+// `session-marker`（compaction 除外，它用已有的 `compaction` part）。
+// 这里只做「按顺序渲染各 part」，不做过程/最终内容拆分、不做耗时统计。
+
+const SystemMessageView = memo(function SystemMessageView({ message }: { message: Message }) {
+  const { parts } = message
+  if (parts.length === 0) return null
+
+  return (
+    <div className={`flex flex-col ${MSG_SPACING.stack} w-full`}>
+      {parts.map(part => {
+        switch (part.type) {
+          case 'session-marker':
+            return <SessionMarkerPartView key={part.id} part={part} />
+          case 'compaction':
+            return <CompactionPartView key={part.id} part={part} />
+          default:
+            // 转换层不会给系统消息产出其它 part 类型；真出现了说明上游变了
+            return null
+        }
+      })}
+    </div>
   )
 })
 
@@ -387,7 +414,11 @@ function useEntryGrowAnimation(
     const targetHeight = el.scrollHeight
     el.style.height = '0px'
     el.style.clipPath = 'inset(0 -100% 0 -100%)'
-    const controls = animate(el, { height: `${targetHeight}px` }, { duration: ENTRY_GROW_DURATION_MS / 1000, ease: 'easeOut' })
+    const controls = animate(
+      el,
+      { height: `${targetHeight}px` },
+      { duration: ENTRY_GROW_DURATION_MS / 1000, ease: 'easeOut' },
+    )
     controls.then(clear)
 
     return () => {
@@ -407,7 +438,8 @@ function useEntryGrowAnimation(
 /** 默认预览 8 行 */
 const COLLAPSE_PREVIEW_LINES = 8
 const LEADING_RELAXED = 1.625
-const USER_HTML_ARTIFACT_PATTERN = /(?:```(?:html|htm)\b|<!doctype\s+html\b|<html\b|<style\b|<script\b|<canvas\b|\son[a-z]+\s*=)/i
+const USER_HTML_ARTIFACT_PATTERN =
+  /(?:```(?:html|htm)\b|<!doctype\s+html\b|<html\b|<style\b|<script\b|<canvas\b|\son[a-z]+\s*=)/i
 
 // 折叠状态缓存：消息是否溢出
 const overflowStateCache = new Map<string, boolean>()
@@ -473,9 +505,7 @@ const CollapsibleUserText = memo(function CollapsibleUserText({
           }}
           className={`m-0 break-words text-[length:var(--fs-base)] text-text-100 leading-relaxed${
             renderMarkdown ? '' : ' whitespace-pre-wrap'
-          }${
-            isCollapsed ? ' overflow-hidden' : ''
-          }`}
+          }${isCollapsed ? ' overflow-hidden' : ''}`}
           style={
             isCollapsed
               ? {
@@ -805,11 +835,7 @@ const AssistantMessageView = memo(function AssistantMessageView({
     turnDuration != null &&
     turnDuration > 0
   const showCompletedAtFooter =
-    allowStepFinishOnMessage &&
-    !isStreaming &&
-    !hasStepFinishPart &&
-    stepFinishDisplay.completedAt &&
-    completed != null
+    allowStepFinishOnMessage && !isStreaming && !hasStepFinishPart && stepFinishDisplay.completedAt && completed != null
 
   if (!isStreaming && parts.length === 0) {
     // process/final 空内容时不占位
@@ -846,8 +872,7 @@ const AssistantMessageView = memo(function AssistantMessageView({
               )
             // latestOnly 开：整轮最后一条 assistant 的最后一个 step 才显示
             // latestOnly 关：本消息所有 step-finish 都显示（旧行为）
-            const showStepFinish =
-              allowStepFinishOnMessage && (!stepFinishDisplay.latestOnly || isLastStepFinish)
+            const showStepFinish = allowStepFinishOnMessage && (!stepFinishDisplay.latestOnly || isLastStepFinish)
             // duration / turnDuration / completedAt 始终只挂在本消息最后一个 step
             const showTiming = showStepFinish && isLastStepFinish
 
@@ -873,13 +898,7 @@ const AssistantMessageView = memo(function AssistantMessageView({
                 return <TextPartView key={part.id} part={part} isStreaming={isStreaming} />
               case 'reasoning': {
                 const reasoningDone = endedReasoningIds.has(part.id)
-                return (
-                  <ReasoningPartView
-                    key={part.id}
-                    part={part}
-                    isStreaming={isStreaming && !reasoningDone}
-                  />
-                )
+                return <ReasoningPartView key={part.id} part={part} isStreaming={isStreaming && !reasoningDone} />
               }
               case 'step-finish':
                 if (!showStepFinish) return null
@@ -913,16 +932,18 @@ const AssistantMessageView = memo(function AssistantMessageView({
         <MessageErrorView error={messageError} stateKey={`message:${info.id}:error`} />
       )}
 
-      {processContentScope !== 'process' && processContentScope !== 'inline' && (showTurnDurationFooter || showCompletedAtFooter) && (
-        <div className="flex items-center gap-3 py-0.5 text-[length:var(--fs-xxs)] text-text-500">
-          {showTurnDurationFooter && (
-            <span>{t('stepFinish.totalDuration', { duration: formatDuration(turnDuration!) })}</span>
-          )}
-          {showCompletedAtFooter && (
-            <span title={formatDetailedDateTime(completed!)}>{formatCompletedAt(completed!, completedAtFormat)}</span>
-          )}
-        </div>
-      )}
+      {processContentScope !== 'process' &&
+        processContentScope !== 'inline' &&
+        (showTurnDurationFooter || showCompletedAtFooter) && (
+          <div className="flex items-center gap-3 py-0.5 text-[length:var(--fs-xxs)] text-text-500">
+            {showTurnDurationFooter && (
+              <span>{t('stepFinish.totalDuration', { duration: formatDuration(turnDuration!) })}</span>
+            )}
+            {showCompletedAtFooter && (
+              <span title={formatDetailedDateTime(completed!)}>{formatCompletedAt(completed!, completedAtFormat)}</span>
+            )}
+          </div>
+        )}
 
       {showMessageActions && hasCopyableText && (
         <div className={actionBarClass}>
@@ -968,15 +989,12 @@ const ToolGroup = memo(function ToolGroup({
 }: ToolGroupProps) {
   const { t } = useTranslation('message')
   const { descriptiveToolSteps, inlineToolRequests, immersiveMode, processCollapseEnabled } = useTheme()
-  const { serverId, pendingPermissions, pendingQuestions } = useInlineToolRequests()
+  const { serverId, pendingPermissions } = useInlineToolRequests()
   const hasPendingInteraction =
     inlineToolRequests &&
     parts.some(part => {
       const childSession = getTaskChildSessionRef(part, serverId)
-      return (
-        findPermissionRequestForTool(pendingPermissions, part.callID, childSession) ||
-        findQuestionRequestForTool(pendingQuestions, part.callID, childSession)
-      )
+      return findPermissionRequestForTool(pendingPermissions, part.callID, childSession)
     })
 
   const doneCount = parts.filter(p => p.state.status === 'completed').length
@@ -1018,8 +1036,11 @@ const ToolGroup = memo(function ToolGroup({
   const hasAutoExpandedReadableRef = useRef(
     !processCollapseEnabled && shouldStartExpanded && immersiveMode && hasReadableTools,
   )
-  const { rootRef: stepsRootRef, headerRef: stepsHeaderRef, withScrollLock: withStepsScrollLock } =
-    useDisclosureScrollLock()
+  const {
+    rootRef: stepsRootRef,
+    headerRef: stepsHeaderRef,
+    withScrollLock: withStepsScrollLock,
+  } = useDisclosureScrollLock()
 
   useEffect(() => {
     if (!descriptiveToolSteps) return
@@ -1125,9 +1146,7 @@ const ToolGroup = memo(function ToolGroup({
             </span>
             {totalDiffStats && !hasActiveTools && (
               <span className="ml-1.5 inline-flex items-center gap-1 text-[length:var(--fs-xxs)] font-mono font-medium tabular-nums">
-                {totalDiffStats.additions > 0 && (
-                  <span className="text-success-100">+{totalDiffStats.additions}</span>
-                )}
+                {totalDiffStats.additions > 0 && <span className="text-success-100">+{totalDiffStats.additions}</span>}
                 {totalDiffStats.deletions > 0 && <span className="text-danger-100">-{totalDiffStats.deletions}</span>}
               </span>
             )}

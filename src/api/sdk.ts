@@ -1,15 +1,43 @@
 // ============================================
-// SDK Client - 基于 @opencode-ai/sdk 的统一客户端
+// SDK Client - 基于 @opencode/client 的统一客户端（OpenCode V2）
 //
 // 职责：
-// 1. 根据当前活动服务器动态创建 SDK client
+// 1. 根据当前活动服务器动态创建 client
 // 2. 整合 baseUrl / auth / tauri fetch
 // 3. 为上层 API 模块提供统一的 client 获取方式
+//
+// ⚠️ V2 与 V1 的关键差异（阶段 1 迁移）：
+// - 包名：@opencode-ai/sdk → @opencode/client
+// - 工厂：createOpencodeClient() → OpenCode.make()
+// - 返回值：V1 是 { data, error, request, response } 需要 unwrap；
+//          V2 **直接返回数据**，失败时直接 throw（ClientError）
+// - 鉴权用户名：V2 服务端**硬编码为 "opencode"**（packages/server/src/auth.ts:20），
+//          其他用户名一律 401 → 这里固定用 "opencode"，忽略 serverStore 里存的 username
 // ============================================
 
-import { createOpencodeClient, type OpencodeClient } from '@opencode-ai/sdk/v2/client'
-import { serverStore, makeBasicAuthHeader } from '../store/serverStore'
+import { OpenCode, type OpenCodeClient } from '@opencode/client'
+import { serverStore } from '../store/serverStore'
 import { isTauri } from '../utils/tauri'
+
+/**
+ * V2 服务端 Basic Auth 的固定用户名
+ *
+ * 依据：`packages/server/src/auth.ts:20`（tag v2.0.19）把用户名硬编码为 "opencode"；
+ * `OPENCODE_SERVER_USERNAME` 在该版本中**没有任何读取处**。
+ * 实测：`custom:pw` → 401，`opencode:pw` → 200。
+ * 因此这里忽略用户填写的 username，一律用 "opencode" 生成凭证。
+ */
+export const OPENCODE_BASIC_AUTH_USERNAME = 'opencode'
+
+/**
+ * 用固定用户名 + 给定密码生成 Basic Auth 头
+ *
+ * 注意：与 serverStore.makeBasicAuthHeader() 的区别是**忽略 auth.username**。
+ * 后者仍保留给历史用途；SDK 与健康检查统一走这个函数。
+ */
+export function makeOpencodeBasicAuthHeader(password: string): string {
+  return 'Basic ' + btoa(`${OPENCODE_BASIC_AUTH_USERNAME}:${password}`)
+}
 
 // Tauri fetch 缓存
 let _tauriFetch: typeof globalThis.fetch | null = null
@@ -35,7 +63,11 @@ function createAbortError(message: string) {
   return new DOMException(message, 'AbortError')
 }
 
-async function trackedFetch(input: RequestInfo | URL, init: RequestInit | undefined, generation: number): Promise<Response> {
+async function trackedFetch(
+  input: RequestInfo | URL,
+  init: RequestInit | undefined,
+  generation: number,
+): Promise<Response> {
   const controller = new AbortController()
   const externalSignal = init?.signal
   const abortFromExternal = () => controller.abort(externalSignal?.reason)
@@ -75,7 +107,7 @@ export function abortInFlightApiRequests(reason = 'Server endpoint changed'): vo
 // 缺省 serverId（undefined）表示活动服务器
 interface CachedClientEntry {
   key: string
-  client: OpencodeClient
+  client: OpenCodeClient
 }
 
 const _cachedClients = new Map<string | undefined, CachedClientEntry>()
@@ -83,7 +115,7 @@ const _cachedClients = new Map<string | undefined, CachedClientEntry>()
 function buildCacheKey(serverId?: string): string {
   const baseUrl = serverId ? serverStore.getServerBaseUrl(serverId) : serverStore.getActiveBaseUrl()
   const auth = serverId ? serverStore.getServerAuth(serverId) : serverStore.getActiveAuth()
-  const authPart = auth?.password ? `${auth.username}:${auth.password}` : ''
+  const authPart = auth?.password ? `${OPENCODE_BASIC_AUTH_USERNAME}:${auth.password}` : ''
   return `${baseUrl}|${authPart}`
 }
 
@@ -91,7 +123,7 @@ function buildHeaders(serverId?: string): Record<string, string> {
   const headers: Record<string, string> = {}
   const auth = serverId ? serverStore.getServerAuth(serverId) : serverStore.getActiveAuth()
   if (auth?.password) {
-    headers['Authorization'] = makeBasicAuthHeader(auth)
+    headers['Authorization'] = makeOpencodeBasicAuthHeader(auth.password)
   }
   return headers
 }
@@ -101,7 +133,7 @@ function buildHeaders(serverId?: string): Record<string, string> {
  * 如果 tauri fetch 还没加载完，先用原生 fetch
  * @param serverId 指定服务器（缺省用活动服务器）
  */
-export function getSDKClient(serverId?: string): OpencodeClient {
+export function getSDKClient(serverId?: string): OpenCodeClient {
   const key = buildCacheKey(serverId)
   const cached = _cachedClients.get(serverId)
   if (cached && cached.key === key) {
@@ -112,7 +144,7 @@ export function getSDKClient(serverId?: string): OpencodeClient {
   const headers = buildHeaders(serverId)
   const generation = _apiRequestGeneration
 
-  const client = createOpencodeClient({
+  const client = OpenCode.make({
     baseUrl,
     headers,
     fetch: (input, init) => trackedFetch(input, init, generation),
@@ -126,7 +158,7 @@ export function getSDKClient(serverId?: string): OpencodeClient {
  * 在应用初始化时应该先调一次这个
  * @param serverId 指定服务器（缺省用活动服务器）
  */
-export async function getSDKClientAsync(serverId?: string): Promise<OpencodeClient> {
+export async function getSDKClientAsync(serverId?: string): Promise<OpenCodeClient> {
   if (isTauri()) {
     await getTauriFetch()
   }
@@ -145,20 +177,4 @@ export function invalidateSDKClient(serverId?: string): void {
   } else {
     _cachedClients.clear()
   }
-}
-
-/**
- * 从 SDK 返回值中提取 data，如果有 error 则抛出
- *
- * SDK 默认返回 { data, error, request, response }
- * 我们的上层 API 函数期望直接返回数据，所以需要 unwrap
- */
-export function unwrap<T>(result: { data?: T; error?: unknown }): T {
-  if (result.error != null) {
-    const err = result.error
-    if (err instanceof Error) throw err
-    if (typeof err === 'string') throw new Error(err)
-    throw new Error(JSON.stringify(err))
-  }
-  return result.data as T
 }

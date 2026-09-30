@@ -124,7 +124,14 @@
     "contextCompacted": "History compacted",
     "autoPrefix": "auto-",
     "filesChanged": "{{count}} file changed",
-    "filesChanged_other": "{{count}} files changed"
+    "filesChanged_other": "{{count}} files changed",
+    "marker": {
+      "synthetic": "Command output",
+      "shellRunning": "Running",
+      "shellExited": "Finished",
+      "shellTimeout": "Timed out",
+      "shellKilled": "Killed"
+    }
   },
   "subtask": {
     "running": "Running",

@@ -338,16 +338,17 @@ const SubSessionView = memo(function SubSessionView({ sessionId, serverId }: Sub
     loadedRef.current = true
     messageStore.setLoadState(sessionKey, 'loading')
 
-    getSessionMessages(sessionId, 20, undefined, serverId)
-      .then(apiMessages => {
+    getSessionMessages(sessionId, { limit: 20 }, undefined, serverId)
+      .then(page => {
         const currentState = messageStore.getSessionState(sessionKey)
-        if (currentState && currentState.messages.length > apiMessages.length) {
+        if (currentState && currentState.messages.length > page.messages.length) {
           messageStore.setLoadState(sessionKey, 'loaded')
           return
         }
-        messageStore.setMessages(sessionKey, apiMessages, {
+        messageStore.setMessages(sessionKey, page.messages, {
           directory: '',
-          hasMoreHistory: apiMessages.length >= 20,
+          hasMoreHistory: page.hasMore,
+          historyCursor: page.cursor.next,
         })
       })
       .catch(err => {

@@ -338,7 +338,8 @@ function App() {
     const scrollLeft = pager.scrollLeft
 
     // -1 (滑向左栏) 到 0 (对话页) 到 1 (滑向右栏)
-    const rawProgress = (scrollLeft - mobileChatScrollLeft) / (scrollLeft < mobileChatScrollLeft ? mobileLeftPanelWidth : mobilePageWidth)
+    const rawProgress =
+      (scrollLeft - mobileChatScrollLeft) / (scrollLeft < mobileChatScrollLeft ? mobileLeftPanelWidth : mobilePageWidth)
     const progress = Math.max(-1, Math.min(1, rawProgress))
     const absProgress = Math.abs(progress)
     const rightProgress = Math.max(0, progress)
@@ -498,7 +499,14 @@ function App() {
     if (sidebarExpanded) setSidebarExpanded(false)
     scrollMobilePagerTo('right')
     layoutStore.openRightPanel()
-  }, [ensureMobileRightPanelRendered, isMobilePanelLayout, rightPanelOpen, scrollMobilePagerTo, setSidebarExpanded, sidebarExpanded])
+  }, [
+    ensureMobileRightPanelRendered,
+    isMobilePanelLayout,
+    rightPanelOpen,
+    scrollMobilePagerTo,
+    setSidebarExpanded,
+    sidebarExpanded,
+  ])
 
   const focusedDirectory = focusedRouteDirectory || ''
 
@@ -604,7 +612,6 @@ function App() {
         input?.focus()
       },
       newSession: () => focusedController?.newSession(),
-      archiveSession: () => focusedController?.archiveSession(),
       previousSession: () => focusedController?.previousSession(),
       nextSession: () => focusedController?.nextSession(),
       toggleTerminal: () => layoutStore.toggleBottomPanel(),
@@ -731,14 +738,6 @@ function App() {
         category: t('commands:categories.session'),
         shortcut: getShortcut('newSession'),
         action: () => focusedController?.newSession(),
-      },
-      {
-        id: 'archiveSession',
-        label: t('commands:archiveSession'),
-        description: t('commands:archiveSessionDesc'),
-        category: t('commands:categories.session'),
-        shortcut: getShortcut('archiveSession'),
-        action: () => focusedController?.archiveSession(),
       },
       {
         id: 'previousSession',
@@ -950,14 +949,17 @@ function App() {
                     aria-hidden={mobileActivePage !== 'chat'}
                     inert={mobileActivePage !== 'chat'}
                     style={{
-                      transform: 'translate3d(var(--mobile-chat-offset-x, 0px), 0, 0) rotateY(var(--mobile-chat-rotate-y, 0deg)) scale(var(--mobile-chat-scale, 1))',
+                      transform:
+                        'translate3d(var(--mobile-chat-offset-x, 0px), 0, 0) rotateY(var(--mobile-chat-rotate-y, 0deg)) scale(var(--mobile-chat-scale, 1))',
                       transformOrigin: 'var(--mobile-chat-transform-origin, 50% 50%)',
                       transformStyle: 'preserve-3d',
                       backfaceVisibility: 'hidden',
                       willChange: 'transform',
                     }}
                   >
-                    <div className={`flex-1 min-h-0 px-4 ${paneLayout.isSplit && !paneLayout.fullscreenPaneId ? 'py-2' : ''}`}>
+                    <div
+                      className={`flex-1 min-h-0 px-4 ${paneLayout.isSplit && !paneLayout.fullscreenPaneId ? 'py-2' : ''}`}
+                    >
                       <SplitContainer
                         node={paneLayout.root}
                         renderLeaf={renderPaneLeaf}
@@ -1025,7 +1027,11 @@ function App() {
                   className="flex-1 flex flex-col min-w-0 overflow-hidden"
                   style={{ minWidth: `${CHAT_SURFACE_MIN_WIDTH}px` }}
                 >
-                  <div className={paneLayout.isSplit && !paneLayout.fullscreenPaneId ? 'flex-1 min-h-0 p-2' : 'flex-1 min-h-0'}>
+                  <div
+                    className={
+                      paneLayout.isSplit && !paneLayout.fullscreenPaneId ? 'flex-1 min-h-0 p-2' : 'flex-1 min-h-0'
+                    }
+                  >
                     <SplitContainer
                       node={paneLayout.root}
                       renderLeaf={renderPaneLeaf}

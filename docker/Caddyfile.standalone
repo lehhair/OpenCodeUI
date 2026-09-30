@@ -2,8 +2,11 @@
 # 静态文件 + API 反代到外部 opencode serve
 
 :3000 {
-	# API 反代（strip /api 前缀，SSE 需要 flush_interval -1）
-	handle_path /api/* {
+	# API 反代（SSE 需要 flush_interval -1）
+	# 🔴 OpenCode V2：端点本身带 /api 前缀（/api/session、/api/info…）→ 必须原样透传。
+	#    V1 时代用 `handle_path` 削掉 /api 才能命中后端；V2 这么做会把请求打到不存在的
+	#    路径上，后端只返回 SPA 兜底 HTML（前端拿 HTML 当 JSON 解析 → 整条链路坏）。
+	handle /api/* {
 		reverse_proxy {$BACKEND_URL:host.docker.internal:4096} {
 			header_up Host {upstream_hostport}
 			# 透传客户端 Authorization 头（后端开启 OPENCODE_SERVER_PASSWORD 认证时必需）

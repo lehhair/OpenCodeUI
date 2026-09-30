@@ -3,6 +3,15 @@
 // 显示所有 MCP 服务器状态，支持连接/断开/认证
 // 支持添加新服务器
 // ============================================
+//
+// ⚠️ 阶段 3a 适配（OpenCode V2）：
+//   - `getMcpStatus()` 的返回从 `Record<name, status>` 变成**数组** `MCPServer[]`
+//     （这里改成 `.map()`，并按名字排序的行为保持不变）
+//   - `getMcpResources()` 的返回从 `Record<uri, resource>` 变成
+//     `{ resources, templates }`，且资源的来源字段 `client` → `server`
+//   - 状态多了一个 V2 新增的 `pending`（服务器正在连接/握手）
+//   - `needs_client_registration`（V1 有、V2 从不产生）的展示分支已在**阶段 3b 删除**
+// ============================================
 
 import { memo, useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -69,21 +78,22 @@ export const McpPanel = memo(function McpPanel({ isResizing: _isResizing }: McpP
       const statusResponse = await getMcpStatus(currentDirectory)
       logger.log('[McpPanel] Status:', statusResponse)
 
-      let resourcesByClient = new Map<string, MCPResource[]>()
+      let resourcesByServer = new Map<string, MCPResource[]>()
       try {
         const resourceResponse = await getMcpResources(currentDirectory)
-        resourcesByClient = groupResourcesByClient(Object.values(resourceResponse))
+        // V2：资源目录是 { resources, templates }，来源字段是 server（V1 叫 client）
+        resourcesByServer = groupResourcesByServer(resourceResponse.resources)
         setResourceError(null)
       } catch (err) {
         apiErrorHandler('load MCP resources', err)
         setResourceError(t('mcpPanel.failedToLoadResources'))
       }
 
-      // 构建 server entries
-      const entries: ServerEntry[] = Object.entries(statusResponse).map(([name, status]) => ({
-        name,
-        status: status as MCPStatus,
-        resources: resourcesByClient.get(name) ?? [],
+      // 构建 server entries（V2：statusResponse 是数组，不再是 Record<name, status>）
+      const entries: ServerEntry[] = statusResponse.map(server => ({
+        name: server.name,
+        status: server.status,
+        resources: resourcesByServer.get(server.name) ?? [],
       }))
 
       // 按名称排序
@@ -205,7 +215,11 @@ export const McpPanel = memo(function McpPanel({ isResizing: _isResizing }: McpP
       <div className="relative flex h-10 items-center justify-between px-3">
         <div className="flex h-6 min-w-0 items-center gap-1.5 text-text-100 text-[length:var(--fs-xs)] font-medium">
           <span>{t('mcpPanel.title')}</span>
-          {!loading && <span className="inline-flex h-4 items-center text-[length:var(--fs-xs)] leading-none text-text-400">({servers.length})</span>}
+          {!loading && (
+            <span className="inline-flex h-4 items-center text-[length:var(--fs-xs)] leading-none text-text-400">
+              ({servers.length})
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-1">
           <button
@@ -297,13 +311,18 @@ export const McpPanel = memo(function McpPanel({ isResizing: _isResizing }: McpP
   )
 })
 
-function groupResourcesByClient(resources: MCPResource[]): Map<string, MCPResource[]> {
+/**
+ * 按来源服务器给资源分组。
+ *
+ * V2：来源字段叫 `server`（V1 是 `client`，值同样是服务器名）。
+ */
+function groupResourcesByServer(resources: MCPResource[]): Map<string, MCPResource[]> {
   const groups = new Map<string, MCPResource[]>()
 
   for (const resource of resources) {
-    const items = groups.get(resource.client) ?? []
+    const items = groups.get(resource.server) ?? []
     items.push(resource)
-    groups.set(resource.client, items)
+    groups.set(resource.server, items)
   }
 
   for (const items of groups.values()) {
@@ -348,6 +367,8 @@ const AddServerForm = memo(function AddServerForm({ onSubmit, onCancel, isLoadin
         }
         // 解析命令为数组
         const cmdParts = command.trim().split(/\s+/)
+        // ⚠️ V2 的 McpLocalConfig：command 必须是 string[]（这里已切分）；
+        //    字段名是 disabled（不是 V1 的 enabled），V1 的 timeout:number 也换成了对象
         await onSubmit(name.trim(), {
           type: 'local',
           command: cmdParts,
@@ -357,6 +378,7 @@ const AddServerForm = memo(function AddServerForm({ onSubmit, onCancel, isLoadin
           setError(t('mcpPanel.urlRequired'))
           return
         }
+        // V2 的 McpRemoteConfig：type + url 必填，其余字段（headers/oauth/disabled）留空用默认值
         await onSubmit(name.trim(), {
           type: 'remote',
           url: url.trim(),
@@ -490,9 +512,8 @@ const ServerItem = memo(function ServerItem({ server, isLoading, onConnect, onDi
     if (status.status === 'failed') {
       return status.error
     }
-    if (status.status === 'needs_client_registration') {
-      return status.error
-    }
+    // ⛔ 阶段 3b 已删除 `needs_client_registration` 分支：
+    //    V2 的 `Mcp.Status` 里没有这个状态（V1 有），V2 从不产生它。
     return null
   }
 
@@ -504,14 +525,15 @@ const ServerItem = memo(function ServerItem({ server, isLoading, onConnect, onDi
     switch (status.status) {
       case 'connected':
         return { color: 'text-success-100', label: t('mcpPanel.connected'), icon: CheckIcon }
+      case 'pending':
+        // V2 新增状态：服务器正在启动/握手（V1 没有这一态）
+        return { color: 'text-text-400', label: t('mcpPanel.pending'), icon: RetryIcon }
       case 'disabled':
         return { color: 'text-text-400', label: t('mcpPanel.disabled'), icon: null }
       case 'failed':
         return { color: 'text-danger-100', label: t('common:failed'), icon: AlertCircleIcon }
       case 'needs_auth':
         return { color: 'text-warning-100', label: t('mcpPanel.needsAuth'), icon: KeyIcon }
-      case 'needs_client_registration':
-        return { color: 'text-warning-100', label: t('mcpPanel.needsRegistration'), icon: KeyIcon }
       default:
         return { color: 'text-text-400', label: t('common:unknown'), icon: null }
     }
@@ -553,7 +575,6 @@ const ServerItem = memo(function ServerItem({ server, isLoading, onConnect, onDi
           </button>
         )
       case 'needs_auth':
-      case 'needs_client_registration':
         return (
           <button
             onClick={e => {
@@ -576,12 +597,14 @@ const ServerItem = memo(function ServerItem({ server, isLoading, onConnect, onDi
     switch (status.status) {
       case 'connected':
         return 'bg-success-100'
+      case 'pending':
+        // V2 新增：正在连接 → 用中性色，避免和「失败」的红 / 「已连接」的绿混淆
+        return 'bg-text-500'
       case 'disabled':
         return 'bg-text-500'
       case 'failed':
         return 'bg-danger-100'
       case 'needs_auth':
-      case 'needs_client_registration':
         return 'bg-warning-100'
       default:
         return 'bg-text-500'
@@ -659,7 +682,9 @@ const ServerItem = memo(function ServerItem({ server, isLoading, onConnect, onDi
                     {resource.description}
                   </div>
                 )}
-                <div className="mt-0.5 truncate font-mono text-[length:var(--fs-xxs)] text-text-500">{resource.uri}</div>
+                <div className="mt-0.5 truncate font-mono text-[length:var(--fs-xxs)] text-text-500">
+                  {resource.uri}
+                </div>
               </div>
             ))}
           </div>

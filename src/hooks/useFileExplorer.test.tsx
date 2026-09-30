@@ -77,6 +77,32 @@ describe('useFileExplorer change scope', () => {
     expect(getSessionDiff).toHaveBeenCalledWith('session-1', '/repo', undefined)
   })
 
+  it('translates the UI change scope into the V2 Vcs.Mode before calling getVcsDiff', async () => {
+    // V2 的 mode 枚举是 working|branch|committed，UI 的 'git' 必须翻译成 'working'
+    //（实测直接传 'git' → 400 Expected Vcs.Mode）
+    const { result } = renderHook(() =>
+      useFileExplorer({ directory: '/repo', autoLoad: true, sessionId: 'session-git' }),
+    )
+
+    act(() => {
+      changeScopeStore.setMode('session-git', 'git')
+    })
+
+    await waitFor(() => {
+      expect(getVcsDiff).toHaveBeenCalledWith('working', '/repo', undefined)
+    })
+
+    act(() => {
+      changeScopeStore.setMode('session-git', 'branch')
+    })
+
+    await waitFor(() => {
+      expect(getVcsDiff).toHaveBeenCalledWith('branch', '/repo', undefined)
+    })
+
+    expect(result.current.error).toBeNull()
+  })
+
   it('restores expanded folders per directory when switching projects', async () => {
     listDirectory.mockImplementation(async (parentPath: string, directory: string) => {
       if (parentPath === '') {
@@ -98,10 +124,9 @@ describe('useFileExplorer change scope', () => {
       return []
     })
 
-    const { result, rerender } = renderHook(
-      ({ directory }) => useFileExplorer({ directory, autoLoad: true }),
-      { initialProps: { directory: '/repo-a' } },
-    )
+    const { result, rerender } = renderHook(({ directory }) => useFileExplorer({ directory, autoLoad: true }), {
+      initialProps: { directory: '/repo-a' },
+    })
 
     await waitFor(() => {
       expect(result.current.tree).toHaveLength(1)
@@ -134,11 +159,15 @@ describe('useFileExplorer change scope', () => {
   })
 
   it('ignores stale child loads after switching directories', async () => {
-    let resolveRepoAChildren: (nodes: Array<{ name: string; path: string; absolute: string; type: 'file'; ignored: boolean }>) => void
+    let resolveRepoAChildren: (
+      nodes: Array<{ name: string; path: string; absolute: string; type: 'file'; ignored: boolean }>,
+    ) => void
 
     listDirectory.mockImplementation((parentPath: string, directory: string) => {
       if (parentPath === '') {
-        return Promise.resolve([{ name: 'src', path: 'src', absolute: `${directory}/src`, type: 'directory', ignored: false }])
+        return Promise.resolve([
+          { name: 'src', path: 'src', absolute: `${directory}/src`, type: 'directory', ignored: false },
+        ])
       }
 
       if (parentPath === 'src' && directory === '/repo-a') {
@@ -156,10 +185,9 @@ describe('useFileExplorer change scope', () => {
       return Promise.resolve([])
     })
 
-    const { result, rerender } = renderHook(
-      ({ directory }) => useFileExplorer({ directory, autoLoad: true }),
-      { initialProps: { directory: '/repo-a' } },
-    )
+    const { result, rerender } = renderHook(({ directory }) => useFileExplorer({ directory, autoLoad: true }), {
+      initialProps: { directory: '/repo-a' },
+    })
 
     await waitFor(() => {
       expect(result.current.tree[0]?.absolute).toBe('/repo-a/src')

@@ -98,12 +98,17 @@ describe('htmlPreviewResources', () => {
 
   it('does not resolve an external stylesheet a second time against the HTML directory', async () => {
     getFileContent.mockImplementation(async (path: string) => {
-      if (path === 'pages/styles/main.css') return { type: 'text', mimeType: 'text/css', content: '.x{background:url("./missing.png")}' }
-      if (path === 'pages/missing.png') return { type: 'binary', encoding: 'base64', mimeType: 'image/png', content: 'iVBORw==' }
+      if (path === 'pages/styles/main.css')
+        return { type: 'text', mimeType: 'text/css', content: '.x{background:url("./missing.png")}' }
+      if (path === 'pages/missing.png')
+        return { type: 'binary', encoding: 'base64', mimeType: 'image/png', content: 'iVBORw==' }
       throw new Error('missing')
     })
 
-    const html = await resolveHtmlPreviewResources('<link rel="stylesheet" href="./styles/main.css">', 'pages/index.html')
+    const html = await resolveHtmlPreviewResources(
+      '<link rel="stylesheet" href="./styles/main.css">',
+      'pages/index.html',
+    )
 
     expect(html).toContain('./missing.png')
     expect(html).not.toContain('data:image/png')

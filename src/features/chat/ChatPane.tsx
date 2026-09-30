@@ -9,7 +9,7 @@
 import { memo, useRef, useEffect, useState, useCallback, useMemo, useDeferredValue, useSyncExternalStore } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 
-import { ChatArea, Header, InputBox, PermissionDialog, QuestionDialog, type ChatAreaHandle } from '.'
+import { ChatArea, Header, InputBox, PermissionDialog, FormDialog, type ChatAreaHandle } from '.'
 import { type ModelSelectorHandle } from './ModelSelector'
 import { OutlineIndex } from '../../components/OutlineIndex'
 import { PaneHeader } from './PaneHeader'
@@ -289,10 +289,10 @@ export const ChatPane = memo(function ChatPane({
     effectiveDirectory,
 
     pendingPermissionRequests,
-    pendingQuestionRequests,
+    pendingForms,
     handlePermissionReply,
-    handleQuestionReply,
-    handleQuestionReject,
+    handleFormReply,
+    handleFormCancel,
     isReplying,
 
     loadMoreHistory,
@@ -310,7 +310,6 @@ export const ChatPane = memo(function ChatPane({
     handleForkMessage,
     handleNewSession,
     handleVisibleMessageIdsChange,
-    handleArchiveSession,
     handlePreviousSession,
     handleNextSession,
     handleCopyLastResponse,
@@ -368,7 +367,7 @@ export const ChatPane = memo(function ChatPane({
       `Status: ${activeServerHealth.status}`,
       activeServerHealth.error ? `Error: ${activeServerHealth.error}` : '',
       activeServerHealth.status === 'error' || activeServerHealth.status === 'offline'
-        ? 'Expected /global/health to return OpenCode health JSON.'
+        ? 'Expected /api/info to return OpenCode server info JSON.'
         : '',
     ].filter(Boolean)
 
@@ -699,7 +698,6 @@ export const ChatPane = memo(function ChatPane({
 
   const controllerActionsRef = useRef({
     newSession: handleNewSession,
-    archiveSession: handleArchiveSession,
     previousSession: handlePreviousSession,
     nextSession: handleNextSession,
     toggleAgent: handleToggleAgentWithSync,
@@ -712,7 +710,6 @@ export const ChatPane = memo(function ChatPane({
   useEffect(() => {
     controllerActionsRef.current = {
       newSession: handleNewSession,
-      archiveSession: handleArchiveSession,
       previousSession: handlePreviousSession,
       nextSession: handleNextSession,
       toggleAgent: handleToggleAgentWithSync,
@@ -723,7 +720,6 @@ export const ChatPane = memo(function ChatPane({
     }
   }, [
     handleNewSession,
-    handleArchiveSession,
     handlePreviousSession,
     handleNextSession,
     handleToggleAgentWithSync,
@@ -736,7 +732,6 @@ export const ChatPane = memo(function ChatPane({
   const stableControllerActions = useMemo(
     () => ({
       newSession: () => controllerActionsRef.current.newSession(),
-      archiveSession: () => controllerActionsRef.current.archiveSession(),
       previousSession: () => controllerActionsRef.current.previousSession(),
       nextSession: () => controllerActionsRef.current.nextSession(),
       toggleAgent: () => controllerActionsRef.current.toggleAgent(),
@@ -761,7 +756,6 @@ export const ChatPane = memo(function ChatPane({
       effectiveDirectory: effectiveDirectory || '',
       contextLimit,
       newSession: stableControllerActions.newSession,
-      archiveSession: stableControllerActions.archiveSession,
       previousSession: stableControllerActions.previousSession,
       nextSession: stableControllerActions.nextSession,
       toggleAgent: stableControllerActions.toggleAgent,
@@ -777,16 +771,16 @@ export const ChatPane = memo(function ChatPane({
   // Dialog Collapsed State
   // ============================================
   const [permissionCollapsed, setPermissionCollapsed] = useState(false)
-  const [questionCollapsed, setQuestionCollapsed] = useState(false)
+  const [formCollapsed, setFormCollapsed] = useState(false)
 
   const permissionRequestId = pendingPermissionRequests[0]?.id
-  const questionRequestId = pendingQuestionRequests[0]?.id
+  const formRequestId = pendingForms[0]?.id
   useEffect(() => {
     if (permissionRequestId) setPermissionCollapsed(false)
   }, [permissionRequestId])
   useEffect(() => {
-    if (questionRequestId) setQuestionCollapsed(false)
-  }, [questionRequestId])
+    if (formRequestId) setFormCollapsed(false)
+  }, [formRequestId])
 
   const { inlineToolRequests, outlineCurrentHighlight } = useTheme()
 
@@ -795,25 +789,13 @@ export const ChatPane = memo(function ChatPane({
       // 子 session 请求匹配必须用 pane 绑定的服务器，而不是全局活动服务器（多服务器 / WSL 下两者不同）
       serverId: paneServerId,
       pendingPermissions: pendingPermissionRequests,
-      pendingQuestions: pendingQuestionRequests,
       onPermissionReply: (requestId, reply) => {
         const request = pendingPermissionRequests.find(r => r.id === requestId)
         return handlePermissionReply(requestId, reply, effectiveDirectory, request?.sessionID)
       },
-      onQuestionReply: (requestId, answers) => handleQuestionReply(requestId, answers, effectiveDirectory),
-      onQuestionReject: requestId => handleQuestionReject(requestId, effectiveDirectory),
       isReplying,
     }),
-    [
-      paneServerId,
-      pendingPermissionRequests,
-      pendingQuestionRequests,
-      handlePermissionReply,
-      handleQuestionReply,
-      handleQuestionReject,
-      isReplying,
-      effectiveDirectory,
-    ],
+    [paneServerId, pendingPermissionRequests, handlePermissionReply, isReplying, effectiveDirectory],
   )
 
   const revertedMessage = inputRestoreContent
@@ -976,14 +958,11 @@ export const ChatPane = memo(function ChatPane({
               : undefined
           }
           collapsedQuestion={
-            !inlineToolRequests &&
-            pendingPermissionRequests.length === 0 &&
-            pendingQuestionRequests.length > 0 &&
-            questionCollapsed
+            !inlineToolRequests && pendingPermissionRequests.length === 0 && pendingForms.length > 0 && formCollapsed
               ? {
-                  label: t('chat:questionDialog.title'),
-                  queueLength: pendingQuestionRequests.length,
-                  onExpand: () => setQuestionCollapsed(false),
+                  label: t('chat:formDialog.title'),
+                  queueLength: pendingForms.length,
+                  onExpand: () => setFormCollapsed(false),
                 }
               : undefined
           }
@@ -1009,15 +988,17 @@ export const ChatPane = memo(function ChatPane({
         />
       )}
 
-      {!inlineToolRequests && pendingPermissionRequests.length === 0 && pendingQuestionRequests.length > 0 && (
-        <QuestionDialog
-          request={pendingQuestionRequests[0]}
-          onReply={answers => handleQuestionReply(pendingQuestionRequests[0].id, answers, effectiveDirectory)}
-          onReject={() => handleQuestionReject(pendingQuestionRequests[0].id, effectiveDirectory)}
-          queueLength={pendingQuestionRequests.length}
+      {!inlineToolRequests && pendingPermissionRequests.length === 0 && pendingForms.length > 0 && (
+        <FormDialog
+          form={pendingForms[0]}
+          onSubmit={answer =>
+            handleFormReply(pendingForms[0].id, answer, pendingForms[0].sessionID, effectiveDirectory)
+          }
+          onCancel={() => handleFormCancel(pendingForms[0].id, pendingForms[0].sessionID, effectiveDirectory)}
+          queueLength={pendingForms.length}
           isReplying={isReplying}
-          collapsed={questionCollapsed}
-          onCollapsedChange={setQuestionCollapsed}
+          collapsed={formCollapsed}
+          onCollapsedChange={setFormCollapsed}
         />
       )}
     </div>

@@ -18,10 +18,7 @@ export function getTauriDropClientPoints(position: TauriDropPosition): Array<{ x
 }
 
 /** Physical + CSS 坐标双试，兼容 Windows / macOS 拖放坐标差异 */
-export function isTauriDropPointInsideElement(
-  position: TauriDropPosition,
-  element: HTMLElement | null,
-): boolean {
+export function isTauriDropPointInsideElement(position: TauriDropPosition, element: HTMLElement | null): boolean {
   if (!element) return false
   const rect = element.getBoundingClientRect()
   return getTauriDropClientPoints(position).some(

@@ -1,4 +1,4 @@
-import type { AppSkillsResponse } from '@opencode-ai/sdk/v2/client'
+import type { AppSkillsResponse } from './v1Model'
 
 export type Skill = AppSkillsResponse[number]
 

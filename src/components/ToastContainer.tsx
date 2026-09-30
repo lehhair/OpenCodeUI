@@ -190,28 +190,28 @@ export function ToastContainer({ onOpenAbout }: { onOpenAbout: () => void }) {
     <>
       <style>{`@keyframes toast-update-enter { from { opacity: 0; transform: translateY(-8px) translateX(8px); } to { opacity: 1; transform: translateY(0) translateX(0); } }`}</style>
       <div className="toast-safe-top absolute right-3 left-3 md:left-auto md:w-80 z-50 flex flex-col gap-2 pointer-events-none">
-      <UpdateToast onOpenAbout={onOpenAbout} />
+        <UpdateToast onOpenAbout={onOpenAbout} />
 
-      {toasts.map(item => (
-        <Toast
-          key={item.notification.id}
-          item={item}
-          onDismiss={() => notificationStore.dismissToast(item.notification.id)}
-          onClick={() => handleClick(item)}
-        />
-      ))}
+        {toasts.map(item => (
+          <Toast
+            key={item.notification.id}
+            item={item}
+            onDismiss={() => notificationStore.dismissToast(item.notification.id)}
+            onClick={() => handleClick(item)}
+          />
+        ))}
 
-      {/* Clear all — 轻量文字按钮，右对齐 */}
-      {toasts.length >= 2 && (
-        <div className="flex justify-end pointer-events-auto">
-          <button
-            className="text-[length:var(--fs-xs)] text-text-300 hover:text-text-100 px-2 py-1 rounded-md hover:bg-bg-200/60 transition-all duration-150 active:scale-95"
-            onClick={() => notificationStore.dismissAllToasts()}
-          >
-            {t('toast.clearAll')}
-          </button>
-        </div>
-      )}
+        {/* Clear all — 轻量文字按钮，右对齐 */}
+        {toasts.length >= 2 && (
+          <div className="flex justify-end pointer-events-auto">
+            <button
+              className="text-[length:var(--fs-xs)] text-text-300 hover:text-text-100 px-2 py-1 rounded-md hover:bg-bg-200/60 transition-all duration-150 active:scale-95"
+              onClick={() => notificationStore.dismissAllToasts()}
+            >
+              {t('toast.clearAll')}
+            </button>
+          </div>
+        )}
       </div>
     </>
   )

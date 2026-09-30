@@ -7,7 +7,11 @@ const notificationTargets = vi.hoisted(() => ({ mode: 'both' as 'both' | 'system
 
 vi.mock('../../components/ui/Dialog', () => ({
   Dialog: ({ isOpen, children, ariaLabel }: { isOpen: boolean; children: React.ReactNode; ariaLabel: string }) =>
-    isOpen ? <div role="dialog" aria-label={ariaLabel}>{children}</div> : null,
+    isOpen ? (
+      <div role="dialog" aria-label={ariaLabel}>
+        {children}
+      </div>
+    ) : null,
 }))
 vi.mock('../../hooks', () => ({ useIsMobile: () => false }))
 vi.mock('../../utils/tauri', () => ({ isTauri: () => true }))
@@ -16,7 +20,9 @@ vi.mock('./components/AgentSettings', () => ({ AgentSettings: () => <div>Agent c
 vi.mock('./components/AppearanceSettings', () => ({
   AppearanceSettings: () => (
     <div data-setting-label="Color Mode">
-      <button type="button" className="hidden">Hidden color control</button>
+      <button type="button" className="hidden">
+        Hidden color control
+      </button>
       <button type="button">Color control</button>
     </div>
   ),
@@ -27,14 +33,22 @@ vi.mock('./components/ModelsSettings', () => ({ ModelsSettings: () => <div>Model
 vi.mock('./components/NotificationSettings', () => ({
   NotificationSettings: () => (
     <div>
-      <div data-setting-label="System Notifications"><button type="button">System settings</button></div>
+      <div data-setting-label="System Notifications">
+        <button type="button">System settings</button>
+      </div>
       {notificationTargets.mode !== 'sound' && (
-        <div data-setting-label="Session Completed" data-setting-context="Notification Types"><button type="button">System event control</button></div>
+        <div data-setting-label="Session Completed" data-setting-context="Notification Types">
+          <button type="button">System event control</button>
+        </div>
       )}
       {notificationTargets.mode !== 'system' && (
-        <div data-setting-label="Session Completed" data-setting-context="Event Sounds"><button type="button">Sound event control</button></div>
+        <div data-setting-label="Session Completed" data-setting-context="Event Sounds">
+          <button type="button">Sound event control</button>
+        </div>
       )}
-      <div data-setting-label="Sound Settings"><button type="button">Sound settings</button></div>
+      <div data-setting-label="Sound Settings">
+        <button type="button">Sound settings</button>
+      </div>
     </div>
   ),
 }))

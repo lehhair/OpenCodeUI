@@ -75,15 +75,18 @@ export function SessionChildrenSlot({
     }
   }, [fetchAll, parentSession.id, parentSession.directory, serverId])
 
-  const handleRename = useCallback(async (childId: string, newTitle: string) => {
-    try {
-      await updateSession(childId, { title: newTitle }, parentSession.directory, serverId)
-      pinnedSessionsStore.update(childId, { title: newTitle })
-      setFetched(prev => prev.map(s => (s.id === childId ? { ...s, title: newTitle } : s)))
-    } catch (e) {
-      uiErrorHandler('rename session', e)
-    }
-  }, [parentSession.directory, serverId])
+  const handleRename = useCallback(
+    async (childId: string, newTitle: string) => {
+      try {
+        await updateSession(childId, { title: newTitle }, parentSession.directory, serverId)
+        pinnedSessionsStore.update(childId, { title: newTitle })
+        setFetched(prev => prev.map(s => (s.id === childId ? { ...s, title: newTitle } : s)))
+      } catch (e) {
+        uiErrorHandler('rename session', e)
+      }
+    },
+    [parentSession.directory, serverId],
+  )
 
   const handleDeleteConfirmed = useCallback(async () => {
     const id = deleteConfirm.sessionId
@@ -114,32 +117,29 @@ export function SessionChildrenSlot({
       ) : (
         list!.map((child, index) => {
           const isChecked = selectedSessionIds?.has(child.id) ?? false
-          const prevChecked =
-            isEditMode && index > 0 && (selectedSessionIds?.has(list![index - 1].id) ?? false)
+          const prevChecked = isEditMode && index > 0 && (selectedSessionIds?.has(list![index - 1].id) ?? false)
           const nextChecked =
-            isEditMode &&
-            index < list!.length - 1 &&
-            (selectedSessionIds?.has(list![index + 1].id) ?? false)
+            isEditMode && index < list!.length - 1 && (selectedSessionIds?.has(list![index + 1].id) ?? false)
           return (
-          <SessionListItem
-            key={child.id}
-            session={child}
-            isSelected={!!selectedSessionId && child.id === splitSessionKey(selectedSessionId).sessionId}
-            onSelect={() => onSelect({ ...child, serverId } as ApiSession & { serverId?: string })}
-            onRename={newTitle => handleRename(child.id, newTitle)}
-            onDelete={() => setDeleteConfirm({ isOpen: true, sessionId: child.id })}
-            preferTouchUi={preferTouchUi}
-            density="minimal"
-            showStats={false}
-            showDirectory={false}
-            isEditMode={isEditMode}
-            isChecked={isChecked}
-            checkedPrev={prevChecked}
-            checkedNext={nextChecked}
-            onToggleCheck={
-              onToggleSessionSelection ? options => onToggleSessionSelection(child.id, options) : undefined
-            }
-          />
+            <SessionListItem
+              key={child.id}
+              session={child}
+              isSelected={!!selectedSessionId && child.id === splitSessionKey(selectedSessionId).sessionId}
+              onSelect={() => onSelect({ ...child, serverId } as ApiSession & { serverId?: string })}
+              onRename={newTitle => handleRename(child.id, newTitle)}
+              onDelete={() => setDeleteConfirm({ isOpen: true, sessionId: child.id })}
+              preferTouchUi={preferTouchUi}
+              density="minimal"
+              showStats={false}
+              showDirectory={false}
+              isEditMode={isEditMode}
+              isChecked={isChecked}
+              checkedPrev={prevChecked}
+              checkedNext={nextChecked}
+              onToggleCheck={
+                onToggleSessionSelection ? options => onToggleSessionSelection(child.id, options) : undefined
+              }
+            />
           )
         })
       )}

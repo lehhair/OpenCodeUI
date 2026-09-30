@@ -17,6 +17,18 @@ import { autoDetectPathStyle, isSameDirectory } from '../utils'
 // 不落空态——消费方据此区分「还在加载」与「确实没有对话」
 const SESSION_RETRY_DELAYS_MS = [500, 1500, 3000]
 
+/**
+ * 去掉补丁里的 `undefined` 字段
+ *
+ * V2 把 V1 的 `session.updated` 拆成了多个事件（renamed / metadata.updated /
+ * agent.selected / model.selected / moved），每个只带**变化的字段**；
+ * 事件层把缺省项填成 `undefined`。直接 `{...prev, ...patch}` 会把已有字段
+ * 覆盖成 undefined → 合并前必须先剔除。
+ */
+function stripUndefined<T extends object>(patch: T): Partial<T> {
+  return Object.fromEntries(Object.entries(patch).filter(([, value]) => value !== undefined)) as Partial<T>
+}
+
 interface UseSessionsOptions {
   /** 每页数量 */
   pageSize?: number
@@ -80,8 +92,8 @@ export function useSessions(options: UseSessionsOptions = {}): UseSessionsResult
   // 防止 onReconnected 密集触发时重复请求
   const isFetchingRef = useRef(false)
   const queuedReconnectRefreshRef = useRef(false)
-  const fetchSessionsRef = useRef<(params?: SessionListParams & { append?: boolean }) => Promise<void>>(
-    () => Promise.resolve(),
+  const fetchSessionsRef = useRef<(params?: SessionListParams & { append?: boolean }) => Promise<void>>(() =>
+    Promise.resolve(),
   )
   // 重试退避的在途句柄：unmount 时清 timer 并唤醒循环，防止组件消失后仍继续发请求
   const pendingRetryRef = useRef<{ cancel: () => void } | null>(null)
@@ -106,7 +118,8 @@ export function useSessions(options: UseSessionsOptions = {}): UseSessionsResult
   }, [search])
 
   const matchesDirectory = useCallback(
-    (session: ApiSession) => !normalizedDirectory || isSameDirectory(normalizedDirectory, session.directory),
+    (session: { directory?: string }) =>
+      !normalizedDirectory || isSameDirectory(normalizedDirectory, session.directory ?? ''),
     [normalizedDirectory],
   )
 
@@ -255,35 +268,40 @@ export function useSessions(options: UseSessionsOptions = {}): UseSessionsResult
           return [session, ...prev]
         })
       },
-      onSessionUpdated: session => {
-        if (session.parentID) return
+      onSessionUpdated: patch => {
+        if (patch.parentID) return
 
         if (searchRef.current) {
-          if (matchesDirectory(session)) {
+          if (matchesDirectory(patch)) {
             void fetchSessionsRef.current({ search: searchRef.current || undefined })
           } else {
-            setSessions(prev => prev.filter(item => item.id !== session.id))
+            setSessions(prev => prev.filter(item => item.id !== patch.id))
           }
           return
         }
 
         setSessions(prev => {
-          const index = prev.findIndex(item => item.id === session.id)
+          const index = prev.findIndex(item => item.id === patch.id)
 
-          if (!matchesDirectory(session)) {
-            return index === -1 ? prev : prev.filter(item => item.id !== session.id)
+          // V2 的会话元信息事件只给**变化的字段** → 必须合并而不是整体替换；
+          // 缺失的 directory 表示"目录没变"，不能当作"不在本目录"而误删
+          if (patch.directory !== undefined && !matchesDirectory(patch)) {
+            return index === -1 ? prev : prev.filter(item => item.id !== patch.id)
           }
 
+          // 本地列表里没有这条会话时无法凭补丁拼出完整对象 → 交给服务端重查
           if (index === -1) {
-            return [session, ...prev]
+            void fetchSessionsRef.current({ search: searchRef.current || undefined })
+            return prev
           }
 
-          const updated = prev.filter(item => item.id !== session.id)
-          return [session, ...updated]
+          const merged = { ...prev[index], ...stripUndefined(patch) }
+          const updated = prev.filter(item => item.id !== patch.id)
+          return [merged, ...updated]
         })
       },
-      onSessionDeleted: sessionId => {
-        setSessions(prev => prev.filter(item => item.id !== sessionId))
+      onSessionDeleted: data => {
+        setSessions(prev => prev.filter(item => item.id !== data.sessionID))
       },
       onReconnected: reason => {
         if (reason === 'server-switch') return

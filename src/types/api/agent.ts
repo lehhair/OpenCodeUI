@@ -1,4 +1,4 @@
-import type { Agent as SDKAgent } from '@opencode-ai/sdk/v2/client'
+import type { Agent as SDKAgent } from './v1Model'
 
 export type AgentMode = SDKAgent['mode']
 

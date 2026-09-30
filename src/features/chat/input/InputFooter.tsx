@@ -1,12 +1,8 @@
-import { memo, useState, useRef, useEffect, useLayoutEffect, useSyncExternalStore, useCallback } from 'react'
+import { memo, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { RefObject } from 'react'
-import { CheckIcon, ClockIcon, CircleIcon, CloseIcon, FastForwardIcon } from '../../../components/Icons'
-import { CircularProgress } from '../../../components/CircularProgress'
-import { useTodos, useTodoStats, useCurrentTask, todoStore } from '../../../store'
-import { getSessionTodos } from '../../../api/session'
+import { FastForwardIcon } from '../../../components/Icons'
 import { autoApproveStore, type FullAutoMode } from '../../../store/autoApproveStore'
-import type { TodoItem } from '../../../types/api/event'
 
 // ============================================
 // Full Auto 状态 hook
@@ -19,11 +15,24 @@ function useFullAutoMode(paneId: string): FullAutoMode {
   )
 }
 
-const TODO_SWAP_DURATION_MS = 260
-
 // ============================================
-// InputFooter - disclaimer + todo progress + full auto toggle
+// InputFooter - disclaimer + full auto toggle
 // ============================================
+//
+// ⛔ 阶段 3b 已删除「待办进度」整块 UI（进度环 + 任务列表弹出面板 + TodoSwapPanel）。
+//
+//   原因：**V2 完全没有待办能力** ——
+//     - `GET /session/{id}/todo` 端点已删除，事件侧也没有 `todo.updated`（阶段 2b 已确认
+//       v2.0.19 源码里不存在该事件）；
+//     - V2 的工具集里**没有 todo 工具**（v1 的 `todowrite` 被列进
+//       `packages/core/src/database/v1-migration.bun.ts:901` 的 `REMOVED_TOOLS`）；
+//     - 本地库的 `todo` 表最后写入时间是 2026-09-24，之后（V2 时代）**零写入**。
+//
+//   → 连带删除：`src/api/todo.ts`、`src/types/api/todo.ts`、`src/store/todoStore.ts`。
+//
+//   ⚠️ **但 `TodoRenderer`（消息流里渲染历史 `todowrite` 工具卡片）保留**：
+//      本地库有 328 条 `todowrite` 工具调用，且它们所在的会话**都在 `session_v2` 表里**
+//      （即在 V2 的会话列表里可见）→ 历史消息仍需要它渲染。
 
 interface InputFooterProps {
   paneId: string
@@ -32,174 +41,12 @@ interface InputFooterProps {
   inputContainerRef?: RefObject<HTMLDivElement | null>
 }
 
-export const InputFooter = memo(function InputFooter({
-  paneId,
-  sessionId,
-  onNewChat,
-  inputContainerRef,
-}: InputFooterProps) {
+export const InputFooter = memo(function InputFooter({ paneId, onNewChat }: InputFooterProps) {
   const { t } = useTranslation(['chat', 'common'])
-  const todos = useTodos(sessionId ?? null)
-  const stats = useTodoStats(sessionId ?? null)
-  const currentTask = useCurrentTask(sessionId ?? null)
-  const [panelState, setPanelState] = useState<'closed' | 'opening' | 'open' | 'closing'>('closed')
-  const popoverRef = useRef<HTMLDivElement>(null)
-  const loadedRef = useRef<string | null>(null)
-  const closeTimerRef = useRef<number | null>(null)
-  const openingFrameRef = useRef<number | null>(null)
-  const previousSessionIdRef = useRef(sessionId)
   const fullAutoMode = useFullAutoMode(paneId)
 
-  // 加载 session 时拉取初始 todos
-  useEffect(() => {
-    if (!sessionId || loadedRef.current === sessionId) return
-    loadedRef.current = sessionId
-
-    getSessionTodos(sessionId)
-      .then(apiTodos => {
-        if (apiTodos.length > 0) {
-          todoStore.setTodos(sessionId, apiTodos)
-        }
-      })
-      .catch(() => {})
-  }, [sessionId])
-
-  const clearPanelTimers = useCallback(() => {
-    if (closeTimerRef.current !== null) {
-      window.clearTimeout(closeTimerRef.current)
-      closeTimerRef.current = null
-    }
-
-    if (openingFrameRef.current !== null) {
-      cancelAnimationFrame(openingFrameRef.current)
-      openingFrameRef.current = null
-    }
-  }, [])
-
-  const hasTodos = stats.total > 0
-  const isAllDone = stats.total > 0 && stats.completed === stats.total
-  const progress = stats.total > 0 ? stats.completed / stats.total : 0
-  const panelOpen = panelState === 'opening' || panelState === 'open'
-
-  const taskLabel = currentTask
-    ? currentTask.content
-    : isAllDone
-      ? t('inputFooter.allTasksDone')
-      : t('inputFooter.remaining', { count: stats.total - stats.completed })
-
-  const openPanel = useCallback(() => {
-    if (!hasTodos) return
-
-    clearPanelTimers()
-
-    const inputContainer = inputContainerRef?.current
-    const activeElement = document.activeElement
-    if (inputContainer) {
-      inputContainer.setAttribute('data-todo-swap', 'hidden')
-      if (activeElement instanceof HTMLElement && inputContainer.contains(activeElement)) {
-        activeElement.blur()
-      }
-    }
-
-    setPanelState(current => {
-      if (current === 'open' || current === 'opening') return current
-      return 'opening'
-    })
-  }, [clearPanelTimers, hasTodos, inputContainerRef])
-
-  const closePanel = useCallback(() => {
-    clearPanelTimers()
-    inputContainerRef?.current?.removeAttribute('data-todo-swap')
-
-    setPanelState(current => {
-      if (current === 'closed' || current === 'closing') return current
-      return 'closing'
-    })
-  }, [clearPanelTimers, inputContainerRef])
-
-  const togglePanel = useCallback(() => {
-    if (panelOpen) {
-      closePanel()
-      return
-    }
-
-    openPanel()
-  }, [closePanel, openPanel, panelOpen])
-
-  // 点击外部关闭 panel
-  useEffect(() => {
-    if (panelState === 'closed') return
-
-    const handleClick = (e: MouseEvent) => {
-      const target = e.target as Node
-      if (popoverRef.current?.contains(target)) return
-      if (inputContainerRef?.current?.contains(target)) return
-      closePanel()
-    }
-
-    document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
-  }, [closePanel, inputContainerRef, panelState])
-
-  useEffect(() => {
-    if (panelState !== 'opening') return
-
-    openingFrameRef.current = requestAnimationFrame(() => {
-      openingFrameRef.current = null
-      setPanelState(current => (current === 'opening' ? 'open' : current))
-    })
-
-    return () => {
-      if (openingFrameRef.current !== null) {
-        cancelAnimationFrame(openingFrameRef.current)
-        openingFrameRef.current = null
-      }
-    }
-  }, [panelState])
-
-  useEffect(() => {
-    if (panelState !== 'closing') return
-
-    closeTimerRef.current = window.setTimeout(() => {
-      closeTimerRef.current = null
-      setPanelState(current => (current === 'closing' ? 'closed' : current))
-    }, TODO_SWAP_DURATION_MS)
-
-    return () => {
-      if (closeTimerRef.current !== null) {
-        window.clearTimeout(closeTimerRef.current)
-        closeTimerRef.current = null
-      }
-    }
-  }, [panelState])
-
-  useEffect(() => {
-    if (!hasTodos && panelState !== 'closed') {
-      const frame = requestAnimationFrame(closePanel)
-      return () => cancelAnimationFrame(frame)
-    }
-  }, [closePanel, hasTodos, panelState])
-
-  useEffect(() => {
-    if (previousSessionIdRef.current === sessionId) return
-    previousSessionIdRef.current = sessionId
-    const frame = requestAnimationFrame(closePanel)
-    return () => cancelAnimationFrame(frame)
-  }, [closePanel, sessionId])
-
-  useEffect(() => {
-    const inputContainer = inputContainerRef?.current
-    return () => {
-      clearPanelTimers()
-      inputContainer?.removeAttribute('data-todo-swap')
-    }
-  }, [clearPanelTimers, inputContainerRef])
-
   return (
-    <div
-      className="relative flex h-full w-full items-center justify-center gap-2 text-[length:var(--fs-xs)] leading-none text-text-500"
-      ref={popoverRef}
-    >
+    <div className="relative flex h-full w-full items-center justify-center gap-2 text-[length:var(--fs-xs)] leading-none text-text-500">
       {/* Full Auto 三态切换: off -> session -> global -> off */}
       <button
         onClick={() => autoApproveStore.cyclePaneFullAutoMode(paneId)}
@@ -226,183 +73,10 @@ export const InputFooter = memo(function InputFooter({
 
       <span className="text-text-500/30 shrink-0">·</span>
 
-      {/* disclaimer / todos */}
-      {!hasTodos ? (
-        <button onClick={onNewChat} className="hover:text-text-300 transition-colors">
-          {t('inputFooter.pleaseVerify')}
-        </button>
-      ) : (
-        <>
-          <button
-            onClick={togglePanel}
-            className={`flex items-center gap-1.5 min-w-0 hover:text-text-300 transition-colors ${
-              panelOpen ? 'text-text-300' : ''
-            }`}
-          >
-            <MiniProgress size={11} progress={progress} done={isAllDone} />
-            <span className="tabular-nums shrink-0">
-              {stats.completed}/{stats.total}
-            </span>
-            <span className="text-text-500/50 shrink-0">·</span>
-            <span className="truncate max-w-[120px] sm:max-w-[200px]">{taskLabel}</span>
-          </button>
-
-          <span className="text-text-500/30 shrink-0">·</span>
-
-          <button onClick={onNewChat} className="hover:text-text-300 transition-colors shrink-0">
-            {t('sidebar.newChat')}
-          </button>
-        </>
-      )}
-
-      {/* Todo Swap Panel */}
-      {panelState !== 'closed' && (
-        <TodoSwapPanel inputContainerRef={inputContainerRef} open={panelState === 'open'}>
-          <div className="px-5 pt-4 pb-3">
-            <div className="flex items-center gap-4">
-              <div className="relative">
-                <CircularProgress
-                  progress={progress}
-                  size={48}
-                  strokeWidth={3}
-                  trackClassName="text-border-200/40"
-                  progressClassName={`transition-all duration-700 ease-out ${isAllDone ? 'text-accent-secondary-100' : 'text-accent-main-100'}`}
-                />
-                <span
-                  className={`absolute inset-0 flex items-center justify-center text-[length:var(--fs-base)] font-semibold ${
-                    isAllDone ? 'text-accent-secondary-100' : 'text-text-200'
-                  }`}
-                >
-                  {isAllDone ? <CheckIcon size={20} strokeWidth={2.5} /> : `${Math.round(progress * 100)}%`}
-                </span>
-              </div>
-              <div className="flex-1">
-                <div className="text-[length:var(--fs-base)] font-medium text-text-100">
-                  {isAllDone
-                    ? t('inputFooter.allDone')
-                    : t('inputFooter.tasksCount', { done: stats.completed, total: stats.total })}
-                </div>
-                <div className="mt-0.5 text-[length:var(--fs-sm)] text-text-500">
-                  {isAllDone
-                    ? t('inputFooter.greatWork')
-                    : stats.inProgress > 0
-                      ? t('inputFooter.inProgress', { count: stats.inProgress })
-                      : t('inputFooter.remaining', { count: stats.total - stats.completed })}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="mx-4 h-px bg-border-200/40" />
-
-          <div className="max-h-64 overflow-y-auto custom-scrollbar px-3 py-2">
-            {todos.map(todo => (
-              <TodoRow key={todo.id} todo={todo} />
-            ))}
-          </div>
-        </TodoSwapPanel>
-      )}
-    </div>
-  )
-})
-
-// ============================================
-// TodoSwapPanel - 对齐输入框的独立 todo 卡片
-// ============================================
-
-function TodoSwapPanel({
-  inputContainerRef,
-  open,
-  children,
-}: {
-  inputContainerRef?: RefObject<HTMLDivElement | null>
-  open: boolean
-  children: React.ReactNode
-}) {
-  const [style, setStyle] = useState<React.CSSProperties>({})
-  const ref = useRef<HTMLDivElement>(null)
-
-  useLayoutEffect(() => {
-    const container = inputContainerRef?.current
-    const footer = ref.current?.parentElement
-    if (!container || !footer) return
-
-    const update = () => {
-      const cRect = container.getBoundingClientRect()
-      const fRect = footer.getBoundingClientRect()
-      setStyle({
-        width: cRect.width,
-        left: cRect.left - fRect.left,
-        bottom: fRect.bottom - cRect.bottom,
-      })
-    }
-    update()
-
-    const observer = new ResizeObserver(update)
-    observer.observe(container)
-    observer.observe(footer)
-    window.addEventListener('resize', update)
-
-    return () => {
-      observer.disconnect()
-      window.removeEventListener('resize', update)
-    }
-  }, [inputContainerRef])
-
-  return (
-    <div
-      ref={ref}
-      style={style}
-      data-state={open ? 'open' : 'closed'}
-      className="todo-swap-panel absolute glass-alt border border-border-200/60 rounded-2xl shadow-lg overflow-hidden z-50 leading-normal"
-    >
-      {children}
-    </div>
-  )
-}
-
-// ============================================
-// MiniProgress - 极小进度圆环
-// ============================================
-
-function MiniProgress({ size, progress, done }: { size: number; progress: number; done: boolean }) {
-  return (
-    <CircularProgress
-      progress={progress}
-      size={size}
-      strokeWidth={1.5}
-      trackClassName="text-text-500/30"
-      progressClassName={done ? 'text-accent-secondary-100' : 'text-accent-main-100'}
-      className="shrink-0 block"
-    />
-  )
-}
-
-// ============================================
-// TodoRow
-// ============================================
-
-const TodoRow = memo(function TodoRow({ todo }: { todo: TodoItem }) {
-  const isCompleted = todo.status === 'completed'
-  const isInProgress = todo.status === 'in_progress'
-  const isCancelled = todo.status === 'cancelled'
-
-  return (
-    <div
-      className={`flex items-center gap-2 px-2 py-1.5 text-[length:var(--fs-sm)] ${
-        isCompleted ? 'text-text-500' : isInProgress ? 'text-text-100' : 'text-text-300'
-      }`}
-    >
-      <span className="flex h-[13px] w-[13px] shrink-0 items-center justify-center">
-        {isCompleted && <CheckIcon size={13} className="text-accent-secondary-100" strokeWidth={2.5} />}
-        {isInProgress && <ClockIcon size={13} className="text-accent-main-100" />}
-        {isCancelled && <CloseIcon size={13} className="text-text-500" />}
-        {todo.status === 'pending' && <CircleIcon size={13} className="text-text-500" />}
-      </span>
-      <span className={`flex-1 ${isCompleted ? 'line-through' : ''}`}>{todo.content}</span>
-      {todo.priority === 'high' && !isCompleted && (
-        <span className="shrink-0 rounded bg-warning-100/10 px-1 text-[length:var(--fs-xxs)] text-warning-100">!</span>
-      )}
+      {/* 免责声明（原来的「待办进度 / 任务列表」入口已随 V2 无待办能力一并删除） */}
+      <button onClick={onNewChat} className="hover:text-text-300 transition-colors">
+        {t('inputFooter.pleaseVerify')}
+      </button>
     </div>
   )
 })

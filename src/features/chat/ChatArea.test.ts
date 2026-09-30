@@ -344,12 +344,7 @@ describe('buildChatPageViewModel', () => {
     const appended = buildChatPageViewModel(
       [
         ...messages,
-        createAssistantMessage(
-          'assistant-26',
-          [createTextPart('text-26', 'assistant-26', longText)],
-          26,
-          27,
-        ),
+        createAssistantMessage('assistant-26', [createTextPart('text-26', 'assistant-26', longText)], 26, 27),
       ],
       viewModel,
     )
@@ -401,11 +396,7 @@ describe('buildChatPageViewModel', () => {
     )
     const first = buildChatPageViewModel([firstAssistant])
     const secondAssistant = {
-      ...createAssistantMessage(
-        'assistant-2',
-        [createTextPart('assistant-text-2', 'assistant-2', 'second answer')],
-        3,
-      ),
+      ...createAssistantMessage('assistant-2', [createTextPart('assistant-text-2', 'assistant-2', 'second answer')], 3),
       isStreaming: true,
     }
 
@@ -509,8 +500,7 @@ describe('getTimelineRowYClass', () => {
 })
 
 describe('reuseProcessTimelineItems', () => {
-  const hasProcess = (message: Message) =>
-    message.parts.some(p => p.type === 'tool' || p.type === 'reasoning')
+  const hasProcess = (message: Message) => message.parts.some(p => p.type === 'tool' || p.type === 'reasoning')
   const hasFinal = (message: Message) => message.parts.some(p => p.type === 'text')
 
   it('keeps historical timeline item identity when only the last message streams', () => {
@@ -519,22 +509,12 @@ describe('reuseProcessTimelineItems', () => {
         ...createUserMessage('user-1', 1),
         parts: [createTextPart('user-text-1', 'user-1', 'prompt')],
       },
-      createAssistantMessage(
-        'assistant-1',
-        [createTextPart('text-1', 'assistant-1', 'old')],
-        2,
-        3,
-      ),
+      createAssistantMessage('assistant-1', [createTextPart('text-1', 'assistant-1', 'old')], 2, 3),
       {
         ...createUserMessage('user-2', 4),
         parts: [createTextPart('user-text-2', 'user-2', 'next')],
       },
-      createAssistantMessage(
-        'assistant-2',
-        [createTextPart('text-2', 'assistant-2', 'hello')],
-        5,
-        undefined,
-      ),
+      createAssistantMessage('assistant-2', [createTextPart('text-2', 'assistant-2', 'hello')], 5, undefined),
     ]
 
     const first = buildProcessTimeline(messages, {
@@ -574,12 +554,7 @@ describe('reuseProcessTimelineItems', () => {
         ...createUserMessage('user-1', 1),
         parts: [createTextPart('user-text-1', 'user-1', 'prompt')],
       },
-      createAssistantMessage(
-        'assistant-1',
-        [createTextPart('text-1', 'assistant-1', 'done')],
-        2,
-        3,
-      ),
+      createAssistantMessage('assistant-1', [createTextPart('text-1', 'assistant-1', 'done')], 2, 3),
     ]
     const first = buildProcessTimeline(messages, {
       turnDurationMap: new Map([['assistant-1', 500]]),
@@ -598,10 +573,8 @@ describe('reuseProcessTimelineItems', () => {
 })
 
 describe('buildProcessTimeline', () => {
-  const hasProcess = (message: Message) =>
-    message.parts.some(p => p.type === 'tool' || p.type === 'reasoning')
-  const hasFinal = (message: Message) =>
-    message.parts.some(p => p.type === 'text')
+  const hasProcess = (message: Message) => message.parts.some(p => p.type === 'tool' || p.type === 'reasoning')
+  const hasFinal = (message: Message) => message.parts.some(p => p.type === 'text')
 
   it('delays empty Working shell until entry-ready gate opens', () => {
     const messages = [createUserMessage('user-1', 1000)]
@@ -670,11 +643,7 @@ describe('buildProcessTimeline', () => {
     // 第一轮仍 live，第二轮 user 已发出 → 只挂 user-1 的 Working，user-2 暂不挂空壳
     const mid = createAssistantMessage('assistant-1', [createToolPart('tool-1', 'assistant-1')], 1001)
     mid.isStreaming = true
-    const messages = [
-      createUserMessage('user-1', 1000),
-      mid,
-      createUserMessage('user-2', 2000),
-    ]
+    const messages = [createUserMessage('user-1', 1000), mid, createUserMessage('user-2', 2000)]
     const timeline = buildProcessTimeline(messages, {
       turnDurationMap: new Map(),
       sessionIsStreaming: true,
@@ -699,10 +668,7 @@ describe('buildProcessTimeline', () => {
 
   it('only arms the earliest empty turn when multiple users are pending', () => {
     // 快速连发：两轮都还没 assistant → 只在最早 user 下挂 Working
-    const messages = [
-      createUserMessage('user-1', 1000),
-      createUserMessage('user-2', 1500),
-    ]
+    const messages = [createUserMessage('user-1', 1000), createUserMessage('user-2', 1500)]
     const ready = new Set(['user-1', 'user-2'])
     const timeline = buildProcessTimeline(messages, {
       turnDurationMap: new Map(),
@@ -731,11 +697,7 @@ describe('buildProcessTimeline', () => {
       1001,
     )
     earlierStillFlaggedLive.isStreaming = true
-    const laterLive = createAssistantMessage(
-      'assistant-2',
-      [createToolPart('tool-2', 'assistant-2')],
-      2001,
-    )
+    const laterLive = createAssistantMessage('assistant-2', [createToolPart('tool-2', 'assistant-2')], 2001)
     laterLive.isStreaming = true
     const messages = [
       createUserMessage('user-1', 1000),
@@ -787,12 +749,7 @@ describe('buildProcessTimeline', () => {
   })
 
   it('settles shell with process inside and final answer outside', () => {
-    const processOnly = createAssistantMessage(
-      'assistant-1',
-      [createToolPart('tool-1', 'assistant-1')],
-      1001,
-      1200,
-    )
+    const processOnly = createAssistantMessage('assistant-1', [createToolPart('tool-1', 'assistant-1')], 1001, 1200)
     const finalAnswer = createAssistantMessage(
       'assistant-2',
       [
@@ -936,14 +893,12 @@ describe('buildChatPages', () => {
 
   it('counts blank lines before fenced code independently of indentation', () => {
     const suffix = '```ts\nconst value = 1\n```'
-    const withoutIndent = createAssistantMessage(
-      'assistant-plain-lines',
-      [createTextPart('text-plain-lines', 'assistant-plain-lines', `${'\n'.repeat(100)}${suffix}`)],
-    )
-    const withIndent = createAssistantMessage(
-      'assistant-indented-lines',
-      [createTextPart('text-indented-lines', 'assistant-indented-lines', `${' \n'.repeat(100)}${suffix}`)],
-    )
+    const withoutIndent = createAssistantMessage('assistant-plain-lines', [
+      createTextPart('text-plain-lines', 'assistant-plain-lines', `${'\n'.repeat(100)}${suffix}`),
+    ])
+    const withIndent = createAssistantMessage('assistant-indented-lines', [
+      createTextPart('text-indented-lines', 'assistant-indented-lines', `${' \n'.repeat(100)}${suffix}`),
+    ])
 
     expect(estimateMessageRenderWeight(withIndent)).toBe(estimateMessageRenderWeight(withoutIndent))
   })

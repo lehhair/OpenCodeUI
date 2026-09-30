@@ -45,7 +45,8 @@ export default defineConfig({
           // 语言 grammar（@shikijs/langs/*）由 dynamic import 自动拆分
           if ((id.includes('shiki') || id.includes('@shikijs/')) && !id.includes('@shikijs/langs'))
             return 'vendor-shiki'
-          if (id.includes('marked') || id.includes('dompurify') || id.includes('morphdom') || id.includes('katex')) return 'vendor-markdown'
+          if (id.includes('marked') || id.includes('dompurify') || id.includes('morphdom') || id.includes('katex'))
+            return 'vendor-markdown'
 
           if (id.includes('@tauri-apps/')) return 'vendor-tauri'
         },
@@ -71,11 +72,22 @@ export default defineConfig({
     proxy: {
       // 开发环境代理 - 将 /api 前缀的请求转发到 OpenCode 后端
       // 注意：Tauri 模式下前端直接请求后端（通过 plugin-http），不走此代理
+      //
+      // 🔴 阶段 2b 修正（2a 报告 §8#11 记录的问题）：
+      //   这里原本有一条 `rewrite: path => path.replace(/^\/api/, '')`，
+      //   那是 **V1 遗留** —— V1 的端点就是 `/session`、`/config`、`/event` 等**不带 `/api` 前缀**的路径，
+      //   所以要把前端写的 `/api/xxx` 削掉才能命中后端。
+      //
+      //   但 **V2 的端点全都带 `/api` 前缀**（`/api/session`、`/api/event`、`/api/fs/find` …，
+      //   见迁移文档 §4）。继续削前缀会把请求打到不存在的 `/session` 上，
+      //   后端只会返回 SPA 兜底 HTML → **浏览器 dev 模式下整条链路都会坏**
+      //   （Tauri 路径不受影响，因为它不走这个代理，而是用 `getSDKClient` 里的 baseUrl 直连）。
+      //
+      //   → 正确做法：**原样透传** `/api` 前缀，只做换源。
       '/api': {
         target: 'http://127.0.0.1:4096',
         changeOrigin: true,
         ws: true,
-        rewrite: path => path.replace(/^\/api/, ''),
       },
     },
   },

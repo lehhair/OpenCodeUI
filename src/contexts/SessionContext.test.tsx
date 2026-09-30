@@ -21,7 +21,6 @@ const {
   subscribeToEventsMock,
   clearChildrenMock,
   clearFollowupQueueMock,
-  setTodosMock,
   clearSessionRuntimeStateMock,
   sessionErrorHandlerMock,
   autoDetectPathStyleMock,
@@ -33,7 +32,6 @@ const {
   subscribeToEventsMock: vi.fn(),
   clearChildrenMock: vi.fn(),
   clearFollowupQueueMock: vi.fn(),
-  setTodosMock: vi.fn(),
   clearSessionRuntimeStateMock: vi.fn(),
   sessionErrorHandlerMock: vi.fn(),
   autoDetectPathStyleMock: vi.fn(),
@@ -66,11 +64,8 @@ vi.mock('../store/followupQueueStore', () => ({
   },
 }))
 
-vi.mock('../store/todoStore', () => ({
-  todoStore: {
-    setTodos: setTodosMock,
-  },
-}))
+// 阶段 2b：V2 没有 `todo.updated` 事件，SessionContext 也不再消费 todoStore，
+// 因此这里不再 mock `../store/todoStore`（没有模块会加载它）。
 
 vi.mock('../store/serverStore', () => ({
   serverStore: {
@@ -111,7 +106,6 @@ describe('SessionProvider', () => {
     subscribeToEventsMock.mockReset()
     clearChildrenMock.mockReset()
     clearFollowupQueueMock.mockReset()
-    setTodosMock.mockReset()
     clearSessionRuntimeStateMock.mockReset()
     sessionErrorHandlerMock.mockReset()
     autoDetectPathStyleMock.mockReset()
@@ -243,11 +237,75 @@ describe('SessionProvider', () => {
     expect(latestContext?.sessions.map(session => session.id)).toEqual(['session-1', 'session-2'])
 
     act(() => {
-      latestEventCallbacks.onSessionDeleted?.('session-1')
+      // V2 的 session.deleted 载荷是对象（{ sessionID }），不是裸字符串
+      latestEventCallbacks.onSessionDeleted?.({ sessionID: 'session-1' })
     })
 
     expect(clearSessionRuntimeStateMock).toHaveBeenCalledWith('session-1')
     expect(latestContext?.sessions.map(session => session.id)).toEqual(['session-2'])
+  })
+
+  it('merges a partial session patch instead of replacing the entry', async () => {
+    getSessionsMock.mockResolvedValue([
+      { id: 'session-1', title: 'one', directory: '/workspace/demo' },
+      { id: 'session-2', title: 'two', directory: '/workspace/demo' },
+    ])
+
+    render(
+      <SessionProvider>
+        <SessionContextProbe />
+      </SessionProvider>,
+    )
+
+    await act(async () => {
+      vi.runAllTimers()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    await act(async () => {
+      // V2 把会话元信息变更拆成了 renamed / metadata.updated / moved 等事件，
+      // 事件层只给出**变化的字段**（这里只有 title）。消费者必须合并进原条目，
+      // 否则 `{...prev, ...patch}` 会把 directory 覆盖成 undefined。
+      latestEventCallbacks.onSessionUpdated?.({ id: 'session-2', title: 'renamed' })
+      await Promise.resolve()
+    })
+
+    const sessions = latestContext?.sessions ?? []
+    // 更新过的会话被提到列表最前
+    expect(sessions.map(session => session.id)).toEqual(['session-2', 'session-1'])
+    expect(sessions[0]).toMatchObject({ id: 'session-2', title: 'renamed', directory: '/workspace/demo' })
+    // 本地列表里有这条会话 → 不需要向服务端重查
+    expect(getSessionsMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('refetches when a session patch arrives for a session missing from the local list', async () => {
+    getSessionsMock.mockResolvedValue([{ id: 'session-1', title: 'one', directory: '/workspace/demo' }])
+
+    render(
+      <SessionProvider>
+        <SessionContextProbe />
+      </SessionProvider>,
+    )
+
+    await act(async () => {
+      vi.runAllTimers()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(getSessionsMock).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      // 本地没有这条会话：补丁拼不出完整对象（缺 directory 等），
+      // 应当交给服务端重查，而不是把残缺对象插进列表
+      latestEventCallbacks.onSessionUpdated?.({ id: 'session-unknown', title: 'x' })
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(getSessionsMock).toHaveBeenCalledTimes(2)
+    expect(latestContext?.sessions.map(session => session.id)).toEqual(['session-1'])
   })
 
   it('refetches on server endpoint changes even while the old request is in flight', async () => {

@@ -4,11 +4,12 @@ import type { ApiSession } from '../../api'
 import { pinnedSessionsStore } from '../../store/pinnedSessionsStore'
 import { SessionListItem } from './SessionList'
 
-const { useSessionActiveEntryMock, useHasUnreadCompletedNotificationMock, markSessionNotificationsReadMock } = vi.hoisted(() => ({
-  useSessionActiveEntryMock: vi.fn(),
-  useHasUnreadCompletedNotificationMock: vi.fn(),
-  markSessionNotificationsReadMock: vi.fn(),
-}))
+const { useSessionActiveEntryMock, useHasUnreadCompletedNotificationMock, markSessionNotificationsReadMock } =
+  vi.hoisted(() => ({
+    useSessionActiveEntryMock: vi.fn(),
+    useHasUnreadCompletedNotificationMock: vi.fn(),
+    markSessionNotificationsReadMock: vi.fn(),
+  }))
 
 vi.mock('../../store/activeSessionStore', () => ({
   useSessionActiveEntry: (...args: unknown[]) => useSessionActiveEntryMock(...args),
@@ -134,5 +135,4 @@ describe('SessionListItem', () => {
 
     expect(onToggleCheck).toHaveBeenCalledTimes(1)
   })
-
 })

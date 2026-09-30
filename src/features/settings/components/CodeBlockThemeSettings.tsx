@@ -3,14 +3,10 @@ import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { CheckIcon, ChevronDownIcon, ChevronRightIcon } from '../../../components/Icons'
 import { useTheme } from '../../../hooks'
-import {
-  AVAILABLE_CODE_BLOCK_THEMES,
-  filterThemesByType,
-  type CodeBlockThemeInfo,
-} from '../../../lib/codeBlockThemes'
+import { AVAILABLE_CODE_BLOCK_THEMES, filterThemesByType, type CodeBlockThemeInfo } from '../../../lib/codeBlockThemes'
 import { highlightHtmlInWorker } from '../../../lib/shikiWorkerClient'
-import { fieldClass } from './configEditorControls'
-import { SegmentedControl, SettingRow, SettingsSection } from './SettingsUI'
+// 配置编辑器（configEditorControls）已在阶段 3b 删除，这里改用 SettingsUI 的等价样式常量
+import { SegmentedControl, SettingRow, SettingsSection, settingsFieldClass as fieldClass } from './SettingsUI'
 
 const PREVIEW_CODE = `// greet user by name
 function greet(name: string): string {
@@ -303,13 +299,8 @@ function CodeBlockPreview({
 
 export function CodeBlockThemeSettings() {
   const { t } = useTranslation(['settings', 'common'])
-  const {
-    codeBlockThemeLight,
-    codeBlockThemeDark,
-    setCodeBlockThemeLight,
-    setCodeBlockThemeDark,
-    resolvedTheme,
-  } = useTheme()
+  const { codeBlockThemeLight, codeBlockThemeDark, setCodeBlockThemeLight, setCodeBlockThemeDark, resolvedTheme } =
+    useTheme()
   const [previewMode, setPreviewMode] = useState<'light' | 'dark'>(resolvedTheme === 'dark' ? 'dark' : 'light')
 
   const lightGroupLabel = t('appearance.codeBlockThemeGroupLight')

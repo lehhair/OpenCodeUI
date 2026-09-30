@@ -5,8 +5,11 @@
 # ---- 主入口 :6658 — OpenCode 应用 ----
 :6658 {
 	# API（SSE + WebSocket 自动处理）
-	handle_path /api/* {
+	# 🔴 OpenCode V2：端点带 /api 前缀 → 原样透传，不能削（见 Caddyfile.standalone 注释）。
+	#    同时显式透传 Authorization：后端开启 OPENCODE_SERVER_PASSWORD 时必需（否则全部 401）。
+	handle /api/* {
 		reverse_proxy opencode-backend:4096 {
+			header_up Authorization {http.request.header.Authorization}
 			flush_interval -1
 		}
 	}

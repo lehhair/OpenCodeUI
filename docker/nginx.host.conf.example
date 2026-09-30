@@ -18,8 +18,10 @@ server {
     }
 
     # API 反向代理
+    # 🔴 OpenCode V2：端点本身带 /api 前缀 → proxy_pass 不能带尾斜杠
+    #    （带尾斜杠会削掉 /api/，请求打到不存在的路径上，后端只返回 SPA 兜底 HTML）。
     location /api/ {
-        proxy_pass http://127.0.0.1:4096/;
+        proxy_pass http://127.0.0.1:4096;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
@@ -36,7 +38,8 @@ server {
 
     # WebSocket（PTY 终端）
     location /api/pty/ {
-        proxy_pass http://127.0.0.1:4096/pty/;
+        # V2：同样不能带尾斜杠（保持 /api/pty/… 原样透传）
+        proxy_pass http://127.0.0.1:4096;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";

@@ -43,6 +43,10 @@
 
 ## 快速体验
 
+> ⚠️ **需要 OpenCode v2**（如 `v2.0.19`）。**本 UI 只支持 V2，不支持 v1.x** ——
+> 如果后端还是 v1，界面能打开但一发消息就会失败。
+> 用 `opencode --version` 确认；输出的版本号应以 `v2.` 开头。
+
 无需部署，在本地启动 OpenCode 后端后直接访问托管版前端：
 
 ```bash
@@ -83,7 +87,9 @@ BACKEND_URL=your-server.com:4096 PORT=8080 docker compose -f docker-compose.stan
 若你使用自定义 Caddyfile（或遇到 401 认证失败），在 `reverse_proxy` 块中添加：
 
 ```caddyfile
-handle_path /api/* {
+# 🔴 OpenCode V2：用 handle（不要用 handle_path）——V2 的端点本身带 /api 前缀，
+#    handle_path 会削掉它，请求会打到不存在的路径上（后端只返回 SPA 兜底 HTML）。
+handle /api/* {
 	reverse_proxy your-opencode-serve:4096 {
 		header_up Host {upstream_hostport}
 		header_up Authorization {http.request.header.Authorization}
@@ -314,7 +320,8 @@ preview.example.com {
 
 ## 本地开发
 
-需要一个运行中的 [OpenCode](https://github.com/anomalyco/opencode) 后端。
+需要一个运行中的 [OpenCode](https://github.com/anomalyco/opencode) **v2** 后端
+（**本 UI 只支持 V2，不支持 v1.x**；用 `opencode --version` 确认版本号以 `v2.` 开头）。
 
 ```bash
 opencode serve

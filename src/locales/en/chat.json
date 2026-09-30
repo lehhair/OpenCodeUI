@@ -4,7 +4,6 @@
     "newChat": "New Chat",
     "openSidebar": "Open sidebar",
     "clickToRename": "Click to rename",
-    "shareSession": "Share session",
     "closeBottomPanel": "Close bottom panel",
     "openBottomPanel": "Open bottom panel",
     "closePanel": "Close panel",
@@ -49,17 +48,6 @@
   "retryStatus": {
     "retrying": "Retrying (attempt {{attempt}})",
     "nextIn": "next in {{label}}"
-  },
-  "shareDialog": {
-    "title": "Share Chat",
-    "publicLink": "Public Link",
-    "publicLinkDesc": "Anyone with this link can view this chat session.",
-    "failedCreate": "Failed to create share link",
-    "failedRemove": "Failed to remove share link",
-    "copyLink": "Copy link",
-    "stopSharing": "Stop sharing",
-    "createPublicLink": "Create public link",
-    "creatingLink": "Creating link..."
   },
   "questionDialog": {
     "title": "Question",
@@ -139,7 +127,6 @@
     "appearance": "Appearance",
     "standardWidth": "Standard Width",
     "wideMode": "Wide Mode",
-    "shareChat": "Share Chat",
     "settings": "Settings",
     "noProjectFoldersYet": "No project folders yet",
     "addProjectDesc": "Add a project to browse recent chats by folder.",
@@ -207,5 +194,10 @@
     "autoApproveAll": "Auto-approve: all sessions",
     "autoApproveSession": "Auto-approve: this session",
     "autoApproveOffHint": "Auto-approve: off"
+  },
+  "formDialog": {
+    "title": "Form",
+    "openExternal": "Open link to authorize",
+    "acknowledge": "I have opened and completed it"
   }
 }

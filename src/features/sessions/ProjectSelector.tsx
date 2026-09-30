@@ -113,8 +113,12 @@ export function ProjectSelector({
         title={getPath(currentProject)}
       >
         <div className="flex-1 min-w-0">
-          <div className="text-[length:var(--fs-base)] font-semibold text-text-100 truncate">{getDisplayName(currentProject)}</div>
-          <div className="text-[length:var(--fs-xxs)] text-text-400/70 truncate font-mono">{getPath(currentProject)}</div>
+          <div className="text-[length:var(--fs-base)] font-semibold text-text-100 truncate">
+            {getDisplayName(currentProject)}
+          </div>
+          <div className="text-[length:var(--fs-xxs)] text-text-400/70 truncate font-mono">
+            {getPath(currentProject)}
+          </div>
         </div>
         <ChevronDownIcon
           className={`w-3 h-3 text-text-400 transition-all duration-200 shrink-0 ${
@@ -141,7 +145,9 @@ export function ProjectSelector({
             </div>
 
             {otherProjects.length === 0 ? (
-              <div className="px-3 py-4 text-center text-[length:var(--fs-sm)] text-text-400/60">{t('sessions.noOtherProjects')}</div>
+              <div className="px-3 py-4 text-center text-[length:var(--fs-sm)] text-text-400/60">
+                {t('sessions.noOtherProjects')}
+              </div>
             ) : (
               otherProjects.map(project => (
                 <ProjectItem
@@ -217,7 +223,10 @@ function ProjectItem({ project, displayName, path, onSelect, onRemove }: Project
   const isGlobal = project.id === 'global'
 
   return (
-    <div className="group w-full flex items-center gap-2.5 px-2 py-2 rounded-lg hover:bg-bg-100 transition-colors" onClick={onSelect}>
+    <div
+      className="group w-full flex items-center gap-2.5 px-2 py-2 rounded-lg hover:bg-bg-100 transition-colors"
+      onClick={onSelect}
+    >
       <button
         type="button"
         onClick={e => {

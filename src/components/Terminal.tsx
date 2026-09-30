@@ -10,7 +10,7 @@ import { SerializeAddon } from '@xterm/addon-serialize'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { WebglAddon } from '@xterm/addon-webgl'
 import '@xterm/xterm/css/xterm.css'
-import { getPtyConnectUrl, updatePtySession } from '../api/pty'
+import { createPtyConnectTicket, getPtyConnectUrl, updatePtySession } from '../api/pty'
 import { useTheme } from '../hooks'
 import { layoutStore, useLayoutStore } from '../store/layoutStore'
 import { useInputCapabilities } from '../hooks/useInputCapabilities'
@@ -210,7 +210,12 @@ function isNativePasteShortcut(event: KeyboardEvent) {
 function canReadClipboardText() {
   // Ctrl/Cmd+V uses ClipboardEvent.clipboardData, but smart right-click paste must actively call
   // navigator.clipboard.readText(), which browsers only expose in secure contexts.
-  return typeof window !== 'undefined' && window.isSecureContext && typeof navigator !== 'undefined' && !!navigator.clipboard?.readText
+  return (
+    typeof window !== 'undefined' &&
+    window.isSecureContext &&
+    typeof navigator !== 'undefined' &&
+    !!navigator.clipboard?.readText
+  )
 }
 
 function applyStickyModifiers(data: string, sticky: StickyModifiers): string {
@@ -245,19 +250,22 @@ function useRepeatablePress() {
     }
   }, [clear])
 
-  return useCallback((action: () => void, repeat: boolean) => {
-    clear()
-    action()
-    hapticTap()
-    if (!repeat) return
-    const schedule = (delay: number) => {
-      timerRef.current = window.setTimeout(() => {
-        action()
-        schedule(REPEAT_INTERVAL)
-      }, delay)
-    }
-    schedule(REPEAT_DELAY)
-  }, [clear])
+  return useCallback(
+    (action: () => void, repeat: boolean) => {
+      clear()
+      action()
+      hapticTap()
+      if (!repeat) return
+      const schedule = (delay: number) => {
+        timerRef.current = window.setTimeout(() => {
+          action()
+          schedule(REPEAT_INTERVAL)
+        }, delay)
+      }
+      schedule(REPEAT_DELAY)
+    },
+    [clear],
+  )
 }
 
 interface MobileExtraKeysProps {
@@ -428,9 +436,7 @@ export const Terminal = memo(function Terminal({ ptyId, directory, serverId, isA
     // the render closure. This breaks the infinite cycle:
     //   old terminal cleanup → updateTerminalSnapshot → notify →
     //   re-render → effect deps changed → cleanup → notify → ...
-    const freshTab = layoutStore.getState().panelTabs.find(
-      t => t.id === ptyId && t.type === 'terminal',
-    )
+    const freshTab = layoutStore.getState().panelTabs.find(t => t.id === ptyId && t.type === 'terminal')
     const effectBuffer = typeof freshTab?.buffer === 'string' ? freshTab.buffer : ''
     const effectScrollY = typeof freshTab?.scrollY === 'number' ? freshTab.scrollY : undefined
     const effectCursor =
@@ -707,39 +713,59 @@ export const Terminal = memo(function Terminal({ ptyId, directory, serverId, isA
             handleDisconnected({ reason: message })
           })
       } else {
-        const wsUrl = getPtyConnectUrl(ptyId, terminalDirectory, { cursor }, serverId)
-        logger.log('[Terminal] Connecting to:', wsUrl, reconnectAttempt > 0 ? `(reconnect #${reconnectAttempt})` : '')
-        ws = new WebSocket(wsUrl)
-        ws.binaryType = 'arraybuffer'
-        transportSendRef.current = data => {
-          if (ws && ws.readyState === WebSocket.OPEN) {
-            ws.send(data)
-          }
-        }
-        transportDisconnectRef.current = () => ws?.close()
-
-        ws.onopen = handleConnected
-
-        ws.onmessage = event => {
-          if (!mountedRef.current) return
-          const frame = parsePtyFrame(event.data as string | ArrayBuffer)
-          if (!frame) return
-          if (frame.kind === 'control') {
-            cursorRef.current = frame.cursor
+        // 浏览器路径：V2 的连接协议是**两步** ——
+        //   ① 先申请一次性 ticket（POST /api/pty/{id}/connect-token）
+        //   ② 再拼出带 ticket 的 WS URL
+        // 因此这里必须 await，connectTransport 内部用异步 IIFE 包一层
+        // （调用点是 requestAnimationFrame / 重连定时器，都不关心返回值）。
+        // 票据一次性 + 60 秒过期 → 重连时**天然重新申请**，正合语义；URL 不能缓存复用。
+        void (async () => {
+          let wsUrl: string
+          try {
+            const { ticket } = await createPtyConnectTicket(ptyId, terminalDirectory, serverId)
+            if (!mountedRef.current) return
+            wsUrl = getPtyConnectUrl(ptyId, ticket, terminalDirectory, { cursor }, serverId)
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error)
+            logger.log('[Terminal] Failed to create PTY connect ticket:', ptyId, message)
+            // 申请票据失败（网络/权限/目录不匹配）按「断开」处理 → 走指数退避重连
+            handleDisconnected({ reason: message })
             return
           }
-          terminal.write(frame.data)
-          cursorRef.current += frame.data.length
-        }
 
-        ws.onclose = e => {
-          handleDisconnected({ code: e.code, reason: e.reason })
-        }
+          logger.log('[Terminal] Connecting to:', wsUrl, reconnectAttempt > 0 ? `(reconnect #${reconnectAttempt})` : '')
+          ws = new WebSocket(wsUrl)
+          ws.binaryType = 'arraybuffer'
+          transportSendRef.current = data => {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+              ws.send(data)
+            }
+          }
+          transportDisconnectRef.current = () => ws?.close()
 
-        ws.onerror = e => {
-          logger.log('[Terminal] WebSocket error:', ptyId, e)
-          // onclose 会在 onerror 之后触发，重连逻辑交给 onclose
-        }
+          ws.onopen = handleConnected
+
+          ws.onmessage = event => {
+            if (!mountedRef.current) return
+            const frame = parsePtyFrame(event.data as string | ArrayBuffer)
+            if (!frame) return
+            if (frame.kind === 'control') {
+              cursorRef.current = frame.cursor
+              return
+            }
+            terminal.write(frame.data)
+            cursorRef.current += frame.data.length
+          }
+
+          ws.onclose = e => {
+            handleDisconnected({ code: e.code, reason: e.reason })
+          }
+
+          ws.onerror = e => {
+            logger.log('[Terminal] WebSocket error:', ptyId, e)
+            // onclose 会在 onerror 之后触发，重连逻辑交给 onclose
+          }
+        })()
       }
 
       disposeData?.dispose()

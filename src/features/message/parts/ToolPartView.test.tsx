@@ -50,22 +50,14 @@ vi.mock('../../chat/InlineToolRequestContext', () => ({
   useInlineToolRequests: () => ({
     serverId: 'local',
     pendingPermissions: [],
-    pendingQuestions: [],
     onPermissionReply: vi.fn(),
-    onQuestionReply: vi.fn(),
-    onQuestionReject: vi.fn(),
     isReplying: false,
   }),
   findPermissionRequestForTool: () => undefined,
-  findQuestionRequestForTool: () => undefined,
 }))
 
 vi.mock('../../chat/InlinePermission', () => ({
   InlinePermission: () => null,
-}))
-
-vi.mock('../../chat/InlineQuestion', () => ({
-  InlineQuestion: () => null,
 }))
 
 vi.mock('../tools', () => ({

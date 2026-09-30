@@ -4,11 +4,7 @@ import { FolderIcon } from '../../components/Icons'
 import { PANE_CENTER_STYLE } from './PaneDropOverlay'
 
 /** 只高亮 pane 正中心（与 session drop center 同几何） */
-export const FolderProjectDropOverlay = memo(function FolderProjectDropOverlay({
-  active,
-}: {
-  active: boolean
-}) {
+export const FolderProjectDropOverlay = memo(function FolderProjectDropOverlay({ active }: { active: boolean }) {
   const { t } = useTranslation('chat')
   if (!active) return null
 

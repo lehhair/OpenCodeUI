@@ -1,26 +1,58 @@
 // ============================================
-// Server-scoped Event Subscription (SSE) - Connection Manager
+// Server-scoped Event Subscription (SSE) —— V2 重写（阶段 2b）
+// ============================================
 //
-// 每个服务器一条独立 SSE 连接，各自维护心跳 / 重连 / 连接状态 / 事件代次。
-// 缺省 serverId 的 API 均作用于"活动服务器"，保持向后兼容：
-//   subscribeToEvents(cb)           == subscribeToServerEvents(activeServerId, cb)
-//   reconnectSSE()                  == reconnectServerSSE(activeServerId)
-//   getConnectionInfo()             == getServerConnectionInfo(activeServerId)
+// ── 与 V1 的三点根本差异（照 v2.0.19 源码 + 实测确认）──────────────────
+//
+//   1. **端点**：`GET /api/event`（V1 是 `/global/event`）
+//      帧格式只有一层 JSON：`data: {id, created?, metadata?, location?, type, data}\n\n`
+//      （`packages/server/src/event-feed.ts:29`），**没有** `event:` / `id:` 行；
+//      心跳是每 15 秒一行注释 `: heartbeat`；首帧是 `server.connected`。
+//
+//   2. **流是「易失」的**（官方契约原文：*"Volatile by contract: a slow consumer
+//      overflows and fails the stream, and events during disconnection are missed."*）
+//      → **不回放、不自动重连**。订阅队列 4096，溢出直接断流。
+//      → 恢复策略必须是「**重新订阅 + 重拉一次全量消息**」，只重订阅会丢消息。
+//
+//   3. **传输层改用官方 `client.event.subscribe()`**（取舍见下方「传输层决策」）。
+//
+// ── 传输层决策：为什么用官方 subscribe() ────────────────────────────────
+//
+//   官方实现（`@opencode/client` 的 `SharedEvents.make`）已经做了本项目 V1 手写
+//   1060 行里的绝大部分事情：
+//     - 共享一条懒连接（`current`）：多个订阅者复用同一个流，最后一个退出才关闭；
+//     - 每个订阅者一条 4096 容量的队列，溢出时报
+//       `Event subscriber exceeded its 4096-event capacity`；
+//     - SSE 文本解析（多行 `data:` 合并、`\r\n` 归一、增量 UTF-8 解码）；
+//     - `onActivity` 回调：**含心跳在内的任何传输活动**都会触发 → 天然的心跳信号。
+//   官方**没有**做：自动重连、状态机、代次防串扰、退避、后台保活 —— 这些仍然由本文件负责。
+//
+//   ⚠️ 官方 `subscribe()` 的共享连接是**按 client 实例**的；`sdk.ts` 按
+//      `serverId → baseUrl+auth` 缓存 client，所以「每服务器一条流」的语义保持不变。
+//
+//   ⚠️ **Tauri 下未实测**：本项目在 Tauri 里把 `plugin-http` 的 fetch 注入给
+//      `OpenCode.make({ fetch })`，官方 subscribe 会用它读 `response.body`。
+//      `plugin-http` 的流式响应**理论上**支持（其 Response 带 ReadableStream），
+//      但本容器无 Tauri 运行环境，**未做真机验证**（如实记录在阶段 2b 报告里）。
+//      若真机发现流式异常，回退方案是：把 `createEventTransport()` 换成手写
+//      `fetch('/api/event') + ReadableStream`，其余（分发/合并/重连）一行都不用改
+//      —— 传输层已被刻意隔离成单个函数。
+//
+// ── 保留自 V1 的能力（这些是对的，不要丢）─────────────────────────────
+//
+//   - 每服务器独立连接 + 订阅者集合 + 连接状态广播（`useSyncExternalStore` 友好）
+//   - 代次（generation）防串扰：重连后旧连接的回调自动失效
+//   - `RECONNECT_DELAYS` 指数退避（后台另有一套更激进的延迟）
+//   - 心跳超时判定 + 后台 keepalive 轮询 + 可见性/网络上下线生命周期监听
+//   - `onReconnected` 广播（带 cooldown），驱动上层「重拉」
+//   - `coalesceEvents()` 批量合并（4096 队列溢出是真实风险，必须保留）
 // ============================================
 
-import { getApiBaseUrl, getAuthHeader } from './http'
-import { createSseTextParser } from './sse'
-import { normalizeTodoItems } from './todo'
+import { getSDKClient } from './sdk'
+import { toInternalPermissionRequest } from './v2Convert'
 import { isTauri } from '../utils/tauri'
 import { serverStore } from '../store/serverStore'
-import type {
-  ApiMessage,
-  EventCallbacks,
-  GlobalEvent,
-  ServerConnectedPayload,
-  SessionErrorPayload,
-  TodoUpdatedPayload,
-} from './types'
+import type { EventCallbacks, Session, V2EventUnion } from './types'
 import { EventTypes } from '../types/api/event'
 
 // ============================================
@@ -40,6 +72,7 @@ interface ServerConnection {
   serverId: string
   info: ConnectionInfo
   subscribers: Set<EventCallbacks>
+  /** 当前连接的取消句柄（abort 会让官方 subscribe 的迭代器结束） */
   controller: AbortController | null
   heartbeatTimer: ReturnType<typeof setTimeout> | null
   reconnectTimer: ReturnType<typeof setTimeout> | null
@@ -64,12 +97,36 @@ let isInBackground = false
 let keepaliveTimer: ReturnType<typeof setInterval> | null = null
 
 // ============================================
-// Connection helpers
+// 常量
 // ============================================
 
-function bridgeIdFor(serverId: string): string {
-  return `sse:${serverId}`
+const RECONNECT_DELAYS = [1000, 2000, 3000, 5000, 10000, 30000]
+/** 后台时使用更激进的重连延迟，确保尽快恢复连接 */
+const BACKGROUND_RECONNECT_DELAYS = [500, 1000, 2000, 3000, 5000, 10000]
+/**
+ * 心跳超时。
+ *
+ * 服务端每 **15 秒** 发一行 `: heartbeat` 注释（`packages/server/src/handlers/event.ts:22`），
+ * 官方 subscribe 的 `onActivity` 会为它触发 → 60 秒（= 4 个心跳周期）没动静即视为死连接。
+ */
+const HEARTBEAT_TIMEOUT = 60000
+/** 后台时的心跳超时（更宽松，因为后台 timer 可能不准） */
+const BACKGROUND_HEARTBEAT_TIMEOUT = 120000
+/** 后台 keepalive 间隔：定期检查连接是否还活着 */
+const BACKGROUND_KEEPALIVE_INTERVAL = 30000
+/** onReconnected 广播 cooldown */
+const RECONNECTED_COOLDOWN = 2000
+
+/** 稳定引用：未连接的服务器默认状态（避免 getSnapshot 每次新建对象导致无限循环） */
+const DEFAULT_CONNECTION_INFO: ConnectionInfo = {
+  state: 'disconnected',
+  lastEventTime: 0,
+  reconnectAttempt: 0,
 }
+
+// ============================================
+// Connection helpers
+// ============================================
 
 function getOrCreateConnection(serverId: string): ServerConnection {
   let conn = connections.get(serverId)
@@ -100,100 +157,6 @@ function updateConnectionState(serverId: string, update: Partial<ConnectionInfo>
   })
 }
 
-// ============================================
-// 常量
-// ============================================
-
-const RECONNECT_DELAYS = [1000, 2000, 3000, 5000, 10000, 30000]
-/** 后台时使用更激进的重连延迟，确保尽快恢复连接 */
-const BACKGROUND_RECONNECT_DELAYS = [500, 1000, 2000, 3000, 5000, 10000]
-const HEARTBEAT_TIMEOUT = 60000
-/** 后台时的心跳超时（更宽松，因为后台 timer 可能不准） */
-const BACKGROUND_HEARTBEAT_TIMEOUT = 120000
-/** 后台 keepalive 间隔：定期检查连接是否还活着 */
-const BACKGROUND_KEEPALIVE_INTERVAL = 30000
-/** onReconnected 广播 cooldown */
-const RECONNECTED_COOLDOWN = 2000
-
-/** 稳定引用：未连接的服务器默认状态（避免 getSnapshot 每次新建对象导致无限循环） */
-const DEFAULT_CONNECTION_INFO: ConnectionInfo = {
-  state: 'disconnected',
-  lastEventTime: 0,
-  reconnectAttempt: 0,
-}
-
-// ============================================
-// Delta coalescing — 参照官方 coalesceServerEvents
-// 同一批次内相同 (messageID, partID, field) 的 delta 合并为一个事件；
-// message.part.updated 到达后丢弃该 part 的在途 delta。
-// ============================================
-
-function coalesceEvents(events: GlobalEvent[]): GlobalEvent[] {
-  if (events.length <= 1) return events
-
-  const result: GlobalEvent[] = []
-  const deltaIndexByKey = new Map<string, number>()
-  const staleIndices = new Set<number>()
-
-  for (const event of events) {
-    const payload = event.payload
-
-    if (payload.type === EventTypes.MESSAGE_PART_DELTA) {
-      const p = payload.properties as {
-        sessionID: string
-        messageID: string
-        partID: string
-        field: string
-        delta: string
-      }
-      const key = `${p.sessionID}\0${p.messageID}\0${p.partID}\0${p.field}`
-      const idx = deltaIndexByKey.get(key)
-      if (idx !== undefined && !staleIndices.has(idx)) {
-        ;((result[idx].payload as { properties: { delta: string } }).properties).delta += p.delta
-        continue
-      }
-      result.push(event)
-      deltaIndexByKey.set(key, result.length - 1)
-      continue
-    }
-
-    if (payload.type === EventTypes.MESSAGE_PART_UPDATED) {
-      const props = payload.properties as {
-        sessionID?: string
-        part?: { id?: string; sessionID?: string; messageID?: string }
-      }
-      const sid = props.sessionID ?? props.part?.sessionID
-      const mid = props.part?.messageID
-      const pid = props.part?.id
-      if (sid && mid && pid) {
-        const prefix = `${sid}\0${mid}\0${pid}\0`
-        for (const [key, idx] of deltaIndexByKey) {
-          if (key.startsWith(prefix)) {
-            staleIndices.add(idx)
-            deltaIndexByKey.delete(key)
-          }
-        }
-      }
-    }
-
-    result.push(event)
-  }
-
-  if (staleIndices.size > 0) {
-    return result.filter((_, idx) => !staleIndices.has(idx))
-  }
-  return result
-}
-
-function parseAndCoalesce(rawEvents: string[]): GlobalEvent[] {
-  const parsed: GlobalEvent[] = []
-  for (const raw of rawEvents) {
-    const event = parseGlobalEvent(raw)
-    if (event) parsed.push(event)
-  }
-  return coalesceEvents(parsed)
-}
-
 function finalizeConnectionAttempt(conn: ServerConnection, generation: number): boolean {
   if (generation !== conn.generation) {
     return false
@@ -203,7 +166,7 @@ function finalizeConnectionAttempt(conn: ServerConnection, generation: number): 
 }
 
 /**
- * 广播 onReconnected，带 cooldown 防止 SSE 快速重连时密集触发数据拉取
+ * 广播 onReconnected，带 cooldown 防止快速重连时密集触发数据拉取
  */
 function broadcastReconnected(conn: ServerConnection, reason: 'network' | 'server-switch') {
   const now = Date.now()
@@ -219,29 +182,8 @@ function broadcastReconnected(conn: ServerConnection, reason: 'network' | 'serve
   })
 }
 
-// ============================================
-// Tauri SSE Bridge (via Rust reqwest + Channel)
-// 每个服务器一个独立 bridgeId（Rust 侧 BridgeKey=(window, bridgeId) 天然支持多连接）
-// ============================================
-
-/** 上一次 bridge_disconnect 的 Promise，用于串行化 Tauri 侧 disconnect → connect */
-const pendingDisconnects = new Map<string, Promise<void>>()
-
-function disconnectTauri(bridgeId: string): Promise<void> {
-  if (!isTauri()) return Promise.resolve()
-
-  const p = (pendingDisconnects.get(bridgeId) ?? Promise.resolve()).then(() =>
-    import('@tauri-apps/api/core')
-      .then(({ invoke }) => invoke('bridge_disconnect', { args: { bridgeId } }).then(() => undefined))
-      .catch(() => {}),
-  )
-  pendingDisconnects.set(bridgeId, p)
-  return p
-}
-
-/** 断开并清理连接的传输层（Tauri bridge / browser fetch），不更新状态 */
+/** 断开并清理连接的传输层，不更新状态 */
 function teardownConnectionTransport(conn: ServerConnection): void {
-  void disconnectTauri(bridgeIdFor(conn.serverId))
   if (conn.controller) {
     conn.controller.abort()
     conn.controller = null
@@ -319,266 +261,280 @@ function connectServer(serverId: string) {
   // 注册生命周期监听器（首次连接时）
   registerLifecycleListeners()
 
-  if (isTauri()) {
-    connectViaTauri(conn)
-  } else {
-    connectViaBrowser(conn)
-  }
+  void runEventStream(conn)
 }
 
-/** Unified bridge event from Rust (transparent proxy) */
-interface BridgeEvent {
-  event: 'connected' | 'data' | 'disconnected' | 'error'
-  data?: {
-    data?: string
-    code?: number
-    reason?: string
-    message?: string
-  }
+// ============================================
+// 传输层：官方 client.event.subscribe()
+// ============================================
+
+/**
+ * 创建事件流迭代器。
+ *
+ * 单独抽出来是为了**隔离传输层**：Tauri 真机若发现 `plugin-http` 的流式有问题，
+ * 只需把这里换成手写 `fetch('/api/event') + ReadableStream`，其余逻辑一行不动。
+ */
+function createEventTransport(
+  serverId: string,
+  signal: AbortSignal,
+  onActivity: () => void,
+): AsyncIterable<V2EventUnion> {
+  return getSDKClient(serverId).event.subscribe({ signal, onActivity })
 }
 
-async function connectViaTauri(conn: ServerConnection) {
+/**
+ * 跑一条事件流，直到流结束 / 出错 / 被代次作废。
+ *
+ * ⚠️ 官方 subscribe **不会**自动重连（`SharedEvents.make` 的 `run()` 结束后
+ *    共享连接即被 `stop()` 清掉），所以这里读完后必须自己走退避重连。
+ */
+async function runEventStream(conn: ServerConnection) {
   const myGeneration = conn.generation
   const serverId = conn.serverId
 
+  conn.controller = new AbortController()
+  const signal = conn.controller.signal
+
+  // 事件回调里**绝不能做耗时操作**（4096 队列溢出会直接断流）：
+  // 官方迭代器已经把事件放进订阅者队列，我们只做「解析 → 合并 → 分发」。
+  const pending: V2EventUnion[] = []
+  let flushScheduled = false
+
+  const flush = () => {
+    flushScheduled = false
+    if (pending.length === 0) return
+    const batch = pending.splice(0, pending.length)
+    // 代次不匹配说明已经重连过了，丢弃旧连接的事件
+    if (myGeneration !== conn.generation) return
+    for (const event of coalesceEvents(batch)) {
+      broadcastEvent(conn, event)
+    }
+  }
+
   try {
-    // 等待上一次 disconnect 完成，避免 Rust 侧 connect/disconnect 竞争
-    await (pendingDisconnects.get(bridgeIdFor(serverId)) ?? Promise.resolve())
+    const iterator = createEventTransport(serverId, signal, () => {
+      // 任何传输活动（含 15s 的 `: heartbeat` 注释行）都算心跳
+      if (myGeneration === conn.generation) resetHeartbeat(conn)
+    })[Symbol.asyncIterator]()
 
-    const { invoke, Channel } = await import('@tauri-apps/api/core')
-
-    const url = `${getApiBaseUrl(serverId)}/global/event`
-    const authHeader = getAuthHeader(serverId)['Authorization'] || null
-
-    const sseParser = createSseTextParser()
-
-    const onEvent = new Channel<BridgeEvent>()
-
-    onEvent.onmessage = (msg: BridgeEvent) => {
-      // 代次不匹配，说明已经 reconnect 过了，忽略旧连接的事件
-      if (myGeneration !== conn.generation) return
-
-      switch (msg.event) {
-        case 'connected': {
-          conn.isConnecting = false
-
-          updateConnectionState(serverId, {
-            state: 'connected',
-            reconnectAttempt: 0,
-            error: undefined,
-          })
-          resetHeartbeat(conn)
-          if (import.meta.env.DEV) {
-            console.log(`[SSE/Tauri] ${serverId} Connected`)
-          }
-          // 每次连接成功都通知订阅者刷新数据
-          // 覆盖场景：首次连接（先开 UI 后开 server）、网络重连、服务器切换
-          const reason = serverSwitchFlags.get(serverId) ? ('server-switch' as const) : ('network' as const)
-          serverSwitchFlags.delete(serverId)
-          broadcastReconnected(conn, reason)
-          break
-        }
-        case 'data': {
-          resetHeartbeat(conn)
-          if (!msg.data?.data) break
-
-          for (const globalEvent of parseAndCoalesce(sseParser.push(msg.data.data))) {
-            broadcastEvent(conn, globalEvent)
-          }
-          break
-        }
-        case 'disconnected': {
-          conn.isConnecting = false
-          if (import.meta.env.DEV) {
-            console.log(`[SSE/Tauri] ${serverId} Disconnected:`, msg.data?.reason)
-          }
-          updateConnectionState(serverId, { state: 'disconnected' })
-          scheduleReconnect(conn)
-          break
-        }
-        case 'error': {
-          conn.isConnecting = false
-          const errorMsg = msg.data?.message || 'Unknown error'
-          if (import.meta.env.DEV) {
-            console.warn(`[SSE/Tauri] ${serverId} Error:`, errorMsg)
-          }
-          updateConnectionState(serverId, {
-            state: 'error',
-            error: errorMsg,
-          })
-          conn.subscribers.forEach(cb => {
-            cb.onError?.(new Error(errorMsg))
-          })
-          scheduleReconnect(conn)
-          break
-        }
-      }
+    // 连接建立：官方 subscribe 的首次 `next()` 会真正发起 fetch。
+    // 这里不 await 第一个事件，而是先乐观置为 connected —— 若首个 next() 抛错，
+    // 下面的 catch 会把状态改成 error 并安排重连，不会停留在错误的 connected 上。
+    const first = await iterator.next()
+    if (myGeneration !== conn.generation) {
+      void iterator.return?.()
+      return
+    }
+    if (first.done) {
+      throw new Error('Event stream closed immediately')
     }
 
-    // 调用统一桥接命令
-    invoke('bridge_connect', {
-      args: { bridgeId: bridgeIdFor(serverId), url, authHeader },
-      onEvent,
-    }).catch((error: unknown) => {
-      if (!finalizeConnectionAttempt(conn, myGeneration)) return
-      const errorMsg = error instanceof Error ? error.message : String(error)
-      if (import.meta.env.DEV) {
-        console.warn(`[SSE/Tauri] ${serverId} invoke error:`, errorMsg)
+    conn.isConnecting = false
+    updateConnectionState(serverId, { state: 'connected', reconnectAttempt: 0, error: undefined })
+    resetHeartbeat(conn)
+    if (import.meta.env.DEV) {
+      console.log(`[SSE] ${serverId} connected (transport: ${isTauri() ? 'tauri-fetch' : 'browser-fetch'})`)
+    }
+
+    // 每次连接成功都通知订阅者刷新数据：
+    // 覆盖「首次连接（先开 UI 后开 server）」「网络重连」「服务器切换」三种场景。
+    // ⚠️ V2 的流是易失的（不回放）→ 订阅者收到后必须**重拉一次全量消息**。
+    const reason = serverSwitchFlags.get(serverId) ? ('server-switch' as const) : ('network' as const)
+    serverSwitchFlags.delete(serverId)
+    broadcastReconnected(conn, reason)
+
+    // 首个事件也别丢
+    pending.push(first.value)
+    flushScheduled = true
+    flush()
+
+    while (true) {
+      if (myGeneration !== conn.generation || signal.aborted) break
+
+      const { done, value } = await iterator.next()
+      if (myGeneration !== conn.generation || signal.aborted) break
+      if (done) {
+        if (import.meta.env.DEV) {
+          console.log(`[SSE] ${serverId} stream ended, reconnecting...`)
+        }
+        updateConnectionState(serverId, { state: 'disconnected' })
+        scheduleReconnect(conn)
+        break
       }
-      updateConnectionState(serverId, {
-        state: 'error',
-        error: errorMsg,
-      })
-      conn.subscribers.forEach(cb => {
-        cb.onError?.(new Error(errorMsg))
-      })
-      scheduleReconnect(conn)
-    })
+
+      pending.push(value)
+      if (!flushScheduled) {
+        flushScheduled = true
+        // 微任务批量：把同一轮 event loop 里到达的事件合成一批，
+        // 让 coalesceEvents 有机会把同 (message, part, field) 的 delta 合并。
+        queueMicrotask(flush)
+      }
+    }
   } catch (error) {
     if (!finalizeConnectionAttempt(conn, myGeneration)) return
-    const errorMsg = error instanceof Error ? error.message : String(error)
-    console.warn(`[SSE/Tauri] ${serverId} Failed to initialize:`, errorMsg)
-    updateConnectionState(serverId, { state: 'error', error: errorMsg })
+    if (myGeneration !== conn.generation) return
+
+    const err = error instanceof Error ? error : new Error(String(error))
+    if (err.name === 'AbortError' || signal.aborted) return
+
+    if (import.meta.env.DEV) {
+      console.warn(`[SSE] ${serverId} event stream error:`, err)
+    }
+    updateConnectionState(serverId, { state: 'error', error: err.message || 'Connection failed' })
+    conn.subscribers.forEach(cb => {
+      cb.onError?.(err)
+    })
     scheduleReconnect(conn)
   }
 }
 
 // ============================================
-// Browser SSE (via fetch + ReadableStream)
+// Delta coalescing（V2）
 // ============================================
+//
+// 背景：订阅队列容量 4096，**溢出即断流**（`event-feed.ts` 的 SubscriberOverflowError）。
+// 所以「先入队、再合并、批量分发」是必须的，不能每个事件都直接走一遍 React 更新。
+//
+// 合并规则（与 V1 的 coalesceEvents 同思路，字段路径按 V2 重写）：
+//   1. 同一批内相同 (sessionID, messageID, partID, kind) 的 delta 合并成一个（字符串拼接）；
+//   2. 某个 part 的**整块更新**（started/ended/called/success/failed）到达后，
+//      丢弃该 part 在途的 delta —— 整块数据已经是权威的，再叠增量会重复。
+//
+// 键里的 `partID` 是**已算好的 UI part id**（text/reasoning 用 `消息id:content:下标`，
+// tool 用工具 id），与 store 的定位规则完全一致。
 
-function connectViaBrowser(conn: ServerConnection) {
-  conn.controller = new AbortController()
-
-  // 捕获当前连接代次
-  const myGeneration = conn.generation
-  const serverId = conn.serverId
-
-  fetch(`${getApiBaseUrl(serverId)}/global/event`, {
-    signal: conn.controller.signal,
-    headers: {
-      Accept: 'text/event-stream',
-      ...getAuthHeader(serverId),
-    },
-  })
-    .then(async response => {
-      if (myGeneration !== conn.generation) {
-        await response.body?.cancel?.().catch(() => {})
-        return
+/** 从 delta 事件里取出合并键与目标 partID（V2 字段路径） */
+function deltaInfoOf(
+  event: V2EventUnion,
+): { key: string; sessionID: string; messageID: string; partID: string; kind: string; delta: string } | null {
+  switch (event.type) {
+    case EventTypes.SESSION_TEXT_DELTA: {
+      const { sessionID, assistantMessageID, ordinal, delta } = event.data
+      return {
+        key: `${sessionID}\0${assistantMessageID}\0${contentPartId(assistantMessageID, ordinal)}\0text`,
+        sessionID,
+        messageID: assistantMessageID,
+        partID: contentPartId(assistantMessageID, ordinal),
+        kind: 'text',
+        delta,
       }
-
-      finalizeConnectionAttempt(conn, myGeneration)
-
-      if (!response.ok) {
-        throw new Error(`Failed to subscribe: ${response.status}`)
-      }
-
-      updateConnectionState(serverId, {
-        state: 'connected',
-        reconnectAttempt: 0,
-        error: undefined,
-      })
-      resetHeartbeat(conn)
-      if (import.meta.env.DEV) {
-        console.log(`[SSE] ${serverId} connected`)
-      }
-
-      // 每次连接成功都通知订阅者刷新数据
-      // 覆盖场景：首次连接（先开 UI 后开 server）、网络重连、服务器切换
-      const reason = serverSwitchFlags.get(serverId) ? ('server-switch' as const) : ('network' as const)
-      serverSwitchFlags.delete(serverId)
-      broadcastReconnected(conn, reason)
-
-      const reader = response.body?.getReader()
-      if (!reader) {
-        throw new Error('No response body')
-      }
-
-      const decoder = new TextDecoder()
-      const sseParser = createSseTextParser()
-
-      while (true) {
-        // 代次不匹配，说明已经 reconnect 过了，停止读取旧流
-        if (myGeneration !== conn.generation) {
-          reader.cancel().catch(() => {})
-          break
-        }
-
-        const { done, value } = await reader.read()
-        if (myGeneration !== conn.generation) {
-          reader.cancel().catch(() => {})
-          break
-        }
-
-        if (done) {
-          if (import.meta.env.DEV) {
-            console.log(`[SSE] ${serverId} Stream ended, reconnecting...`)
-          }
-          updateConnectionState(serverId, { state: 'disconnected' })
-          scheduleReconnect(conn)
-          break
-        }
-
-        resetHeartbeat(conn)
-
-        const coalesced = parseAndCoalesce(sseParser.push(decoder.decode(value, { stream: true })))
-        for (const globalEvent of coalesced) {
-          broadcastEvent(conn, globalEvent)
-        }
-      }
-    })
-    .catch(error => {
-      if (!finalizeConnectionAttempt(conn, myGeneration)) {
-        return
-      }
-
-      if (error.name === 'AbortError') {
-        return
-      }
-      // SSE stream error - logged for debugging
-      if (import.meta.env.DEV) {
-        console.warn(`[SSE] ${serverId} Event stream error:`, error)
-      }
-      updateConnectionState(serverId, {
-        state: 'error',
-        error: error.message || 'Connection failed',
-      })
-      // 通知所有订阅者出错
-      conn.subscribers.forEach(cb => {
-        cb.onError?.(error)
-      })
-      scheduleReconnect(conn)
-    })
-}
-
-function parseGlobalEvent(raw: string): GlobalEvent | null {
-  try {
-    const parsed: unknown = JSON.parse(raw)
-    return isGlobalEvent(parsed) ? parsed : null
-  } catch (error) {
-    if (import.meta.env.DEV) {
-      console.warn('[SSE] Failed to parse event:', error, raw)
     }
-    return null
+    case EventTypes.SESSION_REASONING_DELTA: {
+      const { sessionID, assistantMessageID, ordinal, delta } = event.data
+      return {
+        key: `${sessionID}\0${assistantMessageID}\0${contentPartId(assistantMessageID, ordinal)}\0reasoning`,
+        sessionID,
+        messageID: assistantMessageID,
+        partID: contentPartId(assistantMessageID, ordinal),
+        kind: 'reasoning',
+        delta,
+      }
+    }
+    case EventTypes.SESSION_TOOL_INPUT_DELTA: {
+      const { sessionID, assistantMessageID, id, delta } = event.data
+      return {
+        key: `${sessionID}\0${assistantMessageID}\0${id}\0input`,
+        sessionID,
+        messageID: assistantMessageID,
+        partID: id,
+        kind: 'input',
+        delta,
+      }
+    }
+    default:
+      return null
   }
 }
 
-function isGlobalEvent(value: unknown): value is GlobalEvent {
-  if (!isRecord(value)) return false
-  if (typeof value.directory !== 'string') return false
-  if (!isRecord(value.payload)) return false
-  if (typeof value.payload.type !== 'string') return false
-  return 'properties' in value.payload
+/** text / reasoning 的 UI part id 规则（与 `messageConversion.ts` 保持一致） */
+export function contentPartId(messageID: string, ordinal: number): string {
+  return `${messageID}:content:${ordinal}`
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object'
+/**
+ * 批量合并事件（**导出仅为单测**，生产路径由 `runEventStream` 的 flush 调用）
+ */
+export function coalesceEvents(events: V2EventUnion[]): V2EventUnion[] {
+  if (events.length <= 1) return events
+
+  const result: V2EventUnion[] = []
+  /** delta 键 -> result 里的下标 */
+  const deltaIndexByKey = new Map<string, number>()
+  /** 被整块更新作废的 delta 下标 */
+  const staleIndices = new Set<number>()
+  /** 本批里已被整块更新覆盖的 (sessionID, messageID, partID) */
+  const replacedParts = new Set<string>()
+
+  for (const event of events) {
+    const delta = deltaInfoOf(event)
+    if (delta) {
+      // 该 part 已有整块更新 → 这条 delta 是多余的（整块数据更权威）
+      if (replacedParts.has(`${delta.sessionID}\0${delta.messageID}\0${delta.partID}`)) {
+        continue
+      }
+      const idx = deltaIndexByKey.get(delta.key)
+      if (idx !== undefined && !staleIndices.has(idx)) {
+        const target = result[idx]
+        if (target && 'data' in target && 'delta' in (target.data as { delta?: unknown })) {
+          ;(target.data as { delta: string }).delta += delta.delta
+        }
+        continue
+      }
+      result.push(event)
+      deltaIndexByKey.set(delta.key, result.length - 1)
+      continue
+    }
+
+    // 整块更新：登记它覆盖了哪些 part，并作废对应的在途 delta
+    for (const partKey of partKeysOf(event)) {
+      replacedParts.add(partKey)
+      const prefix = `${partKey}\0`
+      for (const [key, idx] of deltaIndexByKey) {
+        if (key.startsWith(prefix)) {
+          staleIndices.add(idx)
+          deltaIndexByKey.delete(key)
+        }
+      }
+    }
+
+    result.push(event)
+  }
+
+  if (staleIndices.size > 0) {
+    return result.filter((_, idx) => !staleIndices.has(idx))
+  }
+  return result
 }
 
-function getMessageInfo(properties: unknown): ApiMessage | undefined {
-  if (!isRecord(properties)) return undefined
-  const message = properties.info ?? properties.message
-  return isRecord(message) ? (message as ApiMessage) : undefined
+/**
+ * 一个事件覆盖了哪些 part（用于作废在途 delta）
+ *
+ * - text / reasoning 的 started/ended：`消息id:content:下标`
+ * - tool 的各阶段：工具 id
+ * - `session.message.content.updated`：覆盖该消息的**全部** content 块
+ *   → 返回 `消息id:*` 前缀标记，由调用方按前缀匹配
+ */
+function partKeysOf(event: V2EventUnion): string[] {
+  switch (event.type) {
+    case EventTypes.SESSION_TEXT_STARTED:
+    case EventTypes.SESSION_TEXT_ENDED:
+    case EventTypes.SESSION_REASONING_STARTED:
+    case EventTypes.SESSION_REASONING_ENDED: {
+      const { sessionID, assistantMessageID, ordinal } = event.data
+      return [`${sessionID}\0${assistantMessageID}\0${contentPartId(assistantMessageID, ordinal)}`]
+    }
+    case EventTypes.SESSION_TOOL_INPUT_STARTED:
+    case EventTypes.SESSION_TOOL_INPUT_ENDED:
+    case EventTypes.SESSION_TOOL_CALLED:
+    case EventTypes.SESSION_TOOL_PROGRESS:
+    case EventTypes.SESSION_TOOL_SUCCESS:
+    case EventTypes.SESSION_TOOL_FAILED: {
+      const { sessionID, assistantMessageID, id } = event.data
+      return [`${sessionID}\0${assistantMessageID}\0${id}`]
+    }
+    default:
+      return []
+  }
 }
 
 // ============================================
@@ -610,7 +566,6 @@ function startBackgroundKeepalive() {
         // 连接声称是 connected，但已经太久没收到事件了 — 连接可能已经静默断开
         console.warn(`[SSE] Background keepalive: ${serverId} appears dead, forcing reconnect`)
 
-        // 断开旧连接
         conn.generation++
         teardownConnectionTransport(conn)
 
@@ -644,7 +599,6 @@ function disconnectServerConnection(conn: ServerConnection) {
   if (conn.reconnectTimer) clearTimeout(conn.reconnectTimer)
   stopBackgroundKeepalive()
 
-  // 断开传输层（Tauri bridge / browser fetch）
   conn.generation++
   teardownConnectionTransport(conn)
   connections.delete(serverId)
@@ -676,10 +630,8 @@ function handleVisibilityChange() {
         forceReconnectNow(conn)
       } else {
         // 状态是 connected，但连接可能已经在后台静默断开
-        // 检查最后一次收到事件的时间
         const timeSinceLastEvent = Date.now() - conn.info.lastEventTime
         if (timeSinceLastEvent > HEARTBEAT_TIMEOUT) {
-          // 太久没收到事件了，连接大概率已死
           console.warn(
             `[SSE] Page visible: ${conn.serverId} may be stale (last event ${Math.round(timeSinceLastEvent / 1000)}s ago), forcing reconnect`,
           )
@@ -718,7 +670,6 @@ function forceReconnectNow(conn: ServerConnection) {
   conn.reconnectTimer = null
   updateConnectionState(conn.serverId, { reconnectAttempt: 0 })
 
-  // 断开旧连接
   conn.generation++
   teardownConnectionTransport(conn)
 
@@ -775,130 +726,506 @@ function unregisterLifecycleListeners() {
 // Event broadcast（只发给对应服务器的订阅者）
 // ============================================
 
-function broadcastEvent(conn: ServerConnection, globalEvent: GlobalEvent) {
+function broadcastEvent(conn: ServerConnection, event: V2EventUnion) {
   conn.subscribers.forEach(callbacks => {
-    handleEventForSubscriber(globalEvent.payload, callbacks)
+    handleEventForSubscriber(event, callbacks)
   })
 }
 
-function handleEventForSubscriber(payload: GlobalEvent['payload'], callbacks: EventCallbacks) {
-  switch (payload.type) {
-    case EventTypes.MESSAGE_UPDATED: {
-      const message = getMessageInfo(payload.properties)
-      if (message) callbacks.onMessageUpdated?.(message)
+// ============================================
+// V2 事件 → 回调分发（阶段 2b 核心）
+// ============================================
+
+/**
+ * 把一条 V2 事件分发给订阅者。
+ *
+ * 设计要点：
+ *   1. **入参是 V2 事件本身**（不是 V1 的 `payload`）—— 字段路径全在 `event.data` 下。
+ *   2. text / reasoning 的 **UI part id 在这里算好**再交给 store
+ *      （规则 = `消息id:content:下标`，与 `messageConversion.ts` 同一套），
+ *      避免 store 与 events 各算一遍导致漂移。
+ *   3. 未处理的事件类型**静默忽略**（V2 会下发很多本项目不关心的事件，
+ *      例如 pty / shell / websearch / plugin / credential …）。
+ */
+function handleEventForSubscriber(event: V2EventUnion, callbacks: EventCallbacks) {
+  switch (event.type) {
+    // ==========================================
+    // 消息族
+    // ==========================================
+
+    case EventTypes.SESSION_MESSAGE_CONTENT_UPDATED: {
+      callbacks.onMessageUpdated?.({
+        sessionID: event.data.sessionID,
+        messageID: event.data.messageID,
+        content: event.data.content,
+      })
       break
     }
-    case EventTypes.MESSAGE_PART_UPDATED: {
-      callbacks.onPartUpdated?.(payload.properties.part)
+
+    case EventTypes.SESSION_TEXT_STARTED: {
+      const { sessionID, assistantMessageID, ordinal } = event.data
+      callbacks.onPartUpdated?.({
+        kind: 'content',
+        sessionID,
+        messageID: assistantMessageID,
+        ordinal,
+        // started 时文本为空（真内容走 delta / ended）。
+        // ⚠️ V2 的 text 块**没有 time 字段**（reasoning 才有），不能凭空补。
+        content: { type: 'text', text: '' },
+      })
       break
     }
-    case EventTypes.MESSAGE_PART_DELTA: {
-      callbacks.onPartDelta?.(payload.properties)
+    case EventTypes.SESSION_TEXT_ENDED: {
+      const { sessionID, assistantMessageID, ordinal, text } = event.data
+      callbacks.onPartUpdated?.({
+        kind: 'content',
+        sessionID,
+        messageID: assistantMessageID,
+        ordinal,
+        content: { type: 'text', text },
+      })
       break
     }
-    case EventTypes.MESSAGE_PART_REMOVED:
-      callbacks.onPartRemoved?.(payload.properties)
-      break
-    case EventTypes.SESSION_UPDATED: {
-      callbacks.onSessionUpdated?.(payload.properties.info)
+
+    case EventTypes.SESSION_REASONING_STARTED: {
+      const { sessionID, assistantMessageID, ordinal } = event.data
+      callbacks.onPartUpdated?.({
+        kind: 'content',
+        sessionID,
+        messageID: assistantMessageID,
+        ordinal,
+        content: { type: 'reasoning', text: '', time: { created: event.created } },
+      })
       break
     }
+    case EventTypes.SESSION_REASONING_ENDED: {
+      const { sessionID, assistantMessageID, ordinal, text } = event.data
+      callbacks.onPartUpdated?.({
+        kind: 'content',
+        sessionID,
+        messageID: assistantMessageID,
+        ordinal,
+        content: { type: 'reasoning', text },
+      })
+      break
+    }
+
+    // 工具输入流：`streaming` 态的 input 是**未解析的原始字符串**（V1 的 pending）
+    case EventTypes.SESSION_TOOL_INPUT_STARTED: {
+      const { sessionID, assistantMessageID, id, name } = event.data
+      callbacks.onPartUpdated?.({
+        kind: 'content',
+        sessionID,
+        messageID: assistantMessageID,
+        ordinal: -1,
+        content: {
+          type: 'tool',
+          id,
+          name,
+          time: { created: event.created },
+          state: { status: 'streaming', input: '' },
+        },
+      })
+      break
+    }
+    case EventTypes.SESSION_TOOL_INPUT_ENDED: {
+      const { sessionID, assistantMessageID, id, text } = event.data
+      callbacks.onPartUpdated?.({
+        kind: 'content',
+        sessionID,
+        messageID: assistantMessageID,
+        ordinal: -1,
+        content: {
+          type: 'tool',
+          id,
+          // 名字由前面的 input.started 给过；这里服务端不再重复下发 → 用空串占位，
+          // store 的合并逻辑会保留已有的 name（见 messageStore.handlePartUpdated）
+          name: '',
+          time: { created: event.created },
+          state: { status: 'streaming', input: text },
+        },
+      })
+      break
+    }
+
+    case EventTypes.SESSION_TOOL_CALLED: {
+      const { sessionID, assistantMessageID, id, input, executed, state } = event.data
+      callbacks.onPartUpdated?.({
+        kind: 'content',
+        sessionID,
+        messageID: assistantMessageID,
+        ordinal: -1,
+        content: {
+          type: 'tool',
+          id,
+          name: '',
+          time: { created: event.created },
+          executed,
+          providerState: state,
+          state: { status: 'running', input, metadata: {} },
+        },
+      })
+      break
+    }
+    case EventTypes.SESSION_TOOL_PROGRESS: {
+      const { sessionID, assistantMessageID, id, metadata } = event.data
+      callbacks.onPartUpdated?.({
+        kind: 'content',
+        sessionID,
+        messageID: assistantMessageID,
+        ordinal: -1,
+        content: {
+          type: 'tool',
+          id,
+          name: '',
+          time: { created: event.created },
+          state: { status: 'running', input: {}, metadata },
+        },
+      })
+      break
+    }
+    case EventTypes.SESSION_TOOL_SUCCESS: {
+      const { sessionID, assistantMessageID, id, content, metadata, executed, resultState } = event.data
+      callbacks.onPartUpdated?.({
+        kind: 'content',
+        sessionID,
+        messageID: assistantMessageID,
+        ordinal: -1,
+        content: {
+          type: 'tool',
+          id,
+          name: '',
+          time: { created: event.created, completed: event.created },
+          executed,
+          providerState: resultState,
+          state: { status: 'completed', input: {}, content, metadata },
+        },
+      })
+      break
+    }
+    case EventTypes.SESSION_TOOL_FAILED: {
+      const { sessionID, assistantMessageID, id, error, content, metadata, executed, resultState } = event.data
+      callbacks.onPartUpdated?.({
+        kind: 'content',
+        sessionID,
+        messageID: assistantMessageID,
+        ordinal: -1,
+        content: {
+          type: 'tool',
+          id,
+          name: '',
+          time: { created: event.created, completed: event.created },
+          executed,
+          providerState: resultState,
+          state: { status: 'error', input: {}, error, content, metadata },
+        },
+      })
+      break
+    }
+
+    // step 开始：新建 assistant 消息的权威信号（带 agent / model）
+    case EventTypes.SESSION_STEP_STARTED: {
+      const { sessionID, assistantMessageID, agent, model, started } = event.data
+      callbacks.onPartUpdated?.({
+        kind: 'step-start',
+        sessionID,
+        messageID: assistantMessageID,
+        agent,
+        model,
+        started,
+      })
+      break
+    }
+
+    // step 结束 / 失败：成本、用量、结束原因从 part 上移到了 assistant 顶层
+    case EventTypes.SESSION_STEP_ENDED: {
+      const { sessionID, assistantMessageID, finish, rawFinish, cost, tokens, providerState } = event.data
+      callbacks.onPartUpdated?.({
+        kind: 'step',
+        sessionID,
+        messageID: assistantMessageID,
+        finish,
+        rawFinish,
+        cost,
+        tokens,
+      })
+      // providerState 渲染层零消费，丢弃（与阶段 2a 的转换层一致）
+      void providerState
+      break
+    }
+    case EventTypes.SESSION_STEP_FAILED: {
+      const { sessionID, assistantMessageID, error, finish, rawFinish, cost, tokens } = event.data
+      callbacks.onPartUpdated?.({
+        kind: 'step',
+        sessionID,
+        messageID: assistantMessageID,
+        finish,
+        rawFinish,
+        cost,
+        tokens,
+        error,
+      })
+      break
+    }
+
+    // 增量
+    case EventTypes.SESSION_TEXT_DELTA:
+    case EventTypes.SESSION_REASONING_DELTA: {
+      const { sessionID, assistantMessageID, ordinal, delta } = event.data
+      callbacks.onPartDelta?.({
+        sessionID,
+        messageID: assistantMessageID,
+        partID: contentPartId(assistantMessageID, ordinal),
+        kind: event.type === EventTypes.SESSION_TEXT_DELTA ? 'text' : 'reasoning',
+        delta,
+      })
+      break
+    }
+    case EventTypes.SESSION_TOOL_INPUT_DELTA: {
+      const { sessionID, assistantMessageID, id, delta } = event.data
+      callbacks.onPartDelta?.({
+        sessionID,
+        messageID: assistantMessageID,
+        partID: id,
+        kind: 'input',
+        delta,
+      })
+      break
+    }
+
+    // 重试：V2 是 assistant 的字段（V1 是独立的 retry part）
+    case EventTypes.SESSION_RETRY_SCHEDULED: {
+      const { sessionID, assistantMessageID, attempt, at, error } = event.data
+      callbacks.onSessionRetry?.({ sessionID, assistantMessageID, attempt, at, error })
+      break
+    }
+
+    // 会话级累计用量
+    case EventTypes.SESSION_USAGE_UPDATED: {
+      const { sessionID, cost, tokens } = event.data
+      callbacks.onSessionUsage?.({ sessionID, cost, tokens })
+      break
+    }
+
+    // ==========================================
+    // 转录被外部改动 → 重拉消息
+    // ==========================================
+    //
+    // V1 靠 `message.part.removed` 做本地删除；V2 没有对应事件，
+    // 取消/回退（revert 三段式）与用户中断都会让**服务端转录整体变化** →
+    // 本地缓存已不可信，只能重新拉一次（V2 的流不回放，没有增量可对账）。
+    case EventTypes.SESSION_REVERT_STAGED:
+    case EventTypes.SESSION_REVERT_COMMITTED:
+    case EventTypes.SESSION_REVERT_CLEARED: {
+      callbacks.onMessagesInvalidated?.(event.data.sessionID)
+      break
+    }
+
+    // ==========================================
+    // 执行生命周期（V2 实测：**这才是「一轮开始 / 结束」的真实信号**）
+    // ==========================================
+    //
+    // 🔴 阶段 2b 实测修正（重要）：迁移文档 §6.4 把 `session.idle` 与
+    //    `session.status` 判为「✅ 原样可用」，但 **v2.0.19 实测二者从未下发**：
+    //      - `session.idle` 在 schema 里已被标注 `// deprecated`
+    //      - `session.status` 连一次都没出现过（用一次带工具调用的完整回合，
+    //        持续监听 100 秒逐帧核对）
+    //    两者都仍在 `ServerDefinitions` 里（所以类型/常量都在），只是没有生产者。
+    //
+    //    → 「一轮跑完」改用**确实会下发**的 `session.execution.*`：
+    //        started     → 状态 busy
+    //        succeeded   → 状态 idle + `onSessionIdle`（等价 V1 的 session.idle）
+    //        failed      → 状态 idle + `onSessionError`
+    //        interrupted → 状态 idle + `onSessionIdle` + `onMessagesInvalidated`
+    //                      （用户中断：转录被截断，且必须让 isStreaming 落回 false，
+    //                        否则界面会一直停在"生成中"）
+    case EventTypes.SESSION_EXECUTION_STARTED: {
+      callbacks.onSessionStatus?.({ sessionID: event.data.sessionID, status: { type: 'busy' } })
+      break
+    }
+    case EventTypes.SESSION_EXECUTION_SUCCEEDED: {
+      const { sessionID } = event.data
+      callbacks.onSessionStatus?.({ sessionID, status: { type: 'idle' } })
+      callbacks.onSessionIdle?.({ sessionID })
+      break
+    }
+    case EventTypes.SESSION_EXECUTION_INTERRUPTED: {
+      const { sessionID } = event.data
+      callbacks.onSessionStatus?.({ sessionID, status: { type: 'idle' } })
+      callbacks.onSessionIdle?.({ sessionID })
+      callbacks.onMessagesInvalidated?.(sessionID)
+      break
+    }
+
+    // ==========================================
+    // 会话族
+    // ==========================================
+
     case EventTypes.SESSION_CREATED: {
-      callbacks.onSessionCreated?.(payload.properties.info)
+      callbacks.onSessionCreated?.(sessionFromCreatedEvent(event))
       break
     }
     case EventTypes.SESSION_DELETED: {
-      callbacks.onSessionDeleted?.(payload.properties.sessionID)
+      callbacks.onSessionDeleted?.({ sessionID: event.data.sessionID })
       break
     }
+    case EventTypes.SESSION_IDLE: {
+      callbacks.onSessionIdle?.({ sessionID: event.data.sessionID })
+      break
+    }
+    case EventTypes.SESSION_STATUS: {
+      callbacks.onSessionStatus?.({ sessionID: event.data.sessionID, status: event.data.status })
+      break
+    }
+    // V1 的 `session.updated` 在 V2 被拆成多个事件 → 统一成「会话元信息补丁」
+    case EventTypes.SESSION_RENAMED: {
+      callbacks.onSessionUpdated?.({ id: event.data.sessionID, title: event.data.title })
+      break
+    }
+    case EventTypes.SESSION_METADATA_UPDATED: {
+      // metadata 里可能有 title（非契约）→ 有就带上，没有就只通知"变了"
+      const title = readString(event.data.metadata, 'title')
+      callbacks.onSessionUpdated?.({ id: event.data.sessionID, title })
+      break
+    }
+    case EventTypes.SESSION_MOVED: {
+      callbacks.onSessionUpdated?.({
+        id: event.data.sessionID,
+        directory: event.data.location?.directory,
+      })
+      break
+    }
+    case EventTypes.SESSION_AGENT_SELECTED:
+    case EventTypes.SESSION_MODEL_SELECTED: {
+      // agent / model 不参与会话列表与标题展示 → 只作为"元信息变了"通知
+      callbacks.onSessionUpdated?.({ id: event.data.sessionID })
+      break
+    }
+    case EventTypes.SESSION_EXECUTION_FAILED: {
+      const { sessionID, error } = event.data
+      callbacks.onSessionStatus?.({ sessionID, status: { type: 'idle' } })
+      callbacks.onSessionError?.({ sessionID, error })
+      break
+    }
+
+    // ==========================================
+    // 权限 / 表单
+    // ==========================================
+
+    case EventTypes.PERMISSION_ASKED: {
+      // V2 载荷 → 内部 `PermissionRequest`（字段名不同，见 v2Convert 的映射表）
+      callbacks.onPermissionAsked?.(toInternalPermissionRequest(event.data))
+      break
+    }
+    case EventTypes.PERMISSION_REPLIED: {
+      callbacks.onPermissionReplied?.(event.data)
+      break
+    }
+    case EventTypes.FORM_CREATED: {
+      callbacks.onFormCreated?.(event.data)
+      break
+    }
+    case EventTypes.FORM_REPLIED: {
+      callbacks.onFormReplied?.(event.data)
+      break
+    }
+    case EventTypes.FORM_CANCELLED: {
+      callbacks.onFormCancelled?.(event.data)
+      break
+    }
+
+    // ==========================================
+    // 项目 / Worktree / VCS
+    // ==========================================
+
     case EventTypes.PROJECT_UPDATED: {
-      callbacks.onProjectUpdated?.(payload.properties)
+      callbacks.onProjectUpdated?.(event.data)
       break
     }
-    case EventTypes.SESSION_ERROR:
-      callbacks.onSessionError?.(normalizeSessionError(payload.properties))
-      break
-    case EventTypes.SESSION_IDLE:
-      callbacks.onSessionIdle?.(payload.properties)
-      break
-    case EventTypes.SESSION_STATUS:
-      callbacks.onSessionStatus?.(payload.properties)
-      break
-    case EventTypes.PERMISSION_ASKED:
-      callbacks.onPermissionAsked?.(payload.properties)
-      break
-    case EventTypes.PERMISSION_REPLIED:
-      callbacks.onPermissionReplied?.(payload.properties)
-      break
-    case EventTypes.QUESTION_ASKED:
-      callbacks.onQuestionAsked?.(payload.properties)
-      break
-    case EventTypes.QUESTION_REPLIED:
-      callbacks.onQuestionReplied?.(payload.properties)
-      break
-    case EventTypes.QUESTION_REJECTED:
-      callbacks.onQuestionRejected?.(payload.properties)
-      break
-    case EventTypes.WORKTREE_READY:
-      callbacks.onWorktreeReady?.(payload.properties)
-      break
-    case EventTypes.WORKTREE_FAILED:
-      callbacks.onWorktreeFailed?.(payload.properties)
-      break
-    case EventTypes.VCS_BRANCH_UPDATED:
-      callbacks.onVcsBranchUpdated?.(payload.properties)
-      break
-    case EventTypes.TODO_UPDATED: {
-      callbacks.onTodoUpdated?.({
-        sessionID: payload.properties.sessionID,
-        todos: normalizeTodoItems(payload.properties.todos),
-      } satisfies TodoUpdatedPayload)
+    case EventTypes.WORKTREE_UPDATED: {
+      callbacks.onWorktreeUpdated?.(event.data)
       break
     }
-    case EventTypes.SERVER_CONNECTED:
-      callbacks.onServerConnected?.(normalizeServerConnected(payload.properties))
+    case EventTypes.WORKTREE_RESOLVED: {
+      callbacks.onWorktreeResolved?.(event.data)
       break
+    }
+    case EventTypes.VCS_BRANCH_UPDATED: {
+      callbacks.onVcsBranchUpdated?.(event.data)
+      break
+    }
+
+    // ==========================================
+    // 服务
+    // ==========================================
+
+    case EventTypes.SERVER_CONNECTED: {
+      // ⚠️ V2 的 `data` 是空对象，V1 那个 `properties.timestamp` 没有了。
+      // 尽力而为：事件的 `created`（服务端若给了）拿去做时钟校准，
+      // 没有就传 undefined（serverStore 会静默忽略）。
+      callbacks.onServerConnected?.({ timestamp: readCreated(event) })
+      break
+    }
+
     default:
-      // 忽略其他事件类型
+      // 忽略其他事件类型（V2 会下发大量本项目不关心的事件）
       break
   }
 }
 
-function normalizeServerConnected(properties: unknown): ServerConnectedPayload {
-  if (!isRecord(properties)) return {}
-  return {
-    timestamp: properties.timestamp,
-  }
+function readString(source: Record<string, unknown> | undefined, key: string): string | undefined {
+  const value = source?.[key]
+  return typeof value === 'string' && value.length > 0 ? value : undefined
 }
 
-function normalizeSessionError(properties: unknown): SessionErrorPayload {
-  if (!isRecord(properties)) {
-    return { sessionID: '', name: 'UnknownError', data: properties }
-  }
+/** 读事件的 `created`（`server.connected` 在类型上没有该字段，运行时可能有） */
+function readCreated(event: V2EventUnion): number | undefined {
+  const created = (event as { created?: unknown }).created
+  return typeof created === 'number' ? created : undefined
+}
 
-  const sessionID = typeof properties.sessionID === 'string' ? properties.sessionID : ''
-
-  if (typeof properties.name === 'string') {
-    return {
-      sessionID,
-      name: properties.name,
-      data: properties.data,
-    }
-  }
-
-  const sdkError = properties.error
-  if (isRecord(sdkError)) {
-    return {
-      sessionID,
-      name: typeof sdkError.name === 'string' ? sdkError.name : 'UnknownError',
-      data: 'data' in sdkError ? sdkError.data : sdkError,
-    }
-  }
-
+/**
+ * `session.created` 事件 → 内部 `ApiSession`
+ *
+ * ⚠️ 事件字段与 REST 的 `Session.Info` **不一致**，必须逐字段对照：
+ *   | 概念 | 事件 | REST `Session.Info` |
+ *   |---|---|---|
+ *   | id | **`sessionID`** | `id` |
+ *   | 目录 | `location.directory` | `location.directory` |
+ *   | 标题 | `title?` | `title?` |
+ *   | slug / version | **有** | ❌ 没有（`toInternalSession` 用 id / 空串兜底） |
+ *   | 时间 | ❌ **没有 `time`** | `time.created/updated` |
+ *   | 成本/用量 | ❌ 没有 | `cost` / `tokens` |
+ *   → 时间用**事件自身的 `created`** 兜底（就是这条事件产生的时刻，语义正确）。
+ */
+function sessionFromCreatedEvent(event: Extract<V2EventUnion, { type: 'session.created' }>): Session {
+  const data = event.data
+  const created = readCreated(event) ?? Date.now()
   return {
-    sessionID,
-    name: 'UnknownError',
-    data: sdkError,
+    id: data.sessionID,
+    slug: data.slug,
+    projectID: data.projectID,
+    directory: data.location.directory,
+    path: data.subpath,
+    parentID: data.parentID,
+    summary: undefined,
+    // 事件里没有成本/用量（新建会话必然为 0）
+    cost: 0,
+    tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
+    share: undefined,
+    title: data.title ?? '',
+    agent: data.agent,
+    model: data.model
+      ? {
+          // V1 用 modelID，V2 的 ModelRef 用 id（与 v2Convert.toInternalSession 一致）
+          id: data.model.id,
+          providerID: data.model.providerID,
+          variant: data.model.variant,
+        }
+      : undefined,
+    version: data.version,
+    metadata: data.metadata as Record<string, unknown> | undefined,
+    time: { created, updated: created },
   }
 }
 
@@ -908,7 +1235,7 @@ function normalizeSessionError(properties: unknown): SessionErrorPayload {
 
 /**
  * 强制重连指定服务器 SSE（用于切换服务器等场景）
- * 断开当前连接 → 重置状态 → 立即重连（新 URL 由 getApiBaseUrl(serverId) 动态解析）
+ * 断开当前连接 → 重置状态 → 立即重连（新 URL 由 getSDKClient(serverId) 动态解析）
  */
 export function reconnectServerSSE(serverId: string) {
   const conn = connections.get(serverId)
@@ -918,7 +1245,6 @@ export function reconnectServerSSE(serverId: string) {
     console.log(`[SSE] reconnectServerSSE(${serverId}) called, forcing reconnect...`)
   }
 
-  // 断开现有连接
   if (conn.heartbeatTimer) clearTimeout(conn.heartbeatTimer)
   if (conn.reconnectTimer) clearTimeout(conn.reconnectTimer)
   conn.reconnectTimer = null
@@ -931,14 +1257,12 @@ export function reconnectServerSSE(serverId: string) {
   conn.generation++
   teardownConnectionTransport(conn)
 
-  // 重置重连计数
   updateConnectionState(serverId, {
     state: 'disconnected',
     reconnectAttempt: 0,
     error: undefined,
   })
 
-  // 立即重连
   connectServer(serverId)
 }
 
@@ -1038,7 +1362,7 @@ export function subscribeToEvents(callbacks: EventCallbacks): () => void {
 
   const offServerChange = serverStore.onServerChange((newServerId, reason) => {
     // server-runtime-updated 表示端口/鉴权变了（WSL sidecar 重启、本地运行时 URL 切换），
-    // 活动中的 SSE 还连着旧地址，必须拆旧建新；建连时 URL/鉴权由 getApiBaseUrl/getAuthHeader
+    // 活动中的 SSE 还连着旧地址，必须拆旧建新；建连时 URL/鉴权由 getSDKClient
     // 从 serverStore 现读，重订阅即拿到新值。但该广播由 upsertServer 对任意服务器无条件发出
     // （含非 active 服务器首次注册，如 WSL 就绪）：本 shim 的订阅跟随 active server，
     // 变化的不是当前订阅的服务器时只能忽略，否则会把订阅错误地「迁移」到非 active 服务器上

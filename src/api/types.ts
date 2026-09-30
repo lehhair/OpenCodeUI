@@ -11,35 +11,14 @@ export type {
   SessionListParams,
   SessionRevert as SessionRevertState,
 } from '../types/api/session'
-export type {
-  Message as ApiMessage,
-  UserMessage as ApiUserMessage,
-  AssistantMessage as ApiAssistantMessage,
-  MessageWithParts as ApiMessageWithParts,
-  Part as ApiPart,
-  TextPart as ApiTextPart,
-  ReasoningPart as ApiReasoningPart,
-  ToolPart as ApiToolPart,
-  FilePart as ApiFilePart,
-  AgentPart as ApiAgentPart,
-  StepStartPart as ApiStepStartPart,
-  StepFinishPart as ApiStepFinishPart,
-  SnapshotPart as ApiSnapshotPart,
-  PatchPart as ApiPatchPart,
-  RetryPart as ApiRetryPart,
-  CompactionPart as ApiCompactionPart,
-  SubtaskPart as ApiSubtaskPart,
-} from '../types/api/message'
+export type { SessionMessageInfo as ApiSessionMessage } from '../types/api/message'
 export type {
   PermissionRequest as ApiPermissionRequest,
   PermissionReply,
-  QuestionOption as ApiQuestionOption,
-  QuestionInfo as ApiQuestionInfo,
-  QuestionRequest as ApiQuestionRequest,
-  QuestionAnswer,
+  PermissionSavedRule,
+  PermissionSavedListParams,
 } from '../types/api/permission'
 export type { Agent as ApiAgent, AgentPermission as ApiAgentPermission } from '../types/api/agent'
-export type { Symbol as SymbolInfo } from '../types/api/file'
 
 import type { Attachment } from '../types/ui'
 
@@ -62,6 +41,12 @@ export interface SendMessageParams {
 }
 
 export interface SendMessageResponse {
-  info: import('../types/api/message').AssistantMessage
-  parts: import('../types/api/message').Part[]
+  /**
+   * ⚠️ **阶段 2b 语义变更**：V2 没有「一次请求拿回复」的接口
+   * （`prompt` 只是把输入入队，回复只出现在转录里）。
+   * 所以这里返回的是**入队记录**，不是 AI 回复 —— 见 `src/api/message.ts` 的说明。
+   * 保留这两个字段只是为了不改动调用方签名。
+   */
+  info: import('../types/message').AssistantMessageInfo
+  parts: import('../types/message').Part[]
 }

@@ -1,11 +1,7 @@
 /// <reference lib="webworker" />
 
 import { ShikiStreamTokenizer } from 'shiki-stream'
-import {
-  createHighlighterCore,
-  type HighlighterCore,
-  type ThemedToken,
-} from 'shiki/core'
+import { createHighlighterCore, type HighlighterCore, type ThemedToken } from 'shiki/core'
 import { createOnigurumaEngine } from 'shiki/engine/oniguruma'
 import onigWasmUrl from 'shiki/onig.wasm?url'
 import { bundledLanguagesAlias, bundledLanguagesBase } from 'shiki/langs'
@@ -140,7 +136,8 @@ async function highlight(request: Extract<WorkerRequest, { type: 'highlight' }>)
     await ensureTheme(instance, request.theme)
 
     const requestedLanguage = request.language.toLowerCase()
-    const language = plainLanguages.has(requestedLanguage) || findLangLoader(requestedLanguage) ? requestedLanguage : 'text'
+    const language =
+      plainLanguages.has(requestedLanguage) || findLangLoader(requestedLanguage) ? requestedLanguage : 'text'
     const isPlainText = plainLanguages.has(language)
     const loaded = isPlainText ? true : await ensureLang(instance, language)
     if (!loaded) throw new Error(`Unsupported Shiki language: ${request.language}`)
@@ -195,9 +192,18 @@ async function highlight(request: Extract<WorkerRequest, { type: 'highlight' }>)
     }
 
     const previous = streams.get(request.key)
-    const reset = !previous || previous.language !== language || previous.theme !== request.theme || !request.text.startsWith(previous.source)
+    const reset =
+      !previous ||
+      previous.language !== language ||
+      previous.theme !== request.theme ||
+      !request.text.startsWith(previous.source)
     const stream = reset
-      ? { language, theme: request.theme, source: '', tokenizer: new ShikiStreamTokenizer({ highlighter: instance, lang: language, theme: request.theme }) }
+      ? {
+          language,
+          theme: request.theme,
+          source: '',
+          tokenizer: new ShikiStreamTokenizer({ highlighter: instance, lang: language, theme: request.theme }),
+        }
       : previous
     const chunk = request.text.slice(stream.source.length)
     if (chunk) await stream.tokenizer.enqueue(chunk)
@@ -213,7 +219,12 @@ async function highlight(request: Extract<WorkerRequest, { type: 'highlight' }>)
       unstable: stream.tokenizer.tokensUnstable.filter(t => t.content.length > 0).map(toWorkerToken),
     })
   } catch (error) {
-    post({ type: 'error', id: request.id, key: request.key, message: error instanceof Error ? error.message : String(error) })
+    post({
+      type: 'error',
+      id: request.id,
+      key: request.key,
+      message: error instanceof Error ? error.message : String(error),
+    })
   }
 }
 

@@ -25,7 +25,13 @@ interface ModalShellProps {
   style?: CSSProperties
 }
 
-export const ModalShell = memo(function ModalShell({ isOpen, onClose, children, zIndex = 100, style }: ModalShellProps) {
+export const ModalShell = memo(function ModalShell({
+  isOpen,
+  onClose,
+  children,
+  zIndex = 100,
+  style,
+}: ModalShellProps) {
   const { isVisible, shouldRender } = useModalAnimation(isOpen, onClose)
 
   if (!shouldRender) return null

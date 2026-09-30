@@ -384,9 +384,7 @@ class ThemeStore {
 
     const savedProcessCollapseEnabled = localStorage.getItem(STORAGE_KEY_PROCESS_COLLAPSE_ENABLED)
     const processCollapseEnabled =
-      savedProcessCollapseEnabled === null
-        ? DEFAULT_PROCESS_COLLAPSE_ENABLED
-        : savedProcessCollapseEnabled === 'true'
+      savedProcessCollapseEnabled === null ? DEFAULT_PROCESS_COLLAPSE_ENABLED : savedProcessCollapseEnabled === 'true'
 
     const codeBlockThemeLight = normalizeCodeBlockTheme(
       localStorage.getItem(STORAGE_KEY_CODE_BLOCK_THEME_LIGHT) || DEFAULT_CODE_BLOCK_THEME_LIGHT,
@@ -1089,9 +1087,7 @@ function normalizeThemeBackup(raw: unknown): ThemeBackup {
         ? parsed.queueFollowupMessages
         : DEFAULT_QUEUE_FOLLOWUP_MESSAGES,
     manualTerminalTitles:
-      typeof parsed?.manualTerminalTitles === 'boolean'
-        ? parsed.manualTerminalTitles
-        : DEFAULT_MANUAL_TERMINAL_TITLES,
+      typeof parsed?.manualTerminalTitles === 'boolean' ? parsed.manualTerminalTitles : DEFAULT_MANUAL_TERMINAL_TITLES,
     externalFileDropMode: parsed?.externalFileDropMode === 'mention' ? 'mention' : DEFAULT_EXTERNAL_FILE_DROP_MODE,
     outlineCurrentHighlight:
       typeof parsed?.outlineCurrentHighlight === 'boolean'
@@ -1160,10 +1156,7 @@ export function importThemeBackup(raw: unknown): void {
   localStorage.setItem(STORAGE_KEY_MANUAL_TERMINAL_TITLES, String(backup.manualTerminalTitles))
   localStorage.setItem(STORAGE_KEY_EXTERNAL_FILE_DROP_MODE, backup.externalFileDropMode)
   localStorage.setItem(STORAGE_KEY_OUTLINE_CURRENT_HIGHLIGHT, String(backup.outlineCurrentHighlight))
-  localStorage.setItem(
-    STORAGE_KEY_ACTIONS_ON_LATEST_ASSISTANT_ONLY,
-    String(backup.actionsOnLatestAssistantOnly),
-  )
+  localStorage.setItem(STORAGE_KEY_ACTIONS_ON_LATEST_ASSISTANT_ONLY, String(backup.actionsOnLatestAssistantOnly))
   localStorage.setItem(STORAGE_KEY_DESKTOP_COLLAPSED_INPUT_DOCK, String(backup.desktopCollapsedInputDock))
   localStorage.setItem(STORAGE_KEY_PROCESS_COLLAPSE_ENABLED, String(backup.processCollapseEnabled))
   localStorage.setItem(STORAGE_KEY_CODE_BLOCK_THEME_LIGHT, backup.codeBlockThemeLight)

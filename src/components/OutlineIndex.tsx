@@ -190,7 +190,6 @@ function findBiasedVisibleIndex(entries: OutlineEntry[], ownerVisibleIds?: Set<s
   return second !== -1 ? second : first
 }
 
-
 function formatEntries(entries: OutlineSourceEntry[], visual: VisualConfig): OutlineEntry[] {
   return entries.map(entry => ({
     messageId: entry.messageId,
@@ -359,7 +358,10 @@ export const OutlineIndex = memo(function OutlineIndex({
 }: OutlineIndexProps) {
   const { interaction, presentation } = useChatViewport()
   const visual = presentation.isCompact ? COMPACT_VISUAL : DESKTOP_VISUAL
-  const outlineSourceEntries = useMemo(() => sourceEntries ?? buildOutlineSourceEntries(messages), [messages, sourceEntries])
+  const outlineSourceEntries = useMemo(
+    () => sourceEntries ?? buildOutlineSourceEntries(messages),
+    [messages, sourceEntries],
+  )
   const allEntries = useMemo(() => formatEntries(outlineSourceEntries, visual), [outlineSourceEntries, visual])
   const entries = useMemo(
     () => sliceAroundVisible(allEntries, visibleMessageIds ?? [], visual.maxEntries),
@@ -393,9 +395,19 @@ export const OutlineIndex = memo(function OutlineIndex({
   if (entries.length < 2) return null
 
   return interaction.outlineInteraction === 'touch' ? (
-    <TouchFisheye entries={entries} onSelect={onScrollToMessageId} visual={visual} ownerVisibleIndex={ownerVisibleIndex} />
+    <TouchFisheye
+      entries={entries}
+      onSelect={onScrollToMessageId}
+      visual={visual}
+      ownerVisibleIndex={ownerVisibleIndex}
+    />
   ) : (
-    <PointerFisheye entries={entries} onSelect={onScrollToMessageId} visual={visual} ownerVisibleIndex={ownerVisibleIndex} />
+    <PointerFisheye
+      entries={entries}
+      onSelect={onScrollToMessageId}
+      visual={visual}
+      ownerVisibleIndex={ownerVisibleIndex}
+    />
   )
 })
 
@@ -466,31 +478,37 @@ const PointerFisheye = memo(function PointerFisheye({ entries, onSelect, visual,
     repaintTicks(getTicks(), -1, ownerVisibleIndexRef.current)
   }, [setZoneActive, getTicks])
 
-  const onTickEnter = useCallback((e: React.MouseEvent) => {
-    hoveringRef.current = true
-    setZoneActive(true)
-    const rail = railRef.current
-    if (!rail) return
-    ticksRef.current = getTicks()
-    activateRail(rail, e.clientY)
-    const next = nearestIndexFromY(entriesRef.current.length, e.clientY, railCenterRef.current, fisheyeRef.current)
-    focusIdxRef.current = next
-    repaintTicks(ticksRef.current, next, ownerVisibleIndexRef.current)
-  }, [setZoneActive, getTicks])
-
-  const onZoneMove = useCallback((e: React.MouseEvent) => {
-    const rail = railRef.current
-    if (!rail) return
-    // 主线程每帧唯一的工作：写一个变量。其余 transform 交给合成线程。
-    rail.style.setProperty('--oi-cursor-y', String(e.clientY))
-    // 算最近焦点（纯数值），仅在变化时重新着色（paint-only，非每帧）
-    const next = nearestIndexFromY(entriesRef.current.length, e.clientY, railCenterRef.current, fisheyeRef.current)
-    if (next !== focusIdxRef.current) {
-      if (ticksRef.current.length === 0) ticksRef.current = getTicks()
+  const onTickEnter = useCallback(
+    (e: React.MouseEvent) => {
+      hoveringRef.current = true
+      setZoneActive(true)
+      const rail = railRef.current
+      if (!rail) return
+      ticksRef.current = getTicks()
+      activateRail(rail, e.clientY)
+      const next = nearestIndexFromY(entriesRef.current.length, e.clientY, railCenterRef.current, fisheyeRef.current)
       focusIdxRef.current = next
       repaintTicks(ticksRef.current, next, ownerVisibleIndexRef.current)
-    }
-  }, [getTicks])
+    },
+    [setZoneActive, getTicks],
+  )
+
+  const onZoneMove = useCallback(
+    (e: React.MouseEvent) => {
+      const rail = railRef.current
+      if (!rail) return
+      // 主线程每帧唯一的工作：写一个变量。其余 transform 交给合成线程。
+      rail.style.setProperty('--oi-cursor-y', String(e.clientY))
+      // 算最近焦点（纯数值），仅在变化时重新着色（paint-only，非每帧）
+      const next = nearestIndexFromY(entriesRef.current.length, e.clientY, railCenterRef.current, fisheyeRef.current)
+      if (next !== focusIdxRef.current) {
+        if (ticksRef.current.length === 0) ticksRef.current = getTicks()
+        focusIdxRef.current = next
+        repaintTicks(ticksRef.current, next, ownerVisibleIndexRef.current)
+      }
+    },
+    [getTicks],
+  )
   const onZoneLeave = useCallback(() => deactivate(), [deactivate])
 
   const onZoneClick = useCallback(() => {
@@ -521,7 +539,11 @@ const PointerFisheye = memo(function PointerFisheye({ entries, onSelect, visual,
         }}
         onMouseEnter={onTickEnter}
       >
-        <div ref={railRef} className="pointer-events-none flex flex-col items-end" style={buildRailVars(entries.length, visual.fisheye)}>
+        <div
+          ref={railRef}
+          className="pointer-events-none flex flex-col items-end"
+          style={buildRailVars(entries.length, visual.fisheye)}
+        >
           <TickRail entries={entries} visual={visual} />
         </div>
       </div>

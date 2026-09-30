@@ -30,6 +30,8 @@ RUN set -eux; \
     npm ci --ignore-scripts
 COPY . .
 RUN node scripts/copy-material-icons.mjs
+# 相对路径 = 「同源反代」语义。V2 下由前端解析为**当前页面 origin**
+# （见 src/constants/api.ts 的 V2 修正注释；V1 时代它靠反代削 /api 前缀，V2 不再削）。
 ENV VITE_API_BASE_URL=/api
 RUN npm run build
 

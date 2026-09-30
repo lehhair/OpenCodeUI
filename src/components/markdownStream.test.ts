@@ -53,7 +53,12 @@ describe('splitMarkdownStream', () => {
   it('does not split on blank lines inside fenced code blocks', () => {
     expect(splitMarkdownStream('before\n\n```ts\nconst a = 1\n\nconst b = 2\n```\n\nafter', true)).toEqual([
       expect.objectContaining({ src: 'before\n\n', mode: 'full' }),
-      expect.objectContaining({ src: 'const a = 1\n\nconst b = 2', raw: '```ts\nconst a = 1\n\nconst b = 2\n```\n\n', mode: 'code', complete: true }),
+      expect.objectContaining({
+        src: 'const a = 1\n\nconst b = 2',
+        raw: '```ts\nconst a = 1\n\nconst b = 2\n```\n\n',
+        mode: 'code',
+        complete: true,
+      }),
       expect.objectContaining({ src: 'after', mode: 'live' }),
     ])
   })
@@ -210,9 +215,7 @@ $$`)
 
 <script>document.querySelector('.diagram').dataset.ready = 'true'</script>`
 
-    expect(splitMarkdownStream(markdown, false)).toEqual([
-      expect.objectContaining({ src: markdown, mode: 'full' }),
-    ])
+    expect(splitMarkdownStream(markdown, false)).toEqual([expect.objectContaining({ src: markdown, mode: 'full' })])
   })
 
   it('keeps a styled SVG wrapper intact and stops before following Markdown', () => {
@@ -291,9 +294,7 @@ inside comment
   it('recognizes a bare SVG as one HTML artifact', () => {
     const svg = '<svg viewBox="0 0 100 100"><text>diagram</text></svg>'
 
-    expect(splitMarkdownStream(svg, false)).toEqual([
-      expect.objectContaining({ src: svg, mode: 'full' }),
-    ])
+    expect(splitMarkdownStream(svg, false)).toEqual([expect.objectContaining({ src: svg, mode: 'full' })])
   })
 
   it('keeps an HTML fence key stable when the stream closes', () => {

@@ -129,7 +129,9 @@ export function PermissionDialog({
               {/* Diff Preview for file edits */}
               {isFileEdit && (diffData || (before !== undefined && after !== undefined)) && (
                 <div>
-                  <p className="text-[length:var(--fs-sm)] text-text-400 mb-2">{t('permissionDialog.changesPreview')}</p>
+                  <p className="text-[length:var(--fs-sm)] text-text-400 mb-2">
+                    {t('permissionDialog.changesPreview')}
+                  </p>
                   <DiffView
                     diff={diffData}
                     before={before}

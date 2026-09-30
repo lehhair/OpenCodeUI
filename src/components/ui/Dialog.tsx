@@ -64,7 +64,10 @@ export function Dialog({
   }, [])
 
   const getTopOpenDialog = useCallback(
-    () => Array.from(document.querySelectorAll<HTMLElement>('[role="dialog"][aria-modal="true"][data-dialog-open="true"]')).at(-1),
+    () =>
+      Array.from(
+        document.querySelectorAll<HTMLElement>('[role="dialog"][aria-modal="true"][data-dialog-open="true"]'),
+      ).at(-1),
     [],
   )
 
@@ -355,7 +358,10 @@ export function Dialog({
               {/* Header */}
               {(title || showCloseButton) && (
                 <div className="flex items-center justify-between px-5 py-4 border-b border-border-100/50">
-                  <div id={title ? titleId : undefined} className="text-[length:var(--fs-heading-2)] font-semibold text-text-100">
+                  <div
+                    id={title ? titleId : undefined}
+                    className="text-[length:var(--fs-heading-2)] font-semibold text-text-100"
+                  >
                     {title}
                   </div>
                   {showCloseButton && (

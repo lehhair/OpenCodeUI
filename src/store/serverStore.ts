@@ -70,6 +70,27 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value)
 }
 
+/**
+ * 判断响应体是否是 OpenCode V2 `/api/info` 的形状。
+ *
+ * V2 的响应（实测 v2.0.19）：
+ *   `{"version":"2.0.19","pid":76002,"urls":["http://127.0.0.1:4097"],"paths":{"tmp":"/tmp/opencode"}}`
+ *
+ * ⚠️ **没有 `healthy` 字段** —— 那是 V1 `/global/health` 的东西。
+ * 能返回 200 且形状正确即视为健康。
+ *
+ * 与 Rust 侧 `opencode.rs` 的 `is_opencode_info_body()` 保持同一套判据，
+ * 两边不要各写一套（改一处记得改另一处）。
+ */
+function isOpencodeInfoResponse(data: Record<string, unknown>): boolean {
+  return (
+    typeof data.version === 'string' &&
+    data.version.trim().length > 0 &&
+    typeof data.pid === 'number' &&
+    Array.isArray(data.urls)
+  )
+}
+
 function normalizeConnectionError(err: unknown): string {
   if (err instanceof DOMException && err.name === 'AbortError') return 'Connection timed out'
   if (!(err instanceof Error)) return 'Connection failed'
@@ -119,14 +140,16 @@ function formatExceptionDiagnostics(url: string, err: unknown): string {
   if (!(err instanceof Error)) return `Request: GET ${url}\n\nError: ${String(err)}`
 
   const cause = 'cause' in err && err.cause !== undefined ? `\n\nCause:\n${String(err.cause)}` : ''
-  return [
-    `Request: GET ${url}`,
-    `Error name: ${err.name}`,
-    `Message: ${err.message}`,
-    err.stack ? `Stack:\n${err.stack}` : '',
-  ]
-    .filter(Boolean)
-    .join('\n\n') + cause
+  return (
+    [
+      `Request: GET ${url}`,
+      `Error name: ${err.name}`,
+      `Message: ${err.message}`,
+      err.stack ? `Stack:\n${err.stack}` : '',
+    ]
+      .filter(Boolean)
+      .join('\n\n') + cause
+  )
 }
 
 const STORAGE_KEY = 'opencode-servers'
@@ -193,9 +216,17 @@ class ServerStore {
       // 遗留的 wsl: 条目，避免老用户下次启动先落在死地址上
       const stored = localStorage.getItem(STORAGE_KEY)
       if (stored) {
-        this.servers = (JSON.parse(stored) as ServerConfig[]).filter(
-          server => typeof server?.id === 'string' && !server.id.startsWith(WSL_SERVER_PREFIX),
-        )
+        this.servers = (JSON.parse(stored) as ServerConfig[])
+          .filter(server => typeof server?.id === 'string' && !server.id.startsWith(WSL_SERVER_PREFIX))
+          // 🔴 V2 修正（2026-09-30，真实部署发现）：历史版本持久化过「相对地址」
+          // （Docker 构建的 `/api`）。V2 下它无法工作——SDK 的 `new URL(baseUrl)` 需要绝对
+          // 地址，健康检查还会双重前缀成 `/api/api/info`（实测 401）→ 读取时就地升级为
+          // 当前页面 origin，老用户无需手动删除重加服务器。
+          .map(server =>
+            server.url?.startsWith('/') && typeof window !== 'undefined'
+              ? { ...server, url: window.location.origin }
+              : server,
+          )
       }
 
       // 如果没有服务器，添加默认的本地服务器
@@ -631,6 +662,18 @@ class ServerStore {
 
   /**
    * 检查服务器健康状态
+   *
+   * 🔴 V2 变更（阶段 1）：健康端点从 `GET /global/health` 换成 **`GET /api/info`**。
+   *
+   * 旧行为：`/global/health` 返回 `{ healthy: true, version }`，据此判活。
+   * V2 下该路径已不存在 —— 实测它会**返回 200 + SPA 兜底 HTML 页**，
+   * 于是旧代码会走到「拿到 text/html」分支并报
+   * "Server returned HTML instead of OpenCode health JSON"。
+   *
+   * V2 的 `/api/info` 响应形如：
+   *   `{ version: "2.0.19", pid: 76002, urls: [...], paths: { tmp: "/tmp/opencode" } }`
+   * **没有 `healthy` 字段** —— 能返回 200 就说明服务活着，
+   * 所以判活改为「结构校验」：version 是非空字符串 + pid 是数字 + urls 是数组。
    */
   async checkHealth(serverId: string): Promise<ServerHealth> {
     const storedServer = this.servers.find(s => s.id === serverId)
@@ -640,7 +683,8 @@ class ServerStore {
     const server = this.withRuntimeServerUrl(storedServer)
     const checkSeq = (this.healthCheckSeqMap.get(serverId) ?? 0) + 1
     this.healthCheckSeqMap.set(serverId, checkSeq)
-    const healthUrl = `${server.url}/global/health`
+    // V2：单一端点 GET /api/info（不再有 /global/health）
+    const healthUrl = `${server.url}/api/info`
 
     const commitHealth = (health: ServerHealth) => {
       if (this.healthCheckSeqMap.get(serverId) === checkSeq) {
@@ -672,7 +716,9 @@ class ServerStore {
       })
 
       const latency = Date.now() - startTime
-      const responseBody = await response.text().catch(err => `[Failed to read response body: ${normalizeConnectionError(err)}]`)
+      const responseBody = await response
+        .text()
+        .catch(err => `[Failed to read response body: ${normalizeConnectionError(err)}]`)
       const details = formatResponseDiagnostics({ url: healthUrl, response, latency, body: responseBody })
 
       if (response.ok) {
@@ -704,7 +750,7 @@ class ServerStore {
           return commitHealth(health)
         }
 
-        if (!isRecord(data) || data.healthy !== true || typeof data.version !== 'string' || !data.version.trim()) {
+        if (!isRecord(data) || !isOpencodeInfoResponse(data)) {
           const health: ServerHealth = {
             status: 'error',
             latency,
@@ -719,7 +765,7 @@ class ServerStore {
           status: 'online',
           latency,
           lastCheck: Date.now(),
-          version: data.version,
+          version: data.version as string,
           details,
         }
         return commitHealth(health)
@@ -817,7 +863,8 @@ function normalizeServerBackup(raw: unknown): ServerSettingsBackup {
   const rawDefaultServerId = parsed?.defaultServerId
   const defaultServerId =
     typeof rawDefaultServerId === 'string' &&
-    (rawDefaultServerId.startsWith(WSL_SERVER_PREFIX) || normalizedServers.some(server => server.id === rawDefaultServerId))
+    (rawDefaultServerId.startsWith(WSL_SERVER_PREFIX) ||
+      normalizedServers.some(server => server.id === rawDefaultServerId))
       ? rawDefaultServerId
       : undefined
 

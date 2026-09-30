@@ -13,12 +13,7 @@ import { SpinnerIcon, DownloadIcon, ChevronRightIcon } from '../../../components
 import { wslApi } from '../../../api/wsl'
 import { useWslStore } from '../../../store/wslStore'
 import { notificationStore } from '../../../store/notificationStore'
-import {
-  addServerProbePlan,
-  addServerViewModel,
-  createProbeFailureGate,
-  type AddServerText,
-} from '../settings-model'
+import { addServerProbePlan, addServerViewModel, createProbeFailureGate, type AddServerText } from '../settings-model'
 
 /** 判定 WSL 运行时错误是否属于"未安装"（官方 isWslRuntimeMissing），
  *  决定 unavailable 弹窗显示"安装 WSL"按钮还是纯错误信息 */
@@ -235,7 +230,12 @@ export function DialogAddWslServer({ isOpen, onClose, onAdded }: DialogWslServer
   const primaryButton = model.primaryButton
 
   return (
-    <Dialog isOpen onClose={onClose} title={view === 'main' ? t('wsl.server.add') : t('wsl.onboarding.installDistro')} width={440}>
+    <Dialog
+      isOpen
+      onClose={onClose}
+      title={view === 'main' ? t('wsl.server.add') : t('wsl.onboarding.installDistro')}
+      width={440}
+    >
       {view === 'catalog' ? (
         <>
           <div className="space-y-3">
@@ -375,8 +375,7 @@ export function DialogAddWslServer({ isOpen, onClose, onAdded }: DialogWslServer
                         <div className="text-[length:var(--fs-sm)] font-medium text-text-100">{d.name}</div>
                         <div className="text-[length:var(--fs-xs)] text-text-400 mt-0.5">
                           WSL {d.version ?? '?'}
-                          {wsl.opencodeChecks[d.name]?.version &&
-                            ` · OpenCode v${wsl.opencodeChecks[d.name]!.version}`}
+                          {wsl.opencodeChecks[d.name]?.version && ` · OpenCode v${wsl.opencodeChecks[d.name]!.version}`}
                         </div>
                       </div>
                       {(status || needsOpenOnce) && (

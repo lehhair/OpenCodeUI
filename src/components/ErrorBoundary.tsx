@@ -28,7 +28,9 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
       <div className="h-full min-h-0 overflow-y-auto bg-bg-000 px-5 pb-40 pt-24 text-text-100">
         <div className="mx-auto max-w-2xl space-y-3">
           <div className="rounded-2xl border border-danger-100/25 bg-danger-bg/60 p-4 shadow-sm">
-            <div className="mb-2 text-[length:var(--fs-lg)] font-semibold text-danger-100">OpenCode UI ran into a problem</div>
+            <div className="mb-2 text-[length:var(--fs-lg)] font-semibold text-danger-100">
+              OpenCode UI ran into a problem
+            </div>
             <div className="text-[length:var(--fs-sm)] leading-relaxed text-text-200">
               {this.state.error.message || 'The chat view could not render this response.'}
             </div>

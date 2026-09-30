@@ -74,7 +74,11 @@ function parseHash(): RouteState {
   return { sessionId: null, serverId, directory }
 }
 
-function buildHash(sessionId: string | null, serverId: string | null | undefined, directory: string | undefined): string {
+function buildHash(
+  sessionId: string | null,
+  serverId: string | null | undefined,
+  directory: string | undefined,
+): string {
   const path = sessionId ? `#/session/${encodeURIComponent(sessionId)}` : '#/'
   const params: string[] = []
   // 仅 home（无 session）写 server 参数；session URL 的复合 key 已携带服务器

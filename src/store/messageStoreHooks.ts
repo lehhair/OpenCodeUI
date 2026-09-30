@@ -27,7 +27,6 @@ function createSnapshot(): MessageStoreSnapshot {
     hasMoreHistory: messageStore.getHasMoreHistory(sessionId),
     sessionDirectory: messageStore.getSessionDirectory(sessionId),
     sessionTitle: messageStore.getSessionTitle(sessionId),
-    shareUrl: messageStore.getShareUrl(sessionId),
     canUndo: messageStore.canUndo(sessionId),
     canRedo: messageStore.canRedo(sessionId),
     redoSteps: messageStore.getRedoSteps(sessionId),
@@ -46,7 +45,6 @@ function isSameFocusedSnapshot(a: MessageStoreSnapshot, b: MessageStoreSnapshot)
     a.hasMoreHistory === b.hasMoreHistory &&
     a.sessionDirectory === b.sessionDirectory &&
     a.sessionTitle === b.sessionTitle &&
-    a.shareUrl === b.shareUrl &&
     a.canUndo === b.canUndo &&
     a.canRedo === b.canRedo &&
     a.redoSteps === b.redoSteps &&
@@ -158,11 +156,6 @@ const selectHeaderSessionMeta = (state: MessageStoreSnapshot) => ({
   sessionDirectory: state.sessionDirectory,
   sessionTitle: state.sessionTitle,
 })
-const selectShareSessionMeta = (state: MessageStoreSnapshot) => ({
-  sessionId: state.sessionId,
-  shareUrl: state.shareUrl,
-  sessionDirectory: state.sessionDirectory,
-})
 const selectUndoRedoState = (state: MessageStoreSnapshot) => ({
   canUndo: state.canUndo,
   canRedo: state.canRedo,
@@ -254,11 +247,6 @@ export function useHasMessages(): boolean {
 /** Header 用：session 身份与标题，不跟 messages 文本 */
 export function useHeaderSessionMeta() {
   return useMessageStoreSelector(selectHeaderSessionMeta)
-}
-
-/** Share 用：分享链接相关字段 */
-export function useShareSessionMeta() {
-  return useMessageStoreSelector(selectShareSessionMeta)
 }
 
 /** 只订阅 canUndo/canRedo */

@@ -10,7 +10,15 @@ type VisualViewportMock = EventTarget & {
 const originalInnerHeight = Object.getOwnPropertyDescriptor(window, 'innerHeight')
 const originalVisualViewport = Object.getOwnPropertyDescriptor(window, 'visualViewport')
 
-function installVisualViewportMock({ innerHeight, viewportHeight, offsetTop = 0 }: { innerHeight: number; viewportHeight: number; offsetTop?: number }) {
+function installVisualViewportMock({
+  innerHeight,
+  viewportHeight,
+  offsetTop = 0,
+}: {
+  innerHeight: number
+  viewportHeight: number
+  offsetTop?: number
+}) {
   const viewport = new EventTarget() as VisualViewportMock
 
   Object.defineProperty(window, 'innerHeight', {

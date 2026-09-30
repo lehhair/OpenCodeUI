@@ -14,6 +14,9 @@ ARG APT_SECURITY_MIRROR=http://mirrors.tuna.tsinghua.edu.cn/debian-security
 ARG NPM_CONFIG_REGISTRY=https://registry.npmmirror.com
 ARG NODEJS_ORG_MIRROR=https://npmmirror.com/mirrors/node
 ARG MISE_INSTALL_URL=https://mise.run
+# 🔴 opencode 版本**必须钉死**：本 UI 只支持 V2，装成 V1 会直接跑不起来。
+# 升级步骤：改这里的默认值 + 重算下方 amd64/arm64 两个 OC_SHA256（见安装段的注释）。
+ARG OPENCODE_VERSION=2.0.19
 
 ENV DEBIAN_FRONTEND=noninteractive \
     LANG=C.UTF-8 \
@@ -89,17 +92,35 @@ RUN case "${TARGETARCH}" in \
       | MISE_INSTALL_PATH=/usr/local/bin/mise MISE_INSTALL_FROM_GITHUB=1 MISE_INSTALL_ARCH="${MISE_ARCH}" sh \
     && mise --version
 
-# 安装 opencode。直接从 GitHub Releases 拉 tarball 解压，绕开 opencode.ai/install 脚本：
-# 该脚本为拼一个版本号字符串去调 api.github.com（未鉴权，60 次/小时/IP），
-# GitHub Actions 共享 runner IP 极易触发限流而 exit 1；而 releases/latest/download
-# 本身是 302 跳转，不需要版本号。tarball 内仅含单个 opencode 二进制。
+# 安装 opencode（**钉死版本 + 校验哈希**）。
+#
+# 🔴 为什么必须换渠道（阶段 4 实测结论）：
+#   GitHub Releases 的 `latest` 已经停在 **v1.18.33（V1）** —— 全仓库 500 个 release 里
+#   零个 v2，`v2.0.x` 也没有 release 资源（tarball 直链 404）。npm 的 `opencode-ai`
+#   同样没有 v2。也就是说：**照旧写法拉 `releases/latest/download` 一定装成 V1**，
+#   而本 UI 只支持 V2 → 容器起来后必然连不上/报错。
+#
+#   V2 的真实分发渠道是官方更新服务 `update.opencode.ai` 指向的静态文件服务：
+#       https://opencode.ai/files/bin/<版本>/opencode-linux-<架构>.tar.gz
+#   （版本索引：`https://update.opencode.ai/api/dev`（v2 分支快照）/ `/api/beta`）
+#   tarball 内仍是**单个 `opencode` 文件**，解压命令与旧 GitHub tarball 一致。
+#
+# ✅ 顺带收益：新渠道不经过 GitHub，**彻底摆脱 GitHub 限流**（旧注释里
+#    「共享 runner IP 极易触发 60 次/小时 限流」的问题不复存在）。
+#
+# 🔒 sha256 校验：防止上游文件被替换 / 下载被中间人篡改 / 半截包。
+#    升级版本时：① 改 ARG OPENCODE_VERSION；② 用
+#    `curl -fsSL -o t.tar.gz <新URL> && sha256sum t.tar.gz` 重算两个架构的哈希。
 RUN case "${TARGETARCH}" in \
-      amd64) OC_ARCH=x64 ;; \
-      arm64) OC_ARCH=arm64 ;; \
+      amd64) OC_ARCH=x64 \
+             OC_SHA256=1a9f7184292035a56b6cf22439762930b3a3ed13812f7360c33bb7ae07ef4075 ;; \
+      arm64) OC_ARCH=arm64 \
+             OC_SHA256=d0138dd9b43910c28166cfc4da4a53a1b99b07931a37afa749bde812cd02e5a4 ;; \
       *) echo "unsupported arch: ${TARGETARCH}" >&2; exit 1 ;; \
     esac \
     && curl -fsSL -o /tmp/opencode.tar.gz \
-      "https://github.com/anomalyco/opencode/releases/latest/download/opencode-linux-${OC_ARCH}.tar.gz" \
+      "https://opencode.ai/files/bin/${OPENCODE_VERSION}/opencode-linux-${OC_ARCH}.tar.gz" \
+    && echo "${OC_SHA256}  /tmp/opencode.tar.gz" | sha256sum -c - \
     && tar -xzf /tmp/opencode.tar.gz -C /usr/local/bin opencode \
     && rm -f /tmp/opencode.tar.gz \
     && chmod +x /usr/local/bin/opencode \
@@ -114,6 +135,7 @@ ENV MISE_DATA_DIR=/root/.local/share/mise \
     MISE_STATE_DIR=/root/.local/state/mise \
     OPENCODE_DISABLE_AUTOUPDATE=true \
     OPENCODE_DISABLE_TERMINAL_TITLE=true \
+    OPENCODE_VERSION=${OPENCODE_VERSION} \
     WORKSPACE=/workspace
 
 ENV PATH="/root/.local/bin:/root/.cargo/bin:/root/.local/share/mise/shims:/root/.local/share/mise/bin:${PATH}"

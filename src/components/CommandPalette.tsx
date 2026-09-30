@@ -258,7 +258,9 @@ export function CommandPalette({ isOpen, onClose, commands }: CommandPaletteProp
         {/* Command List */}
         <div ref={listRef} className="overflow-y-auto custom-scrollbar flex-1 p-1">
           {filteredCommands.length === 0 ? (
-            <div className="px-4 py-8 text-center text-text-400 text-[length:var(--fs-base)]">{t('commandPalette.noCommandsFound')}</div>
+            <div className="px-4 py-8 text-center text-text-400 text-[length:var(--fs-base)]">
+              {t('commandPalette.noCommandsFound')}
+            </div>
           ) : (
             filteredCommands.map((cmd, index) => (
               <button
@@ -276,7 +278,9 @@ export function CommandPalette({ isOpen, onClose, commands }: CommandPaletteProp
                   {cmd.icon && <span className="text-text-400 shrink-0">{cmd.icon}</span>}
                   <div className="min-w-0">
                     <div className="text-[length:var(--fs-base)] truncate">{cmd.label}</div>
-                    {cmd.description && <div className="text-[length:var(--fs-sm)] text-text-400 truncate">{cmd.description}</div>}
+                    {cmd.description && (
+                      <div className="text-[length:var(--fs-sm)] text-text-400 truncate">{cmd.description}</div>
+                    )}
                   </div>
                 </div>
                 {cmd.shortcut && (

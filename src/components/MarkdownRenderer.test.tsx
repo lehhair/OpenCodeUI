@@ -162,7 +162,9 @@ describe('MarkdownRenderer', () => {
   })
 
   it('renders backslash-paren LaTeX inline math delimiters', () => {
-    const { container } = render(<MarkdownRenderer content={String.raw`公式 \(E = mc^2\) 很棒，还有 \(x^2 + y^2 = z^2\)`} />)
+    const { container } = render(
+      <MarkdownRenderer content={String.raw`公式 \(E = mc^2\) 很棒，还有 \(x^2 + y^2 = z^2\)`} />,
+    )
 
     expect(container.querySelectorAll('.katex')).toHaveLength(2)
     expect(container.querySelector('.katex')).not.toHaveTextContent('\\(')
@@ -220,7 +222,8 @@ $$
   })
 
   it('renders footnote references and definitions', () => {
-    const content = '这是一段需要说明的文字[^ref1]。这里还有另一个引用[^ref2]。\n\n[^ref2]: 第二个脚注，来自某文献第 42 页。'
+    const content =
+      '这是一段需要说明的文字[^ref1]。这里还有另一个引用[^ref2]。\n\n[^ref2]: 第二个脚注，来自某文献第 42 页。'
     const { container } = render(<MarkdownRenderer content={content} />)
 
     expect(container.querySelector('#fnref-ref1')).toHaveTextContent('ref1')
@@ -673,9 +676,7 @@ $$`
   })
 
   it('removes unsafe CSS URLs from raw HTML styles', () => {
-    render(
-      <MarkdownRenderer content={'<div style="background: url(javascript:alert(1)); color: red">bad</div>'} />,
-    )
+    render(<MarkdownRenderer content={'<div style="background: url(javascript:alert(1)); color: red">bad</div>'} />)
 
     const style = screen.getByText('bad').getAttribute('style') ?? ''
     expect(style).not.toMatch(/url/i)
@@ -693,7 +694,9 @@ $$`
   it('removes overlay-capable styles while retaining safe declarations', () => {
     render(
       <MarkdownRenderer
-        content={'<div style="position:fixed;inset:0;z-index:99999;transform:scale(2);margin-top:-400px;opacity:0;color:blue">safe</div>'}
+        content={
+          '<div style="position:fixed;inset:0;z-index:99999;transform:scale(2);margin-top:-400px;opacity:0;color:blue">safe</div>'
+        }
       />,
     )
 
@@ -792,7 +795,9 @@ $$`
   it('sandboxes a complete HTML document pasted directly into Markdown', () => {
     render(
       <MarkdownRenderer
-        content={'<!doctype html>\n<html><body><h1>Document</h1><script>document.title="isolated"</script></body></html>'}
+        content={
+          '<!doctype html>\n<html><body><h1>Document</h1><script>document.title="isolated"</script></body></html>'
+        }
       />,
     )
 
@@ -805,7 +810,9 @@ $$`
   it('blocks raw HTML submission, active content, and unsafe media behavior', () => {
     const { container } = render(
       <MarkdownRenderer
-        content={'<form action="https://example.com"><button>Send</button></form><video autoplay src="data:text/html,bad" controls></video>'}
+        content={
+          '<form action="https://example.com"><button>Send</button></form><video autoplay src="data:text/html,bad" controls></video>'
+        }
       />,
     )
 
@@ -926,13 +933,19 @@ $$`
     expect(frame).toHaveAttribute('sandbox', 'allow-scripts')
     expect(frame.getAttribute('sandbox')).not.toContain('allow-same-origin')
     expect(srcDoc).toContain('<style>.surface { fill: var(--surface-1); stroke: var(--border-strong); }</style>')
-    expect(srcDoc).toContain("onclick=\"this.dataset.clicked='true'\"")
+    expect(srcDoc).toContain('onclick="this.dataset.clicked=\'true\'"')
     expect(srcDoc).toContain('--surface-1:#f5f4f1')
     expect(srcDoc).toContain('--border-strong:#cfccc2')
   })
 
   it('runs complete HTML code fences only inside an isolated sandbox preview', () => {
-    render(<MarkdownRenderer content={'```html\n<button onclick="document.body.dataset.clicked=1">Run</button><script>document.title="artifact"</script>\n```'} />)
+    render(
+      <MarkdownRenderer
+        content={
+          '```html\n<button onclick="document.body.dataset.clicked=1">Run</button><script>document.title="artifact"</script>\n```'
+        }
+      />,
+    )
 
     const frame = screen.getByTitle('HTML preview')
     expect(frame).toHaveAttribute('sandbox', 'allow-scripts')
@@ -956,7 +969,11 @@ $$`
 
   it.each([
     ['svg', '<svg xmlns="http://www.w3.org/2000/svg"><text>SVG preview</text></svg>', 'SVG preview'],
-    ['xml', '<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg"><text>XML preview</text></svg>', 'XML preview'],
+    [
+      'xml',
+      '<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg"><text>XML preview</text></svg>',
+      'XML preview',
+    ],
     ['xhtml', '<html xmlns="http://www.w3.org/1999/xhtml"><body>XHTML preview</body></html>', 'XHTML preview'],
   ])('previews fenced %s markup in the HTML sandbox', (language, source, expectedContent) => {
     render(<MarkdownRenderer content={`\`\`\`${language}\n${source}\n\`\`\``} />)
@@ -1147,10 +1164,7 @@ $$`
     )
 
     await waitFor(() => {
-      expect(postMessage).toHaveBeenCalledWith(
-        expect.objectContaining({ complete: false, scriptCount: 1 }),
-        '*',
-      )
+      expect(postMessage).toHaveBeenCalledWith(expect.objectContaining({ complete: false, scriptCount: 1 }), '*')
     })
     expect(screen.getByTitle('HTML preview')).toBe(frame)
   })
@@ -1259,11 +1273,7 @@ $$`
     mermaidMocks.render.mockResolvedValue({
       svg: '<svg id="diagram" aria-labelledby="diagram-title"><title id="diagram-title">Diagram</title><style>#diagram-node { fill: red; }</style><defs><marker id="diagram-arrow"></marker></defs><path id="diagram-node" marker-end="url(#diagram-arrow)"></path><foreignObject><div xmlns="http://www.w3.org/1999/xhtml">hello<br>world</div></foreignObject></svg>',
     })
-    render(
-      <MarkdownRenderer
-        content={'```mermaid\ngraph TD\n  A-->B\n```\n\n```mermaid\ngraph TD\n  A-->B\n```'}
-      />,
-    )
+    render(<MarkdownRenderer content={'```mermaid\ngraph TD\n  A-->B\n```\n\n```mermaid\ngraph TD\n  A-->B\n```'} />)
 
     const diagrams = await screen.findAllByRole('img', { name: 'Mermaid diagram' })
     const firstSvg = diagrams[0].querySelector('svg')
@@ -1424,7 +1434,9 @@ $$`
     const md = '| A | B |\n|---|---|\n| 1 | 2 |\n\n| C | D |\n|---|---|\n| 3 | 4 |'
     const { container } = render(<MarkdownRenderer content={md} />)
 
-    const tableWrappers = Array.from(container.querySelectorAll('table')).map(table => table.parentElement?.parentElement)
+    const tableWrappers = Array.from(container.querySelectorAll('table')).map(
+      table => table.parentElement?.parentElement,
+    )
     expect(tableWrappers).toHaveLength(2)
     for (const wrapper of tableWrappers) {
       expect(wrapper).toBeInTheDocument()

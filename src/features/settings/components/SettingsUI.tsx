@@ -79,7 +79,10 @@ export interface SegmentedControlProps<T extends string> {
 }
 
 export function SegmentedControl<T extends string>({ value, options, onChange }: SegmentedControlProps<T>) {
-  const activeIndex = Math.max(0, options.findIndex(o => o.value === value))
+  const activeIndex = Math.max(
+    0,
+    options.findIndex(o => o.value === value),
+  )
 
   return (
     <div
@@ -91,7 +94,9 @@ export function SegmentedControl<T extends string>({ value, options, onChange }:
           const dir = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : -1
           const next = (activeIndex + dir + options.length) % options.length
           const accepted = onChange(options[next].value)
-          e.currentTarget.querySelectorAll<HTMLElement>('[role="tab"]')[accepted === false ? activeIndex : next]?.focus()
+          e.currentTarget
+            .querySelectorAll<HTMLElement>('[role="tab"]')
+            [accepted === false ? activeIndex : next]?.focus()
         }
       }}
     >
@@ -235,9 +240,7 @@ export function SettingsSection({ title, description, actions, children, classNa
           {actions && <div className="shrink-0 flex items-center gap-1.5">{actions}</div>}
         </div>
         {description && (
-          <p className="text-[length:var(--fs-xs)] text-text-300 mt-1 leading-relaxed max-w-[52ch]">
-            {description}
-          </p>
+          <p className="text-[length:var(--fs-xs)] text-text-300 mt-1 leading-relaxed max-w-[52ch]">{description}</p>
         )}
       </div>
       <div className="flex flex-col gap-3">{children}</div>
@@ -265,7 +268,9 @@ export function SettingsSubgroup({
       {title && (
         <div className="mb-2.5 px-0.5">
           <div className="text-[length:var(--fs-sm)] font-medium text-text-100">{title}</div>
-          {description && <div className="text-[length:var(--fs-xs)] text-text-400 mt-0.5 leading-relaxed">{description}</div>}
+          {description && (
+            <div className="text-[length:var(--fs-xs)] text-text-400 mt-0.5 leading-relaxed">{description}</div>
+          )}
         </div>
       )}
       <div className="space-y-2.5">{children}</div>

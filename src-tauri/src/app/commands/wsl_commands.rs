@@ -839,9 +839,11 @@ fn health_poll_expired(elapsed_ms: u64, timeout_ms: u64) -> bool {
 
 /// 启动单个 WSL 服务器（官方 spawnWslSidecar + startServer 合并）：
 ///
-/// - stdin 下发 `bash -se` 启动脚本（PATH 清洗 /mnt/*、WSLENV=、禁 filewatcher、
-///   OPENCODE_CLIENT=desktop、随机密码注入、--print-logs --log-level WARN）
-/// - 健康检查 100ms 轮询 / 30s 超时，Basic 鉴权（官方 checkHealth 同款）
+/// - stdin 下发 `bash -se` 启动脚本（PATH 清洗 /mnt/*、WSLENV= 清空、
+///   `OPENCODE_FILEWATCHER_DISABLE=true` 关文件监听、OPENCODE_CLIENT=desktop、
+///   随机密码注入、`--print-logs --log-level warn`——注意取值**必须小写**）
+/// - 健康检查 100ms 轮询 / 30s 超时，打 `GET /api/info` 并校验响应体形状，
+///   Basic 鉴权（官方 checkHealth 只判状态码，这里更严格）
 /// - Promise.race([health, exit, timeout]) 语义：进程提前退出附带最近 12 行输出
 /// - Ready 后监督进程退出 → failed（官方 listener.onExit）
 #[allow(clippy::too_many_lines)]
@@ -909,17 +911,98 @@ async fn run_start_server(app: &AppHandle, id: &str, attempt: u64) {
         // 剔除 PATH 中的 Windows 盘符挂载路径（/mnt/...），防止 Windows 侧同名二进制抢先
         r#"PATH=$(awk -v RS=: -v ORS=: '$0 !~ /^\/mnt\//' <<<"$PATH" | sed "s/:$//")"#.to_string(),
         "export PATH".to_string(),
+        // 清空 WSLENV：它由 **WSL 互操作层**消费（不是 opencode 读取的变量），
+        // 作用是控制 Windows↔WSL 之间哪些环境变量共享、以及是否做路径翻译
+        // （`/p` 标志会把值里的路径改写成对方平台的形式）。
+        // 置空 = 关掉共享与翻译，避免 Windows 侧被改写过的环境变量泄漏进 WSL。
+        // 与官方 sidecar.ts:30 一致，属有意为之。
         "export WSLENV=".to_string(),
-        "export OPENCODE_EXPERIMENTAL_DISABLE_FILEWATCHER=true".to_string(),
+        // 🔴 修静默 bug：原写法 `OPENCODE_EXPERIMENTAL_DISABLE_FILEWATCHER=true` 无效。
+        //
+        // v2.0.19 里该变量**零读取处**（复核命令：
+        //   git grep -n OPENCODE_EXPERIMENTAL_DISABLE_FILEWATCHER v2.0.19
+        // 命中的只有 packages/desktop/src/main/wsl/sidecar.ts:31 在「设置」它，
+        // 外加 .github/workflows/test.yml 与各语言文档；packages/** 内没有任何读取）。
+        // 后果：WSL 下 filewatcher 一直开着，而且不报错、不提示（静默失效）。
+        //
+        // v2.0.19 真正读取的是 packages/cli/src/server-process.ts:120：
+        //   filewatcher: !truthy(process.env.OPENCODE_FILEWATCHER_DISABLE
+        //                        ?? process.env.OPENCODE_DISABLE_FILEWATCHER)
+        // 这里用 `OPENCODE_FILEWATCHER_DISABLE`；`OPENCODE_DISABLE_FILEWATCHER`
+        // 是同一条 `??` 链上的等价别名，两者写其一即可。
+        //
+        // 为什么**删除**旧变量而不是保留：
+        // 该名字在 commit fb884bb91e 就被重命名掉了
+        // （OPENCODE_EXPERIMENTAL_DISABLE_FILEWATCHER → OPENCODE_DISABLE_FILEWATCHER），
+        // 而 fb884bb91e 已经是 v2.0.19 的祖先提交——保留它连"兼容更老的 opencode"
+        // 都谈不上，只会留下一个看起来有效、实际无效的配置误导后来人
+        // （违背"不留无效配置冒充有效"的项目约定）。
+        //
+        // 顺带说明官方 sidecar 为什么还在设旧名字——那是**上游的回归 bug**，
+        // 不是我们要对齐的契约。完整链路（按 v2.0.19 的血缘核对）：
+        //   1. bd7eb0603f 新增 wsl/sidecar.ts，当时用的就是旧名字；
+        //   2. fb884bb91e 给 flag 改名，并同步把 sidecar.ts 改成新名字；
+        //   3. 302e9b45ab「chore: merge dev into v2 (#39290)」这个 dev→v2 合并
+        //      又把它**改回**了旧名字（diff 正是
+        //      -OPENCODE_DISABLE_FILEWATCHER / +OPENCODE_EXPERIMENTAL_DISABLE_FILEWATCHER），
+        //      于是 v2.0.19 官方 WSL sidecar 的"关 filewatcher"同样静默失效。
+        // 若将来确需兼容改名前的 WSL 发行版，旧名字就是
+        // OPENCODE_EXPERIMENTAL_DISABLE_FILEWATCHER。
+        "export OPENCODE_FILEWATCHER_DISABLE=true".to_string(),
+        // 有效：v2.0.19 读取处 packages/cli/src/index.ts:126、
+        // commands/handlers/default.ts:82、server-process.ts:90
+        // （遥测与服务注册里的客户端标识）
         "export OPENCODE_CLIENT=desktop".to_string(),
+        // ⚠️ OPENCODE_SERVER_USERNAME 在 v2.0.19 里**零读取处**
+        // （git grep OPENCODE_SERVER_USERNAME v2.0.19 无任何命中）。
+        // 服务端把用户名硬编码成 "opencode"：
+        //   packages/server/src/auth.ts:20  → username: "opencode"
+        //   packages/server/src/process.ts:178 → ServerAuth.Config.of({..., username: "opencode"})
+        // 且 auth.ts 的 authorized() 会校验 credentials.username !== config.username。
+        //
+        // 保留原因（不是因为它生效）：
+        //   1. 与下面健康检查实际发送的用户名（username 变量 = "opencode"）保持一致，
+        //      把"用户名固定为 opencode"这一契约显式写在启动处，便于对照排查 401；
+        //   2. 若将来版本恢复读取该变量，取值与硬编码值相同，行为不会漂移。
+        // 结论：对 v2.0.19 是 no-op，**不要**误当成生效配置。
         format!("export OPENCODE_SERVER_USERNAME={}", wsl_runtime::shell_escape(username)),
+        // 有效：v2.0.19 读取处 packages/cli/src/env.ts:11
+        // （Config.redacted("OPENCODE_SERVER_PASSWORD")，OPENCODE_PASSWORD 为备选名）
         format!("export OPENCODE_SERVER_PASSWORD={}", wsl_runtime::shell_escape(&password)),
+        // 有效：v2.0.19 读取处 packages/util/src/global-roots.ts:8
+        // （state = process.env.XDG_STATE_HOME || join(home, ".local", "state")）。
+        // 显式钉住是为了防止从 Windows 侧继承来的 XDG_STATE_HOME 把 state 目录
+        // 指到 /mnt/* 上（官方 sidecar.ts:34 同款）。
         r#"export XDG_STATE_HOME="$HOME/.local/state""#.to_string(),
-        // 打包版 WARN / 开发版 INFO（官方 app.isPackaged 分支）
+        // 打包版 warn / 开发版 info（官方 app.isPackaged 分支）
+        // ⚠️ --log-level 只接受**小写**取值
+        // （all|trace|debug|info|warn|warning|error|fatal|none）；
+        // 传大写 "INFO"/"WARN" 会被 effect/cli 判为非法值并直接报错退出，
+        // 导致 WSL 路径的 opencode serve 根本起不来（stdout 永远等不到监听 URL）。
+        //
+        // 已在本机 v2.0.19 二进制（/home/coder/.opencode/bin/opencode）上实测复核：
+        //   --log-level INFO → ~effect/cli/CliError/InvalidValue，exit=1
+        //   --log-level info → 正常
+        // 注意该 flag 由 effect/unstable/cli 作为**内置全局 flag** 提供，
+        // 不在 opencode 自己的 CLI 定义里（所以 grep packages/ 查不到它的取值表）。
+        //
+        // 参数有效性（对照 v2.0.19）：
+        //   - `serve` 子命令存在：packages/cli/src/commands/commands.ts:517
+        //   - `--hostname` / `--port` 是 serve 的合法参数：同文件 520-521 行
+        //   - `--print-logs` 是合法**全局** flag：commands.ts:6，
+        //     经 framework/runtime.ts:85 注册；它会把 OPENCODE_PRINT_LOGS=1 打开，
+        //     从而让日志写往 stderr（packages/util/src/observability/logging.ts:160）。
+        //     官方 sidecar.ts:35 没带它，这里保留是有意为之——WSL 路径靠"最近 12 行
+        //     输出"定位启动失败，打开 stderr 日志才能让失败原因可见。
+        //
+        // 说明：这里传 --hostname 0.0.0.0，实测 stdout 会打印
+        //   `server listening on http://0.0.0.0:<port>`
+        // 本函数**不解析 stdout**（与官方一致，直接用 127.0.0.1 + 端口拼 URL），
+        // 所以该差异不影响就绪判定；解析 stdout 的只有非 WSL 路径。
         format!(
             "exec {} --print-logs --log-level {} serve --hostname 0.0.0.0 --port {}",
             wsl_runtime::shell_escape(&opencode_path),
-            if cfg!(debug_assertions) { "INFO" } else { "WARN" },
+            if cfg!(debug_assertions) { "info" } else { "warn" },
             port
         ),
     ]

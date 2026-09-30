@@ -91,9 +91,12 @@ export function useMobileCollapse({
       setJustCleared(false)
     }, 4_000)
   }, [hasContent])
-  useEffect(() => () => {
-    if (justClearedTimerRef.current) clearTimeout(justClearedTimerRef.current)
-  }, [])
+  useEffect(
+    () => () => {
+      if (justClearedTimerRef.current) clearTimeout(justClearedTimerRef.current)
+    },
+    [],
+  )
 
   // 直接计算是否收起（纯派生值）
   // isAtBottom 语义是「用户未主动离底」（ChatArea 用 !userScrolled），不是几何 dist。

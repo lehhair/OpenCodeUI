@@ -81,11 +81,7 @@ class PinnedSessionsStore {
     if (existingIndex !== -1) {
       const existing = this.entries[existingIndex]
       if (existing.directory === entry.directory && existing.title === entry.title) return
-      this.entries = [
-        ...this.entries.slice(0, existingIndex),
-        entry,
-        ...this.entries.slice(existingIndex + 1),
-      ]
+      this.entries = [...this.entries.slice(0, existingIndex), entry, ...this.entries.slice(existingIndex + 1)]
       this.persist()
       this.emit()
       return

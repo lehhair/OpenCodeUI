@@ -14,7 +14,7 @@ const {
   subscribeToEventsMock,
   getSessionStatusMock,
   getPendingPermissionsMock,
-  getPendingQuestionsMock,
+  listPendingFormsMock,
   replyPermissionMock,
   childBelongsToSessionMock,
   getFocusedSessionIdMock,
@@ -51,62 +51,64 @@ const {
   // paneLayoutStore.allLeaves 的可控数据源：测试可注入特定 pane 会话
   const paneLeavesMock: { current: Array<{ sessionId?: string }> } = { current: [] }
   return {
-  subscribeToEventsMock: vi.fn(),
-  getSessionStatusMock: vi.fn<(directory?: string) => Promise<Record<string, { type: string }>>>(() => Promise.resolve({})),
-  getPendingPermissionsMock: vi.fn(() =>
-    Promise.resolve([] as Array<{ id: string; sessionID: string; permission: string; patterns?: string[] }>),
-  ),
-  getPendingQuestionsMock: vi.fn(() => Promise.resolve([])),
-  replyPermissionMock: vi.fn(() => Promise.resolve()),
-  childBelongsToSessionMock: vi.fn<(sessionId: string, rootSessionId: string) => boolean>(() => false),
-  getFocusedSessionIdMock: vi.fn<() => string | null>(() => null),
-  getSessionAndDescendantsMock: vi.fn((sessionId: string) => [sessionId]),
-  notificationPushMock: vi.fn(),
-  playNotificationSoundDedupedMock: vi.fn(),
-  isSystemEnabledMock: vi.fn((type: string) => type !== 'permission'),
-  applyServerConnectedTimestampMock: vi.fn(),
-  getActiveServerIdMock: vi.fn(() => 'local'),
-  checkHealthMock: vi.fn(() => Promise.resolve({ status: 'online' })),
-  // 端点变化的定向重连入口：测试需要断言「谁被重连、谁不该被碰」
-  reconnectServerSSEMock: vi.fn(),
-  onServerChangeMock: vi.fn((listener: (serverId: string, reason?: string) => void) => {
-    serverChangeListeners.add(listener)
-    return () => {
-      serverChangeListeners.delete(listener)
-    }
-  }),
-  serverChangeListeners,
-  registeredServerIds,
-  serverStoreListeners,
-  multiServerMock,
-  multiServerListeners,
-  paneLeavesMock,
-  clearSessionRuntimeStateMock: vi.fn(),
-  clearPaneSessionMock: vi.fn(),
-  getSoundSnapshotMock: vi.fn(() => ({
-    currentSessionEnabled: true,
-  })),
-  activeSessionStoreMock: {
-    initialize: vi.fn(),
-    initializePendingRequests: vi.fn(),
-    mergeStatusRefresh: vi.fn(),
-    mergePendingRequests: vi.fn(),
-    setSessionMetaBulk: vi.fn(),
-    setSessionMeta: vi.fn(),
-    getSessionMeta: vi.fn((sessionId?: string) => ({ title: sessionId || 'Child Session', directory: '/workspace' })),
-    addPendingRequest: vi.fn(),
-    resolvePendingRequest: vi.fn(),
-    updateStatus: vi.fn(),
-    getSnapshot: vi.fn(() => ({ statusMap: {} })),
-  },
-  autoApproveStoreMock: {
-    fullAutoMode: 'off' as 'off' | 'session' | 'global',
-    approvePendingOnFullAuto: false,
-    subscribe: vi.fn((_listener: () => void) => vi.fn()),
-    getPaneFullAutoMode: vi.fn((_paneId: string) => 'off' as 'off' | 'session' | 'global'),
-    claimAutoReply: vi.fn((_requestId: string) => true),
-    releaseAutoReply: vi.fn((_requestId: string) => undefined),
-  },
+    subscribeToEventsMock: vi.fn(),
+    getSessionStatusMock: vi.fn<(directory?: string) => Promise<Record<string, { type: string }>>>(() =>
+      Promise.resolve({}),
+    ),
+    getPendingPermissionsMock: vi.fn(() =>
+      Promise.resolve([] as Array<{ id: string; sessionID: string; permission: string; patterns?: string[] }>),
+    ),
+    listPendingFormsMock: vi.fn(() => Promise.resolve([])),
+    replyPermissionMock: vi.fn(() => Promise.resolve()),
+    childBelongsToSessionMock: vi.fn<(sessionId: string, rootSessionId: string) => boolean>(() => false),
+    getFocusedSessionIdMock: vi.fn<() => string | null>(() => null),
+    getSessionAndDescendantsMock: vi.fn((sessionId: string) => [sessionId]),
+    notificationPushMock: vi.fn(),
+    playNotificationSoundDedupedMock: vi.fn(),
+    isSystemEnabledMock: vi.fn((type: string) => type !== 'permission'),
+    applyServerConnectedTimestampMock: vi.fn(),
+    getActiveServerIdMock: vi.fn(() => 'local'),
+    checkHealthMock: vi.fn(() => Promise.resolve({ status: 'online' })),
+    // 端点变化的定向重连入口：测试需要断言「谁被重连、谁不该被碰」
+    reconnectServerSSEMock: vi.fn(),
+    onServerChangeMock: vi.fn((listener: (serverId: string, reason?: string) => void) => {
+      serverChangeListeners.add(listener)
+      return () => {
+        serverChangeListeners.delete(listener)
+      }
+    }),
+    serverChangeListeners,
+    registeredServerIds,
+    serverStoreListeners,
+    multiServerMock,
+    multiServerListeners,
+    paneLeavesMock,
+    clearSessionRuntimeStateMock: vi.fn(),
+    clearPaneSessionMock: vi.fn(),
+    getSoundSnapshotMock: vi.fn(() => ({
+      currentSessionEnabled: true,
+    })),
+    activeSessionStoreMock: {
+      initialize: vi.fn(),
+      initializePendingRequests: vi.fn(),
+      mergeStatusRefresh: vi.fn(),
+      mergePendingRequests: vi.fn(),
+      setSessionMetaBulk: vi.fn(),
+      setSessionMeta: vi.fn(),
+      getSessionMeta: vi.fn((sessionId?: string) => ({ title: sessionId || 'Child Session', directory: '/workspace' })),
+      addPendingRequest: vi.fn(),
+      resolvePendingRequest: vi.fn(),
+      updateStatus: vi.fn(),
+      getSnapshot: vi.fn(() => ({ statusMap: {} })),
+    },
+    autoApproveStoreMock: {
+      fullAutoMode: 'off' as 'off' | 'session' | 'global',
+      approvePendingOnFullAuto: false,
+      subscribe: vi.fn((_listener: () => void) => vi.fn()),
+      getPaneFullAutoMode: vi.fn((_paneId: string) => 'off' as 'off' | 'session' | 'global'),
+      claimAutoReply: vi.fn((_requestId: string) => true),
+      releaseAutoReply: vi.fn((_requestId: string) => undefined),
+    },
   }
 })
 
@@ -117,7 +119,7 @@ vi.mock('../api', () => ({
   reconnectServerSSE: (...args: unknown[]) => reconnectServerSSEMock(...args),
   getSessionStatus: getSessionStatusMock,
   getPendingPermissions: getPendingPermissionsMock,
-  getPendingQuestions: getPendingQuestionsMock,
+  listPendingForms: listPendingFormsMock,
 }))
 
 vi.mock('../store/multiServerStore', () => ({
@@ -142,7 +144,10 @@ vi.mock('../store', () => ({
     handleMessageUpdated: vi.fn(),
     handlePartUpdated: vi.fn(),
     handlePartDelta: vi.fn(),
-    handlePartRemoved: vi.fn(),
+    // V2 没有 message.part.removed：取消/回退走「标记 stale → 上层重拉」
+    handleSessionInvalidated: vi.fn(),
+    // SSE 重连（事件流易失）后把所有缓存会话标记为 stale
+    markAllSessionsStale: vi.fn(),
     handleSessionIdle: vi.fn(),
     handleSessionError: vi.fn(),
     getSessionState: vi.fn(() => null),
@@ -216,7 +221,7 @@ describe('useGlobalEvents', () => {
     subscribeToEventsMock.mockReset()
     getSessionStatusMock.mockClear()
     getPendingPermissionsMock.mockClear()
-    getPendingQuestionsMock.mockClear()
+    listPendingFormsMock.mockClear()
     replyPermissionMock.mockClear()
     childBelongsToSessionMock.mockReset()
     getFocusedSessionIdMock.mockReset()
@@ -356,7 +361,7 @@ describe('useGlobalEvents', () => {
 
     await waitFor(() => expect(callbacks).toBeDefined())
 
-    callbacks!.onSessionDeleted?.('deleted-session')
+    callbacks!.onSessionDeleted?.({ sessionID: 'deleted-session' })
 
     expect(clearSessionRuntimeStateMock).toHaveBeenCalledWith('local::deleted-session')
     expect(clearPaneSessionMock).toHaveBeenCalledWith('local::deleted-session')
@@ -366,7 +371,7 @@ describe('useGlobalEvents', () => {
   it('ignores stale initialization responses after directories change', async () => {
     const statusDeferreds = new Map<string, ReturnType<typeof createDeferred<Record<string, { type: string }>>>>()
     getPendingPermissionsMock.mockResolvedValue([])
-    getPendingQuestionsMock.mockResolvedValue([])
+    listPendingFormsMock.mockResolvedValue([])
     getSessionStatusMock.mockImplementation(directory => {
       const key = directory || 'root'
       const deferred = createDeferred<Record<string, { type: string }>>()
@@ -396,7 +401,9 @@ describe('useGlobalEvents', () => {
     await Promise.resolve()
 
     expect(activeSessionStoreMock.mergeStatusRefresh).toHaveBeenCalledTimes(1)
-    expect(activeSessionStoreMock.mergeStatusRefresh).not.toHaveBeenCalledWith({ 'local::old-session': { type: 'idle' } })
+    expect(activeSessionStoreMock.mergeStatusRefresh).not.toHaveBeenCalledWith({
+      'local::old-session': { type: 'idle' },
+    })
   })
 
   it('replays pending requests that arrive while initialization is in flight', async () => {
@@ -409,7 +416,7 @@ describe('useGlobalEvents', () => {
     })
     getSessionStatusMock.mockImplementation(() => statusDeferred.promise)
     getPendingPermissionsMock.mockResolvedValue([])
-    getPendingQuestionsMock.mockResolvedValue([])
+    listPendingFormsMock.mockResolvedValue([])
 
     renderHook(() => useGlobalEvents(['/workspace']))
 
@@ -463,7 +470,7 @@ describe('useGlobalEvents', () => {
       return deferred.promise
     })
     getPendingPermissionsMock.mockResolvedValue([])
-    getPendingQuestionsMock.mockResolvedValue([])
+    listPendingFormsMock.mockResolvedValue([])
 
     const { rerender } = renderHook(({ directories }) => useGlobalEvents(directories), {
       initialProps: { directories: ['/one'] as string[] | undefined },
@@ -483,10 +490,9 @@ describe('useGlobalEvents', () => {
 
     await waitFor(() => expect(getSessionStatusMock).toHaveBeenCalledWith('/two', 'local'))
 
-    callbacks!.onQuestionAsked?.({
-      id: 'question-1',
-      sessionID: 'question-session',
-      questions: [{ header: 'Need input' }],
+    // V2 用 form.created 取代 V1 的 question.asked（pending 登记路径相同）
+    callbacks!.onFormCreated?.({
+      form: { id: 'question-1', sessionID: 'question-session', title: 'Need input', fields: [] },
     } as never)
 
     statusDeferreds.get('/two')?.resolve({})
@@ -523,59 +529,12 @@ describe('useGlobalEvents', () => {
     expect(playNotificationSoundDedupedMock).not.toHaveBeenCalled()
   })
 
-  it('keeps later pending question requests for the same session after one reply arrives', async () => {
-    let callbacks: Parameters<typeof subscribeToEventsMock>[0] | undefined
-    const consumerAskedMock = vi.fn()
-    subscribeToEventsMock.mockImplementation(cb => {
-      callbacks = cb
-      return vi.fn()
-    })
-
-    renderHook(() => useGlobalEvents())
-
-    await waitFor(() => expect(callbacks).toBeDefined())
-
-    callbacks!.onQuestionAsked?.({
-      id: 'question-1',
-      sessionID: 'child-session',
-      questions: [{ header: 'First question' }],
-    })
-    callbacks!.onQuestionAsked?.({
-      id: 'question-2',
-      sessionID: 'child-session',
-      questions: [{ header: 'Second question' }],
-    })
-
-    expect(consumerAskedMock).not.toHaveBeenCalled()
-
-    callbacks!.onQuestionReplied?.({
-      sessionID: 'child-session',
-      requestID: 'question-1',
-    })
-
-    getFocusedSessionIdMock.mockReturnValue('local::parent-session')
-    childBelongsToSessionMock.mockImplementation((sessionId: string, rootSessionId: string) => {
-      return sessionId === 'local::child-session' && rootSessionId === 'local::parent-session'
-    })
-
-    const unregister = registerSessionConsumer('pane-1', 'local::parent-session', {
-      onQuestionAsked: consumerAskedMock,
-    })
-
-    callbacks!.onSessionCreated?.({
-      id: 'child-session',
-      parentID: 'parent-session',
-      title: 'Child Session',
-      directory: '/workspace',
-    } as never)
-
-    expect(consumerAskedMock).toHaveBeenCalledTimes(1)
-    expect(consumerAskedMock).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 'question-2', sessionID: 'local::child-session' }),
-    )
-
-    unregister()
-  })
+  // ⚠️ 已删除用例：「keeps later pending question requests for the same session after one reply arrives」
+  //    V2 没有 question.asked / question.replied 事件（改用 form.created / form.replied），
+  //    而 useGlobalEvents 的 form 分支只做 pending 登记、**不向会话消费者分发**
+  //    （表单渲染走底部 `FormDialog`，阶段 3a 已落地），
+  //    且 form 事件不写入内部 pendingQuestions 队列 → 该用例的前提（问题请求经 pending 队列
+  //    回放给消费者）在 V2 已不成立。
 
   it('approves already waiting permissions when global full auto pending sweep is enabled', async () => {
     const consumerRepliedMock = vi.fn()
@@ -608,7 +567,10 @@ describe('useGlobalEvents', () => {
     })
     expect(autoApproveStoreMock.claimAutoReply).toHaveBeenCalledWith('perm-global')
     await waitFor(() => {
-      expect(consumerRepliedMock).toHaveBeenCalledWith({ sessionID: 'local::background-session', requestID: 'perm-global' })
+      expect(consumerRepliedMock).toHaveBeenCalledWith({
+        sessionID: 'local::background-session',
+        requestID: 'perm-global',
+      })
     })
     expect(activeSessionStoreMock.resolvePendingRequest).toHaveBeenCalledWith('perm-global')
 
@@ -645,7 +607,10 @@ describe('useGlobalEvents', () => {
       )
     })
     await waitFor(() => {
-      expect(consumerRepliedMock).toHaveBeenCalledWith({ sessionID: 'local::background-session', requestID: 'perm-mismatch' })
+      expect(consumerRepliedMock).toHaveBeenCalledWith({
+        sessionID: 'local::background-session',
+        requestID: 'perm-mismatch',
+      })
     })
 
     unregister()
@@ -810,25 +775,25 @@ describe('useGlobalEvents', () => {
     },
     {
       disabledType: 'question',
-      trigger: 'onQuestionAsked',
+      trigger: 'onFormCreated',
       payload: {
-        id: 'question-3',
-        sessionID: 'background-session',
-        questions: [{ header: 'Need input' }],
+        form: { id: 'question-3', sessionID: 'background-session', title: 'Need input', fields: [] },
       },
     },
     {
       disabledType: 'completed',
       trigger: 'onSessionStatus',
       beforeTrigger: () => {
-        activeSessionStoreMock.getSnapshot.mockReturnValue({ statusMap: { 'local::background-session': { type: 'busy' } } })
+        activeSessionStoreMock.getSnapshot.mockReturnValue({
+          statusMap: { 'local::background-session': { type: 'busy' } },
+        })
       },
       payload: { sessionID: 'background-session', status: { type: 'idle' } },
     },
     {
       disabledType: 'error',
       trigger: 'onSessionError',
-      payload: { sessionID: 'background-session', name: 'Error' },
+      payload: { sessionID: 'background-session', error: { type: 'unknown', message: 'boom' } },
     },
   ])(
     'keeps background notifications working when the $disabledType system notification toggle is disabled',

@@ -7,7 +7,6 @@ import {
   type ApiSession,
   type SessionListParams,
 } from '../api'
-import { todoStore } from '../store/todoStore'
 import { affectsBoundServer } from '../store/serverChangeScope'
 import { serverStore } from '../store/serverStore'
 import { pinnedSessionsStore } from '../store/pinnedSessionsStore'
@@ -15,6 +14,19 @@ import { useDirectory } from './useDirectory'
 import { sessionErrorHandler, normalizeToForwardSlash, isSameDirectory, autoDetectPathStyle } from '../utils'
 import { clearSessionRuntimeState } from '../utils/sessionLifecycle'
 import { SessionContext, type SessionContextValue } from './SessionContext.shared'
+import type { ModelRef } from '../types/message'
+
+/**
+ * 去掉补丁里的 `undefined` 字段
+ *
+ * V2 的会话元信息事件是**部分字段**（`session.renamed` 只有 title、
+ * `session.moved` 只有 directory …），缺省项在事件层会被填成 `undefined`。
+ * 直接 `{...prev, ...patch}` 会把已有字段**覆盖成 undefined**，
+ * 所以合并前必须先剔除。
+ */
+function stripUndefined<T extends object>(patch: T): Partial<T> {
+  return Object.fromEntries(Object.entries(patch).filter(([, value]) => value !== undefined)) as Partial<T>
+}
 
 export function SessionProvider({ children }: { children: ReactNode }) {
   const { currentDirectory } = useDirectory()
@@ -125,8 +137,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   // 保持 fetchSessions ref 同步（用于 SSE onReconnected 回调）
   fetchSessionsRef.current = fetchSessions
 
-  const matchesCurrentDirectory = useCallback((session: ApiSession) => {
-    return !currentDirectoryRef.current || isSameDirectory(currentDirectoryRef.current, session.directory)
+  const matchesCurrentDirectory = useCallback((session: { directory?: string }) => {
+    return !currentDirectoryRef.current || isSameDirectory(currentDirectoryRef.current, session.directory ?? '')
   }, [])
 
   // 监听 directory 和 search 变化
@@ -169,40 +181,41 @@ export function SessionProvider({ children }: { children: ReactNode }) {
           return [session, ...prev]
         })
       },
-      onSessionUpdated: session => {
-        if (session.parentID) return
+      onSessionUpdated: patch => {
+        if (patch.parentID) return
 
         if (searchRef.current) {
-          if (matchesCurrentDirectory(session)) {
+          if (matchesCurrentDirectory(patch)) {
             fetchSessionsRef.current()
           } else {
-            setSessions(prev => prev.filter(s => s.id !== session.id))
+            setSessions(prev => prev.filter(s => s.id !== patch.id))
           }
           return
         }
 
         setSessions(prev => {
-          const index = prev.findIndex(s => s.id === session.id)
+          const index = prev.findIndex(s => s.id === patch.id)
 
-          if (!matchesCurrentDirectory(session)) {
-            return index === -1 ? prev : prev.filter(s => s.id !== session.id)
+          // V2 的会话元信息变更只给**变化的字段**（renamed / metadata.updated / moved …），
+          // 所以这里必须**合并**而不是整体替换；缺失的目录表示"目录没变"。
+          if (!matchesCurrentDirectory(patch) && patch.directory) {
+            return index === -1 ? prev : prev.filter(s => s.id !== patch.id)
           }
 
+          // 本地列表里没有这条会话时无法凭补丁拼出完整对象 → 交给服务端重查
           if (index === -1) {
-            return [session, ...prev]
+            fetchSessionsRef.current()
+            return prev
           }
 
-          const updated = prev.filter(s => s.id !== session.id)
-          return [session, ...updated]
+          const merged = { ...prev[index], ...stripUndefined(patch) }
+          const updated = prev.filter(s => s.id !== patch.id)
+          return [merged, ...updated]
         })
       },
-      onTodoUpdated: data => {
-        // 更新 todoStore
-        todoStore.setTodos(data.sessionID, data.todos)
-      },
-      onSessionDeleted: sessionId => {
-        clearSessionRuntimeState(sessionId)
-        setSessions(prev => prev.filter(s => s.id !== sessionId))
+      onSessionDeleted: data => {
+        clearSessionRuntimeState(data.sessionID)
+        setSessions(prev => prev.filter(s => s.id !== data.sessionID))
       },
       onReconnected: reason => {
         if (reason === 'server-switch') return
@@ -249,12 +262,16 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, [hasMore, sessions, fetchSessions])
 
   const createSession = useCallback(
-    async (title?: string) => {
+    async (title?: string, model?: ModelRef) => {
       // 使用正斜杠格式传给后端
       const targetDir = normalizeToForwardSlash(currentDirectory) || undefined
 
       const newSession = await apiCreateSession({
         title,
+        // V2：模型是会话级的 —— 带上调用方指定的模型（通常是界面当前选择）。
+        // 否则新会话起在服务端默认模型上，发送前才被 switchModel 纠正，
+        // 会在转录顶部留下一条多余的「切换模型」标记。
+        model,
         directory: targetDir,
       })
       return newSession

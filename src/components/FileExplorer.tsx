@@ -38,8 +38,8 @@ import {
   type PreviewCategory,
 } from '../utils/mimeUtils'
 import { downloadFileContent } from '../utils/downloadUtils'
-import { searchText, searchFiles } from '../api/file'
-import type { FileContent, TextSearchMatch } from '../api/types'
+import { searchFiles } from '../api/file'
+import type { FileContent } from '../api/types'
 import { startInternalDrag } from '../lib/internalDragCore'
 import { toAbsolutePath } from '../features/mention'
 import { getDesktopPlatform, isTauri, isTauriMobile } from '../utils/tauri'
@@ -71,7 +71,6 @@ const MIN_PREVIEW_HEIGHT = 150
 
 const MARKDOWN_MIME_TYPES = new Set(['text/markdown', 'text/x-markdown', 'text/md', 'application/markdown'])
 const HTML_MIME_TYPES = new Set(['text/html', 'application/xhtml+xml'])
-const textEncoder = new TextEncoder()
 
 function isMarkdownPreview(language: string, mimeType?: string): boolean {
   if (language === 'markdown' || language === 'mdx') return true
@@ -85,33 +84,12 @@ function isHtmlPreview(language: string, mimeType?: string): boolean {
   return HTML_MIME_TYPES.has(mimeType.split(';', 1)[0].toLowerCase())
 }
 
-function byteOffsetToCodeUnitIndex(text: string, byteOffset: number): number {
-  let bytes = 0
-  let index = 0
-
-  while (index < text.length && bytes < byteOffset) {
-    const codePoint = text.codePointAt(index)
-    if (codePoint === undefined) break
-
-    const char = String.fromCodePoint(codePoint)
-    const charBytes = textEncoder.encode(char).length
-    if (bytes + charBytes > byteOffset) break
-
-    bytes += charBytes
-    index += char.length
-  }
-
-  return Math.min(index, text.length)
-}
-
-function getSearchMatchRanges(match: TextSearchMatch): TargetLineRange[] {
-  return match.submatches
-    .map(submatch => ({
-      from: byteOffsetToCodeUnitIndex(match.lines.text, submatch.start),
-      to: byteOffsetToCodeUnitIndex(match.lines.text, submatch.end),
-    }))
-    .filter(range => range.to > range.from)
-}
+// 阶段 2b 移除：内容搜索（`searchText`）与符号搜索都没有 V2 端点，
+// 因此下面这些只服务于内容搜索的辅助函数一并删除：
+//   - `getSearchMatchRanges()`（把匹配的字节偏移换算成高亮范围）
+//   - `byteOffsetToCodeUnitIndex()`（UTF-8 字节偏移 → JS 码元下标）
+//   - `textEncoder`
+// 迁移文档 §9.5「决策 1 = A：移除 UI」，不留置灰按钮。
 
 interface FileExplorerProps {
   panelTabId: string
@@ -141,13 +119,11 @@ export const FileExplorer = memo(function FileExplorer({
   const fileContextMenuRef = useRef<HTMLDivElement>(null)
   const searchRequestIdRef = useRef(0)
   const [searchQuery, setSearchQuery] = useState('')
-  const [searchResults, setSearchResults] = useState<TextSearchMatch[]>([])
   const [fileResults, setFileResults] = useState<string[]>([])
   const [searchLoading, setSearchLoading] = useState(false)
   const [fileContextMenu, setFileContextMenu] = useState<{ x: number; y: number; absolutePath: string } | null>(null)
   const canRevealFiles = canRevealInSystemExplorer()
   const revealInSystemExplorerLabel = useMemo(() => getRevealInSystemExplorerLabel(t), [t])
-  const [searchError, setSearchError] = useState<string | null>(null)
   const {
     splitHeight: treeHeight,
     isResizing,
@@ -178,7 +154,13 @@ export const FileExplorer = memo(function FileExplorer({
     clearPreview,
     fileStatus,
     refresh,
-  } = useFileExplorer({ directory, autoLoad: true, sessionId: sessionId || undefined, serverId, consumerId: `file-explorer-${panelTabId}` })
+  } = useFileExplorer({
+    directory,
+    autoLoad: true,
+    sessionId: sessionId || undefined,
+    serverId,
+    consumerId: `file-explorer-${panelTabId}`,
+  })
 
   // 当 previewFile 改变时加载预览
   useEffect(() => {
@@ -297,71 +279,29 @@ export const FileExplorer = memo(function FileExplorer({
     const requestId = ++searchRequestIdRef.current
     const timer = window.setTimeout(() => {
       setSearchLoading(true)
-      setSearchResults([])
       setFileResults([])
-      setSearchError(null)
 
-      let fileDone = false
-      let textDone = false
-      const maybeFinish = () => {
-        if (fileDone && textDone && requestId === searchRequestIdRef.current) {
-          setSearchLoading(false)
-        }
-      }
-
-      // 文件名搜索（失败静默，不阻断内容搜索）
+      // 阶段 2b：只剩**文件名搜索**（V2 的 `GET /api/fs/find` 只匹配文件名/目录名）。
+      // 内容搜索没有 V2 端点，已按迁移文档 §9.5 决策 1 整体移除。
       searchFiles(trimmedSearchQuery, { directory, limit: 50, serverId })
         .then(paths => {
           if (requestId !== searchRequestIdRef.current) return
           setFileResults(paths)
         })
         .catch(() => {
-          // 文件名搜索失败不报错
+          // 文件名搜索失败静默处理（不打断浏览）
+          if (requestId !== searchRequestIdRef.current) return
+          setFileResults([])
         })
         .finally(() => {
-          fileDone = true
-          maybeFinish()
-        })
-
-      // 内容搜索
-      searchText(trimmedSearchQuery, directory, serverId)
-        .then(results => {
-          if (requestId !== searchRequestIdRef.current) return
-          setSearchResults(results)
-        })
-        .catch(err => {
-          if (requestId !== searchRequestIdRef.current) return
-          setSearchResults([])
-          setSearchError(err instanceof Error ? err.message : t('fileExplorer.textSearchFailed'))
-        })
-        .finally(() => {
-          textDone = true
-          maybeFinish()
+          if (requestId === searchRequestIdRef.current) setSearchLoading(false)
         })
     }, 250)
 
     return () => {
       window.clearTimeout(timer)
     }
-  }, [directory, trimmedSearchQuery, serverId, t])
-
-  const handleSearchResultClick = useCallback(
-    (match: TextSearchMatch) => {
-      const path = match.path.text
-      const name = path.split(/[/\\]/).pop() || path
-      layoutStore.openFilePreview(
-        {
-          path,
-          name,
-          targetLine: match.line_number,
-          targetKey: `${path}:${match.line_number}:${match.absolute_offset}:${Date.now()}`,
-          targetRanges: getSearchMatchRanges(match),
-        },
-        position,
-      )
-    },
-    [position],
-  )
+  }, [directory, trimmedSearchQuery, serverId])
 
   const handleFileResultClick = useCallback(
     (path: string) => {
@@ -374,10 +314,8 @@ export const FileExplorer = memo(function FileExplorer({
   const handleSearchQueryChange = useCallback((value: string) => {
     setSearchQuery(value)
     if (!value.trim()) {
-      setSearchResults([])
       setFileResults([])
       setSearchLoading(false)
-      setSearchError(null)
     }
   }, [])
 
@@ -456,12 +394,9 @@ export const FileExplorer = memo(function FileExplorer({
         {/* Tree Content */}
         <div className="flex-1 overflow-auto panel-scrollbar-y">
           {isSearchingText ? (
-            <TextSearchResults
-              results={searchResults}
+            <FileSearchResults
               fileResults={fileResults}
               isLoading={searchLoading}
-              error={searchError}
-              onSelect={handleSearchResultClick}
               onSelectFile={handleFileResultClick}
               onContextMenuFile={canRevealFiles ? handleFileContextMenu : undefined}
               directory={directory}
@@ -553,31 +488,33 @@ export const FileExplorer = memo(function FileExplorer({
   )
 })
 
-interface TextSearchResultsProps {
-  results: TextSearchMatch[]
+interface FileSearchResultsProps {
+  /** 文件名搜索命中的路径列表（V2 的 `GET /api/fs/find` 只搜文件名/目录名） */
   fileResults: string[]
   isLoading: boolean
-  error: string | null
-  onSelect: (match: TextSearchMatch) => void
   onSelectFile: (path: string) => void
   onContextMenuFile?: (event: React.MouseEvent, path: string, absolute?: string) => void
   directory?: string
 }
 
-const TextSearchResults = memo(function TextSearchResults({
-  results,
+/**
+ * 文件搜索结果的渲染
+ *
+ * ⚠️ 阶段 2b：**只剩文件名搜索**。
+ *   V2 没有任何内容搜索端点（`GET /api/fs/find` 只匹配文件名/目录名），
+ *   按迁移文档 §9.5「决策 1 = A」移除了内容搜索的 UI 与请求分支
+ *   —— 不保留置灰按钮，也不留"内容匹配"分组。
+ */
+const FileSearchResults = memo(function FileSearchResults({
   fileResults,
   isLoading,
-  error,
-  onSelect,
   onSelectFile,
   onContextMenuFile,
   directory,
-}: TextSearchResultsProps) {
+}: FileSearchResultsProps) {
   const { t } = useTranslation(['components', 'common'])
 
   const hasFiles = fileResults.length > 0
-  const hasText = results.length > 0
 
   // 拖拽到输入框实现 @mention，与文件树项行为一致
   const handlePointerDragStart = useCallback(
@@ -597,112 +534,58 @@ const TextSearchResults = memo(function TextSearchResults({
     [directory],
   )
 
-  if (isLoading && !hasFiles && !hasText) {
-    return <div className="flex items-center justify-center h-20 text-text-400 text-[length:var(--fs-sm)]">{t('common:loading')}</div>
-  }
-
-  if (error && !hasFiles && !hasText) {
+  if (isLoading && !hasFiles) {
     return (
-      <div className="flex flex-col items-center justify-center h-20 text-danger-100 text-[length:var(--fs-sm)] gap-1 px-4">
-        <AlertCircleIcon size={16} />
-        <span className="text-center">{error}</span>
+      <div className="flex items-center justify-center h-20 text-text-400 text-[length:var(--fs-sm)]">
+        {t('common:loading')}
       </div>
     )
   }
 
-  if (!hasFiles && !hasText) {
+  if (!hasFiles) {
     return (
       <div className="flex items-center justify-center h-20 text-text-400 text-[length:var(--fs-sm)]">
-        {t('fileExplorer.noTextMatches')}
+        {t('fileExplorer.noFileMatches')}
       </div>
     )
   }
 
   return (
     <div className="py-1">
-      {hasFiles && (
-        <>
-          <div className="px-2 py-1 text-[length:var(--fs-xxs)] font-medium text-text-500 uppercase tracking-wide">
-            {t('fileExplorer.fileMatches')}
-          </div>
-          {fileResults.map(path => {
-            const name = path.split(/[/\\]/).pop() || path
-            return (
-              <button
-                key={`file:${path}`}
-                type="button"
-                onPointerDown={e => handlePointerDragStart(e, path)}
-                onClick={() => onSelectFile(path)}
-                onContextMenu={event => onContextMenuFile?.(event, path)}
-                className="w-full px-2 py-1.5 text-left hover:bg-bg-200/50 transition-colors"
-              >
-                <div className="flex items-center gap-1.5 min-w-0">
-                  <img
-                    src={getMaterialIconUrl(path, 'file', false)}
-                    alt=""
-                    width={16}
-                    height={16}
-                    draggable={false}
-                    className="shrink-0"
-                    loading="lazy"
-                    decoding="async"
-                    onError={e => {
-                      e.currentTarget.style.visibility = 'hidden'
-                    }}
-                  />
-                  <span className="truncate text-[length:var(--fs-sm)] text-text-200">{name}</span>
-                </div>
-                <div className="mt-0.5 truncate pl-[22px] text-[length:var(--fs-xxs)] text-text-500">{path}</div>
-              </button>
-            )
-          })}
-        </>
-      )}
-      {hasText && (
-        <>
-          {hasFiles && (
-            <div className="mt-1 px-2 py-1 text-[length:var(--fs-xxs)] font-medium text-text-500 uppercase tracking-wide">
-              {t('fileExplorer.contentMatches')}
+      <div className="px-2 py-1 text-[length:var(--fs-xxs)] font-medium text-text-500 uppercase tracking-wide">
+        {t('fileExplorer.fileMatches')}
+      </div>
+      {fileResults.map(path => {
+        const name = path.split(/[/\\]/).pop() || path
+        return (
+          <button
+            key={`file:${path}`}
+            type="button"
+            onPointerDown={e => handlePointerDragStart(e, path)}
+            onClick={() => onSelectFile(path)}
+            onContextMenu={event => onContextMenuFile?.(event, path)}
+            className="w-full px-2 py-1.5 text-left hover:bg-bg-200/50 transition-colors"
+          >
+            <div className="flex items-center gap-1.5 min-w-0">
+              <img
+                src={getMaterialIconUrl(path, 'file', false)}
+                alt=""
+                width={16}
+                height={16}
+                draggable={false}
+                className="shrink-0"
+                loading="lazy"
+                decoding="async"
+                onError={e => {
+                  e.currentTarget.style.visibility = 'hidden'
+                }}
+              />
+              <span className="truncate text-[length:var(--fs-sm)] text-text-200">{name}</span>
             </div>
-          )}
-          {results.map((match, index) => {
-            const path = match.path.text
-            const name = path.split(/[/\\]/).pop() || path
-            const line = match.lines.text.trim()
-
-            return (
-              <button
-                key={`${path}:${match.line_number}:${match.absolute_offset}:${index}`}
-                type="button"
-                onPointerDown={e => handlePointerDragStart(e, path)}
-                onClick={() => onSelect(match)}
-                onContextMenu={event => onContextMenuFile?.(event, path)}
-                className="w-full px-2 py-1.5 text-left hover:bg-bg-200/50 transition-colors"
-              >
-                <div className="flex items-center gap-1.5 min-w-0">
-                  <img
-                    src={getMaterialIconUrl(path, 'file', false)}
-                    alt=""
-                    width={16}
-                    height={16}
-                    draggable={false}
-                    className="shrink-0"
-                    loading="lazy"
-                    decoding="async"
-                    onError={e => {
-                      e.currentTarget.style.visibility = 'hidden'
-                    }}
-                  />
-                  <span className="truncate text-[length:var(--fs-sm)] text-text-200">{name}</span>
-                  <span className="shrink-0 text-[length:var(--fs-xxs)] text-text-500">:{match.line_number}</span>
-                </div>
-                <div className="mt-0.5 truncate pl-[22px] font-mono text-[length:var(--fs-xxs)] text-text-400">{line}</div>
-                <div className="mt-0.5 truncate pl-[22px] text-[length:var(--fs-xxs)] text-text-500">{path}</div>
-              </button>
-            )
-          })}
-        </>
-      )}
+            <div className="mt-0.5 truncate pl-[22px] text-[length:var(--fs-xxs)] text-text-500">{path}</div>
+          </button>
+        )
+      })}
       {isLoading && (
         <div className="px-2 py-1.5 text-center text-[length:var(--fs-xs)] text-text-500">{t('common:loading')}</div>
       )}
@@ -776,7 +659,6 @@ const FileTreeItem = memo(function FileTreeItem({
           w-full flex items-center gap-1 px-2 py-0.5 text-left cursor-default
           select-none hover:bg-bg-200/50 transition-colors text-[length:var(--fs-sm)]
           text-text-300
-          ${node.ignored ? 'opacity-50' : ''}
         `}
         style={{ paddingLeft: `${depth * 12 + 8}px` }}
       >
@@ -1550,7 +1432,13 @@ interface MarkdownFilePreviewProps {
   targetRanges?: readonly TargetLineRange[]
 }
 
-function MarkdownFilePreview({ text, isResizing = false, targetLine, targetKey, targetRanges }: MarkdownFilePreviewProps) {
+function MarkdownFilePreview({
+  text,
+  isResizing = false,
+  targetLine,
+  targetKey,
+  targetRanges,
+}: MarkdownFilePreviewProps) {
   const { t } = useTranslation(['components', 'common'])
   const [mode, setMode] = useState<'preview' | 'code'>(targetLine ? 'code' : 'preview')
 

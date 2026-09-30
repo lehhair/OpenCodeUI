@@ -41,12 +41,19 @@ const {
   claimAutoReplyMock: vi.fn((_requestId: string) => true),
   releaseAutoReplyMock: vi.fn((_requestId: string) => undefined),
   useSessionFamilyMock: vi.fn((_sessionId: string | null) => [] as string[]),
-  pendingPermissionRequestsMock: [] as Array<{ id: string; sessionID: string; permission: string; patterns?: string[] }>,
-  handlePermissionReplyMock: vi.fn(
-    (_requestId: string, _reply: string, _directory?: string, _sessionId?: string) => Promise.resolve(true),
+  pendingPermissionRequestsMock: [] as Array<{
+    id: string
+    sessionID: string
+    permission: string
+    patterns?: string[]
+  }>,
+  handlePermissionReplyMock: vi.fn((_requestId: string, _reply: string, _directory?: string, _sessionId?: string) =>
+    Promise.resolve(true),
   ),
   refreshPendingRequestsMock: vi.fn((_sessionIds?: string | string[], _directory?: string) => Promise.resolve()),
-  useSessionStateMock: vi.fn((_sessionId: string | null) => null as null | { isStreaming: boolean; messages: unknown[] }),
+  useSessionStateMock: vi.fn(
+    (_sessionId: string | null) => null as null | { isStreaming: boolean; messages: unknown[] },
+  ),
   activeSessionStatusMap: {} as Record<string, { type: string; attempt?: number; message?: string; next?: number }>,
 }))
 
@@ -103,12 +110,12 @@ vi.mock('../hooks', () => ({
   usePermissions: () => ({ resetPermissions: vi.fn() }),
   usePermissionHandler: () => ({
     pendingPermissionRequests: pendingPermissionRequestsMock,
-    pendingQuestionRequests: [],
+    pendingForms: [],
     setPendingPermissionRequests: vi.fn(),
-    setPendingQuestionRequests: vi.fn(),
+    setPendingForms: vi.fn(),
     handlePermissionReply: handlePermissionReplyMock,
-    handleQuestionReply: vi.fn(),
-    handleQuestionReject: vi.fn(),
+    handleFormReply: vi.fn(),
+    handleFormCancel: vi.fn(),
     refreshPendingRequests: refreshPendingRequestsMock,
     resetPendingRequests: vi.fn(),
     isReplying: false,
@@ -142,7 +149,7 @@ vi.mock('../api', () => ({
   abortSession: vi.fn(),
   getSelectableAgents: (...args: unknown[]) => getSelectableAgentsMock(...args),
   getPendingPermissions: vi.fn(() => Promise.resolve([])),
-  getPendingQuestions: vi.fn(() => Promise.resolve([])),
+  listPendingForms: vi.fn(() => Promise.resolve([])),
   prefetchCommands: vi.fn(() => Promise.resolve()),
   prefetchRootDirectory: vi.fn(() => Promise.resolve()),
   getSessionChildren: vi.fn(() => Promise.resolve([])),
@@ -342,12 +349,15 @@ describe('useChatSession handleCommand', () => {
       payload: { id: 'perm-1', sessionID: 'session-1', permission: 'bash', patterns: [] },
     },
     {
+      // ⚠️ 阶段 3a：V2 用 Form 取代了 question，但**通知开关仍然叫 'question'**
+      //    （设置项与文案未变，避免用户配置失效）→ 这里触发的是 onFormCreated。
       disabledType: 'question',
-      trigger: 'onQuestionAsked',
+      trigger: 'onFormCreated',
       payload: {
-        id: 'question-1',
+        id: 'frm_1',
         sessionID: 'session-1',
-        questions: [{ header: 'Need input' }],
+        title: 'Need input',
+        fields: [{ key: 'q', type: 'string' }],
       },
     },
     {

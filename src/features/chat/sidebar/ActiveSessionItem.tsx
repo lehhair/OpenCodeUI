@@ -48,15 +48,12 @@ export function ActiveSessionItem({ entry, resolvedSession, isSelected, onSelect
   const isDraggable = !!resolvedSession
   const handlePointerDragStart = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!isDraggable) return
-    startInternalDrag(
-      e,
-      {
-        kind: 'session',
-        sessionId: splitSessionKey(entry.sessionId).sessionId,
-        serverId: splitSessionKey(entry.sessionId).serverId,
-        directory,
-      },
-    )
+    startInternalDrag(e, {
+      kind: 'session',
+      sessionId: splitSessionKey(entry.sessionId).sessionId,
+      serverId: splitSessionKey(entry.sessionId).serverId,
+      directory,
+    })
   }
 
   return (

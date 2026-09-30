@@ -228,7 +228,13 @@ const TerminalContent = memo(function TerminalContent({ activeTab, directory, se
   return (
     <>
       {terminalTabs.map(tab => (
-        <Terminal key={tab.id} ptyId={tab.id} directory={directory} serverId={tab.serverId ?? serverId} isActive={tab.id === activeTab.id} />
+        <Terminal
+          key={tab.id}
+          ptyId={tab.id}
+          directory={directory}
+          serverId={tab.serverId ?? serverId}
+          isActive={tab.id === activeTab.id}
+        />
       ))}
     </>
   )

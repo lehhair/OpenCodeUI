@@ -6,19 +6,35 @@
 // 1. 加载 session 消息（初始加载 + 懒加载历史）
 // 2. 处理 undo/redo（调用 API + 更新 store）
 // 3. 只管理单个 session 的加载状态，不再承担全局当前 session 同步
+//
+// ── 阶段 2a：历史加载从「offset 计数」改成「V2 游标」────────────────────────
+//
+// V1：`GET /session/{id}/message` 一次给全量，前端用「limit 递增」假装分页
+//     （`cursorRef` 存当前已请求条数，loadMore 时 +50 再拉一次全量前缀）。
+// V2：`GET /api/session/{id}/message` 是**真游标分页** →
+//     - 首页：不传 cursor（服务端默认 order=desc，给最新的 N 条）
+//     - 更旧：传上一页返回的 **`cursor.next`**
+//     - 「还有没有更多」由 API 层的 `limit+1` 溢出法算出（`page.hasMore`）
+//     - 游标存在 `messageStore` 的 `SessionState.historyCursor` 上，
+//       随 session 一起被 LRU 淘汰，不会像原来的 `cursorRef` 那样跨 session 泄漏。
+//
+// ⚠️ 方向易错点：服务端默认 `order=desc`（新→旧），所以**「更旧」是 `cursor.next`
+//    而不是 `cursor.previous`**。完整推导见 src/api/message.ts 文件头注释。
+// ============================================
 
 import { useCallback, useEffect, useRef } from 'react'
 import { logger } from '../utils/logger'
-import { isUserUIMessage, toApiMessageWithParts } from '../utils/messageConversion'
+import { isUserUIMessage } from '../utils/messageConversion'
 import { messageStore, type RevertState, type SessionState } from '../store'
 import { sessionKeyToServerId } from '../utils/sessionKey'
 import {
   getSessionMessages,
   getSession,
-  revertMessage,
-  unrevertSession,
+  stageRevert,
+  // 别名：本文件里有一个同名的本地回调（clearRevert，清本地 revert 展示状态），
+  // 不别名会遮蔽 API 函数，导致「Expected 0 arguments, but got 3」这类误报
+  clearRevert as clearRevertApi,
   extractUserMessageContent,
-  type ApiMessageWithParts,
 } from '../api'
 import { sessionErrorHandler } from '../utils'
 import { isSessionNotFoundError } from '../utils/sessionErrors'
@@ -45,72 +61,16 @@ interface UseSessionManagerOptions {
   onSessionMissing?: (sessionId: string) => void
 }
 
-function preferCompatiblePartText(local: string, incoming: string): string {
-  if (local === incoming) return incoming
-  if (local.startsWith(incoming)) return local
-  if (incoming.startsWith(local)) return incoming
-  return incoming
-}
-
-function messageTimeIncomplete(time?: { completed?: number } | { created: number }) {
-  if (!time) return true
-  return !('completed' in time) || time.completed == null
-}
-
-function mergePartsForReload(
-  localParts: ApiMessageWithParts['parts'],
-  apiParts: ApiMessageWithParts['parts'],
-): ApiMessageWithParts['parts'] {
-  const localById = new Map(localParts.map(part => [part.id, part]))
-  return apiParts.map(part => {
-    const local = localById.get(part.id)
-    if (!local || !('text' in local) || !('text' in part)) return part
-    if (typeof local.text !== 'string' || typeof part.text !== 'string') return part
-    const text = preferCompatiblePartText(local.text, part.text)
-    if (text === part.text) return part
-    return { ...part, text: text as typeof part.text }
-  })
-}
-
-function mergeWithLocalStreamingMessages(
-  apiMessages: ApiMessageWithParts[],
-  localState?: SessionState,
-): ApiMessageWithParts[] {
-  if (!localState || localState.messages.length === 0) return apiMessages
-
-  const localById = new Map(localState.messages.map(message => [message.info.id, message]))
-  const apiIds = new Set(apiMessages.map(m => m.info.id))
-
-  // 同 message：仅未定稿时 part 文本不回退；incoming 已 completed 则强制服务端
-  const mergedApi = apiMessages.map(apiMessage => {
-    const local = localById.get(apiMessage.info.id)
-    if (!local) return apiMessage
-    if (!messageTimeIncomplete(apiMessage.info.time)) return apiMessage
-    const preserve = local.isStreaming || messageTimeIncomplete(local.info.time) || localState.isStreaming
-    if (!preserve) return apiMessage
-    return {
-      ...apiMessage,
-      parts: mergePartsForReload(local.parts as ApiMessageWithParts['parts'], apiMessage.parts),
-    }
-  })
-
-  const localOnly = localState.isStreaming
-    ? localState.messages.filter(m => !apiIds.has(m.info.id)).map(toApiMessageWithParts)
-    : []
-
-  if (localOnly.length === 0) return mergedApi
-
-  return [...mergedApi, ...localOnly].sort((a, b) => {
-    const aCreated = a.info.time?.created ?? 0
-    const bCreated = b.info.time?.created ?? 0
-    return aCreated - bCreated
-  })
-}
-
-export function useSessionManager({ sessionId, directory, onLoadComplete, onError, onSessionMissing }: UseSessionManagerOptions) {
+export function useSessionManager({
+  sessionId,
+  directory,
+  onLoadComplete,
+  onError,
+  onSessionMissing,
+}: UseSessionManagerOptions) {
   const loadSequenceRef = useRef<Map<string, number>>(new Map())
-  /** 每个 session 当前已请求的消息 limit（cursor），loadMore 时递增 */
-  const cursorRef = useRef<Map<string, number>>(new Map())
+  /** 正在向前翻页的 session（防止滚动事件并发触发同一 session 的多次加载） */
+  const loadingMoreRef = useRef<Set<string>>(new Set())
   const loadSessionRef = useRef<(sid: string, options?: { force?: boolean }) => Promise<void>>(async () => {})
 
   // 使用 ref 保存 directory，避免依赖变化
@@ -149,23 +109,17 @@ export function useSessionManager({ sessionId, directory, onLoadComplete, onErro
         const serverId = sessionKeyToServerId(sid)
         Promise.all([
           getSession(sid, dir, serverId).catch(() => null),
-          getSessionMessages(sid, INITIAL_MESSAGE_LIMIT, dir, serverId)
-            .then(messages => ({ ok: true as const, messages }))
-            .catch(() => ({ ok: false as const, messages: [] as ApiMessageWithParts[] })),
+          getSessionMessages(sid, { limit: INITIAL_MESSAGE_LIMIT }, dir, serverId).catch(() => null),
         ])
-          .then(([sessionInfo, messagesResult]) => {
+          .then(([sessionInfo, page]) => {
             if (isStale()) return
 
-            if (messagesResult.ok) {
-              cursorRef.current.set(sid, Math.max(INITIAL_MESSAGE_LIMIT, messagesResult.messages.length))
-            }
-
             messageStore.updateSessionMetadata(sid, {
-              ...(messagesResult.ok ? { hasMoreHistory: messagesResult.messages.length >= INITIAL_MESSAGE_LIMIT } : {}),
+              ...(page ? { hasMoreHistory: page.hasMore } : {}),
               directory: sessionInfo?.directory ?? dir ?? '',
               title: sessionInfo?.title,
-              shareUrl: sessionInfo?.share?.url,
             })
+            if (page) messageStore.setHistoryCursor(sid, page.cursor.next)
           })
           .catch(() => {
             // 元数据加载失败不影响 streaming，静默忽略
@@ -181,9 +135,9 @@ export function useSessionManager({ sessionId, directory, onLoadComplete, onErro
       try {
         // 并行加载 session 信息和消息（传递 directory）
         const serverId = sessionKeyToServerId(sid)
-        const [sessionInfo, apiMessages] = await Promise.all([
+        const [sessionInfo, page] = await Promise.all([
           getSession(sid, dir, serverId).catch(() => null),
-          getSessionMessages(sid, INITIAL_MESSAGE_LIMIT, dir, serverId),
+          getSessionMessages(sid, { limit: INITIAL_MESSAGE_LIMIT }, dir, serverId),
         ])
 
         if (isStale()) return
@@ -196,35 +150,32 @@ export function useSessionManager({ sessionId, directory, onLoadComplete, onErro
           !!currentState &&
           !currentState.isStale &&
           currentState.loadState === 'loaded' &&
-          currentState.messages.length > apiMessages.length
+          currentState.messages.length > page.messages.length
 
         if (shouldKeepStreamingOnly) {
           // SSE 推送的消息比 API 返回的多，说明有新消息，跳过覆盖
           // 但仍需更新元数据，否则 hasMoreHistory 等状态可能停留在默认值
           messageStore.updateSessionMetadata(sid, {
-            hasMoreHistory: apiMessages.length >= INITIAL_MESSAGE_LIMIT,
+            hasMoreHistory: page.hasMore,
             directory: sessionInfo?.directory ?? dir ?? '',
             title: sessionInfo?.title,
             loadState: 'loaded',
-            shareUrl: sessionInfo?.share?.url,
           })
+          messageStore.setHistoryCursor(sid, page.cursor.next)
           onLoadComplete?.()
-          cursorRef.current.set(sid, Math.max(INITIAL_MESSAGE_LIMIT, apiMessages.length))
           return
         }
 
-        const mergedMessages = mergeWithLocalStreamingMessages(apiMessages, currentState)
-
         // 设置消息到 store
-        messageStore.setMessages(sid, mergedMessages, {
+        messageStore.setMessages(sid, page.messages, {
           directory: sessionInfo?.directory ?? dir ?? '',
           title: sessionInfo?.title,
-          hasMoreHistory: apiMessages.length >= INITIAL_MESSAGE_LIMIT,
+          hasMoreHistory: page.hasMore,
+          historyCursor: page.cursor.next,
           revertState: sessionInfo?.revert ?? null,
-          shareUrl: sessionInfo?.share?.url,
+          // 流式中保留 SSE 抢先推送、但这一页里还没有的消息
+          keepLocalOnly: !!currentState?.isStreaming,
         })
-
-        cursorRef.current.set(sid, Math.max(INITIAL_MESSAGE_LIMIT, apiMessages.length))
 
         // force 模式（如 SSE 重连）只静默刷新数据，不触发滚动
         if (!force) {
@@ -249,42 +200,83 @@ export function useSessionManager({ sessionId, directory, onLoadComplete, onErro
   }, [loadSession])
 
   // ============================================
-  // Load More History
+  // Load More History（V2 游标分页）
   // ============================================
 
+  /**
+   * 向前（更旧）加载一页历史。
+   *
+   * 与 V1 的三个关键区别：
+   *   1. 用 **游标** 而不是「已请求条数」—— 服务端不认 offset；
+   *   2. 用 **`cursor.next`**（不是 `previous`）—— 服务端默认新→旧排序；
+   *   3. 游标为 `null` 时**直接返回**，不再多发一次注定为空的请求。
+   */
   const loadMoreHistory = useCallback(async () => {
     if (!sessionId) return
 
     const state = messageStore.getSessionState(sessionId)
     if (!state) return
+    if (!state.hasMoreHistory) return
+
+    const cursor = state.historyCursor
+    if (!cursor) {
+      // 没有游标但标记为「还有更多」：说明状态不一致，纠正为已到最早，避免死循环
+      logger.warn('[SessionManager] hasMoreHistory 为真但没有游标，标记为已到最早', { sessionId })
+      messageStore.updateSessionMetadata(sessionId, { hasMoreHistory: false })
+      return
+    }
+
+    // 并发保护：滚动事件可能高频触发
+    if (loadingMoreRef.current.has(sessionId)) return
+    loadingMoreRef.current.add(sessionId)
 
     const dir = state.directory || directoryRef.current
-    const currentCursor = cursorRef.current.get(sessionId) ?? Math.max(INITIAL_MESSAGE_LIMIT, state.messages.length)
-    const targetCursor = currentCursor + HISTORY_LOAD_BATCH_SIZE
 
     try {
-      const apiMessages = await getSessionMessages(sessionId, targetCursor, dir, sessionKeyToServerId(sessionId))
-      cursorRef.current.set(sessionId, targetCursor)
+      const page = await getSessionMessages(
+        sessionId,
+        { limit: HISTORY_LOAD_BATCH_SIZE, cursor },
+        dir,
+        sessionKeyToServerId(sessionId),
+      )
 
+      // 加载期间 session 可能被清掉/切走
       const latestState = messageStore.getSessionState(sessionId)
       if (!latestState) return
 
-      // 去重 + 按时间排序
-      const existingIds = new Set(latestState.messages.map(m => m.info.id))
-      const prependCandidates = apiMessages
-        .filter(m => !existingIds.has(m.info.id))
-        .sort((a, b) => (a.info.time?.created ?? 0) - (b.info.time?.created ?? 0))
+      // 去重交给 store（按消息 id），这里不再自行 filter/sort：
+      // API 层已保证 messages 是「旧→新」，重排会破坏服务端 seq 顺序。
+      messageStore.prependMessages(sessionId, page.messages, page.hasMore, page.cursor.next)
 
-      const hasMore = apiMessages.length >= targetCursor
-      messageStore.prependMessages(sessionId, prependCandidates, hasMore)
+      logger.log('[SessionManager] loadMoreHistory', {
+        sessionId,
+        fetched: page.messages.length,
+        hasMore: page.hasMore,
+      })
     } catch (error) {
       sessionErrorHandler('load more history', error)
+    } finally {
+      loadingMoreRef.current.delete(sessionId)
     }
   }, [sessionId])
 
   // ============================================
   // Undo
   // ============================================
+  //
+  // ⚠️ **阶段 3a：V2 回退是三段式**（`revert/stage` → `revert/commit` → `DELETE revert`）。
+  //    这里的「撤销 / 重做 / 全部重做」映射为：
+  //
+  //      handleUndo   → **stage**（把边界挪到这条用户消息）
+  //      handleRedo   → 还有更早的撤销历史 → **stage**（边界往前挪一条 = 恢复一条）
+  //                     没有历史了        → **clear**（等价 V1 的 unrevert）
+  //      handleRedoAll→ **clear**
+  //
+  //    **不调用 commit**：V2 的 `commit` 是「真正删掉边界之后的消息」，不可逆。
+  //    用户「回退 → 改一下 → 重新发送」时，服务端在 `prompt` 里**自动 commit**
+  //    （源码 `packages/core/src/session/session.ts:165`：
+  //      *"Commit a staged revert only after preparation succeeds, before admitting new work."*）。
+  //    所以前端只在需要「撤销暂存」时调 clear，**永远不主动 commit**。
 
   const handleUndo = useCallback(
     async (userMessageId: string) => {
@@ -297,8 +289,8 @@ export function useSessionManager({ sessionId, directory, onLoadComplete, onErro
       const dir = state.directory || directoryRef.current
 
       try {
-        // 调用 API 设置 revert 点（传递 directory）
-        await revertMessage(sessionId, userMessageId, undefined, dir, sessionKeyToServerId(sessionId))
+        // 调用 API 暂存回退边界（V2 三段式的第一段：stage）
+        await stageRevert(sessionId, userMessageId, {}, dir, sessionKeyToServerId(sessionId))
 
         // 找到 revert 点的索引
         const revertIndex = state.messages.findIndex(m => m.info.id === userMessageId)
@@ -353,17 +345,17 @@ export function useSessionManager({ sessionId, directory, onLoadComplete, onErro
       const newHistory = history.slice(1)
 
       if (newHistory.length > 0) {
-        // 还有更多历史，设置新的 revert 点
+        // 还有更多历史，把回退边界往前挪一条（= 恢复一条消息）
         const newRevertMessageId = newHistory[0].messageId
-        await revertMessage(sessionId, newRevertMessageId, undefined, dir, sessionKeyToServerId(sessionId))
+        await stageRevert(sessionId, newRevertMessageId, {}, dir, sessionKeyToServerId(sessionId))
 
         messageStore.setRevertState(sessionId, {
           messageId: newRevertMessageId,
           history: newHistory,
         })
       } else {
-        // 没有更多历史，完全清除 revert 状态
-        await unrevertSession(sessionId, dir, sessionKeyToServerId(sessionId))
+        // 没有更多历史，完全清除 revert 状态（V2 的 clear，等价 V1 的 unrevert）
+        await clearRevertApi(sessionId, dir, sessionKeyToServerId(sessionId))
         messageStore.setRevertState(sessionId, null)
       }
     } catch (error) {
@@ -382,7 +374,7 @@ export function useSessionManager({ sessionId, directory, onLoadComplete, onErro
     const dir = state?.directory || directoryRef.current
 
     try {
-      await unrevertSession(sessionId, dir, sessionKeyToServerId(sessionId))
+      await clearRevertApi(sessionId, dir, sessionKeyToServerId(sessionId))
       messageStore.setRevertState(sessionId, null)
     } catch (error) {
       sessionErrorHandler('redo all', error)
@@ -411,12 +403,6 @@ export function useSessionManager({ sessionId, directory, onLoadComplete, onErro
       const canUseCached = !!cached && cached.loadState === 'loaded' && !cached.isStale && cached.messages.length > 0
 
       if (canUseCached) {
-        const cachedCursor = Math.max(INITIAL_MESSAGE_LIMIT, cached.messages.length)
-        const prevCursor = cursorRef.current.get(sessionId) ?? 0
-        if (cachedCursor > prevCursor) {
-          cursorRef.current.set(sessionId, cachedCursor)
-        }
-
         logger.log('[SessionManager] switch:use-cached', {
           sessionId,
           cachedCount: cached.messages.length,
@@ -438,3 +424,6 @@ export function useSessionManager({ sessionId, directory, onLoadComplete, onErro
     clearRevert,
   }
 }
+
+/** 供类型引用（避免 `SessionState` 变成未使用导入） */
+export type { SessionState }

@@ -257,43 +257,43 @@ function sanitizePersistedTerminalLayoutMap(raw: unknown): PersistedTerminalLayo
     const rawActiveTabId = entry.activeTabId
     if (!rawOrder || typeof rawOrder !== 'object' || !rawActiveTabId || typeof rawActiveTabId !== 'object') continue
 
-      const order = {
-        bottom: Array.isArray(rawOrder.bottom)
-          ? rawOrder.bottom.filter((id): id is string => typeof id === 'string' && id.length > 0)
-          : [],
-        right: Array.isArray(rawOrder.right)
-          ? rawOrder.right.filter((id): id is string => typeof id === 'string' && id.length > 0)
-          : [],
-      }
+    const order = {
+      bottom: Array.isArray(rawOrder.bottom)
+        ? rawOrder.bottom.filter((id): id is string => typeof id === 'string' && id.length > 0)
+        : [],
+      right: Array.isArray(rawOrder.right)
+        ? rawOrder.right.filter((id): id is string => typeof id === 'string' && id.length > 0)
+        : [],
+    }
 
-      const sessions: Record<string, PersistedTerminalSessionState> = {}
-      const rawSessions = entry.sessions
-      if (rawSessions && typeof rawSessions === 'object') {
-        for (const [id, session] of Object.entries(rawSessions)) {
-          if (!id || !session || typeof session !== 'object') continue
-          const data = session as Partial<PersistedTerminalSessionState>
-          sessions[id] = {
-            title: typeof data.title === 'string' ? data.title : undefined,
-            shellTitle: typeof data.shellTitle === 'string' ? data.shellTitle : undefined,
-            customTitle: typeof data.customTitle === 'string' ? data.customTitle : undefined,
-            buffer: typeof data.buffer === 'string' ? data.buffer : undefined,
-            scrollY: typeof data.scrollY === 'number' ? data.scrollY : undefined,
-            cursor: typeof data.cursor === 'number' ? data.cursor : undefined,
-            rows: typeof data.rows === 'number' ? data.rows : undefined,
-            cols: typeof data.cols === 'number' ? data.cols : undefined,
-          }
+    const sessions: Record<string, PersistedTerminalSessionState> = {}
+    const rawSessions = entry.sessions
+    if (rawSessions && typeof rawSessions === 'object') {
+      for (const [id, session] of Object.entries(rawSessions)) {
+        if (!id || !session || typeof session !== 'object') continue
+        const data = session as Partial<PersistedTerminalSessionState>
+        sessions[id] = {
+          title: typeof data.title === 'string' ? data.title : undefined,
+          shellTitle: typeof data.shellTitle === 'string' ? data.shellTitle : undefined,
+          customTitle: typeof data.customTitle === 'string' ? data.customTitle : undefined,
+          buffer: typeof data.buffer === 'string' ? data.buffer : undefined,
+          scrollY: typeof data.scrollY === 'number' ? data.scrollY : undefined,
+          cursor: typeof data.cursor === 'number' ? data.cursor : undefined,
+          rows: typeof data.rows === 'number' ? data.rows : undefined,
+          cols: typeof data.cols === 'number' ? data.cols : undefined,
         }
       }
-
-      directories[directory] = {
-        order,
-        activeTabId: {
-          bottom: typeof rawActiveTabId.bottom === 'string' ? rawActiveTabId.bottom : null,
-          right: typeof rawActiveTabId.right === 'string' ? rawActiveTabId.right : null,
-        },
-        sessions,
-      }
     }
+
+    directories[directory] = {
+      order,
+      activeTabId: {
+        bottom: typeof rawActiveTabId.bottom === 'string' ? rawActiveTabId.bottom : null,
+        right: typeof rawActiveTabId.right === 'string' ? rawActiveTabId.right : null,
+      },
+      sessions,
+    }
+  }
 
   return { version: 1, directories }
 }
@@ -954,7 +954,9 @@ export class LayoutStore {
 
     const layoutMap = this.readTerminalLayoutMap()
     const savedLayout = directory ? layoutMap.directories[directory] : undefined
-    const existingTerminalById = new Map(this.state.panelTabs.filter(tab => tab.type === 'terminal').map(tab => [tab.id, tab]))
+    const existingTerminalById = new Map(
+      this.state.panelTabs.filter(tab => tab.type === 'terminal').map(tab => [tab.id, tab]),
+    )
     const sessionById = new Map(
       sessions.map(session => [
         session.id,
@@ -1064,10 +1066,7 @@ export class LayoutStore {
       return
     }
 
-    this.addTab(
-      buildTerminalPanelTab(tab, position),
-      openPanel,
-    )
+    this.addTab(buildTerminalPanelTab(tab, position), openPanel)
   }
 
   removeTerminalTab(id: string) {
@@ -1124,7 +1123,7 @@ export class LayoutStore {
     let changed = false
     for (const tab of this.state.panelTabs) {
       if (tab.type !== 'terminal') continue
-      const nextTitle = manualMode ? getResolvedTerminalTitle(tab) : tab.shellTitle ?? tab.title ?? 'Terminal'
+      const nextTitle = manualMode ? getResolvedTerminalTitle(tab) : (tab.shellTitle ?? tab.title ?? 'Terminal')
       if (tab.title !== nextTitle) {
         tab.title = nextTitle
         changed = true

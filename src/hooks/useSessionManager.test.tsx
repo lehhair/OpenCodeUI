@@ -2,12 +2,7 @@ import { renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useSessionManager } from './useSessionManager'
 
-const {
-  getSessionMock,
-  getSessionMessagesMock,
-  messageStoreMock,
-  sessionErrorHandlerMock,
-} = vi.hoisted(() => ({
+const { getSessionMock, getSessionMessagesMock, messageStoreMock, sessionErrorHandlerMock } = vi.hoisted(() => ({
   getSessionMock: vi.fn(),
   getSessionMessagesMock: vi.fn(),
   messageStoreMock: {
@@ -25,8 +20,9 @@ const {
 vi.mock('../api', () => ({
   getSession: (...args: unknown[]) => getSessionMock(...args),
   getSessionMessages: (...args: unknown[]) => getSessionMessagesMock(...args),
-  revertMessage: vi.fn(),
-  unrevertSession: vi.fn(),
+  // 阶段 3a：V1 的 revertMessage / unrevertSession 已换成 V2 三段式
+  stageRevert: vi.fn(),
+  clearRevert: vi.fn(),
   extractUserMessageContent: vi.fn(),
 }))
 

@@ -1,13 +1,39 @@
 /**
  * InlineToolRequestContext
  *
- * 把待处理的权限请求和提问请求注入到消息流里，
+ * 把**待处理的权限请求**注入到消息流里，
  * 让工具视图可以在对应位置直接渲染内嵌交互。
  * 对于 task 类型的 tool，还支持匹配子 session 内部的请求。
+ *
+ * ── 阶段 3b 的收窄（重要）────────────────────────────────────────────────
+ *
+ * 本上下文原来还带一条 **question 内联通道**（`pendingQuestions` /
+ * `findQuestionRequestForTool` / `onQuestionReply` / `onQuestionReject`），
+ * 阶段 3b 已**整体删除**。删除理由：
+ *
+ *   V2 的「提问」不再是独立端点，而是走 **Form 体系** ——
+ *   `question` 工具内部调用 `Form.Service.ask(...)`，表单统一由底部的
+ *   `FormDialog` 渲染与回复（`ChatPane` 的 `pendingForms`）。
+ *   若再保留内联交互，同一张表单会出现**两个可回复入口**。
+ *
+ * ⚠️ **与阶段 3a 报告 §3 的一处事实修正**（阶段 3b 实测）：
+ *   3a 报告写「V2 的 `Form.Info` 只有 `{id, sessionID, title, fields}`，**没有 tool 关联字段**」
+ *   —— 这条**不准确**。v2.0.19 的 `packages/schema/src/form.ts` 里 `InfoBase` 明确含
+ *   `metadata: Metadata.pipe(optional)`，而 `question` 工具（`packages/core/src/tool/plugin/question.ts`）
+ *   正是靠它把表单绑回工具调用：
+ *     metadata: { kind: "question", tool: { messageID, id: <工具调用 id> } }
+ *   → 也就是说「按 callID 内联渲染表单」在 V2 **技术上可行**。
+ *   本项目**有意不做**（YAGNI）：底部 `FormDialog` 已经覆盖全部待处理表单，
+ *   内联通道只是「同一件事的第二个入口」，收益小于维护成本。
+ *   将来若要做，匹配键是 `form.metadata.tool.id === part.callID`。
+ *
+ * ⚠️ 另外注意：**历史消息里的 `question` 工具卡片仍会被渲染**
+ *   （`src/features/message/tools/renderers/QuestionRenderer.tsx`），
+ *   那是只读展示，与本文件的交互通道无关 —— 不要顺手删掉。
  */
 
 import { createContext, useContext } from 'react'
-import type { ApiPermissionRequest, ApiQuestionRequest, PermissionReply, QuestionAnswer } from '../../api'
+import type { ApiPermissionRequest, PermissionReply } from '../../api'
 import { childSessionStore } from '../../store'
 import { makeSessionKey, splitSessionKey } from '../../utils/sessionKey'
 
@@ -26,14 +52,8 @@ export interface InlineToolRequestContextValue {
   serverId: string
   /** 当前 pending 的权限请求 */
   pendingPermissions: ApiPermissionRequest[]
-  /** 当前 pending 的提问请求 */
-  pendingQuestions: ApiQuestionRequest[]
   /** 回复权限 */
   onPermissionReply: (requestId: string, reply: PermissionReply) => void
-  /** 回复提问 */
-  onQuestionReply: (requestId: string, answers: QuestionAnswer[]) => void
-  /** 拒绝提问 */
-  onQuestionReject: (requestId: string) => void
   /** 是否正在发送回复 */
   isReplying: boolean
 }
@@ -42,10 +62,7 @@ const defaultValue: InlineToolRequestContextValue = {
   // 没有 Provider 就没有 pane 绑定，空串表示「无权威服务器」，不做任何猜测
   serverId: '',
   pendingPermissions: [],
-  pendingQuestions: [],
   onPermissionReply: () => {},
-  onQuestionReply: () => {},
-  onQuestionReject: () => {},
   isReplying: false,
 }
 
@@ -86,35 +103,6 @@ export function findPermissionRequestForTool(
       return childSessionStore.isChildOf(scoped, childScoped)
     }
     return pendingPermissions.find(p => isMatch(p.sessionID))
-  }
-
-  return undefined
-}
-
-/**
- * 根据 callID 查找关联的提问请求。
- * 对于 task tool，额外传入 child（子 session key + pane 绑定的权威服务器）。
- */
-export function findQuestionRequestForTool(
-  pendingQuestions: ApiQuestionRequest[],
-  callID: string,
-  child?: TaskChildSessionRef,
-): ApiQuestionRequest | undefined {
-  const direct = pendingQuestions.find(q => q.tool?.callID === callID)
-  if (direct) return direct
-
-  if (child) {
-    const childScoped = child.sessionKey.includes('::')
-      ? child.sessionKey
-      : makeSessionKey(child.serverId, child.sessionKey)
-    const { serverId: childServerId, sessionId: childRawId } = splitSessionKey(childScoped)
-    const isMatch = (sid: string) => {
-      const { sessionId: raw } = splitSessionKey(sid)
-      if (raw === childRawId) return true
-      const scoped = sid.includes('::') ? sid : makeSessionKey(childServerId, raw)
-      return childSessionStore.isChildOf(scoped, childScoped)
-    }
-    return pendingQuestions.find(q => isMatch(q.sessionID))
   }
 
   return undefined

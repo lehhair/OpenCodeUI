@@ -106,7 +106,10 @@ function ContextDetailsBody({ contextLimit }: { contextLimit: number }) {
             value={contextMsg?.info.role === 'assistant' ? contextMsg.info.modelID : '—'}
           />
           <Stat label={t('contextDetails.contextLimit')} value={formatTokens(contextLimit)} />
-          <Stat label={t('contextDetails.totalTokens')} value={stats.contextUsed ? formatTokens(stats.contextUsed) : '—'} />
+          <Stat
+            label={t('contextDetails.totalTokens')}
+            value={stats.contextUsed ? formatTokens(stats.contextUsed) : '—'}
+          />
           <Stat
             label={t('contextDetails.usage')}
             value={
@@ -144,7 +147,9 @@ function ContextDetailsBody({ contextLimit }: { contextLimit: number }) {
       </div>
 
       <div className="mt-6">
-        <div className="text-[length:var(--fs-xs)] font-medium text-text-400 mb-2">{t('contextDetails.rawMessages')}</div>
+        <div className="text-[length:var(--fs-xs)] font-medium text-text-400 mb-2">
+          {t('contextDetails.rawMessages')}
+        </div>
         <div className="space-y-1">
           {messages.map(msg => {
             const isExpanded = expandedId === msg.info.id

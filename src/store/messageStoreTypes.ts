@@ -33,12 +33,19 @@ export interface SessionState {
   loadError?: MessageError
   /** 是否还有更多历史消息 */
   hasMoreHistory: boolean
+  /**
+   * 向前（更旧）翻页的游标 —— V2 游标分页（阶段 2a 新增）
+   *
+   * 语义：`GET /api/session/{id}/message` 返回的 `cursor.next`。
+   * ⚠️ 服务端默认 `order=desc`（新→旧），此游标指向**更旧**的一页
+   *    （方向推导见 src/api/message.ts 文件头注释）。
+   * `null` = 还没有游标（未加载过，或已确认没有更早的历史）。
+   */
+  historyCursor: string | null
   /** session 目录 */
   directory: string
   /** session 标题 */
   title?: string
-  /** 分享链接 */
-  shareUrl?: string
   /** 断线重连后是否需要重新全量拉取 */
   isStale: boolean
 }
@@ -56,7 +63,6 @@ export interface MessageStoreSnapshot {
   hasMoreHistory: boolean
   sessionDirectory: string
   sessionTitle: string
-  shareUrl: string | undefined
   canUndo: boolean
   canRedo: boolean
   redoSteps: number

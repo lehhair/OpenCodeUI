@@ -20,7 +20,7 @@ import {
 import { getCurrentProject } from '../api/client'
 import { disposeInstance } from '../api/global'
 import { listPtySessions, removePtySession } from '../api/pty'
-import { listWorktrees, createWorktree, removeWorktree, resetWorktree } from '../api/worktree'
+import { listWorktrees, createWorktree, removeWorktree } from '../api/worktree'
 import { subscribeToEvents } from '../api/events'
 import { useDirectory, useVcsInfo, requestGitWorkspaceCatalogRefresh } from '../hooks'
 import { getDirectoryName, isSameDirectory, normalizeToForwardSlash } from '../utils'
@@ -46,10 +46,6 @@ export const WorktreePanel = memo(function WorktreePanel({ isResizing: _isResizi
   const [showCreateForm, setShowCreateForm] = useState(false)
   const loadRequestIdRef = useRef(0)
   const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; directory: string | null }>({
-    isOpen: false,
-    directory: null,
-  })
-  const [resetConfirm, setResetConfirm] = useState<{ isOpen: boolean; directory: string | null }>({
     isOpen: false,
     directory: null,
   })
@@ -103,14 +99,16 @@ export const WorktreePanel = memo(function WorktreePanel({ isResizing: _isResizi
     loadWorktrees()
   }, [loadWorktrees])
 
-  // 订阅 SSE 事件：worktree ready/failed + vcs branch 变更
+  // 订阅 SSE 事件：worktree updated/resolved + vcs branch 变更
   useEffect(() => {
     return subscribeToEvents({
-      onWorktreeReady: () => {
+      onWorktreeUpdated: () => {
         loadWorktrees()
       },
-      onWorktreeFailed: data => {
-        setError(t('worktreePanel.failedWithMessage', { message: data.message }))
+      onWorktreeResolved: () => {
+        // V1 的 worktree.failed 在 V2 是 worktree.resolved（目录被解析/采用），
+        // 不是"失败"语义 → 只刷新列表，不再往错误提示里塞消息
+        loadWorktrees()
         setActionLoading(null)
       },
       onVcsBranchUpdated: () => {
@@ -207,27 +205,11 @@ export const WorktreePanel = memo(function WorktreePanel({ isResizing: _isResizi
     [currentDirectory, loadWorktrees, releaseWorktreeResources, requireRootDirectory, setCurrentDirectory, t],
   )
 
-  // 重置 worktree
-  const handleReset = useCallback(
-    async (directory: string) => {
-      if (!currentDirectory) return
-
-      setActionLoading(`reset-${directory}`)
-      try {
-        const baseDirectory = requireRootDirectory()
-        await releaseWorktreeResources(directory)
-        await resetWorktree({ directory }, baseDirectory)
-        await loadWorktrees()
-        requestGitWorkspaceCatalogRefresh()
-      } catch (e) {
-        setError(e instanceof Error ? e.message : t('worktreePanel.failedToReset'))
-      } finally {
-        setActionLoading(null)
-        setResetConfirm({ isOpen: false, directory: null })
-      }
-    },
-    [currentDirectory, loadWorktrees, releaseWorktreeResources, requireRootDirectory, t],
-  )
+  // ⛔ 阶段 3b 已删除「重置 worktree」按钮 / handleReset / resetConfirm 确认弹窗：
+  //   V2 删除了 `POST /experimental/worktree/reset`，且**没有替代能力**
+  //   （`Worktree.Interface` 只剩 list / create / remove / refresh）。
+  //   V1 的 reset 是「git reset --hard 默认分支 + git clean -ffdx」＝丢弃该 worktree
+  //   的全部本地改动；V2 下只能由用户手动进目录执行 git 命令。
 
   // ==========================================
   // Render
@@ -352,10 +334,9 @@ export const WorktreePanel = memo(function WorktreePanel({ isResizing: _isResizi
                 key={wt}
                 directory={wt}
                 name={getDirectoryName(wt)}
-                isLoading={actionLoading === `delete-${wt}` || actionLoading === `reset-${wt}`}
+                isLoading={actionLoading === `delete-${wt}`}
                 onOpenSession={() => handleOpenSession(wt)}
                 onDelete={() => setDeleteConfirm({ isOpen: true, directory: wt })}
-                onReset={() => setResetConfirm({ isOpen: true, directory: wt })}
               />
             ))}
           </div>
@@ -376,23 +357,6 @@ export const WorktreePanel = memo(function WorktreePanel({ isResizing: _isResizi
           name: deleteConfirm.directory ? getDirectoryName(deleteConfirm.directory) : '',
         })}
         confirmText={t('common:remove')}
-        variant="danger"
-      />
-
-      {/* Reset Confirm */}
-      <ConfirmDialog
-        isOpen={resetConfirm.isOpen}
-        onClose={() => setResetConfirm({ isOpen: false, directory: null })}
-        onConfirm={() => {
-          if (resetConfirm.directory) {
-            handleReset(resetConfirm.directory)
-          }
-        }}
-        title={t('worktreePanel.resetWorktree')}
-        description={t('worktreePanel.resetWorktreeConfirm', {
-          name: resetConfirm.directory ? getDirectoryName(resetConfirm.directory) : '',
-        })}
-        confirmText={t('common:reset')}
         variant="danger"
       />
     </div>
@@ -475,7 +439,6 @@ interface WorktreeItemProps {
   isLoading: boolean
   onOpenSession: () => void
   onDelete: () => void
-  onReset: () => void
 }
 
 const WorktreeItem = memo(function WorktreeItem({
@@ -484,7 +447,6 @@ const WorktreeItem = memo(function WorktreeItem({
   isLoading,
   onOpenSession,
   onDelete,
-  onReset,
 }: WorktreeItemProps) {
   const { t } = useTranslation(['components', 'common'])
 
@@ -514,13 +476,6 @@ const WorktreeItem = memo(function WorktreeItem({
             title={t('worktreePanel.openSession')}
           >
             <ExternalLinkIcon size={12} />
-          </button>
-          <button
-            onClick={onReset}
-            className="p-1 rounded-md text-text-400 hover:text-warning-100 hover:bg-warning-100/10 transition-colors"
-            title={t('worktreePanel.resetWorktreeAction')}
-          >
-            <RetryIcon size={12} />
           </button>
           <button
             onClick={onDelete}

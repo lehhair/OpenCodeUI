@@ -6,7 +6,6 @@ export { useModels } from './useModels'
 export { useSessions } from './useSessions'
 export { useRouter } from './useRouter'
 export { useProject } from './useProject'
-export { useRevertState } from './useRevertState'
 export { usePermissionHandler } from './usePermissionHandler'
 export { useMessageAnimation } from './useMessageAnimation'
 export { useSessionManager } from './useSessionManager'
@@ -31,7 +30,9 @@ export { usePresence } from './usePresence'
 export { useResponsiveMaxHeight } from './useResponsiveMaxHeight'
 export type { ThemeMode } from './useTheme'
 export type { UseProjectResult } from './useProject'
-export type { UseRevertStateResult, RevertHistoryItem } from './useRevertState'
+// ⛔ 阶段 3b 已删除 `useRevertState`（含 `UseRevertStateResult` / `RevertHistoryItem`）：
+//    该 hook 全仓库零消费点（真正在跑 undo/redo 的是 `useSessionManager`）。
+//    真正的撤销历史类型在 `src/store/messageStoreTypes.ts`（那边才有消费方）。
 export type { UsePermissionHandlerResult } from './usePermissionHandler'
 export type { SessionStats } from './useSessionStats'
 export type { FileTreeNode, UseFileExplorerOptions, UseFileExplorerResult } from './useFileExplorer'

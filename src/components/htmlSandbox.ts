@@ -96,7 +96,10 @@ export function createSandboxedHtmlDocument(
   const parsed = new DOMParser().parseFromString(source, 'text/html')
   const viewportHead = parsed.head.querySelector('meta[name="viewport"]') ? '' : HTML_SANDBOX_VIEWPORT_HEAD
   const themeHead = `<style id="opencode-html-theme">${buildHtmlSandboxThemeCss(theme, overflow)}</style>`
-  parsed.head.insertAdjacentHTML('afterbegin', `${securityHead}${viewportHead}${themeHead}${createHtmlSandboxStorageScript()}`)
+  parsed.head.insertAdjacentHTML(
+    'afterbegin',
+    `${securityHead}${viewportHead}${themeHead}${createHtmlSandboxStorageScript()}`,
+  )
   parsed.body.insertAdjacentHTML(
     'afterbegin',
     `${createThemeApplyScript(overflow)}${createHtmlSandboxMeasureScript(resizeId)}`,

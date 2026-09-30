@@ -180,7 +180,8 @@ export function defaultExtractData(part: ToolPart): ExtractedToolData {
   // Output: 分运行状态取不同的字段
   const stateOutput = 'output' in state ? state.output : undefined
   const runningOutput = state.status === 'running' && typeof metadata?.output === 'string' ? metadata.output : undefined
-  const interruptedOutput = metadata?.interrupted === true && typeof metadata.output === 'string' ? metadata.output : undefined
+  const interruptedOutput =
+    metadata?.interrupted === true && typeof metadata.output === 'string' ? metadata.output : undefined
   const output = stateOutput ?? runningOutput ?? interruptedOutput
   if (!result.files && !result.diff && output) {
     result.output = typeof output === 'string' ? output : JSON.stringify(output, null, 2)

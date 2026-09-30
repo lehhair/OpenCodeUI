@@ -446,11 +446,7 @@ function ListItem({ id, icon, label, isSelected, onClick, onMouseEnter, action }
       onMouseEnter={onMouseEnter}
       className={`
         flex items-center justify-between px-3 py-2 rounded-md cursor-pointer transition-all duration-150
-        ${
-          isSelected
-            ? 'bg-bg-200/60 text-text-100'
-            : 'text-text-300 hover:bg-bg-200/50 hover:text-text-100'
-        }
+        ${isSelected ? 'bg-bg-200/60 text-text-100' : 'text-text-300 hover:bg-bg-200/50 hover:text-text-100'}
       `}
     >
       <div className="flex items-center gap-2.5 min-w-0">

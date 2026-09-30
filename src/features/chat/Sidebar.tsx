@@ -324,7 +324,10 @@ export const Sidebar = memo(function Sidebar({
             transition-opacity duration-300
             ${isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}
           `}
-          style={{ top: 'calc(var(--safe-area-inset-top) + var(--desktop-titlebar-height, 0px))', height: 'calc(100% - var(--safe-area-inset-top) - var(--desktop-titlebar-height, 0px))' }}
+          style={{
+            top: 'calc(var(--safe-area-inset-top) + var(--desktop-titlebar-height, 0px))',
+            height: 'calc(100% - var(--safe-area-inset-top) - var(--desktop-titlebar-height, 0px))',
+          }}
           onClick={handleBackdropClick}
         />
 

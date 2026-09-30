@@ -2,12 +2,12 @@ import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { usePermissionHandler } from './usePermissionHandler'
 
-const { replyPermissionMock, getPendingPermissionsMock, replyQuestionMock, rejectQuestionMock, activeSessionStoreMock } =
+const { replyPermissionMock, getPendingPermissionsMock, replyFormMock, cancelFormMock, activeSessionStoreMock } =
   vi.hoisted(() => ({
     replyPermissionMock: vi.fn(() => Promise.resolve(true)),
     getPendingPermissionsMock: vi.fn(() => Promise.resolve([])),
-    replyQuestionMock: vi.fn((..._args: unknown[]) => Promise.resolve(true)),
-    rejectQuestionMock: vi.fn((..._args: unknown[]) => Promise.resolve(true)),
+    replyFormMock: vi.fn((..._args: unknown[]) => Promise.resolve(undefined)),
+    cancelFormMock: vi.fn((..._args: unknown[]) => Promise.resolve(undefined)),
     activeSessionStoreMock: {
       resolvePendingRequest: vi.fn(),
     },
@@ -15,10 +15,10 @@ const { replyPermissionMock, getPendingPermissionsMock, replyQuestionMock, rejec
 
 vi.mock('../api', () => ({
   replyPermission: replyPermissionMock,
-  replyQuestion: replyQuestionMock,
-  rejectQuestion: rejectQuestionMock,
+  replyForm: replyFormMock,
+  cancelForm: cancelFormMock,
   getPendingPermissions: getPendingPermissionsMock,
-  getPendingQuestions: vi.fn(() => Promise.resolve([])),
+  listPendingForms: vi.fn(() => Promise.resolve([])),
 }))
 
 vi.mock('../store', () => ({
@@ -35,6 +35,10 @@ describe('usePermissionHandler', () => {
     replyPermissionMock.mockResolvedValue(true)
     getPendingPermissionsMock.mockReset()
     getPendingPermissionsMock.mockResolvedValue([])
+    replyFormMock.mockReset()
+    replyFormMock.mockResolvedValue(undefined)
+    cancelFormMock.mockReset()
+    cancelFormMock.mockResolvedValue(undefined)
     activeSessionStoreMock.resolvePendingRequest.mockClear()
   })
 
@@ -89,7 +93,8 @@ describe('usePermissionHandler', () => {
     })
 
     expect(success).toBe(true)
-    expect(getPendingPermissionsMock).toHaveBeenCalledWith('session-1', '/workspace', 'local')
+    // ⚠️ V2 的列表端点**没有** sessionId 过滤参数 → 永远传 undefined（拉全量后本地比对）
+    expect(getPendingPermissionsMock).toHaveBeenCalledWith(undefined, '/workspace', 'local')
     expect(result.current.pendingPermissionRequests).toEqual([])
     expect(activeSessionStoreMock.resolvePendingRequest).toHaveBeenCalledWith('perm-stale')
   })
@@ -98,7 +103,7 @@ describe('usePermissionHandler', () => {
   // pane 首次渲染时活动服务器可能是 local，之后切到别的服务器（多服务器 / WSL sidecar 就绪后切回），
   // 一旦回调把 serverId 冻在旧值上，回复就会发到旧服务器：旧服务器报错、真实服务器仍 pending、
   // 弹窗消失后又冒出来，对话永远不前进。
-  it('routes replies to the server the pane is bound to now, not the one captured at mount', async () => {
+  it('routes form replies to the server the pane is bound to now, not the one captured at mount', async () => {
     const { result, rerender } = renderHook(({ serverId }) => usePermissionHandler(serverId), {
       initialProps: { serverId: 'local' },
     })
@@ -106,11 +111,52 @@ describe('usePermissionHandler', () => {
     rerender({ serverId: 'wsl:Ubuntu' })
 
     await act(async () => {
-      await result.current.handleQuestionReply('question-1', [['A']], '/home/u/project')
-      await result.current.handleQuestionReject('question-2', '/home/u/project')
+      await result.current.handleFormReply('frm_1', { q: 'A' }, 'ses_1', '/home/u/project')
+      await result.current.handleFormCancel('frm_2', 'ses_1', '/home/u/project')
     })
 
-    expect(replyQuestionMock).toHaveBeenCalledWith('question-1', [['A']], '/home/u/project', 'wsl:Ubuntu')
-    expect(rejectQuestionMock).toHaveBeenCalledWith('question-2', '/home/u/project', 'wsl:Ubuntu')
+    expect(replyFormMock).toHaveBeenCalledWith('ses_1', 'frm_1', { q: 'A' }, '/home/u/project', 'wsl:Ubuntu')
+    expect(cancelFormMock).toHaveBeenCalledWith('ses_1', 'frm_2', '/home/u/project', 'wsl:Ubuntu')
+  })
+
+  // 表单回复失败时**不能乐观移除**：可能是服务端校验拒绝（answer 类型不对），
+  // 此时表单仍然 pending，移除会让用户再也看不到它、对话卡死。
+  it('keeps the form in the pending list when the reply fails', async () => {
+    replyFormMock.mockRejectedValue(new Error('invalid answer'))
+    const { result } = renderHook(() => usePermissionHandler('local'))
+
+    act(() => {
+      result.current.setPendingForms([
+        { id: 'frm_keep', sessionID: 'ses_1', title: 'T', fields: [{ key: 'q', type: 'string' }] },
+      ])
+    })
+
+    let success = true
+    await act(async () => {
+      success = await result.current.handleFormReply('frm_keep', { q: 'A' }, 'ses_1', '/workspace')
+    })
+
+    expect(success).toBe(false)
+    expect(result.current.pendingForms).toHaveLength(1)
+    expect(activeSessionStoreMock.resolvePendingRequest).not.toHaveBeenCalled()
+  })
+
+  it('clears the form locally after a successful reply', async () => {
+    const { result } = renderHook(() => usePermissionHandler('local'))
+
+    act(() => {
+      result.current.setPendingForms([
+        { id: 'frm_ok', sessionID: 'ses_1', title: 'T', fields: [{ key: 'q', type: 'string' }] },
+      ])
+    })
+
+    let success = false
+    await act(async () => {
+      success = await result.current.handleFormReply('frm_ok', { q: 'A' }, 'ses_1', '/workspace')
+    })
+
+    expect(success).toBe(true)
+    expect(result.current.pendingForms).toEqual([])
+    expect(activeSessionStoreMock.resolvePendingRequest).toHaveBeenCalledWith('frm_ok')
   })
 })

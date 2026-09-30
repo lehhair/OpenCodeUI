@@ -49,10 +49,9 @@ describe('useDelayedRender', () => {
   it('delays mount when mountDelayMs is set', () => {
     vi.useFakeTimers()
 
-    const { result, rerender } = renderHook(
-      ({ show }) => useDelayedRender(show, 200, { mountDelayMs: 16 }),
-      { initialProps: { show: false } },
-    )
+    const { result, rerender } = renderHook(({ show }) => useDelayedRender(show, 200, { mountDelayMs: 16 }), {
+      initialProps: { show: false },
+    })
 
     expect(result.current).toBe(false)
 

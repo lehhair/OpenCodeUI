@@ -364,7 +364,7 @@
 - fix(settings): apply mobile viewport height to config editor (d442e66)
 - fix(titlebar): preserve decorum window controls (1892621)
 - fix: remove touchAction:none from FileTreeItem button that broke mobile scrolling (a619d72)
-- fix: replace 92vh with calc(var(--app-height) * 0.92) in mobile SettingsDialog to fix address bar hiding issue (f3558fc)
+- fix: replace 92vh with calc(var(--app-height) \* 0.92) in mobile SettingsDialog to fix address bar hiding issue (f3558fc)
 
 ## [v0.6.16] - 2026-06-07
 
@@ -630,7 +630,7 @@
 
 ## [v0.5.5] - 2026-04-18
 
-- fix: remove redundant *Single i18n keys — let i18next handle count=1 natively (9385ef8)
+- fix: remove redundant \*Single i18n keys — let i18next handle count=1 natively (9385ef8)
 - style: match pane drop highlight radius to pane shell (rounded-lg) (f8acac2)
 - feat: enable drag-to-split on active session list items (ac20b7b)
 

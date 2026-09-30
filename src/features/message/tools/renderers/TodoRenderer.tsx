@@ -44,7 +44,10 @@ function TodoList({ todos, stateKey }: { todos: TodoItem[]; stateKey: string }) 
   const total = todos.length
 
   return (
-    <div ref={rootRef} className="border border-border-200/50 rounded-md overflow-hidden bg-bg-100 text-[length:var(--fs-sm)]">
+    <div
+      ref={rootRef}
+      className="border border-border-200/50 rounded-md overflow-hidden bg-bg-100 text-[length:var(--fs-sm)]"
+    >
       {/* Header */}
       <div
         ref={headerRef}

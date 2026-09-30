@@ -1,14 +1,4 @@
-import {
-  Fragment,
-  memo,
-  useCallback,
-  useEffect,
-  useId,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react'
+import { Fragment, memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import morphdom from 'morphdom'
 import { CodeBlock } from './CodeBlock'
 import { CodeIcon, EyeIcon, HandIcon, RetryIcon, ZoomInIcon, ZoomOutIcon } from './Icons'
@@ -19,7 +9,12 @@ import { detectLanguage } from '../utils/languageUtils'
 import { isTauri } from '../utils/tauri'
 import { marked } from 'marked'
 import type { Tokens } from 'marked'
-import { isMarkupPreviewLanguage, projectMarkdownStream, stripLeadingHtmlComments, type MarkdownStreamProjection } from './markdownStream'
+import {
+  isMarkupPreviewLanguage,
+  projectMarkdownStream,
+  stripLeadingHtmlComments,
+  type MarkdownStreamProjection,
+} from './markdownStream'
 import { renderMarkdownToHtml, renderKatexHtml } from './markdownHtmlRenderer'
 import { getFootnoteId, scanTextSegments } from './markdownSegments'
 import type { MarkdownSegment } from './markdownSegments'
@@ -65,11 +60,16 @@ const htmlCache = new Map<string, string>()
 const HTML_CACHE_MAX = 64
 const MARKDOWN_BLOCK_CONTENT_CLASS = 'space-y-4 whitespace-normal [&>*:first-child]:mt-0 [&>*:last-child]:mb-0'
 const MARKDOWN_USER_STATE_ATTRIBUTE = 'data-markdown-user-state'
-const HTML_SOURCE_BUTTON_CLASS = 'absolute right-2 top-2 z-10 inline-flex h-8 w-8 items-center justify-center rounded-md bg-bg-300/70 p-2 text-accent-main-100 opacity-0 shadow-sm backdrop-blur-md transition-all hover:bg-bg-300/90 hover:text-accent-main-100 group-hover/html-preview:opacity-100 group-focus-within/html-preview:opacity-100'
-const BLOCK_HTML_SOURCE_PATTERN = /^\s*<(?:address|article|aside|blockquote|center|details|dialog|div|dl|fieldset|figure|footer|form|header|html|main|nav|ol|section|svg|table|ul)\b/i
-const PREFIXED_BLOCK_HTML_SOURCE_PATTERN = /^\s*<(?:style|script)\b[\s\S]*<(?:address|article|aside|blockquote|center|details|dialog|div|dl|fieldset|figure|footer|form|header|html|main|nav|ol|section|svg|table|ul)\b/i
-const ARTIFACT_HTML_SOURCE_PATTERN = /(?:<!doctype\s+html\b|<html\b|<style\b|<script\b|<canvas\b|\son[a-z]+\s*=|(?:href|src)\s*=\s*["']?\s*javascript:)/i
-const STREAMING_HTML_CONTENT_PATTERN = /(?:```(?:html|htm|xhtml|xml|svg)\b|<(?:address|article|aside|blockquote|canvas|center|details|dialog|div|dl|fieldset|figure|footer|form|header|html|main|nav|ol|section|style|svg|table|ul)\b)/i
+const HTML_SOURCE_BUTTON_CLASS =
+  'absolute right-2 top-2 z-10 inline-flex h-8 w-8 items-center justify-center rounded-md bg-bg-300/70 p-2 text-accent-main-100 opacity-0 shadow-sm backdrop-blur-md transition-all hover:bg-bg-300/90 hover:text-accent-main-100 group-hover/html-preview:opacity-100 group-focus-within/html-preview:opacity-100'
+const BLOCK_HTML_SOURCE_PATTERN =
+  /^\s*<(?:address|article|aside|blockquote|center|details|dialog|div|dl|fieldset|figure|footer|form|header|html|main|nav|ol|section|svg|table|ul)\b/i
+const PREFIXED_BLOCK_HTML_SOURCE_PATTERN =
+  /^\s*<(?:style|script)\b[\s\S]*<(?:address|article|aside|blockquote|center|details|dialog|div|dl|fieldset|figure|footer|form|header|html|main|nav|ol|section|svg|table|ul)\b/i
+const ARTIFACT_HTML_SOURCE_PATTERN =
+  /(?:<!doctype\s+html\b|<html\b|<style\b|<script\b|<canvas\b|\son[a-z]+\s*=|(?:href|src)\s*=\s*["']?\s*javascript:)/i
+const STREAMING_HTML_CONTENT_PATTERN =
+  /(?:```(?:html|htm|xhtml|xml|svg)\b|<(?:address|article|aside|blockquote|canvas|center|details|dialog|div|dl|fieldset|figure|footer|form|header|html|main|nav|ol|section|style|svg|table|ul)\b)/i
 
 function getCachedHtml(src: string, isReasoning: boolean): string {
   const key = `${isReasoning ? 'r' : 'd'}:${src}`
@@ -258,7 +258,13 @@ function getOrderedListPadding(start: number, itemCount: number): string {
 
 // ─── Mermaid ────────────────────────────────────────────────────
 
-const MarkdownMermaid = memo(function MarkdownMermaid({ code, isIncomplete }: { code: string; isIncomplete?: boolean }) {
+const MarkdownMermaid = memo(function MarkdownMermaid({
+  code,
+  isIncomplete,
+}: {
+  code: string
+  isIncomplete?: boolean
+}) {
   const { resolvedTheme } = useTheme()
   const mermaidTheme = resolvedTheme === 'dark' ? 'dark' : 'default'
   const { hasCoarsePointer, hasTouch, preferTouchUi } = useInputCapabilities()
@@ -552,9 +558,7 @@ const MarkdownTable = memo(function MarkdownTable({
   if (isReasoning) {
     return (
       <div className="overflow-x-auto my-2 first:mt-0 last:mb-0 w-full">
-        <table className="min-w-full border-collapse text-[length:var(--fs-sm)]">
-          {children}
-        </table>
+        <table className="min-w-full border-collapse text-[length:var(--fs-sm)]">{children}</table>
       </div>
     )
   }
@@ -562,9 +566,7 @@ const MarkdownTable = memo(function MarkdownTable({
   return (
     <div className="group/table relative my-5 first:mt-0 last:mb-0 rounded-md border border-border-200/35 w-full">
       <div className="overflow-x-auto">
-        <table className="w-full text-[length:var(--fs-md)] border-collapse">
-          {children}
-        </table>
+        <table className="w-full text-[length:var(--fs-md)] border-collapse">{children}</table>
       </div>
     </div>
   )
@@ -582,9 +584,10 @@ function MarkdownTableCell({
   if (isHeader) {
     return (
       <th
-        className={isReasoning
-          ? 'px-3 py-1.5 text-left text-[length:var(--fs-sm)] font-medium whitespace-nowrap border-b border-border-200/32'
-          : 'relative px-3 py-2.5 text-left text-[length:var(--fs-md)] font-semibold whitespace-nowrap border-b border-border-200/38'
+        className={
+          isReasoning
+            ? 'px-3 py-1.5 text-left text-[length:var(--fs-sm)] font-medium whitespace-nowrap border-b border-border-200/32'
+            : 'relative px-3 py-2.5 text-left text-[length:var(--fs-md)] font-semibold whitespace-nowrap border-b border-border-200/38'
         }
       >
         {children}
@@ -593,9 +596,10 @@ function MarkdownTableCell({
   }
   return (
     <td
-      className={isReasoning
-        ? 'px-3 py-1.5 text-[length:var(--fs-sm)] text-text-300 w-max border-b border-border-200/18'
-        : 'px-3 py-2 text-[length:var(--fs-md)] text-text-300 leading-[1.55] w-max border-b border-border-200/14'
+      className={
+        isReasoning
+          ? 'px-3 py-1.5 text-[length:var(--fs-sm)] text-text-300 w-max border-b border-border-200/18'
+          : 'px-3 py-2 text-[length:var(--fs-md)] text-text-300 leading-[1.55] w-max border-b border-border-200/14'
       }
     >
       {children}
@@ -682,43 +686,102 @@ function renderInlineTokensToReact(tokens: unknown[], _isReasoning: boolean): Re
       if (nested?.length) return <Fragment key={index}>{renderInlineTokensToReact(nested, _isReasoning)}</Fragment>
       return renderSegmentsToReact(scanTextSegments(String(item.text ?? '')), `text-${index}`, _isReasoning)
     }
-    if (item.type === 'strong') return <strong key={index} className={_isReasoning ? 'font-semibold text-text-300' : 'font-semibold text-text-100'}>{renderInlineTokensToReact((item.tokens as unknown[]) ?? [], _isReasoning)}</strong>
-    if (item.type === 'em') return <em key={index} className={_isReasoning ? 'italic text-text-300' : 'italic text-text-200'}>{renderInlineTokensToReact((item.tokens as unknown[]) ?? [], _isReasoning)}</em>
+    if (item.type === 'strong')
+      return (
+        <strong key={index} className={_isReasoning ? 'font-semibold text-text-300' : 'font-semibold text-text-100'}>
+          {renderInlineTokensToReact((item.tokens as unknown[]) ?? [], _isReasoning)}
+        </strong>
+      )
+    if (item.type === 'em')
+      return (
+        <em key={index} className={_isReasoning ? 'italic text-text-300' : 'italic text-text-200'}>
+          {renderInlineTokensToReact((item.tokens as unknown[]) ?? [], _isReasoning)}
+        </em>
+      )
     // 删除线只来自 ~~...~~（tokenizer 已限制单 ~ 不产生 del）
     if (item.type === 'del') {
-      return <del key={index} className={_isReasoning ? 'text-text-500 line-through decoration-text-500/50' : 'text-text-400 line-through decoration-text-400/50'}>{renderInlineTokensToReact((item.tokens as unknown[]) ?? [], _isReasoning)}</del>
+      return (
+        <del
+          key={index}
+          className={
+            _isReasoning
+              ? 'text-text-500 line-through decoration-text-500/50'
+              : 'text-text-400 line-through decoration-text-400/50'
+          }
+        >
+          {renderInlineTokensToReact((item.tokens as unknown[]) ?? [], _isReasoning)}
+        </del>
+      )
     }
-    if (item.type === 'codespan') return <code key={index} className={_isReasoning ? 'font-mono text-accent-main-100 text-[0.9em] align-baseline break-words' : 'text-accent-main-100 text-[0.9em] font-mono align-baseline break-words'}>{String(item.text ?? '')}</code>
+    if (item.type === 'codespan')
+      return (
+        <code
+          key={index}
+          className={
+            _isReasoning
+              ? 'font-mono text-accent-main-100 text-[0.9em] align-baseline break-words'
+              : 'text-accent-main-100 text-[0.9em] font-mono align-baseline break-words'
+          }
+        >
+          {String(item.text ?? '')}
+        </code>
+      )
     if (item.type === 'link') {
       const href = typeof item.href === 'string' ? item.href : undefined
-      if (isUnsafeHrefInline(href)) return <span key={index}>{renderInlineTokensToReact((item.tokens as unknown[]) ?? [], _isReasoning)} [blocked]</span>
+      if (isUnsafeHrefInline(href))
+        return (
+          <span key={index}>{renderInlineTokensToReact((item.tokens as unknown[]) ?? [], _isReasoning)} [blocked]</span>
+        )
       const localPath = decodeLocalFileHrefInline(href) ?? getWindowsAbsolutePathInline(href)
       const className = _isReasoning
         ? 'text-[length:var(--fs-sm)] font-medium text-accent-main-200/80 hover:text-accent-main-200 underline underline-offset-2 transition-colors'
         : 'font-medium text-accent-main-100 hover:text-accent-main-200 underline underline-offset-2 transition-colors'
       if (localPath) {
         return (
-          <a key={index} href={encodeLocalFileHrefInline(localPath)} title={localPath} className={className} onClick={e => { e.preventDefault(); openLocalFilePath(localPath) }}>
+          <a
+            key={index}
+            href={encodeLocalFileHrefInline(localPath)}
+            title={localPath}
+            className={className}
+            onClick={e => {
+              e.preventDefault()
+              openLocalFilePath(localPath)
+            }}
+          >
             {renderInlineTokensToReact((item.tokens as unknown[]) ?? [], _isReasoning)}
           </a>
         )
       }
-      return <a key={index} href={href} target="_blank" rel="noopener noreferrer" className={className}>{renderInlineTokensToReact((item.tokens as unknown[]) ?? [], _isReasoning)}</a>
+      return (
+        <a key={index} href={href} target="_blank" rel="noopener noreferrer" className={className}>
+          {renderInlineTokensToReact((item.tokens as unknown[]) ?? [], _isReasoning)}
+        </a>
+      )
     }
     if (item.type === 'image') {
       const src = typeof item.href === 'string' ? item.href : undefined
-      if (!src || isUnsafeImageSrcInline(src)) return <span key={index}>[Image blocked: {String(item.text ?? '')}]</span>
+      if (!src || isUnsafeImageSrcInline(src))
+        return <span key={index}>[Image blocked: {String(item.text ?? '')}]</span>
       const dimensions = inferImageDimensions(src)
-      return <img key={index} src={src} alt={String(item.text ?? '')} width={dimensions?.width} height={dimensions?.height} loading="eager" decoding="async" className="block max-w-full rounded-md" />
+      return (
+        <img
+          key={index}
+          src={src}
+          alt={String(item.text ?? '')}
+          width={dimensions?.width}
+          height={dimensions?.height}
+          loading="eager"
+          decoding="async"
+          className="block max-w-full rounded-md"
+        />
+      )
     }
     if (item.type === 'br') return <br key={index} />
     if (item.type === 'math') {
       const text = String(item.text ?? '')
       const display = item.display === true
       const fallback = display ? `\\[${text}\\]` : `\\(${text}\\)`
-      return (
-        <span key={index} dangerouslySetInnerHTML={{ __html: renderKatexHtml(text, display, fallback) }} />
-      )
+      return <span key={index} dangerouslySetInnerHTML={{ __html: renderKatexHtml(text, display, fallback) }} />
     }
     return <span key={index}>{String(item.text ?? item.raw ?? '')}</span>
   })
@@ -737,7 +800,11 @@ function renderSegmentsToReact(segments: MarkdownSegment[], keyPrefix: string, i
         const className = isReasoning
           ? 'rounded-sm bg-bg-300/70 px-0.5 text-text-300'
           : 'rounded-sm bg-accent-main-100/15 px-0.5 text-text-100'
-        return <mark key={key} className={className}>{renderSegmentsToReact(segment.children, key, isReasoning)}</mark>
+        return (
+          <mark key={key} className={className}>
+            {renderSegmentsToReact(segment.children, key, isReasoning)}
+          </mark>
+        )
       }
       case 'sup':
         return <sup key={key}>{renderSegmentsToReact(segment.children, key, isReasoning)}</sup>
@@ -745,10 +812,14 @@ function renderSegmentsToReact(segments: MarkdownSegment[], keyPrefix: string, i
         return <sub key={key}>{renderSegmentsToReact(segment.children, key, isReasoning)}</sub>
       case 'footnoteRef': {
         const id = getFootnoteId(segment.label)
-        const className = isReasoning ? 'align-super text-[0.75em] text-accent-main-200/80' : 'align-super text-[0.75em] text-accent-main-100'
+        const className = isReasoning
+          ? 'align-super text-[0.75em] text-accent-main-200/80'
+          : 'align-super text-[0.75em] text-accent-main-100'
         return (
           <sup key={key} id={`fnref-${id}`} className={className}>
-            <a href={`#fn-${id}`} className="font-medium underline underline-offset-2">{segment.label}</a>
+            <a href={`#fn-${id}`} className="font-medium underline underline-offset-2">
+              {segment.label}
+            </a>
           </sup>
         )
       }
@@ -758,7 +829,13 @@ function renderSegmentsToReact(segments: MarkdownSegment[], keyPrefix: string, i
 
 function isUnsafeHrefInline(href?: string): boolean {
   if (!href) return false
-  const normalized = Array.from(href.trim()).filter(char => { const code = char.charCodeAt(0); return code > 0x1f && code !== 0x7f && !/\s/.test(char) }).join('').toLowerCase()
+  const normalized = Array.from(href.trim())
+    .filter(char => {
+      const code = char.charCodeAt(0)
+      return code > 0x1f && code !== 0x7f && !/\s/.test(char)
+    })
+    .join('')
+    .toLowerCase()
   return normalized.startsWith('javascript:') || normalized.startsWith('vbscript:') || normalized.startsWith('data:')
 }
 
@@ -770,7 +847,12 @@ function isUnsafeImageSrcInline(src?: string): boolean {
 
 function getWindowsAbsolutePathInline(value: string | undefined): string | null {
   if (!value) return null
-  try { const decoded = decodeURIComponent(value); return /^[A-Za-z]:[\\/]/.test(decoded) ? decoded : null } catch { return value }
+  try {
+    const decoded = decodeURIComponent(value)
+    return /^[A-Za-z]:[\\/]/.test(decoded) ? decoded : null
+  } catch {
+    return value
+  }
 }
 
 function encodeLocalFileHrefInline(filePath: string): string {
@@ -779,7 +861,11 @@ function encodeLocalFileHrefInline(filePath: string): string {
 
 function decodeLocalFileHrefInline(href?: string): string | null {
   if (!href?.startsWith(LOCAL_FILE_LINK_PREFIX)) return null
-  try { return decodeURIComponent(href.slice(LOCAL_FILE_LINK_PREFIX.length)) } catch { return null }
+  try {
+    return decodeURIComponent(href.slice(LOCAL_FILE_LINK_PREFIX.length))
+  } catch {
+    return null
+  }
 }
 
 function createStreamingHtmlDocument(resizeId: string, theme: 'light' | 'dark'): string {
@@ -940,7 +1026,6 @@ function createStreamingHtmlDocument(resizeId: string, theme: 'light' | 'dark'):
   </script>`
   return `<!doctype html><html><head>${HTML_SANDBOX_SECURITY_HEAD}${HTML_SANDBOX_VIEWPORT_HEAD}${themeHead}${storageScript}</head><body>${measureScript}${bridge}</body></html>`
 }
-
 
 function HtmlPreviewSurface({
   children,
@@ -1277,12 +1362,7 @@ const MarkdownDomBlock = memo(function MarkdownDomBlock({
 
     // live 纯文本追加：跳过 parse + morphdom，只改最后一个 Text 节点
     const prevSrc = appliedSrcRef.current
-    if (
-      isLive &&
-      prevSrc != null &&
-      root.hasChildNodes() &&
-      renderSrc.startsWith(prevSrc)
-    ) {
+    if (isLive && prevSrc != null && root.hasChildNodes() && renderSrc.startsWith(prevSrc)) {
       const suffix = renderSrc.slice(prevSrc.length)
       if (canAppendLiveMarkdownSuffix(suffix) && tryAppendLiveText(root, suffix)) {
         appliedSrcRef.current = renderSrc
@@ -1324,25 +1404,10 @@ const MarkdownDomBlock = memo(function MarkdownDomBlock({
     event.preventDefault()
   }, [])
 
-  return (
-    <div
-      ref={rootRef}
-      className={MARKDOWN_BLOCK_CONTENT_CLASS}
-      onClick={handleClick}
-      onSubmit={handleSubmit}
-    />
-  )
+  return <div ref={rootRef} className={MARKDOWN_BLOCK_CONTENT_CLASS} onClick={handleClick} onSubmit={handleSubmit} />
 })
 
-function MarkdownHtmlIsland({
-  src,
-  isReasoning,
-  isLive,
-}: {
-  src: string
-  isReasoning: boolean
-  isLive: boolean
-}) {
+function MarkdownHtmlIsland({ src, isReasoning, isLive }: { src: string; isReasoning: boolean; isLive: boolean }) {
   const [showSource, setShowSource] = useState(false)
   if (showSource) {
     return (
@@ -1552,9 +1617,7 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
           language={block.language}
           complete={block.complete}
           isReasoning={isReasoning}
-          isStreaming={
-            isStreaming && (block.mode === 'live' || (block.mode === 'code' && !block.complete))
-          }
+          isStreaming={isStreaming && (block.mode === 'live' || (block.mode === 'code' && !block.complete))}
         />
       ))}
     </div>

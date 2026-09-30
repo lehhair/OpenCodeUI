@@ -92,7 +92,9 @@ export const MentionMenu = forwardRef<MentionMenuHandle, MentionMenuProps>(funct
       }
       if (shadowEl === undefined) {
         shadowEl =
-          parent.closest<HTMLElement>('[data-chat-pane-root]')?.querySelector<HTMLElement>('[data-chat-header-shadow]') ?? null
+          parent
+            .closest<HTMLElement>('[data-chat-pane-root]')
+            ?.querySelector<HTMLElement>('[data-chat-header-shadow]') ?? null
       }
       const parentRect = parent.getBoundingClientRect()
       // 阴影底边 = 菜单顶部不可越过的线（header + 渐变阴影）。
@@ -197,7 +199,9 @@ export const MentionMenu = forwardRef<MentionMenuHandle, MentionMenuProps>(funct
                   .map(a => createItem('agent', a.name, a.name, a.description))
               : []
 
-          const allItems = [...agentItems, ...folders, ...files].filter(item => !excludeValuesRef.current?.has(item.value))
+          const allItems = [...agentItems, ...folders, ...files].filter(
+            item => !excludeValuesRef.current?.has(item.value),
+          )
 
           setItems(allItems)
 
@@ -279,7 +283,9 @@ export const MentionMenu = forwardRef<MentionMenuHandle, MentionMenuProps>(funct
             .filter(a => a.name.toLowerCase().includes(lowerQuery))
             .map(a => createItem('agent', a.name, a.name, a.description))
 
-          const allItems = [...agentItems, ...folders, ...fileItems].filter(item => !excludeValuesRef.current?.has(item.value))
+          const allItems = [...agentItems, ...folders, ...fileItems].filter(
+            item => !excludeValuesRef.current?.has(item.value),
+          )
 
           setItems(allItems)
           setSelectedIndex(0)
@@ -420,10 +426,14 @@ export const MentionMenu = forwardRef<MentionMenuHandle, MentionMenuProps>(funct
                 <span className="ml-1.5">{item.displayName}</span>
               </div>
               {item.relativePath && item.type !== 'agent' && (
-                <div className="text-[length:var(--fs-sm)] text-text-400 truncate ml-[calc(2ch+0.375rem)]">{item.relativePath}</div>
+                <div className="text-[length:var(--fs-sm)] text-text-400 truncate ml-[calc(2ch+0.375rem)]">
+                  {item.relativePath}
+                </div>
               )}
             </div>
-            {item.type === 'folder' && <span className="text-text-400 text-[length:var(--fs-sm)] ml-2 flex-shrink-0">→</span>}
+            {item.type === 'folder' && (
+              <span className="text-text-400 text-[length:var(--fs-sm)] ml-2 flex-shrink-0">→</span>
+            )}
           </button>
         ))}
       </div>

@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { SETTINGS_SEARCH_DEFINITIONS, filterSettingsSearchItems, type SettingsSearchItem } from './settingsSearchCatalog'
+import {
+  SETTINGS_SEARCH_DEFINITIONS,
+  filterSettingsSearchItems,
+  type SettingsSearchItem,
+} from './settingsSearchCatalog'
 
 const items: SettingsSearchItem[] = [
   { id: 'appearance:mode', tab: 'appearance', label: 'Color Mode', tabLabel: 'Appearance', targetLabel: 'Color Mode' },
@@ -23,15 +27,17 @@ describe('settings search catalog', () => {
 
   it('includes stable section and action targets across settings menus', () => {
     const keys = new Set(SETTINGS_SEARCH_DEFINITIONS.map(item => item.labelKey))
-    expect([
-      'agent.behavior',
-      'chat.conversationExperience',
-      'workspace.sidebar',
-      'appearance.display',
-      'notifications.testNotification',
-      'notifications.inAppAlerts',
-      'service.serviceStatus',
-    ].every(key => keys.has(key))).toBe(true)
+    expect(
+      [
+        'agent.behavior',
+        'chat.conversationExperience',
+        'workspace.sidebar',
+        'appearance.display',
+        'notifications.testNotification',
+        'notifications.inAppAlerts',
+        'service.serviceStatus',
+      ].every(key => keys.has(key)),
+    ).toBe(true)
   })
 
   it('gives duplicate notification events distinct search targets', () => {

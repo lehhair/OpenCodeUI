@@ -79,7 +79,9 @@ export const CompactionPartView = memo(function CompactionPartView({ part }: Com
   return (
     <div className="flex items-center gap-2 px-3 py-1.5 text-[length:var(--fs-sm)] text-text-500">
       <span className="flex-1 h-px bg-border-200/70" />
-      <span className="shrink-0 text-[length:var(--fs-xs)] leading-none text-text-400">{t('system.contextCompacted')}</span>
+      <span className="shrink-0 text-[length:var(--fs-xs)] leading-none text-text-400">
+        {t('system.contextCompacted')}
+      </span>
       <span className="flex-1 h-px bg-border-200/70" />
     </div>
   )
@@ -112,7 +114,9 @@ export const PatchPartView = memo(function PatchPartView({ part }: PatchPartView
       >
         <PatchIcon className="w-4 h-4 text-text-400 flex-shrink-0" />
         <div className="flex-1 min-w-0">
-          <span className="text-[length:var(--fs-base)] text-text-200">{t('system.filesChanged', { count: fileCount })}</span>
+          <span className="text-[length:var(--fs-base)] text-text-200">
+            {t('system.filesChanged', { count: fileCount })}
+          </span>
           <span className="text-[length:var(--fs-sm)] text-text-500 ml-2 font-mono">{hash.slice(0, 7)}</span>
         </div>
         <ChevronDownIcon className={chevronClass(expanded)} />

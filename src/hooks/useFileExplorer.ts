@@ -6,6 +6,7 @@
 import { useState, useCallback, useEffect, useRef, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 import { listDirectory, getFileContent, getFileStatus, getSessionDiff, getLastTurnDiff, getVcsDiff } from '../api'
+import { toVcsDiffMode } from '../api/vcs'
 import type { FileNode, FileContent, FileStatusItem, FileDiff } from '../api/types'
 import { useSessionChangeScope } from '../store/changeScopeStore'
 import { activeSessionStore } from '../store/activeSessionStore'
@@ -96,32 +97,38 @@ export function useFileExplorer(options: UseFileExplorerOptions = {}): UseFileEx
   const statusLoadIdRef = useRef(0)
 
   // 加载根目录
-  const loadRoot = useCallback(async () => {
-    if (!effectiveDirectory) return
+  const loadRoot = useCallback(
+    async (force = false) => {
+      if (!effectiveDirectory) return
 
-    const loadId = ++loadIdRef.current
-    setIsLoading(true)
-    setError(null)
+      const loadId = ++loadIdRef.current
+      setIsLoading(true)
+      setError(null)
 
-    try {
-      const nodes = await listDirectory('', effectiveDirectory, serverId)
+      try {
+        // ⚠️ 空串表示「location 根目录」。V2 实测：`path=''`、`path='.'`、不传 path
+        //    三者等价，都返回 location 根（不会报错），所以这里保持 V1 的写法不变。
+        // `force` 由 softRefresh（自动刷新）传入，用来绕开根目录的 10s TTL 缓存
+        const nodes = await listDirectory('', effectiveDirectory, serverId, force ? { force: true } : undefined)
 
-      // 检查请求是否过时
-      if (loadId !== loadIdRef.current) return
+        // 检查请求是否过时
+        if (loadId !== loadIdRef.current) return
 
-      // 排序：目录在前，文件在后，按名称排序
-      const sorted = sortNodes(nodes)
-      setTree(sorted.map(n => ({ ...n, children: n.type === 'directory' ? undefined : undefined })))
-    } catch (e) {
-      if (loadId === loadIdRef.current) {
-        setError(e instanceof Error ? e.message : t('fileExplorer.failedToLoadFiles'))
+        // 排序：目录在前，文件在后，按名称排序
+        const sorted = sortNodes(nodes)
+        setTree(sorted.map(n => ({ ...n, children: n.type === 'directory' ? undefined : undefined })))
+      } catch (e) {
+        if (loadId === loadIdRef.current) {
+          setError(e instanceof Error ? e.message : t('fileExplorer.failedToLoadFiles'))
+        }
+      } finally {
+        if (loadId === loadIdRef.current) {
+          setIsLoading(false)
+        }
       }
-    } finally {
-      if (loadId === loadIdRef.current) {
-        setIsLoading(false)
-      }
-    }
-  }, [effectiveDirectory, serverId, t])
+    },
+    [effectiveDirectory, serverId, t],
+  )
 
   const loadStatuses = useCallback(async () => {
     if (!effectiveDirectory) {
@@ -145,7 +152,9 @@ export function useFileExplorer(options: UseFileExplorerOptions = {}): UseFileEx
       } else {
         const diffs =
           changeMode === 'git' || changeMode === 'branch'
-            ? await getVcsDiff(changeMode, effectiveDirectory, serverId)
+            ? // ⚠️ V2 的 mode 枚举是 working|branch|committed，UI 的 'git' 必须翻译成 'working'
+              //（实测直接传 'git' → 400 Expected Vcs.Mode）
+              await getVcsDiff(toVcsDiffMode(changeMode), effectiveDirectory, serverId)
             : changeMode === 'turn'
               ? await getLastTurnDiff(sessionId, effectiveDirectory, serverId)
               : await getSessionDiff(sessionId, effectiveDirectory, serverId)
@@ -180,7 +189,8 @@ export function useFileExplorer(options: UseFileExplorerOptions = {}): UseFileEx
       const loadId = (childLoadIdsRef.current.get(loadKey) ?? 0) + 1
       childLoadIdsRef.current.set(loadKey, loadId)
 
-      const isCurrentLoad = () => directoryRef.current === effectiveDirectory && childLoadIdsRef.current.get(loadKey) === loadId
+      const isCurrentLoad = () =>
+        directoryRef.current === effectiveDirectory && childLoadIdsRef.current.get(loadKey) === loadId
 
       // 更新树，标记为加载中
       setTree(prev =>
@@ -269,13 +279,16 @@ export function useFileExplorer(options: UseFileExplorerOptions = {}): UseFileEx
     [tree, loadChildren, updateExpandedPaths],
   )
 
-  const collapsePath = useCallback((path: string) => {
-    updateExpandedPaths(prev => {
-      const next = new Set(prev)
-      next.delete(path)
-      return next
-    })
-  }, [updateExpandedPaths])
+  const collapsePath = useCallback(
+    (path: string) => {
+      updateExpandedPaths(prev => {
+        const next = new Set(prev)
+        next.delete(path)
+        return next
+      })
+    },
+    [updateExpandedPaths],
+  )
 
   // 加载文件预览
   const loadPreview = useCallback(
@@ -333,8 +346,13 @@ export function useFileExplorer(options: UseFileExplorerOptions = {}): UseFileEx
   }, [effectiveDirectory, loadRoot, loadStatuses])
 
   // 软刷新：重新加载根目录和状态，但保留展开路径和预览
+  //
+  // ⚠️ 阶段 3b：这里**强制绕开根目录的 10 秒 TTL 缓存**。
+  //    该缓存是为「`useChatSession` 预热 + 面板首次挂载」省一次请求而加的；
+  //    但软刷新是「session idle / 窗口聚焦 / SSE 重连」触发的，用户期望立刻看到新文件，
+  //    走缓存会最多滞后 10 秒（V1 遗留行为）。
   const softRefresh = useCallback(async () => {
-    await Promise.all([loadRoot(), loadStatuses()])
+    await Promise.all([loadRoot(true), loadStatuses()])
   }, [loadRoot, loadStatuses])
 
   // 自动刷新：session idle / 窗口聚焦 / SSE 重连
@@ -478,16 +496,15 @@ function normalizePath(p: string): string {
   return result
 }
 
-// Helper: 从 diff 推断文件状态（优先 status 字段，回退统计推断，最后 before/after 推断）
+// Helper: 从 diff 推断文件状态（优先 status 字段，回退统计推断）
+//
+// ⛔ 阶段 3b 删掉了「旧版 before/after 兼容」分支：
+//    V2 的 `FileDiff.Info`（`packages/schema/src/file-diff.ts`）没有 before/after 字段
+//    → 该分支永远不成立（阶段 3a 已核实，见主文档 §9.3）。
 function getFileStatusFromDiff(diff: FileDiff): 'added' | 'modified' | 'deleted' {
   if (diff.status) return diff.status as 'added' | 'modified' | 'deleted'
   if (diff.deletions === 0 && diff.additions > 0) return 'added'
   if (diff.additions === 0 && diff.deletions > 0) return 'deleted'
-  // 旧版 before/after 兼容
-  if (diff.before !== undefined && diff.after !== undefined) {
-    if (!diff.before.trim()) return 'added'
-    if (!diff.after.trim()) return 'deleted'
-  }
   return 'modified'
 }
 

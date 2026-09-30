@@ -6,7 +6,9 @@ import { Dialog } from './Dialog'
 describe('Dialog', () => {
   beforeEach(() => {
     vi.useFakeTimers()
-    vi.spyOn(window, 'requestAnimationFrame').mockImplementation(cb => window.setTimeout(() => cb(performance.now()), 0))
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation(cb =>
+      window.setTimeout(() => cb(performance.now()), 0),
+    )
     vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(id => {
       clearTimeout(id)
     })
@@ -115,9 +117,13 @@ describe('Dialog', () => {
     render(
       <Dialog isOpen={true} onClose={vi.fn()} ariaLabel="Settings" rawContent showCloseButton={false}>
         <button type="button">First</button>
-        <button type="button" tabIndex={-1}>Inactive tab</button>
+        <button type="button" tabIndex={-1}>
+          Inactive tab
+        </button>
         <button type="button">Last</button>
-        <button type="button" disabled>Disabled action</button>
+        <button type="button" disabled>
+          Disabled action
+        </button>
       </Dialog>,
     )
 

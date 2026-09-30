@@ -221,7 +221,16 @@ export const ResizablePanel = memo(function ResizablePanel({
               transition-opacity ${ANIMATION_DURATION} ease-out
               ${isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}
             `}
-            style={position === 'right' ? { top: 'calc(var(--safe-area-inset-top, 0px) + var(--desktop-titlebar-height, 0px))', left: 0, right: 0, bottom: 0 } : undefined}
+            style={
+              position === 'right'
+                ? {
+                    top: 'calc(var(--safe-area-inset-top, 0px) + var(--desktop-titlebar-height, 0px))',
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                  }
+                : undefined
+            }
             onClick={onClose}
           />
         )}
@@ -244,7 +253,10 @@ export const ResizablePanel = memo(function ResizablePanel({
             </div>
           )}
 
-          <div ref={contentRef} className="flex-1 flex flex-col min-h-0 min-w-0 w-full h-full relative bg-bg-100 pb-[var(--safe-area-inset-bottom)]">
+          <div
+            ref={contentRef}
+            className="flex-1 flex flex-col min-h-0 min-w-0 w-full h-full relative bg-bg-100 pb-[var(--safe-area-inset-bottom)]"
+          >
             {children}
           </div>
         </div>
@@ -295,7 +307,10 @@ export const ResizablePanel = memo(function ResizablePanel({
 
       {isResizing && <div className="absolute inset-0 z-40 bg-transparent pointer-events-auto" />}
 
-      <div ref={contentRef} className="absolute inset-0 flex flex-col min-h-0 min-w-0 w-full h-full pb-[var(--safe-area-inset-bottom)]">
+      <div
+        ref={contentRef}
+        className="absolute inset-0 flex flex-col min-h-0 min-w-0 w-full h-full pb-[var(--safe-area-inset-bottom)]"
+      >
         {children}
       </div>
     </div>

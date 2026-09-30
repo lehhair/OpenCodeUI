@@ -8,17 +8,18 @@ const items: SettingsSearchItem[] = [
   { id: 'workspace:wide', tab: 'workspace', label: 'Wide Mode', tabLabel: 'Workspace', targetLabel: 'Wide Mode' },
 ]
 
-const rect = (left: number, top: number, width: number, height: number) => ({
-  left,
-  right: left + width,
-  top,
-  bottom: top + height,
-  width,
-  height,
-  x: left,
-  y: top,
-  toJSON: () => ({}),
-}) as DOMRect
+const rect = (left: number, top: number, width: number, height: number) =>
+  ({
+    left,
+    right: left + width,
+    top,
+    bottom: top + height,
+    width,
+    height,
+    x: left,
+    y: top,
+    toJSON: () => ({}),
+  }) as DOMRect
 
 describe('SettingsSearch', () => {
   it('selects results with the keyboard', () => {

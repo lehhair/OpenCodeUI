@@ -1,5 +1,5 @@
 import { getAuthHeader } from './http'
-import { getPtyConnectUrl } from './pty'
+import { createPtyConnectTicket, getPtyConnectUrl } from './pty'
 
 /** Unified bridge event from Rust */
 interface BridgeEvent {
@@ -40,9 +40,14 @@ export async function connectTauriPty({
   onError,
 }: ConnectTauriPtyParams): Promise<TauriPtyConnection> {
   const { invoke, Channel } = await import('@tauri-apps/api/core')
+  // V2 连接协议是两步：先申请一次性 ticket，再拼 URL。
+  // ⚠️ ticket 只能走 query —— Rust 侧 `bridge_connect` 不支持自定义 header 传 ticket，
+  //    所以**不要**试图把 ticket 挪到 authHeader 里（改了就连不上，且不会报错原因）。
+  // 票据一次性 + 60 秒过期：每次调用本函数（含重连）都会重新申请一张。
+  const { ticket } = await createPtyConnectTicket(ptyId, directory, serverId)
   // 必须用终端所属服务器的 URL/auth（不能是活动服务器）：
   // 多服务器模式下焦点服务器可能已切换，但 pty 在创建它的服务器上
-  const url = getPtyConnectUrl(ptyId, directory, { includeAuthInUrl: false, cursor }, serverId)
+  const url = getPtyConnectUrl(ptyId, ticket, directory, { includeAuthInUrl: false, cursor }, serverId)
   const authHeader = getAuthHeader(serverId)['Authorization'] || null
   // bridgeId 带服务器前缀，避免两个服务器（同后端）相同 ptyId 的 bridge 冲突
   const bridgeId = `pty:${serverId ?? ''}:${ptyId}`

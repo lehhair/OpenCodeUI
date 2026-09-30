@@ -3,7 +3,6 @@ import { useTranslation } from 'react-i18next'
 import {
   PanelRightIcon,
   PanelBottomIcon,
-  ChevronDownIcon,
   SidebarIcon,
   SplitHorizontalIcon,
   MaximizeIcon,
@@ -11,7 +10,6 @@ import {
 } from '../../components/Icons'
 import { IconButton } from '../../components/ui'
 import { ModelSelector, type ModelSelectorHandle } from './ModelSelector'
-import { ShareDialog } from './ShareDialog'
 import { messageStore, useHeaderSessionMeta } from '../../store'
 import { useLayoutStore, layoutStore } from '../../store/layoutStore'
 import { useSessionContext } from '../../contexts/useSessionContext'
@@ -44,9 +42,7 @@ interface SessionTitleControlProps {
   setIsEditingTitle: (value: boolean) => void
   handleRename: () => void
   handleStartEdit: () => void
-  onShare: () => void
   clickToRenameTitle: string
-  shareTitle: string
 }
 
 function SessionTitleControl({
@@ -59,9 +55,7 @@ function SessionTitleControl({
   setIsEditingTitle,
   handleRename,
   handleStartEdit,
-  onShare,
   clickToRenameTitle,
-  shareTitle,
 }: SessionTitleControlProps) {
   const inputClass = compact
     ? 'px-2 py-1.5 text-[length:var(--fs-base)] font-medium text-text-100 bg-transparent border-none outline-none w-[160px] h-full'
@@ -69,12 +63,6 @@ function SessionTitleControl({
   const buttonClass = compact
     ? 'px-2 py-1.5 text-[length:var(--fs-base)] font-medium text-text-200 hover:text-text-100 transition-colors truncate max-w-[200px] cursor-text select-none'
     : 'px-3 py-1.5 text-[length:var(--fs-base)] font-medium text-text-200 hover:text-text-100 transition-colors truncate max-w-[300px] cursor-text select-none text-center'
-  const dividerClass = compact
-    ? 'w-[1.5px] h-3 bg-border-200/50 mx-0.5 shrink-0'
-    : 'w-[1.5px] h-3 bg-border-200/50 mx-0.5 shrink-0 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 [@media(any-pointer:coarse)]:opacity-100 transition-opacity'
-  const shareButtonClass = compact
-    ? 'p-1 text-text-400 hover:text-text-100 transition-colors rounded-md hover:bg-bg-300/50 shrink-0'
-    : 'p-1 text-text-400 hover:text-text-100 transition-colors rounded-md hover:bg-bg-300/50 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 [@media(any-pointer:coarse)]:opacity-100 shrink-0'
 
   return (
     <div
@@ -94,18 +82,9 @@ function SessionTitleControl({
           className={inputClass}
         />
       ) : (
-          <button type="button" onClick={handleStartEdit} className={buttonClass} title={clickToRenameTitle}>
-            {sessionTitle}
-          </button>
-      )}
-
-      {!isEditingTitle && (
-        <>
-          <div className={dividerClass} />
-          <button type="button" className={shareButtonClass} title={shareTitle} aria-label={shareTitle} onClick={onShare}>
-            <ChevronDownIcon size={12} />
-          </button>
-        </>
+        <button type="button" onClick={handleStartEdit} className={buttonClass} title={clickToRenameTitle}>
+          {sessionTitle}
+        </button>
       )}
     </div>
   )
@@ -130,7 +109,6 @@ export function Header({
   const { currentDirectory } = useDirectory()
   const { presentation, interaction } = useChatViewport()
 
-  const [shareDialogOpen, setShareDialogOpen] = useState(false)
   const [isEditingTitle, setIsEditingTitle] = useState(false)
   const [editTitle, setEditTitle] = useState('')
   const titleInputRef = useRef<HTMLInputElement>(null)
@@ -189,9 +167,7 @@ export function Header({
       setIsEditingTitle={setIsEditingTitle}
       handleRename={handleRename}
       handleStartEdit={handleStartEdit}
-      onShare={() => setShareDialogOpen(true)}
       clickToRenameTitle={t('header.clickToRename')}
-      shareTitle={t('header.shareSession')}
     />
   )
 
@@ -269,9 +245,10 @@ export function Header({
         </div>
       </div>
 
-      <ShareDialog isOpen={shareDialogOpen} onClose={() => setShareDialogOpen(false)} />
-
-      <div data-chat-header-shadow className="absolute top-full left-0 right-0 h-8 bg-gradient-to-b from-bg-100 to-transparent pointer-events-none z-10" />
+      <div
+        data-chat-header-shadow
+        className="absolute top-full left-0 right-0 h-8 bg-gradient-to-b from-bg-100 to-transparent pointer-events-none z-10"
+      />
     </div>
   )
 }

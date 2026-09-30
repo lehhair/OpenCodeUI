@@ -39,12 +39,8 @@ describe('pinnedSessionsStore', () => {
       directory: '/remote',
       title: 'Remote Pin',
     })
-    expect(readPinned(remote.id)).toEqual([
-      { sessionId: 'remote-session', directory: '/remote', title: 'Remote Pin' },
-    ])
-    expect(readPinned('local')).toEqual([
-      { sessionId: 'local-session', directory: '/local', title: 'Local Pin' },
-    ])
+    expect(readPinned(remote.id)).toEqual([{ sessionId: 'remote-session', directory: '/remote', title: 'Remote Pin' }])
+    expect(readPinned('local')).toEqual([{ sessionId: 'local-session', directory: '/local', title: 'Local Pin' }])
 
     serverStore.setActiveServer('local')
     expect(pinnedSessionsStore.isPinned('local-session')).toBe(true)
@@ -83,12 +79,8 @@ describe('pinnedSessionsStore', () => {
 
     const { pinnedSessionsStore } = await import('./pinnedSessionsStore')
 
-    expect(pinnedSessionsStore.getSnapshot()).toEqual([
-      { sessionId: 'legacy-1', directory: '/old', title: 'Legacy' },
-    ])
-    expect(readPinned('local')).toEqual([
-      { sessionId: 'legacy-1', directory: '/old', title: 'Legacy' },
-    ])
+    expect(pinnedSessionsStore.getSnapshot()).toEqual([{ sessionId: 'legacy-1', directory: '/old', title: 'Legacy' }])
+    expect(readPinned('local')).toEqual([{ sessionId: 'legacy-1', directory: '/old', title: 'Legacy' }])
     expect(localStorage.getItem(STORAGE_SUFFIX)).toBeNull()
   })
 })
