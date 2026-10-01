@@ -1,8 +1,14 @@
 name: Deploy to GitHub Pages
 
+# v2 重写期间暂停 dev 的自动部署。
+#
+# 原因：dev 已重置为 v2 重写线，中途的构建不一定可用；若每次 push 都部署，
+# 会把线上 v0.6.47（v1 终版）的可用 demo 覆盖成半成品。
+# 线上 demo 现停留在 v0.6.47，待 v2 达到可发布里程碑后再恢复自动部署：
+# 把下面的 `push: branches: [dev]` 触发器加回来即可。
+#
+# 目前只保留手动触发，需要时可在 Actions 页面手动部署。
 on:
-  push:
-    branches: [dev]
   workflow_dispatch:
 
 permissions:
