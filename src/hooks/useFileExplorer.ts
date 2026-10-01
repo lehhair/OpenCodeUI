@@ -10,6 +10,7 @@ import type { FileNode, FileContent, FileStatusItem, FileDiff } from '../api/typ
 import { useSessionChangeScope } from '../store/changeScopeStore'
 import { activeSessionStore } from '../store/activeSessionStore'
 import { useAutoRefresh } from './useAutoRefresh'
+import { fileBaseName, toAbsoluteFilePath } from '../utils/pathUtils'
 
 /**
  * 文件树节点。
@@ -441,22 +442,6 @@ function sortNodes(nodes: FileTreeNode[]): FileTreeNode[] {
   })
 }
 
-/** 从路径取 basename（兼容 / 与 \） */
-function baseName(p: string): string {
-  const normalized = p.replace(/\\/g, '/').replace(/\/+$/, '')
-  const index = normalized.lastIndexOf('/')
-  return index === -1 ? normalized : normalized.slice(index + 1)
-}
-
-/** 把根相对路径拼成绝对路径 */
-function toAbsolute(path: string, directory?: string): string {
-  if (!directory) return path
-  if (/^[a-zA-Z]:[\\/]/.test(path) || path.startsWith('/')) return path
-  const separator = directory.includes('\\') ? '\\' : '/'
-  const base = directory.replace(/[\\/]+$/, '')
-  return `${base}${separator}${path.replace(/\//g, separator)}`
-}
-
 /**
  * 把 v2 的扁平条目投影成树节点。
  *
@@ -474,8 +459,8 @@ function toTreeNode(entry: FileNode, parentPath: string, directory?: string): Fi
 
   return {
     path,
-    name: baseName(path),
-    absolute: toAbsolute(path, directory),
+    name: fileBaseName(path),
+    absolute: toAbsoluteFilePath(path, directory),
     type: entry.type,
   }
 }

@@ -1,9 +1,27 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { FileContent } from '../api/types'
 import { resolveHtmlPreviewResources, resolveHtmlResourcePath } from './htmlPreviewResources'
 
 const getFileContent = vi.hoisted(() => vi.fn())
 
 vi.mock('../api/file', () => ({ getFileContent }))
+
+// ============================================
+// v2 的 file.read 返回原始字节：FileContent 只有
+// { path, content, isBinary, size, bytes }，没有 v1 的 mimeType / base64 encoding。
+// MIME 由路径推断，因此这里的夹具改为字节形态。
+// ============================================
+
+function textFile(path: string, content: string): FileContent {
+  return { path, content, isBinary: false, size: content.length, bytes: new TextEncoder().encode(content) }
+}
+
+function bytesFile(path: string, base64: string): FileContent {
+  const binary = atob(base64)
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i)
+  return { path, content: '', isBinary: true, size: bytes.length, bytes }
+}
 
 describe('htmlPreviewResources', () => {
   beforeEach(() => {
@@ -21,11 +39,11 @@ describe('htmlPreviewResources', () => {
   })
 
   it('inlines relative scripts, styles, CSS assets, and media', async () => {
-    const files = new Map<string, object>([
-      ['pages/app.js', { type: 'text', content: 'window.previewReady = true' }],
-      ['pages/styles/main.css', { type: 'text', content: '.hero{background:url("../img/bg.png")}' }],
-      ['pages/img/bg.png', { type: 'binary', encoding: 'base64', mimeType: 'image/png', content: 'iVBORw==' }],
-      ['assets/logo.svg', { type: 'text', mimeType: 'image/svg+xml', content: '<svg><circle r="4"/></svg>' }],
+    const files = new Map<string, FileContent>([
+      ['pages/app.js', textFile('pages/app.js', 'window.previewReady = true')],
+      ['pages/styles/main.css', textFile('pages/styles/main.css', '.hero{background:url("../img/bg.png")}')],
+      ['pages/img/bg.png', bytesFile('pages/img/bg.png', 'iVBORw==')],
+      ['assets/logo.svg', textFile('assets/logo.svg', '<svg><circle r="4"/></svg>')],
     ])
     getFileContent.mockImplementation(async (path: string) => {
       const content = files.get(path)
@@ -75,11 +93,7 @@ describe('htmlPreviewResources', () => {
       ['pages/async.js', 'window.asyncReady=true'],
       ['pages/module.js', 'import "./chunk.js"; window.moduleReady=true'],
     ])
-    getFileContent.mockImplementation(async (path: string) => ({
-      type: 'text',
-      mimeType: 'text/javascript',
-      content: files.get(path),
-    }))
+    getFileContent.mockImplementation(async (path: string) => textFile(path, files.get(path) ?? ''))
 
     const html = await resolveHtmlPreviewResources(
       '<script defer src="./defer.js"></script><script async src="./async.js"></script><script type="module" src="./module.js"></script>',
@@ -98,8 +112,8 @@ describe('htmlPreviewResources', () => {
 
   it('does not resolve an external stylesheet a second time against the HTML directory', async () => {
     getFileContent.mockImplementation(async (path: string) => {
-      if (path === 'pages/styles/main.css') return { type: 'text', mimeType: 'text/css', content: '.x{background:url("./missing.png")}' }
-      if (path === 'pages/missing.png') return { type: 'binary', encoding: 'base64', mimeType: 'image/png', content: 'iVBORw==' }
+      if (path === 'pages/styles/main.css') return textFile(path, '.x{background:url("./missing.png")}')
+      if (path === 'pages/missing.png') return bytesFile(path, 'iVBORw==')
       throw new Error('missing')
     })
 
@@ -111,12 +125,7 @@ describe('htmlPreviewResources', () => {
   })
 
   it('resolves inline CSS assets for an absolute HTML path within the project', async () => {
-    getFileContent.mockResolvedValue({
-      type: 'binary',
-      encoding: 'base64',
-      mimeType: 'image/png',
-      content: 'iVBORw==',
-    })
+    getFileContent.mockImplementation(async (path: string) => bytesFile(path, 'iVBORw=='))
 
     const html = await resolveHtmlPreviewResources(
       '<style>.logo{background:url("./img/logo.png")}</style>',

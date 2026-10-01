@@ -58,6 +58,33 @@ export function extToMime(ext: string): string {
     mov: 'video/quicktime',
     avi: 'video/x-msvideo',
     mkv: 'video/x-matroska',
+    // text / code
+    // v2 的 file.read 不再返回 mimeType，HTML 预览等场景完全依赖这里的推断，
+    // 因此脚本/样式/文本类型必须齐全（否则会退化成 application/octet-stream）
+    js: 'text/javascript',
+    mjs: 'text/javascript',
+    cjs: 'text/javascript',
+    jsx: 'text/javascript',
+    ts: 'text/javascript',
+    tsx: 'text/javascript',
+    css: 'text/css',
+    html: 'text/html',
+    htm: 'text/html',
+    xhtml: 'application/xhtml+xml',
+    json: 'application/json',
+    jsonc: 'application/json',
+    xml: 'application/xml',
+    txt: 'text/plain',
+    md: 'text/markdown',
+    markdown: 'text/markdown',
+    csv: 'text/csv',
+    yaml: 'text/yaml',
+    yml: 'text/yaml',
+    // fonts
+    woff: 'font/woff',
+    woff2: 'font/woff2',
+    ttf: 'font/ttf',
+    otf: 'font/otf',
   }
   return map[ext] || 'application/octet-stream'
 }

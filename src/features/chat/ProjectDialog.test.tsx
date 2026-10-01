@@ -9,11 +9,13 @@ vi.mock('../../components/ui/Dialog', () => ({
 }))
 
 vi.mock('../../api', () => ({
-  getPath: vi.fn().mockResolvedValue({ home: '/workspace/project' }),
+  // v2 的 LocationPublicInfo 没有 home，只有 directory
+  getPath: vi.fn().mockResolvedValue({ directory: '/workspace/project' }),
+  // v2 的文件条目只有 { path, type }
   listDirectory: vi.fn().mockResolvedValue([
-    { name: '.config', type: 'directory', absolute: '/workspace/project/.config' },
-    { name: 'src', type: 'directory', absolute: '/workspace/project/src' },
-    { name: 'docs', type: 'directory', absolute: '/workspace/project/docs' },
+    { path: '.config', type: 'directory' },
+    { path: 'src', type: 'directory' },
+    { path: 'docs', type: 'directory' },
   ]),
 }))
 

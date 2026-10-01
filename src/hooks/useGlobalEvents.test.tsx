@@ -14,7 +14,7 @@ const {
   subscribeToEventsMock,
   getSessionStatusMock,
   getPendingPermissionsMock,
-  getPendingQuestionsMock,
+  getPendingFormsMock,
   replyPermissionMock,
   childBelongsToSessionMock,
   getFocusedSessionIdMock,
@@ -53,10 +53,11 @@ const {
   return {
   subscribeToEventsMock: vi.fn(),
   getSessionStatusMock: vi.fn<(directory?: string) => Promise<Record<string, { type: string }>>>(() => Promise.resolve({})),
+  // v2 的权限请求是 { id, sessionID, action, resources? }
   getPendingPermissionsMock: vi.fn(() =>
-    Promise.resolve([] as Array<{ id: string; sessionID: string; permission: string; patterns?: string[] }>),
+    Promise.resolve([] as Array<{ id: string; sessionID: string; action: string; resources?: string[] }>),
   ),
-  getPendingQuestionsMock: vi.fn(() => Promise.resolve([])),
+  getPendingFormsMock: vi.fn(() => Promise.resolve([])),
   replyPermissionMock: vi.fn(() => Promise.resolve()),
   childBelongsToSessionMock: vi.fn<(sessionId: string, rootSessionId: string) => boolean>(() => false),
   getFocusedSessionIdMock: vi.fn<() => string | null>(() => null),
@@ -117,7 +118,7 @@ vi.mock('../api', () => ({
   reconnectServerSSE: (...args: unknown[]) => reconnectServerSSEMock(...args),
   getSessionStatus: getSessionStatusMock,
   getPendingPermissions: getPendingPermissionsMock,
-  getPendingQuestions: getPendingQuestionsMock,
+  getPendingForms: getPendingFormsMock,
 }))
 
 vi.mock('../store/multiServerStore', () => ({
@@ -216,7 +217,7 @@ describe('useGlobalEvents', () => {
     subscribeToEventsMock.mockReset()
     getSessionStatusMock.mockClear()
     getPendingPermissionsMock.mockClear()
-    getPendingQuestionsMock.mockClear()
+    getPendingFormsMock.mockClear()
     replyPermissionMock.mockClear()
     childBelongsToSessionMock.mockReset()
     getFocusedSessionIdMock.mockReset()
@@ -282,9 +283,10 @@ describe('useGlobalEvents', () => {
 
     await waitFor(() => expect(callbacks).toBeDefined())
 
-    callbacks!.onServerConnected?.({ timestamp: '2026-04-22T15:00:00.000Z' })
+    // v2 的 server.connected 负载是 {}，没有服务端时间戳，钩子用本地时间打点
+    callbacks!.onServerConnected?.({})
 
-    expect(applyServerConnectedTimestampMock).toHaveBeenCalledWith('local', '2026-04-22T15:00:00.000Z')
+    expect(applyServerConnectedTimestampMock).toHaveBeenCalledWith('local', expect.any(Number))
   })
 
   it('refreshes active server health on mount', async () => {
@@ -356,7 +358,7 @@ describe('useGlobalEvents', () => {
 
     await waitFor(() => expect(callbacks).toBeDefined())
 
-    callbacks!.onSessionDeleted?.('deleted-session')
+    callbacks!.onSessionDeleted?.({ sessionID: 'deleted-session' })
 
     expect(clearSessionRuntimeStateMock).toHaveBeenCalledWith('local::deleted-session')
     expect(clearPaneSessionMock).toHaveBeenCalledWith('local::deleted-session')
@@ -366,7 +368,7 @@ describe('useGlobalEvents', () => {
   it('ignores stale initialization responses after directories change', async () => {
     const statusDeferreds = new Map<string, ReturnType<typeof createDeferred<Record<string, { type: string }>>>>()
     getPendingPermissionsMock.mockResolvedValue([])
-    getPendingQuestionsMock.mockResolvedValue([])
+    getPendingFormsMock.mockResolvedValue([])
     getSessionStatusMock.mockImplementation(directory => {
       const key = directory || 'root'
       const deferred = createDeferred<Record<string, { type: string }>>()
@@ -409,7 +411,7 @@ describe('useGlobalEvents', () => {
     })
     getSessionStatusMock.mockImplementation(() => statusDeferred.promise)
     getPendingPermissionsMock.mockResolvedValue([])
-    getPendingQuestionsMock.mockResolvedValue([])
+    getPendingFormsMock.mockResolvedValue([])
 
     renderHook(() => useGlobalEvents(['/workspace']))
 
@@ -419,8 +421,8 @@ describe('useGlobalEvents', () => {
     callbacks!.onPermissionAsked?.({
       id: 'perm-1',
       sessionID: 'child-session',
-      permission: 'edit',
-      patterns: ['src/app.tsx'],
+      action: 'edit',
+      resources: ['src/app.tsx'],
     } as never)
 
     statusDeferred.resolve({})
@@ -463,7 +465,7 @@ describe('useGlobalEvents', () => {
       return deferred.promise
     })
     getPendingPermissionsMock.mockResolvedValue([])
-    getPendingQuestionsMock.mockResolvedValue([])
+    getPendingFormsMock.mockResolvedValue([])
 
     const { rerender } = renderHook(({ directories }) => useGlobalEvents(directories), {
       initialProps: { directories: ['/one'] as string[] | undefined },
@@ -475,8 +477,8 @@ describe('useGlobalEvents', () => {
     callbacks!.onPermissionAsked?.({
       id: 'perm-1',
       sessionID: 'child-session',
-      permission: 'edit',
-      patterns: ['src/app.tsx'],
+      action: 'edit',
+      resources: ['src/app.tsx'],
     } as never)
 
     rerender({ directories: ['/two'] })
@@ -518,8 +520,8 @@ describe('useGlobalEvents', () => {
     callbacks!.onPermissionAsked?.({
       id: 'perm-1',
       sessionID: 'child-session',
-      permission: 'bash',
-      patterns: [],
+      action: 'bash',
+      resources: [],
     })
 
     expect(notificationPushMock).not.toHaveBeenCalled()
@@ -562,10 +564,13 @@ describe('useGlobalEvents', () => {
     })
 
     callbacks!.onSessionCreated?.({
-      id: 'child-session',
-      parentID: 'parent-session',
+      sessionID: 'child-session',
+      projectID: 'project-1',
+      location: { directory: '/workspace' },
+      slug: 'child-session',
       title: 'Child Session',
-      directory: '/workspace',
+      version: '1',
+      parentID: 'parent-session',
     } as never)
 
     expect(consumerAskedMock).toHaveBeenCalledTimes(1)
@@ -587,8 +592,8 @@ describe('useGlobalEvents', () => {
       {
         id: 'perm-global',
         sessionID: 'background-session',
-        permission: 'bash',
-        patterns: ['npm test'],
+        action: 'bash',
+        resources: ['npm test'],
       },
     ])
     activeSessionStoreMock.getSessionMeta.mockReturnValue({ title: 'Background', directory: '/workspace' })
@@ -625,8 +630,8 @@ describe('useGlobalEvents', () => {
       {
         id: 'perm-mismatch',
         sessionID: 'background-session',
-        permission: 'bash',
-        patterns: ['npm test'],
+        action: 'bash',
+        resources: ['npm test'],
       },
     ])
     activeSessionStoreMock.getSessionMeta.mockReturnValue({ title: 'Background', directory: '/workspace' })
@@ -657,8 +662,8 @@ describe('useGlobalEvents', () => {
       {
         id: 'perm-global',
         sessionID: 'background-session',
-        permission: 'bash',
-        patterns: ['npm test'],
+        action: 'bash',
+        resources: ['npm test'],
       },
     ])
 
@@ -683,8 +688,8 @@ describe('useGlobalEvents', () => {
     callbacks!.onPermissionAsked?.({
       id: 'perm-2',
       sessionID: 'child-session',
-      permission: 'bash',
-      patterns: [],
+      action: 'bash',
+      resources: [],
     })
 
     expect(notificationPushMock).not.toHaveBeenCalled()
@@ -707,8 +712,8 @@ describe('useGlobalEvents', () => {
     callbacks!.onPermissionAsked?.({
       id: 'perm-sound',
       sessionID: 'child-session',
-      permission: 'bash',
-      patterns: [],
+      action: 'bash',
+      resources: [],
     })
 
     expect(notificationPushMock).not.toHaveBeenCalled()
@@ -732,8 +737,8 @@ describe('useGlobalEvents', () => {
     callbacks!.onPermissionAsked?.({
       id: 'perm-session-auto',
       sessionID: 'child-session',
-      permission: 'bash',
-      patterns: [],
+      action: 'bash',
+      resources: [],
     })
 
     expect(notificationPushMock).not.toHaveBeenCalled()
@@ -762,8 +767,8 @@ describe('useGlobalEvents', () => {
     callbacks!.onPermissionAsked?.({
       id: 'perm-child-session-auto',
       sessionID: 'child-session',
-      permission: 'bash',
-      patterns: [],
+      action: 'bash',
+      resources: [],
     })
 
     expect(notificationPushMock).not.toHaveBeenCalled()
@@ -790,8 +795,8 @@ describe('useGlobalEvents', () => {
     callbacks!.onPermissionAsked?.({
       id: 'perm-other-pane',
       sessionID: 'other-session',
-      permission: 'bash',
-      patterns: [],
+      action: 'bash',
+      resources: [],
     })
 
     expect(notificationPushMock).not.toHaveBeenCalled()
@@ -805,7 +810,7 @@ describe('useGlobalEvents', () => {
     {
       disabledType: 'permission',
       trigger: 'onPermissionAsked',
-      payload: { id: 'perm-3', sessionID: 'background-session', permission: 'bash', patterns: [] },
+      payload: { id: 'perm-3', sessionID: 'background-session', action: 'bash', resources: [] },
     },
     {
       disabledType: 'question',
@@ -829,7 +834,7 @@ describe('useGlobalEvents', () => {
     },
     {
       disabledType: 'error',
-      trigger: 'onSessionError',
+      trigger: 'onExecutionFailed',
       payload: { sessionID: 'background-session', name: 'Error' },
     },
   ])(

@@ -23,28 +23,9 @@ import { serverStore } from '../store/serverStore'
 
 const ROOT_DIRECTORY_CACHE_TTL_MS = 10_000
 
-// ============================================
-// 路径小工具
-//
-// v2 的文件条目只有 `{ path, type }`，没有 v1 的 `name` / `absolute`，
-// 因此展示名与绝对路径由调用方按这两个函数派生。
-// ============================================
-
-/** 从路径取 basename（兼容 / 与 \） */
-export function fileBaseName(path: string): string {
-  const normalized = path.replace(/\\/g, '/').replace(/\/+$/, '')
-  const index = normalized.lastIndexOf('/')
-  return index === -1 ? normalized : normalized.slice(index + 1)
-}
-
-/** 把（根相对的）条目路径拼成绝对路径 */
-export function toAbsoluteFilePath(path: string, directory?: string): string {
-  if (!directory) return path
-  if (/^[a-zA-Z]:[\\/]/.test(path) || path.startsWith('/')) return path
-  const separator = directory.includes('\\') ? '\\' : '/'
-  const base = directory.replace(/[\\/]+$/, '')
-  return `${base}${separator}${path.replace(/\//g, separator)}`
-}
+// 路径工具是纯函数，放在 utils/pathUtils：
+// 不经 api 桶文件导出，避免 mock 了 api 模块的测试拿到 undefined。
+export { fileBaseName, toAbsoluteFilePath } from '../utils/pathUtils'
 
 const rootDirectoryCache = new Map<string, { data: FileNode[]; expiresAt: number }>()
 const rootDirectoryInflight = new Map<string, Promise<FileNode[]>>()

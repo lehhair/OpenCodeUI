@@ -4,9 +4,10 @@ import { MentionMenu } from './MentionMenu'
 import { listDirectory, searchFiles } from '../../api/client'
 
 vi.mock('../../api/client', () => ({
+  // v2 的文件条目只有 { path, type }
   listDirectory: vi.fn().mockResolvedValue([
-    { name: 'src', type: 'directory' },
-    { name: 'README.md', type: 'file' },
+    { path: 'src', type: 'directory' },
+    { path: 'README.md', type: 'file' },
   ]),
   searchFiles: vi.fn().mockResolvedValue(['src/components/Button.tsx']),
 }))
@@ -21,8 +22,8 @@ describe('MentionMenu', () => {
       clearTimeout(id)
     })
     vi.mocked(listDirectory).mockResolvedValue([
-      { name: 'src', type: 'directory' } as never,
-      { name: 'README.md', type: 'file' } as never,
+      { path: 'src', type: 'directory' } as never,
+      { path: 'README.md', type: 'file' } as never,
     ])
     vi.mocked(searchFiles).mockResolvedValue(['src/components/Button.tsx'])
   })
