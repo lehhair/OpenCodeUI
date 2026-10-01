@@ -253,5 +253,3 @@ export type {
   WorktreeRefreshInput,
 } from './worktree'
 
-// ---- Tool ----
-export type { ToolIDs, ToolList, ToolListItem } from './tool'
