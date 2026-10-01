@@ -38,10 +38,9 @@ interface UseSessionManagerOptions {
   onSessionMissing?: (sessionId: string) => void
 }
 
-function messageTimeIncomplete(time?: { completed?: number } | { created: number }) {
-  if (!time) return true
-  return !('completed' in time) || time.completed == null
-}
+// 注：v1 的 preferCompatiblePartText / mergePartsForReload /
+// mergeWithLocalStreamingMessages / messageTimeIncomplete 已删除——流式保长与
+// 「SSE 先到、列表未含」的合并逻辑现在统一在 messageStore.setMessages 内处理。
 
 export function useSessionManager({ sessionId, directory, onLoadComplete, onError, onSessionMissing }: UseSessionManagerOptions) {
   const loadSequenceRef = useRef<Map<string, number>>(new Map())
@@ -202,11 +201,11 @@ export function useSessionManager({ sessionId, directory, onLoadComplete, onErro
       const latestState = messageStore.getSessionState(sessionId)
       if (!latestState) return
 
-      // 去重 + 按时间排序
+      // 去重 + 按时间排序（v2 的原始消息直接有 id / time，没有 info 包装）
       const existingIds = new Set(latestState.messages.map(m => m.info.id))
       const prependCandidates = apiMessages
-        .filter(m => !existingIds.has(m.info.id))
-        .sort((a, b) => (a.info.time?.created ?? 0) - (b.info.time?.created ?? 0))
+        .filter(m => !existingIds.has(m.id))
+        .sort((a, b) => (a.time?.created ?? 0) - (b.time?.created ?? 0))
 
       const hasMore = apiMessages.length >= targetCursor
       messageStore.prependMessages(sessionId, prependCandidates, hasMore)

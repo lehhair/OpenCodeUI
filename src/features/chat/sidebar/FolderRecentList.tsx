@@ -937,7 +937,8 @@ function FolderRecentSection({
 
   const projectName =
     sectionKind === 'workspace'
-      ? (vcsInfo?.branch ?? (isBranchLoading ? '...' : workspaceFallbackName))
+      // v2 的 branch 是 { current?, default? }，不是字符串
+      ? (vcsInfo?.branch?.current ?? (isBranchLoading ? '...' : workspaceFallbackName))
       : project.name || workspaceFallbackName
   const FolderDisplayIcon =
     project.id === 'global'

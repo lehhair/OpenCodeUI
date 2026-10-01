@@ -33,9 +33,8 @@ import {
   getSessionChildren,
   executeCommand,
   summarizeSession,
-  updateSession,
   forkSession,
-  extractUserMessageContent,
+  type ApiFormInfo,
   type ApiPermissionRequest,
   type ApiSession,
   type ApiAgent,
@@ -942,15 +941,18 @@ export function useChatSession({
         if (!isUserMessage(message.info)) return
 
         const userInfo = message.info
-        const content = extractUserMessageContent(message)
+        // v2 的消息没有 info/parts（那是 UI 视图模型），
+        // 因此从 UI 消息的 parts 里抽取文本与附件
+        const restoredText = messageStore.extractUserText(message)
+        const restoredAttachments = messageStore.extractUserAttachments(message)
         const forkedSession = await forkSession(userInfo.sessionID, targetMessageId, effectiveDirectory, paneServerId)
 
         setRestoredContent({
           sessionId: forkedSession.id,
           content: {
             messageId: userInfo.id,
-            text: content.text,
-            attachments: content.attachments,
+            text: restoredText,
+            attachments: restoredAttachments,
             model: userInfo.model,
             variant: userInfo.model.variant,
             agent: userInfo.agent,

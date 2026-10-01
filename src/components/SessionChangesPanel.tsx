@@ -11,7 +11,7 @@ import { RetryIcon, ChevronRightIcon, MaximizeIcon, ClockIcon, GitBranchIcon, Gi
 import { getMaterialIconUrl } from '../utils/materialIcons'
 import { DiffViewer, useDiffViewerData, type ViewMode } from './DiffViewer'
 import { ViewModeSwitch } from './FullscreenViewer'
-import { getCurrentProject, initGitProject } from '../api/client'
+import { getCurrentProject } from '../api/client'
 import { getLastTurnDiff, getSessionDiff } from '../api/session'
 import { getVcsDiff, getVcsInfo } from '../api/vcs'
 import type { ApiProject, FileDiff, VcsDiffMode, VcsInfo } from '../api/types'
@@ -133,12 +133,12 @@ export const SessionChangesPanel = memo(function SessionChangesPanel({
   const changeOptions = useMemo<ChangeMode[]>(() => {
     const options: ChangeMode[] = []
     if (project?.vcs) options.push('turn', 'git')
-    if (project?.vcs && vcsInfo?.branch && vcsInfo?.default_branch && vcsInfo.branch !== vcsInfo.default_branch) {
+    if (project?.vcs && vcsInfo?.branch?.current && vcsInfo.branch.default && vcsInfo.branch.current !== vcsInfo.branch.default) {
       options.push('branch')
     }
     if (project?.vcs) options.push('session')
     return options
-  }, [project?.vcs, vcsInfo?.branch, vcsInfo?.default_branch])
+  }, [project?.vcs, vcsInfo?.branch?.current, vcsInfo?.branch?.default])
   const preferredChangeMode = useMemo(() => getDefaultChangeMode(changeOptions), [changeOptions])
   const changeModeMeta = useMemo(
     () => ({
@@ -149,7 +149,7 @@ export const SessionChangesPanel = memo(function SessionChangesPanel({
       },
       branch: {
         label: t('sessionChanges.branchScope'),
-        description: t('sessionChanges.branchScopeHint', { branch: vcsInfo?.default_branch ?? 'main' }),
+        description: t('sessionChanges.branchScopeHint', { branch: vcsInfo?.branch?.default ?? 'main' }),
         icon: <GitBranchIcon size={12} />,
       },
       session: {
@@ -163,7 +163,7 @@ export const SessionChangesPanel = memo(function SessionChangesPanel({
         icon: <ClockIcon size={12} />,
       },
     }),
-    [t, vcsInfo?.default_branch],
+    [t, vcsInfo?.branch?.default],
   )
   const diffs = useMemo(
     () =>
@@ -328,10 +328,11 @@ export const SessionChangesPanel = memo(function SessionChangesPanel({
     setError(null)
 
     try {
-      const nextProject = await getCurrentProject(directory, serverId)
+      // v2 删除了 project.initGit；这里直接读取当前项目，未登记时为 null
+      const nextProject = (await getCurrentProject(directory, serverId)) ?? null
       if (requestId !== projectRequestIdRef.current) return null
       setProject(nextProject)
-      if (nextProject.vcs) {
+      if (nextProject?.vcs) {
         const nextVcsInfo = await getVcsInfo(directory, serverId).catch(() => null)
         if (requestId !== projectRequestIdRef.current) return null
         setVcsInfo(nextVcsInfo)
@@ -466,7 +467,8 @@ export const SessionChangesPanel = memo(function SessionChangesPanel({
     setError(null)
 
     try {
-      const nextProject = await initGitProject(directory, serverId)
+      // v2 删除了 project.initGit；这里直接读取当前项目，未登记时为 null
+      const nextProject = (await getCurrentProject(directory, serverId)) ?? null
       setProject(nextProject)
       setVcsInfo(null)
       setGitDiffs([])

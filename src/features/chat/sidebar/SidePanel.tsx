@@ -42,6 +42,7 @@ import {
   updateSession,
   deleteSession as apiDeleteSession,
   getSession,
+  createSessionPlaceholder,
   subscribeToConnectionState,
   type ApiSession,
   type ConnectionInfo,
@@ -549,7 +550,7 @@ export function SidePanel({
         const s =
           sessionLookup.get(rawId) ??
           (entry.title || entry.directory
-            ? ({ id: rawId, title: entry.title, directory: entry.directory } as ApiSession)
+            ? createSessionPlaceholder({ id: rawId, title: entry.title, directory: entry.directory })
             : undefined)
         if (s) add(pid, s)
       }
@@ -927,11 +928,7 @@ export function SidePanel({
       const resolvedSession =
         sessionLookup.get(sessionId) ??
         (entry.title || entry.directory
-          ? ({
-              id: sessionId,
-              title: entry.title,
-              directory: entry.directory,
-            } as ApiSession)
+          ? createSessionPlaceholder({ id: sessionId, title: entry.title, directory: entry.directory })
           : undefined)
       // childrenByParent 以原始 id 为 key（buildActiveSessionTree 统一）
       const childEntries = activeSessionTree.childrenByParent.get(sessionId) ?? []

@@ -222,9 +222,9 @@ export const ToolPartView = memo(function ToolPartView({
       {questionRequest && (
         <div className={MSG_SPACING.inner}>
           <InlineQuestion
-            request={questionRequest}
-            onReply={onQuestionReply}
-            onReject={onQuestionReject}
+            form={questionRequest}
+            onReply={(_formId, answer) => onFormReply(questionRequest, answer)}
+            onCancel={() => onFormCancel(questionRequest)}
             isReplying={isReplying}
           />
         </div>

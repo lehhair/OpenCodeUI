@@ -277,10 +277,34 @@ export async function waitSession(sessionId: string, serverId?: string): Promise
   await sdk.session.wait({ sessionID: target.sessionId })
 }
 
+/**
+ * 构造一个「占位会话」。
+ *
+ * 用于侧栏这类场景：列表里存在某个 session 的条目（标题/目录已知），
+ * 但它不在当前服务器的会话查询结果里（例如属于另一台服务器）。
+ * v2 的 SessionInfo 字段较多且部分为品牌类型，因此这里显式补齐必填项，
+ * 只把已知信息填进去，其余用零值占位。
+ */
+export function createSessionPlaceholder(input: {
+  id: string
+  title?: string
+  directory?: string
+}): Session {
+  const now = Date.now()
+  return {
+    id: input.id,
+    projectID: '',
+    cost: 0,
+    tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
+    time: { created: now, updated: now },
+    title: input.title,
+    location: { directory: input.directory ?? '' },
+  } as unknown as Session
+}
+
 // ============================================
 // 会话导出 / 导入（取代 v1 的 share / unshare）
 // ============================================
-
 /**
  * 导出会话转写。
  *

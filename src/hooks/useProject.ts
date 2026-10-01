@@ -55,12 +55,12 @@ export function useProject(): UseProjectResult {
           setCurrentProject(savedProject)
         } else {
           // 保存的项目不存在了，用当前项目
-          setCurrentProject(current)
+          setCurrentProject(current ?? null)
           serverStorage.remove(STORAGE_KEY)
         }
       } else {
         // 没有保存的，用当前项目
-        setCurrentProject(current)
+        setCurrentProject(current ?? null)
       }
     } catch (e) {
       if (requestId !== requestIdRef.current) return

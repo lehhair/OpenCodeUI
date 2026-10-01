@@ -794,8 +794,8 @@ export const ChatPane = memo(function ChatPane({
         const request = pendingPermissionRequests.find(r => r.id === requestId)
         return handlePermissionReply(requestId, reply, effectiveDirectory, request?.sessionID)
       },
-      onQuestionReply: (form, answer) => handleFormReply(form, answer),
-      onQuestionReject: form => handleFormCancel(form),
+      onFormReply: (form, answer) => handleFormReply(form, answer),
+      onFormCancel: form => handleFormCancel(form),
       isReplying,
     }),
     [
