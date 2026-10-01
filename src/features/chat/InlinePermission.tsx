@@ -52,16 +52,16 @@ export const InlinePermission = memo(function InlinePermission({
     diffData = diff
   }
 
-  const isFileEdit = request.permission === 'edit' || request.permission === 'write'
-  const hasPatterns = request.patterns && request.patterns.length > 0
-  const patternsText = hasPatterns ? request.patterns.map(p => p.replace(/\\n/g, '\n')).join('\n\n') : ''
+  const isFileEdit = request.action === 'edit' || request.action === 'write'
+  const hasPatterns = request.resources && request.resources.length > 0
+  const patternsText = hasPatterns ? request.resources.map(p => p.replace(/\\n/g, '\n')).join('\n\n') : ''
 
   const handleAlways = () => {
     if (autoApproveStore.enabled) {
-      const rulePatterns = [...(request.always || []), ...(request.patterns || [])]
+      const rulePatterns = [...(request.save || []), ...(request.resources || [])]
       const unique = [...new Set(rulePatterns)]
       if (unique.length > 0) {
-        autoApproveStore.addRules(request.sessionID, request.permission, unique)
+        autoApproveStore.addRules(request.sessionID, request.action, unique)
         onReply(request.id, 'once')
         return
       }
@@ -76,7 +76,7 @@ export const InlinePermission = memo(function InlinePermission({
         (isFileEdit && diffData ? (
           <ContentBlock
             stateKey={`permission:${request.sessionID}:${request.id}:diff`}
-            label={request.permission}
+            label={request.action}
             filePath={filepath}
             diff={diffData}
             collapsible={false}
@@ -85,7 +85,7 @@ export const InlinePermission = memo(function InlinePermission({
         ) : patternsText ? (
           <ContentBlock
             stateKey={`permission:${request.sessionID}:${request.id}:patterns`}
-            label={request.permission}
+            label={request.action}
             content={patternsText}
             language="bash"
             collapsible={false}

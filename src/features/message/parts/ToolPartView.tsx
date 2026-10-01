@@ -111,14 +111,14 @@ export const ToolPartView = memo(function ToolPartView({
 
   const effectivePermissionRequest = permissionRequest || cachedPermissionRequest
   const isFilePermission =
-    effectivePermissionRequest?.permission === 'edit' || effectivePermissionRequest?.permission === 'write'
+    effectivePermissionRequest?.action === 'edit' || effectivePermissionRequest?.action === 'write'
   // 权限已批准但工具还没完成 → 保留渲染
   const permissionResolved = !permissionRequest && !!cachedPermissionRequest && isFilePermission && !toolDone
 
   const hasPendingInteraction = !!permissionRequest || !!questionRequest
   // 精简模式：非 edit/write 权限时不隐藏 ToolBody（ToolBody 已经渲染了命令内容）
   const isEditWritePermission =
-    permissionRequest?.permission === 'edit' || permissionRequest?.permission === 'write' || permissionResolved
+    permissionRequest?.action === 'edit' || permissionRequest?.action === 'write' || permissionResolved
   const hideToolBodyForPermission = isEditWritePermission
   // 精简模式：ToolBody 已渲染时，InlinePermission 只显示按钮
   // task 工具除外：task renderer 无法显示详细的工具请求内容，需要完整展示权限信息

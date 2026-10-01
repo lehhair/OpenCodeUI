@@ -399,7 +399,7 @@ export function useChatSession({
         // 自动批准检查（实验性功能）
         if (
           autoApproveStore.enabled &&
-          autoApproveStore.shouldAutoApprove(request.sessionID, request.permission, request.patterns)
+          autoApproveStore.shouldAutoApprove(request.sessionID, request.action, request.resources)
         ) {
           // 匹配规则，自动用 once 批准，不弹框
           replyPermissionOnceAutomatically(request)
@@ -412,7 +412,7 @@ export function useChatSession({
         })
 
         // 页面不在前台时通知用户有权限请求等待批准
-        const permDesc = request.patterns?.length ? `${request.permission}: ${request.patterns[0]}` : request.permission
+        const permDesc = request.resources?.length ? `${request.action}: ${request.resources[0]}` : request.action
         const title = buildNotificationTitle(request.sessionID, 'Permission Required')
         if (notificationEventSettingsStore.isSystemEnabled('permission')) {
           sendNotification(title, permDesc, {

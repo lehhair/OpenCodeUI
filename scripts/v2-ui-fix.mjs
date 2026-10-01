@@ -3,11 +3,14 @@
 //
 // Each entry lists EXACT literal replacements. Kept in a file (not inline shell)
 // because PowerShell flattens nested arrays and mangles quoting.
+//
+// Idempotent: a replacement whose `from` is absent is a no-op.
 
 import { readFileSync, writeFileSync } from 'node:fs'
 
 /** @type {Array<{file: string, replace: Array<[string, string]>}>} */
 const EDITS = [
+  // ---- 会话目录：v2 移到 location.directory ----
   {
     file: 'src/contexts/SessionContext.tsx',
     replace: [
@@ -61,6 +64,46 @@ const EDITS = [
       ['session.directory', 'session.location?.directory'],
       ['target.directory', 'target.location?.directory'],
       ['sessions[0].directory', 'sessions[0].location?.directory'],
+    ],
+  },
+
+  // ---- 权限：v1 permission/patterns/always → v2 action/resources/save ----
+  {
+    file: 'src/features/chat/InlinePermission.tsx',
+    replace: [
+      ['request.permission', 'request.action'],
+      ['request.patterns', 'request.resources'],
+      ['request.always', 'request.save'],
+    ],
+  },
+  {
+    file: 'src/features/chat/PermissionDialog.tsx',
+    replace: [
+      ['request.permission', 'request.action'],
+      ['request.patterns', 'request.resources'],
+      ['request.always', 'request.save'],
+    ],
+  },
+  {
+    file: 'src/features/message/parts/ToolPartView.tsx',
+    replace: [
+      ['effectivePermissionRequest?.permission', 'effectivePermissionRequest?.action'],
+      ['permissionRequest?.permission', 'permissionRequest?.action'],
+    ],
+  },
+  {
+    file: 'src/hooks/useChatSession.ts',
+    replace: [
+      ['request.permission', 'request.action'],
+      ['request.patterns', 'request.resources'],
+      ['request.always', 'request.save'],
+    ],
+  },
+  {
+    file: 'src/hooks/useGlobalEvents.ts',
+    replace: [
+      ['request.patterns', 'request.resources'],
+      ['request.permission', 'request.action'],
     ],
   },
 ]

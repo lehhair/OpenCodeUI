@@ -644,7 +644,7 @@ export function useGlobalEvents(directories?: string[]) {
 
           const meta = activeSessionStore.getSessionMeta(scopedId)
           const sessionLabel = meta?.title || request.sessionID.slice(0, 8)
-          const desc = request.patterns?.length ? `${request.permission}: ${request.patterns[0]}` : request.permission
+          const desc = request.resources?.length ? `${request.action}: ${request.resources[0]}` : request.action
 
           // Active 列表：注册 pending request
           activeSessionStore.addPendingRequest(request.id, scopedId, 'permission', desc)

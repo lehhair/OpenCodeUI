@@ -52,7 +52,7 @@ export function PermissionDialog({
   }
 
   // 判断是否是文件编辑类权限
-  const isFileEdit = request.permission === 'edit' || request.permission === 'write'
+  const isFileEdit = request.action === 'edit' || request.action === 'write'
 
   // 判断是否来自子 session（request.sessionID 可能是复合 key（SSE）或原始 id（轮询），统一按原始 id 比较）
   const requestServerId = splitSessionKey(request.sessionID).serverId
@@ -93,7 +93,7 @@ export function PermissionDialog({
                   <PermissionListIcon size={20} />
                 </div>
                 <h3 className="text-[length:var(--fs-base)] leading-none font-medium text-text-100">
-                  {t('permissionDialog.permission', { permission: request.permission })}
+                  {t('permissionDialog.permission', { permission: request.action })}
                 </h3>
                 {queueLength > 1 && (
                   <span className="text-[length:var(--fs-sm)] text-text-400 bg-bg-200 px-1.5 py-0.5 rounded">
@@ -142,10 +142,10 @@ export function PermissionDialog({
               )}
 
               {/* Request */}
-              {request.patterns && request.patterns.length > 0 && (
+              {request.resources && request.resources.length > 0 && (
                 <ContentBlock
                   label={t('permissionDialog.request')}
-                  content={request.patterns.map(p => p.replace(/\\n/g, '\n')).join('\n\n')}
+                  content={request.resources.map(p => p.replace(/\\n/g, '\n')).join('\n\n')}
                   language="bash"
                   maxHeight={150}
                   collapsible={false}
@@ -153,10 +153,10 @@ export function PermissionDialog({
               )}
 
               {/* Rule */}
-              {request.always && request.always.length > 0 && (
+              {request.save && request.save.length > 0 && (
                 <ContentBlock
                   label={t('permissionDialog.rule')}
-                  content={request.always.join('\n')}
+                  content={request.save.join('\n')}
                   language="bash"
                   maxHeight={80}
                   collapsible={false}
@@ -181,12 +181,12 @@ export function PermissionDialog({
                 onClick={() => {
                   if (autoApproveStore.enabled) {
                     // 同时存 always + patterns，确保下次不管哪种格式都能命中
-                    const rulePatterns = [...(request.always || []), ...(request.patterns || [])]
+                    const rulePatterns = [...(request.save || []), ...(request.resources || [])]
                     // 去重
                     const unique = [...new Set(rulePatterns)]
                     if (unique.length > 0) {
-                      autoApproveStore.addRules(request.sessionID, request.permission, unique)
-                      onAutoApprove?.(request.sessionID, request.permission, unique)
+                      autoApproveStore.addRules(request.sessionID, request.action, unique)
+                      onAutoApprove?.(request.sessionID, request.action, unique)
                       onReply('once')
                       return
                     }

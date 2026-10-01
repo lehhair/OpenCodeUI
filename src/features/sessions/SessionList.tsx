@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { SearchIcon, PencilIcon, TrashIcon, ComposeIcon, PinIcon } from '../../components/Icons'
 import { getSelectionRoundClass } from './selectionRound'
 import { formatRelativeTime } from '../../utils/dateUtils'
+import { formatCost } from '../../utils/formatUtils'
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
 import { useInputCapabilities } from '../../hooks/useInputCapabilities'
 import { useSessionActiveEntry } from '../../store/activeSessionStore'
@@ -436,11 +437,14 @@ export function SessionListItem({
   const itemRef = useRef<HTMLDivElement>(null)
   const isCompact = density === 'compact'
   const isMinimal = density === 'minimal'
-  const hasSummaryStats = Boolean(
-    showStats &&
-    session.summary &&
-    (session.summary.additions > 0 || session.summary.deletions > 0 || session.summary.files > 0),
-  )
+  /**
+   * 会话统计。
+   *
+   * v1 的 `session.summary`（additions/deletions/files）在 v2 已移除，
+   * 且 `session.stats()` 是项目级聚合而非单会话，因此不再展示 diff 统计。
+   * v2 新增了 `cost` / `tokens`，这里改为展示会话花费。
+   */
+  const hasCostStats = showStats && (session.cost ?? 0) > 0
   const itemPaddingClass = isCompact ? 'pl-[6px] pr-3 py-2' : 'px-3 py-2.5'
   const pinnedEntries = useSyncExternalStore(
     pinnedSessionsStore.subscribe,
@@ -695,20 +699,12 @@ export function SessionListItem({
               {session.title || t('sessions.untitledChat')}
             </span>
 
-            {((hasSummaryStats && session.summary) || session.time?.updated) && (
+            {((hasCostStats && session.cost) || session.time?.updated) && (
               <div
                 className={`${actionsVisible ? 'hidden' : 'flex group-hover:hidden'} shrink-0 items-center gap-1.5 text-[length:var(--fs-xxs)] text-text-500`}
               >
-                {hasSummaryStats && session.summary && (
-                  <span className="flex shrink-0 items-center gap-1 font-mono">
-                    {session.summary.additions > 0 && (
-                      <span className="text-success-100">+{session.summary.additions}</span>
-                    )}
-                    {session.summary.deletions > 0 && (
-                      <span className="text-danger-100">-{session.summary.deletions}</span>
-                    )}
-                    {session.summary.files > 0 && <span>{session.summary.files}f</span>}
-                  </span>
+                {hasCostStats && session.cost && (
+                  <span className="shrink-0 font-mono opacity-70">{formatCost(session.cost)}</span>
                 )}
 
                 {session.time?.updated && <span className="shrink-0">{formatRelativeTime(session.time.updated)}</span>}
@@ -841,16 +837,10 @@ export function SessionListItem({
             {session.time?.updated && (
               <span className="shrink-0 opacity-60">{formatRelativeTime(session.time.updated)}</span>
             )}
-            {showStats && session.summary && (
+            {showStats && hasCostStats && (
               <>
                 <span className="opacity-30">·</span>
-                <span className="flex items-center gap-1.5 font-mono shrink-0">
-                  {session.summary.additions > 0 && (
-                    <span className="text-success-100">+{session.summary.additions}</span>
-                  )}
-                  {session.summary.deletions > 0 && <span className="text-danger-100">-{session.summary.deletions}</span>}
-                  {session.summary.files > 0 && <span>{session.summary.files}f</span>}
-                </span>
+                <span className="font-mono shrink-0 opacity-70">{formatCost(session.cost)}</span>
               </>
             )}
             {showDirectory && session.location?.directory && (
