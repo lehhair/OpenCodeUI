@@ -181,7 +181,14 @@ export function useRevertState({
       // 如果还有 revert 状态，需要过滤消息
       if (stagedRevert?.messageID) {
         const revertedIndex = apiMessages.findIndex(m => m.id === stagedRevert.messageID)
-        setMessages(apiMessages.slice(0, revertedIndex).map(m => toUIMessage(m, routeSessionId)))
+        // findIndex 找不到时返回 -1，而 slice(0, -1) 会「只砍掉最后一条」——
+        // 静默显示几乎全部消息，看起来像撤销成功后消息又冒出来。
+        // 撤销点早于本次拉取窗口（这里最多 200 条）时就会命中这种情况。
+        setMessages(
+          revertedIndex === -1
+            ? apiMessages.map(m => toUIMessage(m, routeSessionId))
+            : apiMessages.slice(0, revertedIndex).map(m => toUIMessage(m, routeSessionId)),
+        )
       } else {
         // 没有 revert 状态，显示所有消息
         setMessages(apiMessages.map(m => toUIMessage(m, routeSessionId)))
