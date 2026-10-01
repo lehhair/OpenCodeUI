@@ -34,10 +34,10 @@ describe('config editor validation', () => {
   })
 
   it('keeps dotted provider ids intact in local validation errors', () => {
-    const errors = validateConfig({ provider: { 'acme.prod': { options: { timeout: 0 } } } } as unknown as Config, 'en')
+    const errors = validateConfig({ providers: { 'acme.prod': { options: { timeout: 0 } } } } as unknown as Config, 'en')
     const target = validationDrillTargetForError(errors[0])
 
-    expect(errors[0].segments).toEqual(['provider', 'acme.prod', 'options', 'timeout'])
+    expect(errors[0].segments).toEqual(['providers', 'acme.prod', 'options', 'timeout'])
     expect(target.stack[0]).toEqual({ id: 'provider:acme.prod', title: 'acme.prod' })
   })
 

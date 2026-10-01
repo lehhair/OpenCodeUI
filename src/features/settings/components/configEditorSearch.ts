@@ -37,7 +37,7 @@ export function sectionForConfigSegments(segments: string[]): SectionID {
   if (root === 'command') return 'commands'
   if (root === 'skills' || root === 'references' || root === 'reference') return 'skills'
   if (root === 'plugin') return 'plugins'
-  if (root === 'provider') return 'providers'
+  if (root === 'providers') return 'providers'
   if (root === 'agent') return 'agents'
   if (root === 'mcp') return 'mcp'
   if (root === 'permission') return 'permissions'
@@ -74,7 +74,7 @@ export function navigationForConfigSegments(segments: string[]) {
       push('options', 'options')
       fieldKey = 'options'
     } else fieldKey = 'name'
-  } else if (root === 'provider') {
+  } else if (root === 'providers') {
     push(id ? `provider:${id}` : undefined, id)
     if (third === 'options') {
       push('options', 'options')

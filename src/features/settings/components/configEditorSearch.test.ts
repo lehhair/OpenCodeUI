@@ -5,7 +5,8 @@ import { buildConfigEditorSearchItems, navigationForConfigSegments, sectionForCo
 describe('config editor search', () => {
   it('indexes raw JSON paths and non-sensitive values', () => {
     const items = buildConfigEditorSearchItems({
-      provider: {
+      // v2 的配置顶层键是 providers（复数）
+      providers: {
         'openai.custom': {
           options: {
             apiKey: 'top-secret-value',
@@ -22,7 +23,7 @@ describe('config editor search', () => {
       },
     }, 'en')
 
-    expect(items.some(item => item.label === 'provider["openai.custom"].options.baseURL')).toBe(true)
+    expect(items.some(item => item.label === 'providers["openai.custom"].options.baseURL')).toBe(true)
     expect(filterSettingsSearchItems(items, 'gateway.example.com')).toHaveLength(1)
     expect(filterSettingsSearchItems(items, 'top-secret-value')).toHaveLength(0)
     expect(filterSettingsSearchItems(items, 'session-cookie-value')).toHaveLength(0)
@@ -31,7 +32,7 @@ describe('config editor search', () => {
   })
 
   it('keeps dotted dynamic ids intact when restoring drill paths', () => {
-    expect(navigationForConfigSegments(['provider', 'openai.custom', 'models', 'gpt.4', 'reasoning'])).toEqual({
+    expect(navigationForConfigSegments(['providers', 'openai.custom', 'models', 'gpt.4', 'reasoning'])).toEqual({
       section: 'providers',
       stack: [
         { id: 'provider:openai.custom', title: 'openai.custom' },

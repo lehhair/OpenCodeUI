@@ -142,7 +142,7 @@ export const KNOWN_ROOT_KEYS = new Set([
   'username',
   'mode',
   'agent',
-  'provider',
+  'providers',
   'mcp',
   'formatter',
   'lsp',

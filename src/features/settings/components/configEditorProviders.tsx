@@ -21,7 +21,7 @@ type ProviderViewProps = Pick<SectionProps, 'config' | 'setConfig' | 'lang' | 'p
 
 function ProvidersHome({ config, setConfig, lang, providerCatalog }: ProviderViewProps) {
   const { activeChildId, enter, depth } = useDrillContainer()
-  const providerMap = getObject(config, 'provider')
+  const providerMap = getObject(config, 'providers')
   const configured = Object.keys(providerMap).sort()
   const available = Object.keys(providerCatalog).filter(id => !hasOwn(providerMap, id)).sort()
   const [newProvider, setNewProvider] = useState('')
@@ -31,7 +31,7 @@ function ProvidersHome({ config, setConfig, lang, providerCatalog }: ProviderVie
 
   const addProvider = (id: string) => {
     if (!id || hasOwn(providerMap, id)) return
-    setConfig(setNested(config, ['provider', id], { id }))
+    setConfig(setNested(config, ['providers', id], { id }))
     openProvider(id)
   }
 
@@ -147,12 +147,12 @@ function ProviderDetail({
 }: ProviderViewProps & { providerId: string }) {
   const { activeChildId, enter, depth } = useDrillContainer()
   const drill = useDrillState()
-  const providerMap = getObject(config, 'provider')
+  const providerMap = getObject(config, 'providers')
   const providerValue = getObject(providerMap, providerId)
   const catalog = getObject(providerCatalog, providerId)
   const configuredModels = getObject(providerValue, 'models')
   const catalogModelCount = Object.keys(getObject(catalog, 'models')).length
-  const setProvider = (next: JsonRecord) => setConfig(setNested(config, ['provider', providerId], next))
+  const setProvider = (next: JsonRecord) => setConfig(setNested(config, ['providers', providerId], next))
 
   const fields: FieldDef[] = [
     { key: 'name', label: 'name', desc: tx('Display name for this provider.', '此渠道的显示名称。', lang), control: <TextField value={providerValue.name} onChange={v => setProvider({ ...providerValue, name: v })} /> },
@@ -184,7 +184,7 @@ function ProviderDetail({
         existing={{ ...providerCatalog, ...providerMap }}
         lang={lang}
         onCopy={targetId => {
-          setConfig(setNested(config, ['provider', targetId], { ...clone(providerValue), id: providerValue.id ?? providerId }))
+          setConfig(setNested(config, ['providers', targetId], { ...clone(providerValue), id: providerValue.id ?? providerId }))
           drill.replace(0, { id: `provider:${targetId}`, title: targetId })
         }}
       />
@@ -226,7 +226,7 @@ function ProviderModels({
 }: ProviderViewProps & { providerId: string }) {
   const { activeChildId, enter, depth } = useDrillContainer()
   const drill = useDrillState()
-  const providerMap = getObject(config, 'provider')
+  const providerMap = getObject(config, 'providers')
   const providerValue = getObject(providerMap, providerId)
   const catalog = getObject(providerCatalog, providerId)
   const configuredModels = getObject(providerValue, 'models')
@@ -239,7 +239,7 @@ function ProviderModels({
 
   const addModel = (id: string) => {
     if (!id || hasOwn(configuredModels, id)) return
-    setConfig(setNested(config, ['provider', providerId, 'models', id], { id }))
+    setConfig(setNested(config, ['providers', providerId, 'models', id], { id }))
     openModel(id)
   }
 
@@ -256,14 +256,14 @@ function ProviderModels({
               existing={existingModels}
               lang={lang}
               onCopy={targetId => {
-                setConfig(setNested(config, ['provider', providerId, 'models', targetId], { ...clone(modelValue), id: modelValue.id ?? id }))
+                setConfig(setNested(config, ['providers', providerId, 'models', targetId], { ...clone(modelValue), id: modelValue.id ?? id }))
                 drill.replace(depth, { id: `model:${targetId}`, title: targetId })
               }}
             />
           )}
           <ModelEditor
             value={modelValue}
-            onChange={next => setConfig(setNested(config, ['provider', providerId, 'models', id], next))}
+            onChange={next => setConfig(setNested(config, ['providers', providerId, 'models', id], next))}
             lang={lang}
           />
         </div>

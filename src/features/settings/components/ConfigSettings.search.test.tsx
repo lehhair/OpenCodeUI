@@ -41,7 +41,7 @@ describe('ConfigSettings search', () => {
   // `providers`（复数），而配置编辑器（ProvidersSection / configEditorValidation /
   // 搜索索引）仍按 v1 的 `provider` 读取，因此搜不到 providers 下的字段。
   // 待把该组顶层键改成 `providers` 后再启用（夹具已改为复数）。
-  it.skip('searches a raw JSON value and opens its nested field', async () => {
+  it('searches a raw JSON value and opens its nested field', async () => {
     render(<ConfigSettings />)
     fireEvent.click(screen.getByRole('button', { name: 'Open Config Editor' }))
     await screen.findByRole('dialog', { name: 'Config Editor' })
@@ -49,7 +49,7 @@ describe('ConfigSettings search', () => {
     const input = screen.getByRole('combobox', { name: 'Search config fields...' })
     fireEvent.focus(input)
     fireEvent.change(input, { target: { value: 'gateway.example.com' } })
-    const result = await screen.findByRole('option', { name: /provider\.openai\.options\.baseURL/ })
+    const result = await screen.findByRole('option', { name: /providers\.openai\.options\.baseURL/ })
     fireEvent.click(result)
 
     await waitFor(() => expect(screen.getByRole('tab', { name: 'Providers & Models' })).toHaveAttribute('aria-selected', 'true'))

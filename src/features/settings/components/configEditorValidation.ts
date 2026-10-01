@@ -90,9 +90,9 @@ export function validateConfig(config: Config, lang: string, original?: Config):
     }
   }
 
-  const providers = getObject(config, 'provider')
+  const providers = getObject(config, 'providers')
   for (const [providerID, providerValue] of Object.entries(providers)) {
-    const providerPath = ['provider', providerID]
+    const providerPath = ['providers', providerID]
     const provider = isRecord(providerValue) ? providerValue : {}
     for (const key of ['env', 'whitelist', 'blacklist']) if (provider[key] !== undefined) requireStringArray(`provider.${providerID}.${key}`, provider[key], [...providerPath, key])
     const options = getObject(provider, 'options')
@@ -191,7 +191,7 @@ export function validationDrillTargetForError(error: ValidationError): Omit<Vali
   else if (segments[0] === 'reference') push(segments[1] ? `legacy-reference:${segments[1]}` : undefined, segments[1] ? `@${segments[1]}` : undefined)
   else if (segments[0] === 'references') push(segments[1] ? `reference:${segments[1]}` : undefined, segments[1] ? `@${segments[1]}` : undefined)
   else if (segments[0] === 'plugin' && segments[1]) push(`plugin:${segments[1]}`, 'plugin')
-  else if (segments[0] === 'provider' && segments[1]) {
+  else if (segments[0] === 'providers' && segments[1]) {
     push(`provider:${segments[1]}`, segments[1])
     const modelIndex = segments.indexOf('models')
     if (modelIndex >= 0) {
