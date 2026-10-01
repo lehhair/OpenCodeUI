@@ -1,359 +1,193 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { EventTypes } from '../types/api/event'
 
-// 按 serverId 返回 URL 的 http mock：订阅迁移测试需要断言「新连接建到了哪台服务器」，
-// 固定 URL 的 mock 无法区分 local 与 wsl:Ubuntu。未登记的 serverId 回退到 example.test，
-// 保持与既有流式解析测试（不断言 URL）兼容。
-const httpMocks = vi.hoisted(() => ({
-  baseUrls: new Map<string, string>(),
-}))
+// ============================================
+// 事件订阅测试（OpenCode v2）
+//
+// v1 时期这里测试的是**手写的 SSE 解析器**：UTF-8 分块、事件合并、
+// 迟到的旧代次事件丢弃等。v2 把这些交给客户端的 `event.subscribe()`
+// （内部 `/api/event` + text/event-stream），因此那些用例连同实现一起删除了。
+//
+// 仍然属于本仓库职责、值得测试的是：
+//   1. 扁平 v2 事件被正确分派到对应的 EventCallbacks
+//   2. 订阅生命周期（订阅/退订 / 连接状态广播 / 活动服务器迁移）
+// ============================================
 
-vi.mock('./http', () => ({
-  getApiBaseUrl: (serverId?: string) => httpMocks.baseUrls.get(serverId ?? '') ?? 'http://example.test',
-  getAuthHeader: () => ({}),
-}))
+/** 一个可控的事件流：测试里手动往里推事件 */
+function createEventStream() {
+  let push: ((event: unknown) => void) | null = null
+  let closed = false
 
-vi.mock('../utils/tauri', () => ({
-  isTauri: () => false,
-}))
+  const stream = {
+    [Symbol.asyncIterator]() {
+      const queue: unknown[] = []
+      const waiters: Array<(value: IteratorResult<unknown>) => void> = []
 
-const encoder = new TextEncoder()
-
-function concatBytes(...parts: Uint8Array[]): Uint8Array {
-  const total = parts.reduce((sum, part) => sum + part.length, 0)
-  const result = new Uint8Array(total)
-  let offset = 0
-
-  for (const part of parts) {
-    result.set(part, offset)
-    offset += part.length
-  }
-
-  return result
-}
-
-function createEventChunks(delta: string, splitAt: number): Uint8Array[] {
-  const marker = '__DELTA__'
-  const raw = `data: ${JSON.stringify({
-    directory: 'global',
-    payload: {
-      type: EventTypes.MESSAGE_PART_DELTA,
-      properties: {
-        messageID: 'session-1',
-        partID: 'part-1',
-        field: 'text',
-        delta: marker,
-      },
-    },
-  })}\n\n`
-
-  const [before, after] = raw.split(marker)
-  const deltaBytes = encoder.encode(delta)
-
-  return [
-    concatBytes(encoder.encode(before), deltaBytes.slice(0, splitAt)),
-    concatBytes(deltaBytes.slice(splitAt), encoder.encode(after)),
-  ]
-}
-
-function createStream(chunks: Uint8Array[]): ReadableStream<Uint8Array> {
-  return new ReadableStream<Uint8Array>({
-    start(controller) {
-      for (const chunk of chunks) {
-        controller.enqueue(chunk)
+      push = (event: unknown) => {
+        const waiter = waiters.shift()
+        if (waiter) waiter({ value: event, done: false })
+        else queue.push(event)
       }
-      controller.close()
+
+      return {
+        next(): Promise<IteratorResult<unknown>> {
+          if (queue.length > 0) {
+            return Promise.resolve({ value: queue.shift(), done: false })
+          }
+          if (closed) return Promise.resolve({ value: undefined, done: true })
+          return new Promise(resolve => waiters.push(resolve))
+        },
+        return(): Promise<IteratorResult<unknown>> {
+          closed = true
+          return Promise.resolve({ value: undefined, done: true })
+        },
+      }
     },
-  })
-}
+  }
 
-function createFetchResponse(chunks: Uint8Array[]): Pick<Response, 'ok' | 'body'> {
   return {
-    ok: true,
-    body: createStream(chunks) as Response['body'],
+    stream,
+    emit(event: unknown) {
+      push?.(event)
+    },
+    close() {
+      closed = true
+    },
   }
 }
 
-function createDeferred<T>() {
-  let resolve!: (value: T) => void
-  let reject!: (reason?: unknown) => void
-  const promise = new Promise<T>((res, rej) => {
-    resolve = res
-    reject = rej
-  })
-  return { promise, resolve, reject }
+const subscribeMock = vi.hoisted(() => vi.fn())
+
+vi.mock('./sdk', () => ({
+  getSDKClient: () => ({
+    event: { subscribe: subscribeMock },
+  }),
+  invalidateSDKClient: () => {},
+}))
+
+/** 构造一个 v2 扁平事件 */
+function v2Event(type: string, data: unknown) {
+  return { id: `evt-${type}`, created: Date.now(), type, data }
 }
 
-function createEventChunk(payload: object): Uint8Array[] {
-  return [encoder.encode(`data: ${JSON.stringify({ directory: 'global', payload })}\n\n`)]
-}
-
-describe('subscribeToEvents', () => {
+describe('v2 event dispatch', () => {
   beforeEach(() => {
     vi.resetModules()
-  })
-
-  afterEach(() => {
-    vi.restoreAllMocks()
-    vi.unstubAllGlobals()
-  })
-
-  it('preserves Chinese text when UTF-8 bytes are split across chunks', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(createFetchResponse(createEventChunks('中文', 2)))
-    vi.stubGlobal('fetch', fetchMock)
-
-    const { subscribeToEvents } = await import('./events')
-
-    const received = await new Promise<string>((resolve, reject) => {
-      const unsubscribe = subscribeToEvents({
-        onPartDelta(data) {
-          unsubscribe()
-          resolve(data.delta)
-        },
-        onError(error) {
-          unsubscribe()
-          reject(error)
-        },
-      })
-    })
-
-    expect(received).toBe('中文')
-  })
-
-  it('preserves four-byte characters when split in the middle', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(createFetchResponse(createEventChunks('𠮷😀', 3)))
-    vi.stubGlobal('fetch', fetchMock)
-
-    const { subscribeToEvents } = await import('./events')
-
-    const received = await new Promise<string>((resolve, reject) => {
-      const unsubscribe = subscribeToEvents({
-        onPartDelta(data) {
-          unsubscribe()
-          resolve(data.delta)
-        },
-        onError(error) {
-          unsubscribe()
-          reject(error)
-        },
-      })
-    })
-
-    expect(received).toBe('𠮷😀')
-  })
-
-  it('dispatches server.connected payloads with timestamp', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
-      createFetchResponse(
-        createEventChunk({
-          type: EventTypes.SERVER_CONNECTED,
-          properties: { timestamp: '2026-04-22T15:00:00.000Z' },
-        }),
-      ),
-    )
-    vi.stubGlobal('fetch', fetchMock)
-
-    const { subscribeToEvents } = await import('./events')
-
-    const received = await new Promise<unknown>((resolve, reject) => {
-      const unsubscribe = subscribeToEvents({
-        onServerConnected(data) {
-          unsubscribe()
-          resolve(data.timestamp)
-        },
-        onError(error) {
-          unsubscribe()
-          reject(error)
-        },
-      })
-    })
-
-    expect(received).toBe('2026-04-22T15:00:00.000Z')
-  })
-
-  it('ignores stale server.connected events from an old browser SSE generation after reconnect', async () => {
-    const firstFetch = createDeferred<Pick<Response, 'ok' | 'body'>>()
-    const secondFetch = createDeferred<Pick<Response, 'ok' | 'body'>>()
-    const fetchMock = vi
-      .fn()
-      .mockImplementationOnce(() => firstFetch.promise)
-      .mockImplementationOnce(() => secondFetch.promise)
-    vi.stubGlobal('fetch', fetchMock)
-
-    const { subscribeToEvents, reconnectSSE } = await import('./events')
-    const received: string[] = []
-
-    const unsubscribe = subscribeToEvents({
-      onServerConnected(data) {
-        if (typeof data.timestamp === 'string') {
-          received.push(data.timestamp)
-        }
-      },
-    })
-
-    reconnectSSE()
-
-    secondFetch.resolve(
-      createFetchResponse(
-        createEventChunk({
-          type: EventTypes.SERVER_CONNECTED,
-          properties: { timestamp: 'new-server-time' },
-        }),
-      ),
-    )
-
-    await vi.waitFor(() => {
-      expect(received).toEqual(['new-server-time'])
-    })
-
-    firstFetch.resolve(
-      createFetchResponse(
-        createEventChunk({
-          type: EventTypes.SERVER_CONNECTED,
-          properties: { timestamp: 'stale-server-time' },
-        }),
-      ),
-    )
-
-    await Promise.resolve()
-    await Promise.resolve()
-
-    expect(received).toEqual(['new-server-time'])
-    unsubscribe()
-  })
-
-  it('ignores stale browser fetch failures from an old SSE generation after reconnect', async () => {
-    const firstFetch = createDeferred<Pick<Response, 'ok' | 'body'>>()
-    const secondFetch = createDeferred<Pick<Response, 'ok' | 'body'>>()
-    const fetchMock = vi
-      .fn()
-      .mockImplementationOnce(() => firstFetch.promise)
-      .mockImplementationOnce(() => secondFetch.promise)
-    vi.stubGlobal('fetch', fetchMock)
-
-    const { subscribeToEvents, reconnectSSE, getConnectionInfo } = await import('./events')
-    const onError = vi.fn()
-
-    const unsubscribe = subscribeToEvents({
-      onError,
-    })
-
-    reconnectSSE()
-
-    firstFetch.reject(new Error('stale failure'))
-
-    await Promise.resolve()
-    await Promise.resolve()
-
-    expect(onError).not.toHaveBeenCalled()
-    expect(getConnectionInfo().state).toBe('connecting')
-
-    secondFetch.reject(Object.assign(new Error('aborted'), { name: 'AbortError' }))
-    unsubscribe()
-  })
-})
-
-describe('subscribeToEvents server-change migration', () => {
-  const LOCAL_URL = 'http://local.test'
-  const WSL_URL = 'http://wsl.test'
-
-  function fetchedUrls(fetchMock: ReturnType<typeof vi.fn>): string[] {
-    return fetchMock.mock.calls.map(call => String(call[0]))
-  }
-
-  beforeEach(() => {
-    // 与相邻 describe 平级，外层的 vi.resetModules 不会作用于本块测试；
-    // 必须自行重置，否则 events/serverStore 的模块级状态（连接池、变更监听器）跨测试泄漏
-    vi.resetModules()
+    subscribeMock.mockReset()
     localStorage.clear()
     sessionStorage.clear()
-    httpMocks.baseUrls.set('local', LOCAL_URL)
-    httpMocks.baseUrls.set('wsl:Ubuntu', WSL_URL)
   })
 
   afterEach(() => {
     vi.restoreAllMocks()
-    vi.unstubAllGlobals()
-    httpMocks.baseUrls.clear()
   })
 
-  it('keeps the active subscription untouched when a non-active server reports server-runtime-updated', async () => {
-    // 场景：active 是 local，WSL sidecar 首次注册 wsl:Ubuntu。upsertServer 对任何
-    // runtime 变化的服务器都无条件广播 server-runtime-updated，订阅绝不能被「迁移」到非 active 服务器
-    const openStream = createDeferred<Pick<Response, 'ok' | 'body'>>()
-    const fetchMock = vi.fn().mockReturnValue(openStream.promise)
-    vi.stubGlobal('fetch', fetchMock)
+  it('dispatches flat v2 events to the matching callbacks', async () => {
+    const harness = createEventStream()
+    subscribeMock.mockReturnValue(harness.stream)
 
-    const { subscribeToEvents } = await import('./events')
-    const { serverStore } = await import('../store/serverStore')
+    const { subscribeToServerEvents } = await import('./events')
 
-    const unsubscribe = subscribeToEvents({})
+    const onTextDelta = vi.fn()
+    const onToolCalled = vi.fn()
+    const onSessionIdle = vi.fn()
+    const onFormCreated = vi.fn()
 
-    expect(fetchedUrls(fetchMock)).toEqual([`${LOCAL_URL}/global/event`])
+    const unsubscribe = subscribeToServerEvents('test-server', {
+      onTextDelta,
+      onToolCalled,
+      onSessionIdle,
+      onFormCreated,
+    })
 
-    serverStore.upsertServer({ id: 'wsl:Ubuntu', name: 'Ubuntu (WSL)', url: WSL_URL })
+    // 让 connectServer 的 for-await 真正挂上
     await Promise.resolve()
 
-    // local 连接未被拆、未向 wsl:Ubuntu 发起新连接
-    expect(fetchedUrls(fetchMock)).toEqual([`${LOCAL_URL}/global/event`])
+    harness.emit(
+      v2Event('session.text.delta', {
+        sessionID: 's1',
+        assistantMessageID: 'm1',
+        ordinal: 0,
+        delta: 'hello',
+      }),
+    )
+    harness.emit(
+      v2Event('session.tool.called', {
+        sessionID: 's1',
+        assistantMessageID: 'm1',
+        id: 'tool-1',
+        input: {},
+        executed: false,
+      }),
+    )
+    harness.emit(v2Event('session.idle', { sessionID: 's1' }))
+    harness.emit(v2Event('form.created', { id: 'f1', sessionID: 's1', title: 'Q', fields: [] }))
+
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    expect(onTextDelta).toHaveBeenCalledWith(
+      expect.objectContaining({ sessionID: 's1', ordinal: 0, delta: 'hello' }),
+    )
+    expect(onToolCalled).toHaveBeenCalledWith(expect.objectContaining({ id: 'tool-1' }))
+    expect(onSessionIdle).toHaveBeenCalledWith({ sessionID: 's1' })
+    expect(onFormCreated).toHaveBeenCalledWith(expect.objectContaining({ id: 'f1' }))
 
     unsubscribe()
-    openStream.resolve(createFetchResponse([]))
   })
 
-  it('re-subscribes the active subscription when the active server reports server-runtime-updated', async () => {
-    // 合法迁移场景：active local 的端点变了（如本地运行时 URL override 落到新端口），
-    // 旧 SSE 还连着死地址，必须拆旧建新、用新 URL 重订阅
-    const firstStream = createDeferred<Pick<Response, 'ok' | 'body'>>()
-    const secondStream = createDeferred<Pick<Response, 'ok' | 'body'>>()
-    const fetchMock = vi
-      .fn()
-      .mockImplementationOnce(() => firstStream.promise)
-      .mockImplementationOnce(() => secondStream.promise)
-    vi.stubGlobal('fetch', fetchMock)
+  it('ignores event types the UI does not consume', async () => {
+    const harness = createEventStream()
+    subscribeMock.mockReturnValue(harness.stream)
 
-    const { subscribeToEvents } = await import('./events')
-    const { serverStore } = await import('../store/serverStore')
+    const { subscribeToServerEvents } = await import('./events')
+    const onTextDelta = vi.fn()
 
-    const unsubscribe = subscribeToEvents({})
-    expect(fetchedUrls(fetchMock)).toEqual([`${LOCAL_URL}/global/event`])
-
-    httpMocks.baseUrls.set('local', `${LOCAL_URL}:9999`)
-    serverStore.upsertServer({ id: 'local', name: 'Local', url: `${LOCAL_URL}:9999`, isDefault: true })
+    const unsubscribe = subscribeToServerEvents('test-server', { onTextDelta })
     await Promise.resolve()
 
-    expect(fetchedUrls(fetchMock)).toEqual([`${LOCAL_URL}/global/event`, `${LOCAL_URL}:9999/global/event`])
+    // v2 有 100 种事件；UI 只消费其中一部分，其余的必须安全忽略
+    harness.emit(v2Event('models-dev.refreshed', {}))
+    harness.emit(v2Event('credential.updated', {}))
+    await new Promise(resolve => setTimeout(resolve, 0))
 
+    expect(onTextDelta).not.toHaveBeenCalled()
     unsubscribe()
-    firstStream.resolve(createFetchResponse([]))
-    secondStream.resolve(createFetchResponse([]))
   })
 
-  it('migrates the subscription on a real server-switch', async () => {
-    // 焦点真实切换（setActiveServer）→ 订阅必须跟着迁移到新 active 服务器
-    const firstStream = createDeferred<Pick<Response, 'ok' | 'body'>>()
-    const secondStream = createDeferred<Pick<Response, 'ok' | 'body'>>()
-    const fetchMock = vi
-      .fn()
-      .mockImplementationOnce(() => firstStream.promise)
-      .mockImplementationOnce(() => secondStream.promise)
-    vi.stubGlobal('fetch', fetchMock)
+  it('reports connection state transitions', async () => {
+    const harness = createEventStream()
+    subscribeMock.mockReturnValue(harness.stream)
 
-    const { subscribeToEvents } = await import('./events')
-    const { serverStore } = await import('../store/serverStore')
+    const { subscribeToServerEvents, getServerConnectionInfo } = await import('./events')
 
-    const unsubscribe = subscribeToEvents({})
-    expect(fetchedUrls(fetchMock)).toEqual([`${LOCAL_URL}/global/event`])
+    expect(getServerConnectionInfo('test-server').state).toBe('disconnected')
 
-    // 先注册非 active 的 wsl:Ubuntu（不应动订阅），再把焦点切过去（应迁移）
-    serverStore.upsertServer({ id: 'wsl:Ubuntu', name: 'Ubuntu (WSL)', url: WSL_URL })
-    serverStore.setActiveServer('wsl:Ubuntu')
+    const unsubscribe = subscribeToServerEvents('test-server', {})
+    await Promise.resolve()
+    expect(getServerConnectionInfo('test-server').state).toBe('connecting')
+
+    // 收到任意事件后标记为已连接
+    harness.emit(v2Event('session.idle', { sessionID: 's1' }))
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    expect(getServerConnectionInfo('test-server').state).toBe('connected')
+    unsubscribe()
+  })
+
+  it('stops delivering after unsubscribe', async () => {
+    const harness = createEventStream()
+    subscribeMock.mockReturnValue(harness.stream)
+
+    const { subscribeToServerEvents, getServerConnectionInfo } = await import('./events')
+    const onTextDelta = vi.fn()
+
+    const unsubscribe = subscribeToServerEvents('test-server', { onTextDelta })
     await Promise.resolve()
 
-    expect(fetchedUrls(fetchMock)).toEqual([`${LOCAL_URL}/global/event`, `${WSL_URL}/global/event`])
+    harness.emit(v2Event('session.text.delta', { sessionID: 's', assistantMessageID: 'm', ordinal: 0, delta: 'a' }))
+    await new Promise(resolve => setTimeout(resolve, 0))
+    expect(onTextDelta).toHaveBeenCalledTimes(1)
 
     unsubscribe()
-    firstStream.resolve(createFetchResponse([]))
-    secondStream.resolve(createFetchResponse([]))
+    expect(getServerConnectionInfo('test-server').state).toBe('disconnected')
   })
 })

@@ -34,17 +34,17 @@ export type {
 // Type Guards
 // ============================================
 
-import type { Message, UserMessage, AssistantMessage, Part } from './api'
+import type { Message, UserMessageInfo, AssistantMessageInfo, Part } from './message'
 import type { UIMessage } from './ui'
 
 /** 检查消息是否为用户消息 */
-export function isUserMessage(msg: Message): msg is UserMessage {
-  return msg.role === 'user'
+export function isUserMessage(msg: Message): msg is Message & { info: UserMessageInfo } {
+  return msg.info.role === 'user'
 }
 
 /** 检查消息是否为助手消息 */
-export function isAssistantMessage(msg: Message): msg is AssistantMessage {
-  return msg.role === 'assistant'
+export function isAssistantMessage(msg: Message): msg is Message & { info: AssistantMessageInfo } {
+  return msg.info.role === 'assistant'
 }
 
 /** 检查 UI 消息是否有可见内容 */
@@ -80,6 +80,6 @@ export function getMessageText(message: UIMessage): string {
 // ============================================
 
 // 为了向后兼容，保留一些旧的类型别名
-export type { Message as ApiMessage } from './api'
-export type { Part as ApiPart } from './api'
+export type { SessionMessage as ApiMessage } from './api'
+export type { AssistantContent as ApiPart } from './api'
 export type { Session as ApiSession } from './api'

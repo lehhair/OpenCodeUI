@@ -29,6 +29,7 @@ import type {
   SessionRevert,
   SessionStatusMap,
 } from './types'
+import type { SessionTransferData } from '@opencode/client/promise'
 
 // ============================================
 // 会话状态
@@ -287,6 +288,38 @@ export async function waitSession(sessionId: string, serverId?: string): Promise
   const target = resolveSessionTarget(sessionId, serverId)
   const sdk = getSDKClient(target.serverId)
   await sdk.session.wait({ sessionID: target.sessionId })
+}
+
+// ============================================
+// 会话导出 / 导入（取代 v1 的 share / unshare）
+// ============================================
+
+/**
+ * 导出会话转写。
+ *
+ * v2 用 export 取代了 v1 的 share：不再生成公开链接，
+ * 而是返回 `{ info, messages }` 的可序列化转写数据。
+ */
+export async function exportSession(
+  sessionId: string,
+  _directory?: string,
+  serverId?: string,
+): Promise<SessionTransferData> {
+  const target = resolveSessionTarget(sessionId, serverId)
+  const sdk = getSDKClient(target.serverId)
+  return await sdk.session.export({ sessionID: target.sessionId })
+}
+
+/**
+ * 导入会话转写。
+ */
+export async function importSession(
+  transfer: SessionTransferData,
+  _directory?: string,
+  serverId?: string,
+): Promise<Session> {
+  const sdk = getSDKClient(serverId)
+  return await sdk.session.import(transfer)
 }
 
 /**

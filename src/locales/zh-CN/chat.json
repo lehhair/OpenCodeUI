@@ -51,15 +51,17 @@
     "nextIn": "{{label}} 后重试"
   },
   "shareDialog": {
-    "title": "分享对话",
-    "publicLink": "公开链接",
-    "publicLinkDesc": "任何拥有此链接的人都可以查看此对话。",
-    "failedCreate": "创建分享链接失败",
-    "failedRemove": "移除分享链接失败",
-    "copyLink": "复制链接",
-    "stopSharing": "停止分享",
-    "createPublicLink": "创建公开链接",
-    "creatingLink": "创建链接中..."
+    "title": "导出对话",
+    "exportTitle": "导出会话",
+    "exportDesc": "把这段对话导出为 JSON 文件，可在另一台设备或另一个服务器上导入。",
+    "exportSession": "导出会话",
+    "exporting": "导出中...",
+    "importSession": "导入会话",
+    "importing": "导入中...",
+    "exported": "会话已导出。",
+    "imported": "已导入会话：{{title}}",
+    "failedExport": "导出会话失败",
+    "failedImport": "导入会话失败"
   },
   "questionDialog": {
     "title": "问题",

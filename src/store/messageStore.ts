@@ -9,9 +9,12 @@
 // 4. RAF 批量通知 React 组件更新
 
 import type { Message, MessageError, Part, FilePart, AgentPart } from '../types/message'
-import type { ApiMessageWithParts, ApiMessage, ApiPart, ApiSession, Attachment } from '../api/types'
+import type { ToolState as UIToolState } from '../types/message'
+import type { Attachment } from '../types/ui'
+import type { SessionMessage as ApiMessage, AssistantContent, Session as ApiSession } from '../api/types'
 import { logger } from '../utils/logger'
-import { isUserUIMessage, toUIMessage, toUIMessageInfo, toUIPart } from '../utils/messageConversion'
+import { isUserUIMessage, toUIMessage } from '../utils/messageConversion'
+import { contentToParts } from '../utils/v2Projection'
 import type { RevertState, RevertHistoryItem, SessionState, SendRollbackSnapshot } from './messageStoreTypes'
 
 // Re-export types for consumers
@@ -426,7 +429,7 @@ class MessageStore {
 
   setMessages(
     sessionId: string,
-    apiMessages: ApiMessageWithParts[],
+    apiMessages: ApiMessage[],
     options?: {
       directory?: string
       title?: string
@@ -440,7 +443,7 @@ class MessageStore {
     const previousById = new Map(previousMessages.map(message => [message.info.id, message]))
 
     state.messages = apiMessages.map(apiMessage => {
-      const next = toUIMessage(apiMessage)
+      const next = toUIMessage(apiMessage, sessionId)
       const previous = previousById.get(next.info.id)
       // 定稿（completed）强制采用服务端；仅流式/未完成时不回退更长 live
       if (!previous || !shouldPreserveLiveParts(previous, next)) return next
@@ -470,8 +473,8 @@ class MessageStore {
               messageId: m.info.id,
               text: this.extractUserText(m),
               attachments: this.extractUserAttachments(m),
-              model: m.info.model,
-              variant: m.info.model.variant,
+              model: m.info.model ?? { providerID: '', modelID: '' },
+              variant: m.info.model?.variant,
               agent: m.info.agent,
             }
           }),
@@ -497,11 +500,11 @@ class MessageStore {
     this.notify([sessionId])
   }
 
-  prependMessages(sessionId: string, apiMessages: ApiMessageWithParts[], hasMore: boolean) {
+  prependMessages(sessionId: string, apiMessages: ApiMessage[], hasMore: boolean) {
     const state = this.sessions.get(sessionId)
     if (!state) return
 
-    const newMessages = apiMessages.map(toUIMessage)
+    const newMessages = apiMessages.map(apiMessage => toUIMessage(apiMessage, sessionId))
 
     // 去重
     const existingIds = new Set(state.messages.map(m => m.info.id))
@@ -545,88 +548,223 @@ class MessageStore {
   // SSE Event Handlers
   // ============================================
 
-  handleMessageUpdated(apiMsg: ApiMessage) {
-    const state = this.ensureSession(apiMsg.sessionID)
+  /**
+   * v2：消息事件携带**完整消息**（含 content），不再有独立的 part 事件。
+   *
+   * 因此这里是「整条替换」，并按是否为助手消息维护 streaming 状态。
+   * sessionID 由事件上下文注入（v2 消息本身不带）。
+   */
+  handleMessageUpdated(apiMsg: ApiMessage, sessionID: string) {
+    const state = this.ensureSession(sessionID)
+    const projected = toUIMessage(apiMsg, sessionID)
     const existingIndex = state.messages.findIndex(m => m.info.id === apiMsg.id)
 
     if (existingIndex >= 0) {
       const oldMessage = state.messages[existingIndex]
-      const newMessage = { ...oldMessage, info: toUIMessageInfo(apiMsg) }
-      state.messages = [
-        ...state.messages.slice(0, existingIndex),
-        newMessage,
-        ...state.messages.slice(existingIndex + 1),
-      ]
+      // 未定稿时保护本地更长的 live 文本；已 completed 则强制服务端定稿
+      const merged = shouldPreserveLiveParts(oldMessage, projected)
+        ? {
+            ...projected,
+            parts: mergePartsPreferLiveText(oldMessage.parts, projected.parts),
+            isStreaming: oldMessage.isStreaming || projected.isStreaming,
+          }
+        : projected
+      state.messages = [...state.messages.slice(0, existingIndex), merged, ...state.messages.slice(existingIndex + 1)]
     } else {
-      const newMsg: Message = {
-        info: toUIMessageInfo(apiMsg),
-        parts: [],
-        isStreaming: apiMsg.role === 'assistant',
-      }
-      state.messages = [...state.messages, newMsg]
-      if (apiMsg.role === 'assistant') {
-        state.isStreaming = true
-      }
+      state.messages = [...state.messages, projected]
     }
 
-    this.notify([apiMsg.sessionID])
+    const isAssistant = apiMsg.type === 'assistant'
+    if (isAssistant) {
+      state.isStreaming = apiMsg.time.completed == null
+    }
+
+    this.notify([sessionID])
   }
 
-  handlePartUpdated(apiPart: ApiPart & { sessionID: string; messageID: string }) {
-    const state = this.sessions.get(apiPart.sessionID)
+  /**
+   * v2 助手内容整体替换（`session.message.content.updated` 或完整消息回读）。
+   *
+   * content 数组是权威快照，直接重建 parts，不做增量合并。
+   */
+  handleMessageContent(messageID: string, sessionID: string, content: AssistantContent[]) {
+    const state = this.sessions.get(sessionID)
     if (!state) return
 
-    const msgIndex = state.messages.findIndex(m => m.info.id === apiPart.messageID)
+    const msgIndex = state.messages.findIndex(m => m.info.id === messageID)
     if (msgIndex === -1) return
 
     const oldMessage = state.messages[msgIndex]
-    const newParts = [...oldMessage.parts]
-    const existingPartIndex = newParts.findIndex(p => p.id === apiPart.id)
-    const incoming = toUIPart(apiPart)
-
-    if (existingPartIndex >= 0) {
-      const existing = newParts[existingPartIndex]
-      // 未定稿：兼容前缀时不回退；已 completed：强制服务端定稿
-      newParts[existingPartIndex] = shouldPreserveLiveParts(oldMessage)
-        ? mergePartPreferLiveText(existing, incoming)
-        : incoming
-    } else {
-      newParts.push(incoming)
-    }
-
-    const newMessage = { ...oldMessage, parts: newParts }
+    const newMessage = { ...oldMessage, parts: contentToParts(content, sessionID, messageID) }
     state.messages = [...state.messages.slice(0, msgIndex), newMessage, ...state.messages.slice(msgIndex + 1)]
-    this.notify([apiPart.sessionID])
+    this.notify([sessionID])
   }
 
-  handlePartDelta(data: { sessionID: string; messageID: string; partID: string; field: string; delta: string }) {
+  /**
+   * v2 流式文本增量。
+   *
+   * v2 用 `data.ordinal` 标识助手消息内的第几段文本，
+   * 与 UI 的 part 一一对应（投影时 id 为 `${messageID}:text:${ordinal}`）。
+   */
+  handleTextDelta(data: {
+    sessionID: string
+    assistantMessageID: string
+    ordinal: number
+    delta: string
+  }) {
     const state = this.sessions.get(data.sessionID)
     if (!state) return
 
-    const msg = state.messages.find(m => m.info.id === data.messageID)
-    if (!msg) return
+    const msgIndex = state.messages.findIndex(m => m.info.id === data.assistantMessageID)
+    if (msgIndex === -1) return
 
-    const part = msg.parts.find(p => p.id === data.partID)
-    if (!part) return
+    const message = state.messages[msgIndex]
+    const partId = `${data.assistantMessageID}:text:${data.ordinal}`
+    let partIndex = message.parts.findIndex(p => p.id === partId)
 
-    if (!(data.field === 'text' && 'text' in part))
-      return // Mutable 修改：直接拼接 text，不做不可变拷贝。
-      // 一帧内可能收到多个 delta，只有最后的状态会被 React 看到。
-      // flushDirtyMessages() 会在 notify 的 rAF 回调中统一生成新引用。
-    ;(part as { text: string }).text += data.delta
+    // 首个 delta 可能先于 content 快照到达：就地补一个文本 part
+    const parts =
+      partIndex === -1
+        ? [
+            ...message.parts,
+            {
+              id: partId,
+              sessionID: data.sessionID,
+              messageID: data.assistantMessageID,
+              type: 'text' as const,
+              text: data.delta,
+            },
+          ]
+        : (() => {
+            const next = [...message.parts]
+            const part = next[partIndex]
+            // Mutable 拼接：一帧内多个 delta 只暴露最终状态，
+            // flushDirtyMessages() 在 rAF 回调里统一生成新引用。
+            if (part.type === 'text') part.text += data.delta
+            return next
+          })()
 
-    let dirtyPartsByMessage = this.dirtyPartsBySession.get(data.sessionID)
+    if (partIndex === -1) partIndex = parts.length - 1
+
+    const newMessage = { ...message, parts, isStreaming: true }
+    state.messages = [...state.messages.slice(0, msgIndex), newMessage, ...state.messages.slice(msgIndex + 1)]
+    state.isStreaming = true
+
+    this.markDirty(data.sessionID, data.assistantMessageID, parts[partIndex].id)
+    this.notify([data.sessionID])
+  }
+
+  /**
+   * v2 推理增量。与文本增量同构，按 ordinal 定位。
+   */
+  handleReasoningDelta(data: {
+    sessionID: string
+    assistantMessageID: string
+    ordinal: number
+    delta: string
+  }) {
+    const state = this.sessions.get(data.sessionID)
+    if (!state) return
+
+    const msgIndex = state.messages.findIndex(m => m.info.id === data.assistantMessageID)
+    if (msgIndex === -1) return
+
+    const message = state.messages[msgIndex]
+    const partId = `${data.assistantMessageID}:reasoning:${data.ordinal}`
+    const partIndex = message.parts.findIndex(p => p.id === partId)
+
+    const parts =
+      partIndex === -1
+        ? [
+            ...message.parts,
+            {
+              id: partId,
+              sessionID: data.sessionID,
+              messageID: data.assistantMessageID,
+              type: 'reasoning' as const,
+              text: data.delta,
+              time: { start: Date.now() },
+            },
+          ]
+        : (() => {
+            const next = [...message.parts]
+            const part = next[partIndex]
+            if (part.type === 'reasoning') part.text += data.delta
+            return next
+          })()
+
+    const newMessage = { ...message, parts, isStreaming: true }
+    state.messages = [...state.messages.slice(0, msgIndex), newMessage, ...state.messages.slice(msgIndex + 1)]
+    state.isStreaming = true
+    this.notify([data.sessionID])
+  }
+
+  /** 记录需要在新一帧刷新引用的 part */
+  private markDirty(sessionID: string, messageID: string, partID: string) {
+    let dirtyPartsByMessage = this.dirtyPartsBySession.get(sessionID)
     if (!dirtyPartsByMessage) {
       dirtyPartsByMessage = new Map<string, Set<string>>()
-      this.dirtyPartsBySession.set(data.sessionID, dirtyPartsByMessage)
+      this.dirtyPartsBySession.set(sessionID, dirtyPartsByMessage)
     }
-    let dirtyPartIds = dirtyPartsByMessage.get(data.messageID)
+    let dirtyPartIds = dirtyPartsByMessage.get(messageID)
     if (!dirtyPartIds) {
       dirtyPartIds = new Set<string>()
-      dirtyPartsByMessage.set(data.messageID, dirtyPartIds)
+      dirtyPartsByMessage.set(messageID, dirtyPartIds)
     }
-    dirtyPartIds.add(data.partID)
-    this.notify([data.sessionID])
+    dirtyPartIds.add(partID)
+  }
+
+  /**
+   * v2 工具事件（called / progress / success / failed）。
+   *
+   * v2 的工具生命周期是独立事件，按 `data.id` 关联到 content 里的 tool 片段。
+   * 这里就地更新对应 ToolPart 的状态，避免为了一个工具结果重拉整条消息。
+   */
+  handleToolEvent(
+    sessionID: string,
+    assistantMessageID: string,
+    toolID: string,
+    update: Partial<UIToolState> & { toolName?: string },
+  ) {
+    const state = this.sessions.get(sessionID)
+    if (!state) return
+
+    const msgIndex = state.messages.findIndex(m => m.info.id === assistantMessageID)
+    if (msgIndex === -1) return
+
+    const message = state.messages[msgIndex]
+    const partId = `${assistantMessageID}:tool:${toolID}`
+    const partIndex = message.parts.findIndex(p => p.id === partId)
+
+    if (partIndex === -1) {
+      // 工具事件先于 content 快照到达：补一个占位 tool part
+      if (!update.toolName) return
+      const parts = [
+        ...message.parts,
+        {
+          id: partId,
+          sessionID,
+          messageID: assistantMessageID,
+          type: 'tool' as const,
+          callID: toolID,
+          tool: update.toolName,
+          state: { status: 'running', ...update } as UIToolState,
+        },
+      ]
+      const newMessage = { ...message, parts }
+      state.messages = [...state.messages.slice(0, msgIndex), newMessage, ...state.messages.slice(msgIndex + 1)]
+      this.notify([sessionID])
+      return
+    }
+
+    const parts = [...message.parts]
+    const part = parts[partIndex]
+    if (part.type !== 'tool') return
+    parts[partIndex] = { ...part, state: { ...part.state, ...update } }
+
+    const newMessage = { ...message, parts }
+    state.messages = [...state.messages.slice(0, msgIndex), newMessage, ...state.messages.slice(msgIndex + 1)]
+    this.notify([sessionID])
   }
 
   handlePartRemoved(data: { partID: string; messageID: string; sessionID: string }) {

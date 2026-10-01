@@ -437,7 +437,7 @@ export const ChatPane = memo(function ChatPane({
     (agentName: string) => {
       const agent = agents.find(a => a.name === agentName)
       if (agent?.model) {
-        const modelKey = `${agent.model.providerID}:${agent.model.modelID}`
+        const modelKey = `${agent.model.providerID}:${agent.model.id}`
         const model = findModelByKey(visibleModels, modelKey)
         if (model) {
           handleModelChange(modelKey, model)
@@ -968,7 +968,7 @@ export const ChatPane = memo(function ChatPane({
             !inlineToolRequests && pendingPermissionRequests.length > 0 && permissionCollapsed
               ? {
                   label: t('chat:permissionDialog.permission', {
-                    permission: pendingPermissionRequests[0].permission,
+                    permission: pendingPermissionRequests[0].action,
                   }),
                   queueLength: pendingPermissionRequests.length,
                   onExpand: () => setPermissionCollapsed(false),

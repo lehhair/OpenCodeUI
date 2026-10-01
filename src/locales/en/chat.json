@@ -51,15 +51,17 @@
     "nextIn": "next in {{label}}"
   },
   "shareDialog": {
-    "title": "Share Chat",
-    "publicLink": "Public Link",
-    "publicLinkDesc": "Anyone with this link can view this chat session.",
-    "failedCreate": "Failed to create share link",
-    "failedRemove": "Failed to remove share link",
-    "copyLink": "Copy link",
-    "stopSharing": "Stop sharing",
-    "createPublicLink": "Create public link",
-    "creatingLink": "Creating link..."
+    "title": "Export Chat",
+    "exportTitle": "Export Session",
+    "exportDesc": "Export this conversation to a JSON file that can be imported on another device or server.",
+    "exportSession": "Export Session",
+    "exporting": "Exporting...",
+    "importSession": "Import Session",
+    "importing": "Importing...",
+    "exported": "Session exported.",
+    "imported": "Imported session: {{title}}",
+    "failedExport": "Failed to export session",
+    "failedImport": "Failed to import session"
   },
   "questionDialog": {
     "title": "Question",

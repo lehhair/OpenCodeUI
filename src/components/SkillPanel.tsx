@@ -163,7 +163,7 @@ const SkillItem = memo(function SkillItem({ skill }: { skill: Skill }) {
 
       {expanded && (
         <div className="mx-2 mb-2 ml-7 rounded-md border border-border-200/40 bg-bg-100/50 px-3 py-2">
-          <div className="text-[length:var(--fs-sm)] text-text-500 mb-2 font-mono break-all">{skill.location}</div>
+          <div className="text-[length:var(--fs-sm)] text-text-500 mb-2 font-mono break-all">{skill.path}</div>
           <div className="bg-bg-200/50 rounded-md p-2 overflow-x-auto">
             <pre className="text-[length:var(--fs-sm)] text-text-200 font-mono whitespace-pre-wrap break-words">{skill.content}</pre>
           </div>
