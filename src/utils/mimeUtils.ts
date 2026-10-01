@@ -72,6 +72,22 @@ export function buildTextDataUrl(mimeType: string, text: string): string {
 }
 
 /**
+ * 从原始字节构建 base64 data URL。
+ *
+ * v2 的 `file.read` 返回 `Uint8Array`（不再是 base64 字符串），
+ * 图片/音视频预览需要由此自行编码。
+ */
+export function buildBytesDataUrl(mimeType: string, bytes: Uint8Array): string {
+  // 分块避免 String.fromCharCode 的参数数量上限
+  const CHUNK = 0x8000
+  let binary = ''
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK))
+  }
+  return `data:${mimeType};base64,${btoa(binary)}`
+}
+
+/**
  * 将 base64 编码的内容解码为 UTF-8 文本
  * 用于 SVG 等虽以 base64 传输但本质是文本的文件
  */

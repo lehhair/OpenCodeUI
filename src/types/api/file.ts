@@ -46,14 +46,18 @@ export type FileReadBytes = FileReadOutput
 /**
  * 文件内容（解码后）。
  *
- * v2 的 `file.read` 返回 `Uint8Array`，没有 v1 的 patch/hunks 结构。
- * UI 侧解码后拿到文本 + 二进制判断。
+ * v2 的 `file.read` 返回 `Uint8Array`，没有 v1 的 patch/hunks，
+ * 也没有 mimeType / base64 encoding 元信息。因此这里保留原始字节
+ * （`bytes`，供媒体预览构造 data URL），并附带解码结果与二进制判断；
+ * MIME 由调用方按路径推断。
  */
 export interface FileContent {
   path: string
   content: string
   isBinary: boolean
   size: number
+  /** 原始字节（v2 的 file.read 输出） */
+  bytes: Uint8Array
 }
 
 export type FileWriteResponse = FileWriteOutput

@@ -150,6 +150,7 @@ export async function getFileContent(path: string, directory?: string, serverId?
     content: text,
     isBinary,
     size: bytes.byteLength,
+    bytes,
   }
 }
 

@@ -11,7 +11,26 @@ import { useSessionChangeScope } from '../store/changeScopeStore'
 import { activeSessionStore } from '../store/activeSessionStore'
 import { useAutoRefresh } from './useAutoRefresh'
 
-export interface FileTreeNode extends FileNode {
+/**
+ * 文件树节点。
+ *
+ * v2 的 `file.list` / `file.find` 只返回扁平的 `{ path, type }`，
+ * 没有 v1 的 `name` / `absolute` / `children`，因此这些字段由 UI 派生：
+ *   - `name`     ← path 的 basename
+ *   - `absolute` ← path 与工作区目录拼接
+ *   - `children` ← 展开时再列目录（懒加载）
+ *
+ * v1 的 `ignored` 标志在 v2 不再返回（`file.list` 已过滤），
+ * 因此这里不再声明该字段。
+ */
+export interface FileTreeNode {
+  /** 根相对路径（唯一键，也是继续列子目录时传的 path） */
+  path: string
+  /** 展示名（path 的 basename） */
+  name: string
+  /** 绝对路径（拖拽 @mention、在系统文件管理器中显示用） */
+  absolute: string
+  type: 'file' | 'directory'
   children?: FileTreeNode[]
   isLoading?: boolean
   isLoaded?: boolean
@@ -110,8 +129,8 @@ export function useFileExplorer(options: UseFileExplorerOptions = {}): UseFileEx
       if (loadId !== loadIdRef.current) return
 
       // 排序：目录在前，文件在后，按名称排序
-      const sorted = sortNodes(nodes)
-      setTree(sorted.map(n => ({ ...n, children: n.type === 'directory' ? undefined : undefined })))
+      const sorted = sortNodes(nodes.map(n => toTreeNode(n, '', effectiveDirectory)))
+      setTree(sorted)
     } catch (e) {
       if (loadId === loadIdRef.current) {
         setError(e instanceof Error ? e.message : t('fileExplorer.failedToLoadFiles'))
@@ -194,12 +213,12 @@ export function useFileExplorer(options: UseFileExplorerOptions = {}): UseFileEx
         const nodes = await listDirectory(parentPath, effectiveDirectory, serverId)
         if (!isCurrentLoad()) return
 
-        const sorted = sortNodes(nodes)
+        const sorted = sortNodes(nodes.map(n => toTreeNode(n, parentPath, effectiveDirectory)))
 
         setTree(prev =>
           updateTreeNode(prev, parentPath, node => ({
             ...node,
-            children: sorted.map(n => ({ ...n })),
+            children: sorted,
             isLoading: false,
             isLoaded: true,
           })),
@@ -406,7 +425,7 @@ export function useFileExplorer(options: UseFileExplorerOptions = {}): UseFileEx
 // Helper Functions
 // ============================================
 
-function sortNodes(nodes: FileNode[]): FileNode[] {
+function sortNodes(nodes: FileTreeNode[]): FileTreeNode[] {
   return [...nodes].sort((a, b) => {
     // 目录在前
     if (a.type !== b.type) {
@@ -415,6 +434,45 @@ function sortNodes(nodes: FileNode[]): FileNode[] {
     // 按名称排序（忽略大小写）
     return a.name.toLowerCase().localeCompare(b.name.toLowerCase())
   })
+}
+
+/** 从路径取 basename（兼容 / 与 \） */
+function baseName(p: string): string {
+  const normalized = p.replace(/\\/g, '/').replace(/\/+$/, '')
+  const index = normalized.lastIndexOf('/')
+  return index === -1 ? normalized : normalized.slice(index + 1)
+}
+
+/** 把根相对路径拼成绝对路径 */
+function toAbsolute(path: string, directory?: string): string {
+  if (!directory) return path
+  if (/^[a-zA-Z]:[\\/]/.test(path) || path.startsWith('/')) return path
+  const separator = directory.includes('\\') ? '\\' : '/'
+  const base = directory.replace(/[\\/]+$/, '')
+  return `${base}${separator}${path.replace(/\//g, separator)}`
+}
+
+/**
+ * 把 v2 的扁平条目投影成树节点。
+ *
+ * v2 的条目路径是**相对工作区根**的（`file.find` 的命中来自整棵树，
+ * 只有根相对路径才有意义）。这里做一次归一化：若条目路径没有以
+ * 所列出目录为前缀，则按「相对该目录」解释并补上前缀，两种约定都能正确成树。
+ */
+function toTreeNode(entry: FileNode, parentPath: string, directory?: string): FileTreeNode {
+  const entryPath = normalizePath(entry.path)
+  const parent = normalizePath(parentPath)
+  const path =
+    parent && entryPath !== parent && !entryPath.startsWith(`${parent}/`)
+      ? `${parent}/${entryPath}`
+      : entryPath
+
+  return {
+    path,
+    name: baseName(path),
+    absolute: toAbsolute(path, directory),
+    type: entry.type,
+  }
 }
 
 function findTreeNode(tree: FileTreeNode[], path: string): FileTreeNode | null {
