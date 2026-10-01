@@ -478,7 +478,7 @@ export function SidePanel({
           setFetchedSessions(prev => (prev[session.id] ? prev : { ...prev, [session.id]: session }))
           if (entry.pinned) {
             pinnedSessionsStore.update(session.id, {
-              directory: session.directory || entry.directory,
+              directory: session.location?.directory || entry.directory,
               title: session.title || session.id.slice(0, 12) + '...',
             })
           }
@@ -865,8 +865,8 @@ export function SidePanel({
   const handleSelect = useCallback(
     (session: ApiSession) => {
       // Global 模式下，点击 session 自动切换到该 session 的工作目录并添加到项目列表
-      if (!currentDirectory && session.directory) {
-        addDirectory(session.directory)
+      if (!currentDirectory && session.location?.directory) {
+        addDirectory(session.location?.directory)
       }
       onSelectSession(session)
       if (window.innerWidth < 768 && onCloseMobile) {
@@ -903,12 +903,12 @@ export function SidePanel({
 
   const handleSelectActive = useCallback(
     (session: ApiSession & { serverId?: string }) => {
-      if (session.directory) {
+      if (session.location?.directory) {
         if (session.serverId) {
           // 多服务器模式：写入该 session 所属服务器的工作区（避免污染活动服务器）
-          addServerWorkspace(session.serverId, session.directory)
+          addServerWorkspace(session.serverId, session.location?.directory)
         } else {
-          addDirectory(session.directory)
+          addDirectory(session.location?.directory)
         }
       }
       // 多服务器模式：session 附带 serverId（App 用它合成复合 key 打开）
@@ -980,9 +980,9 @@ export function SidePanel({
   const handleRenameFolderSession = useCallback(
     async (session: ApiSession, newTitle: string) => {
       try {
-        await updateSession(session.id, { title: newTitle }, session.directory)
+        await updateSession(session.id, { title: newTitle }, session.location?.directory)
         pinnedSessionsStore.update(session.id, { title: newTitle })
-        if (!currentDirectory || isSameDirectory(currentDirectory, session.directory)) {
+        if (!currentDirectory || isSameDirectory(currentDirectory, session.location?.directory)) {
           await refresh()
         }
       } catch (e) {
@@ -994,10 +994,10 @@ export function SidePanel({
 
   const handleDeleteFolderSession = useCallback(
     async (session: ApiSession) => {
-      await apiDeleteSession(session.id, session.directory)
+      await apiDeleteSession(session.id, session.location?.directory)
       pinnedSessionsStore.unpin(session.id)
 
-      if (!currentDirectory || isSameDirectory(currentDirectory, session.directory)) {
+      if (!currentDirectory || isSameDirectory(currentDirectory, session.location?.directory)) {
         await refresh()
       }
 
@@ -1023,7 +1023,7 @@ export function SidePanel({
         try {
           const s = sessionLookup.get(id)
           if (s) {
-            await apiDeleteSession(id, s.directory)
+            await apiDeleteSession(id, s.location?.directory)
           } else {
             await apiDeleteSession(id, currentDirectory)
           }

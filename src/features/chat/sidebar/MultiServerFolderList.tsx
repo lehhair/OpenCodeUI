@@ -254,17 +254,17 @@ const ServerFolderGroup = memo(function ServerFolderGroup({
               onSelectProject={handleSelectProject}
               onSelectSession={session => {
                 // 全局文件夹（无工作区归属）点 session：自动把目录加入该服务器工作区（与文件夹模式一致）
-                if (session.directory) {
-                  addServerWorkspace(serverId, session.directory)
+                if (session.location?.directory) {
+                  addServerWorkspace(serverId, session.location?.directory)
                 }
                 onSelectSession({ ...session, serverId } as ApiSession & { serverId?: string })
               }}
               onRenameSession={async session => {
-                await updateSession(session.id, { title: session.title }, session.directory, serverId)
+                await updateSession(session.id, { title: session.title }, session.location?.directory, serverId)
               }}
               onDeleteSession={async session => {
                 try {
-                  await deleteSession(session.id, session.directory, serverId)
+                  await deleteSession(session.id, session.location?.directory, serverId)
                   clearSessionRuntimeState(`${serverId}::${session.id}`)
                 } catch (e) {
                   uiErrorHandler('delete session', e)

@@ -32,7 +32,7 @@ export function NotificationItem({ entry, resolvedSession, onSelect }: Notificat
   const { t } = useTranslation(['chat', 'common'])
   const { preferTouchUi } = useInputCapabilities()
   const displayTitle = resolvedSession?.title || entry.title || entry.sessionId.slice(0, 12) + '...'
-  const directory = resolvedSession?.directory || entry.directory
+  const directory = resolvedSession?.location?.directory || entry.directory
   const [showActions, setShowActions] = useState(false)
   const [hasFocusWithin, setHasFocusWithin] = useState(false)
   const itemRef = useRef<HTMLDivElement>(null)

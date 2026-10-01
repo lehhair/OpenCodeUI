@@ -473,7 +473,7 @@ export function SessionListItem({
     } else {
       pinnedSessionsStore.pin({
         sessionId: session.id,
-        directory: session.directory || '',
+        directory: session.location?.directory || '',
         title: session.title || t('sessions.untitledChat'),
       })
     }
@@ -589,7 +589,7 @@ export function SessionListItem({
         kind: 'session',
         sessionId: session.id,
         serverId: activeSessionKey ? splitSessionKey(activeSessionKey).serverId : undefined,
-        directory: session.directory,
+        directory: session.location?.directory,
       },
     )
   }
@@ -853,11 +853,11 @@ export function SessionListItem({
                 </span>
               </>
             )}
-            {showDirectory && session.directory && (
+            {showDirectory && session.location?.directory && (
               <>
                 <span className="opacity-30 shrink-0">·</span>
-                <span className="truncate opacity-50" title={session.directory}>
-                  {session.directory.replace(/\\/g, '/').split('/').filter(Boolean).pop()}
+                <span className="truncate opacity-50" title={session.location?.directory}>
+                  {session.location?.directory.replace(/\\/g, '/').split('/').filter(Boolean).pop()}
                 </span>
               </>
             )}

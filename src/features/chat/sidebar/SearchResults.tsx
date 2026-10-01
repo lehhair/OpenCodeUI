@@ -177,15 +177,15 @@ function ServerSearchGroup({
             className={`flex w-full items-center gap-2 px-2 py-1 rounded-md text-left hover:bg-bg-200/40 ${
               isSelected ? 'bg-bg-200/60' : ''
             }`}
-            title={session.directory}
+            title={session.location?.directory}
           >
             <MessageSquareIcon size={13} className="shrink-0 text-text-400" />
             <span className="min-w-0 flex-1 truncate text-[length:var(--fs-sm)] text-text-200">
               {session.title || t('sessions.untitledChat', { defaultValue: 'Untitled chat' })}
             </span>
-            {session.directory && (
+            {session.location?.directory && (
               <span className="shrink-0 max-w-[40%] truncate text-[length:var(--fs-xxs)] text-text-400/70">
-                {session.directory}
+                {session.location?.directory}
               </span>
             )}
           </button>

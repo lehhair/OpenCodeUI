@@ -106,7 +106,7 @@ export function useSessions(options: UseSessionsOptions = {}): UseSessionsResult
   }, [search])
 
   const matchesDirectory = useCallback(
-    (session: ApiSession) => !normalizedDirectory || isSameDirectory(normalizedDirectory, session.directory),
+    (session: ApiSession) => !normalizedDirectory || isSameDirectory(normalizedDirectory, session.location?.directory),
     [normalizedDirectory],
   )
 
@@ -146,9 +146,9 @@ export function useSessions(options: UseSessionsOptions = {}): UseSessionsResult
             // 已被更新的请求覆盖：静默退出，不碰任何状态
             if (requestId !== requestIdRef.current) return
 
-            if (data.length > 0 && data[0].directory) {
+            if (data.length > 0 && data[0].location?.directory) {
               // 按服务器记录路径风格（多服务器连不同操作系统时互不干扰）
-              autoDetectPathStyle(data[0].directory, serverId)
+              autoDetectPathStyle(data[0].location?.directory, serverId)
             }
 
             setSessions(data)

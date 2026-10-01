@@ -555,7 +555,7 @@ export function useGlobalEvents(directories?: string[]) {
           }
 
           // 更新 session meta 供 active tab 使用
-          activeSessionStore.setSessionMeta(scopedId, session.title, session.directory)
+          activeSessionStore.setSessionMeta(scopedId, session.title, session.location?.directory)
 
           // 清理过期缓存
           cleanupExpired(pendingPermissions)
@@ -598,7 +598,7 @@ export function useGlobalEvents(directories?: string[]) {
         onSessionUpdated: session => {
           const scopedId = scope(session.id)
           // 更新 session meta 供 active tab 使用
-          activeSessionStore.setSessionMeta(scopedId, session.title, session.directory)
+          activeSessionStore.setSessionMeta(scopedId, session.title, session.location?.directory)
           if (session.parentID) {
             childSessionStore.registerChildSession(session, serverId)
           }

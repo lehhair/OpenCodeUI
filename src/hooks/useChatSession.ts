@@ -684,7 +684,7 @@ export function useChatSession({
           if (!input.allowCreateSession) return false
           const newSession = await createSession()
           sessionId = newSession.id
-          navigateToSession(sessionId, newSession.directory)
+          navigateToSession(sessionId, newSession.location?.directory)
         }
 
         if (rollbackSnapshot) {
@@ -938,7 +938,7 @@ export function useChatSession({
           }
           const forkedSession = await forkSession(assistantInfo.sessionID, forkAtMessageId, effectiveDirectory, paneServerId)
           setRestoredContent(null)
-          navigateToSession(forkedSession.id, forkedSession.directory)
+          navigateToSession(forkedSession.id, forkedSession.location?.directory)
           return
         }
 
@@ -962,7 +962,7 @@ export function useChatSession({
           },
         })
 
-        navigateToSession(forkedSession.id, forkedSession.directory)
+        navigateToSession(forkedSession.id, forkedSession.location?.directory)
       } catch (error) {
         handleError('fork session', error)
       }
@@ -1015,7 +1015,7 @@ export function useChatSession({
         if (!sessionId) {
           const newSession = await createSession()
           sessionId = newSession.id
-          navigateToSession(sessionId, newSession.directory)
+          navigateToSession(sessionId, newSession.location?.directory)
         }
 
         if (command === 'compact') {
@@ -1086,7 +1086,7 @@ export function useChatSession({
   // Session selection
   const handleSelectSession = useCallback(
     (session: ApiSession) => {
-      navigateToSession(session.id, session.directory)
+      navigateToSession(session.id, session.location?.directory)
     },
     [navigateToSession],
   )
@@ -1115,10 +1115,10 @@ export function useChatSession({
     const currentIndex = sessions.findIndex(s => s.id === routeSessionId)
     if (currentIndex > 0) {
       const target = sessions[currentIndex - 1]
-      navigateToSession(target.id, target.directory)
+      navigateToSession(target.id, target.location?.directory)
     } else if (currentIndex === -1 && sessions.length > 0) {
       // Not in any session, go to first
-      navigateToSession(sessions[0].id, sessions[0].directory)
+      navigateToSession(sessions[0].id, sessions[0].location?.directory)
     }
   }, [sessions, routeSessionId, navigateToSession])
 
@@ -1128,7 +1128,7 @@ export function useChatSession({
     const currentIndex = sessions.findIndex(s => s.id === routeSessionId)
     if (currentIndex >= 0 && currentIndex < sessions.length - 1) {
       const target = sessions[currentIndex + 1]
-      navigateToSession(target.id, target.directory)
+      navigateToSession(target.id, target.location?.directory)
     }
   }, [sessions, routeSessionId, navigateToSession])
 

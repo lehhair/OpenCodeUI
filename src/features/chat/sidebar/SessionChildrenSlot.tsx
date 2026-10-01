@@ -61,7 +61,7 @@ export function SessionChildrenSlot({
       if (!cancelled) setLoading(true)
     })
 
-    getSessionChildren(parentSession.id, parentSession.directory, serverId)
+    getSessionChildren(parentSession.id, parentSession.location?.directory, serverId)
       .then(data => {
         if (!cancelled) setFetched(data)
       })
@@ -73,24 +73,24 @@ export function SessionChildrenSlot({
       cancelled = true
       cancelAnimationFrame(loadingFrameId)
     }
-  }, [fetchAll, parentSession.id, parentSession.directory, serverId])
+  }, [fetchAll, parentSession.id, parentSession.location?.directory, serverId])
 
   const handleRename = useCallback(async (childId: string, newTitle: string) => {
     try {
-      await updateSession(childId, { title: newTitle }, parentSession.directory, serverId)
+      await updateSession(childId, { title: newTitle }, parentSession.location?.directory, serverId)
       pinnedSessionsStore.update(childId, { title: newTitle })
       setFetched(prev => prev.map(s => (s.id === childId ? { ...s, title: newTitle } : s)))
     } catch (e) {
       uiErrorHandler('rename session', e)
     }
-  }, [parentSession.directory, serverId])
+  }, [parentSession.location?.directory, serverId])
 
   const handleDeleteConfirmed = useCallback(async () => {
     const id = deleteConfirm.sessionId
     if (!id) return
     setDeleteConfirm({ isOpen: false, sessionId: null })
     try {
-      await apiDeleteSession(id, parentSession.directory, serverId)
+      await apiDeleteSession(id, parentSession.location?.directory, serverId)
       pinnedSessionsStore.unpin(id)
       setFetched(prev => prev.filter(s => s.id !== id))
       if (selectedSessionId && (selectedSessionId === id || splitSessionKey(selectedSessionId).sessionId === id)) {
@@ -99,7 +99,7 @@ export function SessionChildrenSlot({
     } catch (e) {
       uiErrorHandler('delete session', e)
     }
-  }, [deleteConfirm.sessionId, selectedSessionId, onDeleteSelected, parentSession.directory, serverId])
+  }, [deleteConfirm.sessionId, selectedSessionId, onDeleteSelected, parentSession.location?.directory, serverId])
 
   const list = fetchAll ? fetched : givenChildren
 

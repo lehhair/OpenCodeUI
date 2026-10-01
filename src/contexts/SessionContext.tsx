@@ -77,8 +77,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         if (requestId !== requestIdRef.current) return
 
         // 自动检测路径风格（从后端返回的 directory 字段）
-        if (data.length > 0 && data[0].directory) {
-          autoDetectPathStyle(data[0].directory)
+        if (data.length > 0 && data[0].location?.directory) {
+          autoDetectPathStyle(data[0].location?.directory)
         }
 
         if (append) {
@@ -126,7 +126,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   fetchSessionsRef.current = fetchSessions
 
   const matchesCurrentDirectory = useCallback((session: ApiSession) => {
-    return !currentDirectoryRef.current || isSameDirectory(currentDirectoryRef.current, session.directory)
+    return !currentDirectoryRef.current || isSameDirectory(currentDirectoryRef.current, session.location?.directory)
   }, [])
 
   // 监听 directory 和 search 变化
