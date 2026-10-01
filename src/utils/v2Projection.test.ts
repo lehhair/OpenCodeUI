@@ -329,6 +329,48 @@ describe('v2Projection — structuredErrorMessage', () => {
   })
 })
 
+describe('v2Projection — 用户消息正文', () => {
+  /**
+   * v2 把正文放在 message.text 上，而 UI 的 UserMessageInfo **没有** text 字段：
+   * UserMessageView 与 extractUserText 都只从 parts 里取 `type === 'text' && !synthetic`。
+   * 这里曾经完全漏掉投影，导致**重新加载后用户自己的消息全是空白气泡**。
+   */
+  it('把 message.text 投影成 text part（否则用户消息会渲染成空白）', () => {
+    const message = toUIMessage(userMessage({ text: 'hello world' }), SESSION)
+
+    const textParts = message.parts.filter(p => p.type === 'text')
+    expect(textParts).toHaveLength(1)
+    expect(textParts[0]).toMatchObject({ text: 'hello world', synthetic: false })
+  })
+
+  it('text part 的 id 与发送时本地乐观消息一致（避免回显时重挂载）', () => {
+    // useChatSession.buildLocalQueuedMessage 用的是 `${messageId}:text`
+    const message = toUIMessage(userMessage({ id: 'user-1', text: 'hi' }), SESSION)
+
+    expect(message.parts[0].id).toBe('user-1:text')
+  })
+
+  it('没有正文时不产生空的 text part', () => {
+    const message = toUIMessage(userMessage({ text: '' }), SESSION)
+
+    expect(message.parts.filter(p => p.type === 'text')).toHaveLength(0)
+  })
+
+  it('正文与附件 part 共存', () => {
+    const message = toUIMessage(
+      userMessage({
+        text: 'see this file',
+        files: [
+          { mime: 'text/plain', data: '', source: { type: 'uri', uri: 'a.ts' }, name: 'a.ts' },
+        ] as UserMessage['files'],
+      }),
+      SESSION,
+    )
+
+    expect(message.parts.map(p => p.type)).toEqual(['text', 'file'])
+  })
+})
+
 describe('v2Projection — retry 消息', () => {
   it('把助手消息的 retry 字段投影成 retry part（否则 RetryPartView 永远不命中）', () => {
     const message = toUIMessage(

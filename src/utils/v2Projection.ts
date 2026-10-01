@@ -346,6 +346,27 @@ function userAttachmentsToParts(
 ): Part[] {
   const parts: Part[] = []
 
+  // v2 把用户输入的正文放在 message.text 上，而 UI 的 UserMessageInfo **没有**
+  // text 字段——渲染层（UserMessageView）与 extractUserText 都只从
+  // `parts` 里取 `type === 'text' && !synthetic` 的 part 来拼正文。
+  // 因此这里必须把 text 投影成 text part；漏掉的话重新加载后
+  // **用户自己的消息会一条不剩地变成空白气泡**。
+  //
+  // part id 用 `${messageID}:text`，与发送时本地乐观消息
+  //（useChatSession.buildLocalQueuedMessage）保持同一套 id，
+  // 这样服务端回显替换本地消息时不会换 key 导致重挂载。
+  const text = typeof message.text === 'string' ? message.text : ''
+  if (text) {
+    parts.push({
+      id: `${messageID}:text`,
+      sessionID,
+      messageID,
+      type: 'text',
+      text,
+      synthetic: false,
+    } as Part)
+  }
+
   message.files?.forEach((file, index) => {
     parts.push({
       id: `${messageID}:file:${index}`,
