@@ -389,6 +389,15 @@ function userAttachmentsToParts(
     } as Part)
   })
 
+  // 已知缺口：v2 的用户消息还有 `skills?: PromptSkillAttachment[]`
+  //（{ id, name, text?, mention? }），这里**没有投影**。
+  //
+  // 原因是 UI 侧没有可用的承载形式：Part 联合里没有 skill 类型，
+  // 附件模型（features/attachment/types.ts）也只有 file | symbol | resource。
+  // 因此这不是漏写一行，而是"v2 有这条维度、本 UI 完全没建模"——
+  // 要支持得先设计 part 类型 + 渲染 + 输入侧挂载，属于新增功能，
+  // 不是迁移修复。这里显式记录，避免以后误以为它只是被忘了。
+
   return parts
 }
 

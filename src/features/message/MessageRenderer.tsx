@@ -873,6 +873,12 @@ const AssistantMessageView = memo(function AssistantMessageView({
             }
 
             const part = item.part
+            // 注意：下面这些分支里有一部分**当前不可达**——投影层与流式处理
+            // 都不会产出它们，v2 的助手 content 只有 text/reasoning/tool：
+            //   step-start / step-finish / subtask / snapshot / patch
+            // 保留而不删除的原因：step-finish 还参与"耗时/完成时刻页脚"的兜底判断
+            //（hasStepFinishPart 为 false 时改挂轮次时长），删掉会牵动这段已生效的逻辑；
+            // 且 v2 有 session.step.* 事件（在 V2Event 里），将来接线后这些分支就会重新可达。
             switch (part.type) {
               case 'text':
                 return <TextPartView key={part.id} part={part} isStreaming={isStreaming} />
