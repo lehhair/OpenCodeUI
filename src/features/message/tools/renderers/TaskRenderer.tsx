@@ -10,6 +10,7 @@ import { makeSessionKey, splitSessionKey } from '../../../../utils/sessionKey'
 import { serverStore } from '../../../../store/serverStore'
 import { sessionErrorHandler } from '../../../../utils'
 import { formatToolName } from '../../../../utils/formatUtils'
+import { structuredErrorMessage } from '../../../../utils/v2Projection'
 import { useUiDisclosureState } from '../../../../utils/uiDisclosureState'
 import type { ToolRendererProps } from '../types'
 import { MessageExpandPanel, useMessageExpandRender } from '../../messageExpand'
@@ -154,7 +155,8 @@ export const TaskRenderer = memo(function TaskRenderer({ part, onFullscreenChang
                 <ContentBlock
                   label={t('task.error')}
                   stateKey={`message:${part.messageID}:tool:${part.id}:task-error`}
-                  content={typeof state.error === 'string' ? state.error : JSON.stringify(state.error)}
+                  // v2 的 error 是结构化对象，直接 JSON.stringify 会让用户看到原始 JSON
+                  content={structuredErrorMessage(state.error) || t('task.error')}
                   variant="error"
                   onFullscreenChange={handleContentFullscreenChange}
                   fullscreenId={`task:${part.sessionID}:${part.messageID}:${part.id}:error`}

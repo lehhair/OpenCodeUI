@@ -23,6 +23,7 @@ import {
   getPendingPermissions,
   getPendingForms,
 } from '../api'
+import { structuredErrorMessage, toolContentToText } from '../utils/v2Projection'
 import { createSessionPlaceholder } from '../utils/sessionPlaceholder'
 import type { EventCallbacks } from '../types/api/event'
 import { replyPermission } from '../api/permission'
@@ -426,7 +427,12 @@ export function useGlobalEvents(directories?: string[]) {
               ? !currentDirectories || currentDirectories.length === 0 || currentDirectories.includes(pending.directory)
               : pending.scopeKey === currentScopeKey
             if (!matchesScope) continue
-            activeSessionStore.addPendingRequest(pending.requestId, pending.sessionId, pending.type, pending.description)
+            activeSessionStore.addPendingRequest(
+              pending.requestId,
+              pending.sessionId,
+              pending.type,
+              pending.description,
+            )
           }
           activeSessionStore.setSessionMetaBulk(sessionMetaEntries)
         })
@@ -571,9 +577,8 @@ export function useGlobalEvents(directories?: string[]) {
           const scopedId = scope(data.sessionID)
           messageStore.handleToolEvent(scopedId, data.assistantMessageID, data.id, {
             status: 'completed',
-            output: (data.content ?? [])
-              .map(entry => (entry.type === 'text' ? entry.text : `[file: ${entry.name ?? entry.uri}]`))
-              .join('\n'),
+            // 用投影层同一个助手，避免流式路径与「重新加载」路径出现两种文本
+            output: toolContentToText(data.content),
             metadata: data.metadata as Record<string, unknown> | undefined,
           })
           scheduleScroll(scopedId)
@@ -583,7 +588,10 @@ export function useGlobalEvents(directories?: string[]) {
           const scopedId = scope(data.sessionID)
           messageStore.handleToolEvent(scopedId, data.assistantMessageID, data.id, {
             status: 'error',
-            error: typeof data.error === 'string' ? data.error : JSON.stringify(data.error),
+            // v2 的 error 是结构化对象；之前这里 JSON.stringify，导致**实时**失败
+            // 的工具显示原始 JSON，而重新加载后的同一条消息却显示可读文案
+            //（投影层另有一份实现）——同一份数据两条路径表现不一致。
+            error: structuredErrorMessage(data.error) || 'Tool failed',
           })
           scheduleScroll(scopedId)
         },

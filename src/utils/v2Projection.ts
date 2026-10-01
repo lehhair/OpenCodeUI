@@ -193,8 +193,26 @@ export function toMessageInfo(message: SessionMessage, sessionID: string): Messa
 // 工具状态投影
 // ============================================
 
+/**
+ * 把 v2 的结构化错误转成可读文案。
+ *
+ * v2 的 `SessionStructuredError = { type, message, status?, response? }` 是**对象**，
+ * 而 UI 侧（工具状态、流式事件）都要字符串。之前有两处各自写成
+ * `typeof x === 'string' ? x : JSON.stringify(x)`——类型上永远不是字符串，
+ * 于是界面显示一坨原始 JSON。统一走这里。
+ */
+export function structuredErrorMessage(error: unknown): string {
+  if (typeof error === 'string') return error
+  if (error && typeof error === 'object') {
+    const { message, type } = error as { message?: unknown; type?: unknown }
+    if (typeof message === 'string' && message) return message
+    if (typeof type === 'string' && type) return type
+  }
+  return ''
+}
+
 /** 把 v2 工具产出的 content 数组拼成文本（UI 的 ToolState.output） */
-function toolContentToText(content: readonly ToolContent[] | undefined): string {
+export function toolContentToText(content: readonly ToolContent[] | undefined): string {
   if (!Array.isArray(content)) return ''
   return content
     .map(entry => {
@@ -243,13 +261,8 @@ export function toUIToolState(state: ToolState): UIToolState {
         metadata: (state.metadata ?? {}) as Record<string, unknown>,
       }
     case 'error': {
-      // v2 的 state.error 是**结构化对象**（SessionStructuredError：
-      // { type, message, status?, response? }），不是字符串。
-      // 之前直接 JSON.stringify，界面上的工具失败会显示一坨原始 JSON。
-      // UI 的 ToolStateError.error 要的是可读字符串，因此优先取 message。
-      const structured = state.error as { message?: string; type?: string } | undefined
-      const readable =
-        typeof state.error === 'string' ? state.error : structured?.message || structured?.type || 'Tool failed'
+      // v2 的 state.error 是结构化对象，UI 要的是可读字符串（见 structuredErrorMessage）
+      const readable = structuredErrorMessage(state.error) || 'Tool failed'
 
       return {
         status: 'error',

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { AssistantMessage, SessionMessage, UserMessage } from '../api/types'
 import {
   contentToParts,
+  structuredErrorMessage,
   toAssistantMessageInfo,
   toMessageInfo,
   toUIMessage,
@@ -295,6 +296,36 @@ describe('v2Projection — 工具状态机', () => {
     } as never)
 
     expect(state).toMatchObject({ status: 'error', error: 'plain text failure' })
+  })
+})
+
+describe('v2Projection — structuredErrorMessage', () => {
+  // v2 的错误是对象；这条工具被三处复用（投影的工具状态、流式事件、TaskRenderer），
+  // 之前三处各自写 `typeof x === 'string' ? x : JSON.stringify(x)`，
+  // 类型上永远不是字符串，于是界面显示原始 JSON。
+  it('从结构化错误里取 message，而不是序列化整个对象', () => {
+    expect(structuredErrorMessage({ type: 'provider_error', message: 'command not found' })).toBe('command not found')
+  })
+
+  it('没有 message 时退回 type', () => {
+    expect(structuredErrorMessage({ type: 'weird_failure' })).toBe('weird_failure')
+  })
+
+  it('字符串原样返回（防御旧形状）', () => {
+    expect(structuredErrorMessage('plain text')).toBe('plain text')
+  })
+
+  it('无法识别时返回空串，让调用方自己兜底', () => {
+    expect(structuredErrorMessage(undefined)).toBe('')
+    expect(structuredErrorMessage({})).toBe('')
+    expect(structuredErrorMessage(42)).toBe('')
+  })
+
+  it('结果里不应出现 JSON 结构', () => {
+    const text = structuredErrorMessage({ type: 'x', message: 'readable', status: 500 })
+    expect(text).toBe('readable')
+    expect(text).not.toContain('{')
+    expect(text).not.toContain('status')
   })
 })
 
