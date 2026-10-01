@@ -310,7 +310,6 @@ export const ChatPane = memo(function ChatPane({
     handleForkMessage,
     handleNewSession,
     handleVisibleMessageIdsChange,
-    handleArchiveSession,
     handlePreviousSession,
     handleNextSession,
     handleCopyLastResponse,
@@ -699,7 +698,6 @@ export const ChatPane = memo(function ChatPane({
 
   const controllerActionsRef = useRef({
     newSession: handleNewSession,
-    archiveSession: handleArchiveSession,
     previousSession: handlePreviousSession,
     nextSession: handleNextSession,
     toggleAgent: handleToggleAgentWithSync,
@@ -712,7 +710,6 @@ export const ChatPane = memo(function ChatPane({
   useEffect(() => {
     controllerActionsRef.current = {
       newSession: handleNewSession,
-      archiveSession: handleArchiveSession,
       previousSession: handlePreviousSession,
       nextSession: handleNextSession,
       toggleAgent: handleToggleAgentWithSync,
@@ -723,7 +720,6 @@ export const ChatPane = memo(function ChatPane({
     }
   }, [
     handleNewSession,
-    handleArchiveSession,
     handlePreviousSession,
     handleNextSession,
     handleToggleAgentWithSync,
@@ -736,7 +732,6 @@ export const ChatPane = memo(function ChatPane({
   const stableControllerActions = useMemo(
     () => ({
       newSession: () => controllerActionsRef.current.newSession(),
-      archiveSession: () => controllerActionsRef.current.archiveSession(),
       previousSession: () => controllerActionsRef.current.previousSession(),
       nextSession: () => controllerActionsRef.current.nextSession(),
       toggleAgent: () => controllerActionsRef.current.toggleAgent(),
@@ -761,7 +756,6 @@ export const ChatPane = memo(function ChatPane({
       effectiveDirectory: effectiveDirectory || '',
       contextLimit,
       newSession: stableControllerActions.newSession,
-      archiveSession: stableControllerActions.archiveSession,
       previousSession: stableControllerActions.previousSession,
       nextSession: stableControllerActions.nextSession,
       toggleAgent: stableControllerActions.toggleAgent,

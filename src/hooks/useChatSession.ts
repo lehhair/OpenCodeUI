@@ -427,28 +427,28 @@ export function useChatSession({
           prev.some(r => r.id === data.requestID) ? prev.filter(r => r.id !== data.requestID) : prev,
         )
       },
-      onQuestionAsked: (request: import('../api').ApiQuestionRequest) => {
+      onFormCreated: (form: ApiFormInfo) => {
         setPendingQuestionRequests(prev => {
-          if (prev.some(r => r.id === request.id)) return prev
-          return [...prev, request]
+          if (prev.some(r => r.id === form.id)) return prev
+          return [...prev, form]
         })
 
-        // 页面不在前台时通知用户有问题等待回答
-        const questionDesc = request.questions?.[0]?.header || 'AI is waiting for your input'
-        const title = buildNotificationTitle(request.sessionID, 'Question')
+        // 页面不在前台时通知用户有表单等待回答
+        const questionDesc = form.title || 'AI is waiting for your input'
+        const title = buildNotificationTitle(form.sessionID, 'Question')
         if (notificationEventSettingsStore.isSystemEnabled('question')) {
           sendNotification(title, questionDesc, {
-            sessionId: request.sessionID,
+            sessionId: form.sessionID,
             directory: effectiveDirectory,
           })
         }
         // 应用内 toast 已在 useGlobalEvents 中统一处理
       },
-      onQuestionReplied: (data: { sessionID: string; requestID: string }) => {
-        setPendingQuestionRequests(prev => prev.filter(r => r.id !== data.requestID))
+      onFormReplied: (data: { sessionID: string; formID: string }) => {
+        setPendingQuestionRequests(prev => prev.filter(r => r.id !== data.formID))
       },
-      onQuestionRejected: (data: { sessionID: string; requestID: string }) => {
-        setPendingQuestionRequests(prev => prev.filter(r => r.id !== data.requestID))
+      onFormCancelled: (data: { sessionID: string; formID: string }) => {
+        setPendingQuestionRequests(prev => prev.filter(r => r.id !== data.formID))
       },
       onScrollRequest: () => {
         chatAreaRef.current?.scrollToBottomIfAtBottom()
@@ -464,8 +464,8 @@ export function useChatSession({
         }
         // 应用内 toast 已在 useGlobalEvents 中统一处理
       },
-      onSessionError: (sessionID: string) => {
-        // 页面不在前台时通知用户 session 出错
+      onExecutionFailed: (sessionID: string) => {
+        // 页面不在前台时通知用户 session 出错（v2：execution.failed）
         const title = buildNotificationTitle(sessionID, 'Session error')
         if (notificationEventSettingsStore.isSystemEnabled('error')) {
           sendNotification(title, 'Session error', {
@@ -522,12 +522,12 @@ export function useChatSession({
     const unregister = registerSessionConsumer(paneId, routeSessionId, {
       onPermissionAsked: req => sseCallbacksRef.current.onPermissionAsked(req),
       onPermissionReplied: data => sseCallbacksRef.current.onPermissionReplied(data),
-      onQuestionAsked: req => sseCallbacksRef.current.onQuestionAsked(req),
-      onQuestionReplied: data => sseCallbacksRef.current.onQuestionReplied(data),
-      onQuestionRejected: data => sseCallbacksRef.current.onQuestionRejected(data),
+      onFormCreated: form => sseCallbacksRef.current.onFormCreated(form),
+      onFormReplied: data => sseCallbacksRef.current.onFormReplied(data),
+      onFormCancelled: data => sseCallbacksRef.current.onFormCancelled(data),
       onScrollRequest: () => sseCallbacksRef.current.onScrollRequest(),
       onSessionIdle: sid => sseCallbacksRef.current.onSessionIdle(sid),
-      onSessionError: sid => sseCallbacksRef.current.onSessionError(sid),
+      onExecutionFailed: sid => sseCallbacksRef.current.onExecutionFailed(sid),
       onReconnected: reason => sseCallbacksRef.current.onReconnected(reason),
     })
 
@@ -616,7 +616,7 @@ export function useChatSession({
       // GET /permission 和 GET /question 返回全量数据，不传 sessionId 避免 N 次重复请求
       const [allPerms, allQuestions] = await Promise.all([
         getPendingPermissions(undefined, effectiveDirectory, paneServerId).catch(() => []),
-        getPendingQuestions(undefined, effectiveDirectory, paneServerId).catch(() => []),
+        getPendingForms(undefined, effectiveDirectory, paneServerId).catch(() => []),
       ])
 
       if (cancelled) return
@@ -626,16 +626,18 @@ export function useChatSession({
       // /permission can list it for this routed instance. Refresh 时序下子 session 关系
       // 可能尚未注册（family 不含子 session），因此 SSE 已知请求必须无条件保留，
       // 否则刷新后子任务的权限弹窗会被 family 过滤误删。
-      const nextPerms = allPerms.filter(p => matchesFamily(p.sessionID))
+      const nextPerms = allPerms.filter((p: ApiPermissionRequest) => matchesFamily(p.sessionID))
       setPendingPermissionRequests(prev => {
-        const merged = new Map(nextPerms.map(p => [p.id, p]))
+        const merged = new Map(nextPerms.map((p: ApiPermissionRequest) => [p.id, p]))
         for (const request of prev) {
           if (!merged.has(request.id)) merged.set(request.id, request)
         }
         return Array.from(merged.values())
       })
       setPendingQuestionRequests(prev => {
-        const merged = new Map(allQuestions.filter(q => matchesFamily(q.sessionID)).map(q => [q.id, q]))
+        const merged = new Map(
+          allQuestions.filter((q: ApiFormInfo) => matchesFamily(q.sessionID)).map((q: ApiFormInfo) => [q.id, q]),
+        )
         for (const q of prev) {
           if (!merged.has(q.id)) merged.set(q.id, q)
         }
@@ -724,17 +726,10 @@ export function useChatSession({
 
           getSessionMessages(pullSessionId, 5, pullDir, paneServerId)
             .then(apiMessages => {
+              // v2 的消息自带 content（没有独立的 part 事件），
+              // 因此整条替换即可，content 由投影层转成 UI parts。
               for (const msg of apiMessages) {
-                messageStore.handleMessageUpdated(msg.info)
-                if (msg.parts) {
-                  for (const part of msg.parts) {
-                    messageStore.handlePartUpdated({
-                      ...part,
-                      sessionID: pullSessionId,
-                      messageID: msg.info.id,
-                    })
-                  }
-                }
+                messageStore.handleMessageUpdated(msg, pullSessionId)
               }
             })
             .catch(() => {
@@ -1097,18 +1092,6 @@ export function useChatSession({
     handleNewChat()
   }, [navigateHome, handleNewChat])
 
-  // Archive current session
-  const handleArchiveSession = useCallback(async () => {
-    if (!routeSessionId) return
-    try {
-      await updateSession(routeSessionId, { time: { archived: Date.now() } }, effectiveDirectory, paneServerId)
-      navigateHome()
-      handleNewChat()
-    } catch (error) {
-      handleError('archive session', error)
-    }
-  }, [routeSessionId, effectiveDirectory, navigateHome, handleNewChat, paneServerId])
-
   // Navigate to previous session
   const handlePreviousSession = useCallback(() => {
     if (!sessions.length) return
@@ -1232,7 +1215,6 @@ export function useChatSession({
     handleSelectSession,
     handleNewSession,
     handleVisibleMessageIdsChange,
-    handleArchiveSession,
     handlePreviousSession,
     handleNextSession,
     handleToggleAgent,

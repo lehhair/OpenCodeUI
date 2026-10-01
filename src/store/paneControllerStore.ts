@@ -7,7 +7,6 @@ export interface PaneControllerState {
   contextLimit?: number
   isStreaming: boolean
   newSession: () => void
-  archiveSession: () => void
   previousSession: () => void
   nextSession: () => void
   toggleAgent: () => void
@@ -28,7 +27,6 @@ function isSameController(a: PaneControllerState | undefined, b: PaneControllerS
     a.contextLimit === b.contextLimit &&
     a.isStreaming === b.isStreaming &&
     a.newSession === b.newSession &&
-    a.archiveSession === b.archiveSession &&
     a.previousSession === b.previousSession &&
     a.nextSession === b.nextSession &&
     a.toggleAgent === b.toggleAgent &&

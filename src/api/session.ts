@@ -158,7 +158,9 @@ export async function createSession(
 /**
  * 更新会话。
  *
- * v2 只支持 title / metadata / permissions（v1 的 archived 走 metadata）。
+ * v2 的 update 只接受 title / metadata / permissions。
+ * 注意：v2 **没有归档端点**——`SessionInfo.time.archived` 只读不可写，
+ * 因此 v1 的归档功能整体移除了（不再用 metadata 假装归档）。
  */
 export async function updateSession(
   sessionId: string,
@@ -175,21 +177,6 @@ export async function updateSession(
   })
   // v2 的 update 返回 void，回读一次保证调用点拿到最新会话
   return await sdk.session.get({ sessionID: target.sessionId })
-}
-
-/**
- * 归档会话。
- *
- * v2 没有独立的 archive 接口，归档语义放在 `time.archived`，
- * 由 `update` 的 metadata 承载。
- */
-export async function archiveSession(sessionId: string, archived: boolean, serverId?: string): Promise<void> {
-  const target = resolveSessionTarget(sessionId, serverId)
-  const sdk = getSDKClient(target.serverId)
-  await sdk.session.update({
-    sessionID: target.sessionId,
-    metadata: { archived: archived ? Date.now() : null },
-  })
 }
 
 /** 删除会话（v1 的 delete → v2 的 remove） */

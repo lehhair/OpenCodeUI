@@ -453,6 +453,19 @@ class MessageStore {
         isStreaming: previous.isStreaming || next.isStreaming,
       }
     })
+
+    // 保留「本地有、服务端列表还没返回」的流式消息。
+    // v2 的 prompt 是入队语义：SSE 的 text.started 会先建出助手消息，
+    // 而同期的一次 message.list 可能还没包含它；若直接以服务端列表覆盖，
+    // 正在流式输出的内容会短暂消失。这里把它追加回去（按创建时间排序）。
+    const apiIds = new Set(state.messages.map(message => message.info.id))
+    const localOnlyStreaming = previousMessages.filter(m => m.isStreaming && !apiIds.has(m.info.id))
+    if (localOnlyStreaming.length > 0) {
+      state.messages = [...state.messages, ...localOnlyStreaming].sort(
+        (a, b) => (a.info.time?.created ?? 0) - (b.info.time?.created ?? 0),
+      )
+    }
+
     state.loadState = 'loaded'
     state.loadError = undefined
     state.hasMoreHistory = options?.hasMoreHistory ?? false
@@ -1082,14 +1095,14 @@ class MessageStore {
   // ============================================
   // Private Helpers
   // ============================================
-  private extractUserText(message: Message): string {
+  extractUserText(message: Message): string {
     return message.parts
       .filter((p): p is Part & { type: 'text' } => p.type === 'text' && !p.synthetic)
       .map(p => p.text)
       .join('\n')
   }
 
-  private extractUserAttachments(message: Message): Attachment[] {
+  extractUserAttachments(message: Message): Attachment[] {
     const attachments: Attachment[] = []
 
     for (const part of message.parts) {

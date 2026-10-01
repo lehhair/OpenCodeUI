@@ -154,7 +154,6 @@ export const SETTINGS_SEARCH_DEFINITIONS: SettingsSearchDefinition[] = [
     'toggleRightPanel',
     'focusInput',
     'newSession',
-    'archiveSession',
     'previousSession',
     'nextSession',
     'focusNextPane',

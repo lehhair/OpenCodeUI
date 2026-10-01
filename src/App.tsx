@@ -604,7 +604,6 @@ function App() {
         input?.focus()
       },
       newSession: () => focusedController?.newSession(),
-      archiveSession: () => focusedController?.archiveSession(),
       previousSession: () => focusedController?.previousSession(),
       nextSession: () => focusedController?.nextSession(),
       toggleTerminal: () => layoutStore.toggleBottomPanel(),
@@ -731,14 +730,6 @@ function App() {
         category: t('commands:categories.session'),
         shortcut: getShortcut('newSession'),
         action: () => focusedController?.newSession(),
-      },
-      {
-        id: 'archiveSession',
-        label: t('commands:archiveSession'),
-        description: t('commands:archiveSessionDesc'),
-        category: t('commands:categories.session'),
-        shortcut: getShortcut('archiveSession'),
-        action: () => focusedController?.archiveSession(),
       },
       {
         id: 'previousSession',

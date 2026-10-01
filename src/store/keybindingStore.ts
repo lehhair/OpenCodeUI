@@ -15,7 +15,6 @@ export type KeybindingAction =
   | 'focusInput'
   // Session
   | 'newSession'
-  | 'archiveSession'
   | 'previousSession'
   | 'nextSession'
   // Terminal
@@ -141,15 +140,6 @@ const DEFAULT_KEYBINDINGS: KeybindingConfig[] = [
     description: 'Create new chat session',
     defaultKey: 'Alt+N',
     currentKey: 'Alt+N',
-    category: 'session',
-    scope: 'global',
-  },
-  {
-    action: 'archiveSession',
-    label: 'Archive Session',
-    description: 'Archive current session',
-    defaultKey: 'Alt+Backspace',
-    currentKey: 'Alt+Backspace',
     category: 'session',
     scope: 'global',
   },

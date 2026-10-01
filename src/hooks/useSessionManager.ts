@@ -9,17 +9,10 @@
 
 import { useCallback, useEffect, useRef } from 'react'
 import { logger } from '../utils/logger'
-import { isUserUIMessage, toApiMessageWithParts } from '../utils/messageConversion'
-import { messageStore, type RevertState, type SessionState } from '../store'
+import { isUserUIMessage } from '../utils/messageConversion'
+import { messageStore, type RevertState } from '../store'
 import { sessionKeyToServerId } from '../utils/sessionKey'
-import {
-  getSessionMessages,
-  getSession,
-  revertMessage,
-  unrevertSession,
-  extractUserMessageContent,
-  type ApiMessageWithParts,
-} from '../api'
+import { getSessionMessages, getSession, revertMessage, unrevertSession, type SessionMessage } from '../api'
 import { sessionErrorHandler } from '../utils'
 import { isSessionNotFoundError } from '../utils/sessionErrors'
 import { INITIAL_MESSAGE_LIMIT, HISTORY_LOAD_BATCH_SIZE } from '../constants'
@@ -45,66 +38,9 @@ interface UseSessionManagerOptions {
   onSessionMissing?: (sessionId: string) => void
 }
 
-function preferCompatiblePartText(local: string, incoming: string): string {
-  if (local === incoming) return incoming
-  if (local.startsWith(incoming)) return local
-  if (incoming.startsWith(local)) return incoming
-  return incoming
-}
-
 function messageTimeIncomplete(time?: { completed?: number } | { created: number }) {
   if (!time) return true
   return !('completed' in time) || time.completed == null
-}
-
-function mergePartsForReload(
-  localParts: ApiMessageWithParts['parts'],
-  apiParts: ApiMessageWithParts['parts'],
-): ApiMessageWithParts['parts'] {
-  const localById = new Map(localParts.map(part => [part.id, part]))
-  return apiParts.map(part => {
-    const local = localById.get(part.id)
-    if (!local || !('text' in local) || !('text' in part)) return part
-    if (typeof local.text !== 'string' || typeof part.text !== 'string') return part
-    const text = preferCompatiblePartText(local.text, part.text)
-    if (text === part.text) return part
-    return { ...part, text: text as typeof part.text }
-  })
-}
-
-function mergeWithLocalStreamingMessages(
-  apiMessages: ApiMessageWithParts[],
-  localState?: SessionState,
-): ApiMessageWithParts[] {
-  if (!localState || localState.messages.length === 0) return apiMessages
-
-  const localById = new Map(localState.messages.map(message => [message.info.id, message]))
-  const apiIds = new Set(apiMessages.map(m => m.info.id))
-
-  // 同 message：仅未定稿时 part 文本不回退；incoming 已 completed 则强制服务端
-  const mergedApi = apiMessages.map(apiMessage => {
-    const local = localById.get(apiMessage.info.id)
-    if (!local) return apiMessage
-    if (!messageTimeIncomplete(apiMessage.info.time)) return apiMessage
-    const preserve = local.isStreaming || messageTimeIncomplete(local.info.time) || localState.isStreaming
-    if (!preserve) return apiMessage
-    return {
-      ...apiMessage,
-      parts: mergePartsForReload(local.parts as ApiMessageWithParts['parts'], apiMessage.parts),
-    }
-  })
-
-  const localOnly = localState.isStreaming
-    ? localState.messages.filter(m => !apiIds.has(m.info.id)).map(toApiMessageWithParts)
-    : []
-
-  if (localOnly.length === 0) return mergedApi
-
-  return [...mergedApi, ...localOnly].sort((a, b) => {
-    const aCreated = a.info.time?.created ?? 0
-    const bCreated = b.info.time?.created ?? 0
-    return aCreated - bCreated
-  })
 }
 
 export function useSessionManager({ sessionId, directory, onLoadComplete, onError, onSessionMissing }: UseSessionManagerOptions) {
@@ -151,7 +87,7 @@ export function useSessionManager({ sessionId, directory, onLoadComplete, onErro
           getSession(sid, dir, serverId).catch(() => null),
           getSessionMessages(sid, INITIAL_MESSAGE_LIMIT, dir, serverId)
             .then(messages => ({ ok: true as const, messages }))
-            .catch(() => ({ ok: false as const, messages: [] as ApiMessageWithParts[] })),
+            .catch(() => ({ ok: false as const, messages: [] as SessionMessage[] })),
         ])
           .then(([sessionInfo, messagesResult]) => {
             if (isStale()) return
@@ -164,7 +100,6 @@ export function useSessionManager({ sessionId, directory, onLoadComplete, onErro
               ...(messagesResult.ok ? { hasMoreHistory: messagesResult.messages.length >= INITIAL_MESSAGE_LIMIT } : {}),
               directory: sessionInfo?.location?.directory ?? dir ?? '',
               title: sessionInfo?.title,
-              shareUrl: sessionInfo?.share?.url,
             })
           })
           .catch(() => {
@@ -206,22 +141,20 @@ export function useSessionManager({ sessionId, directory, onLoadComplete, onErro
             directory: sessionInfo?.location?.directory ?? dir ?? '',
             title: sessionInfo?.title,
             loadState: 'loaded',
-            shareUrl: sessionInfo?.share?.url,
           })
           onLoadComplete?.()
           cursorRef.current.set(sid, Math.max(INITIAL_MESSAGE_LIMIT, apiMessages.length))
           return
         }
 
-        const mergedMessages = mergeWithLocalStreamingMessages(apiMessages, currentState)
-
-        // 设置消息到 store
-        messageStore.setMessages(sid, mergedMessages, {
+        // 设置消息到 store（流式文本保长与 SSE-only 消息保留都在 store 内处理）
+        messageStore.setMessages(sid, apiMessages, {
           directory: sessionInfo?.location?.directory ?? dir ?? '',
           title: sessionInfo?.title,
           hasMoreHistory: apiMessages.length >= INITIAL_MESSAGE_LIMIT,
-          revertState: sessionInfo?.revert ?? null,
-          shareUrl: sessionInfo?.share?.url,
+          // v2 的 SessionInfo 不再携带 revert / share：
+          // 回退状态由 session.revert 接口与事件维护，分享改为导出
+          revertState: null,
         })
 
         cursorRef.current.set(sid, Math.max(INITIAL_MESSAGE_LIMIT, apiMessages.length))
@@ -308,15 +241,15 @@ export function useSessionManager({ sessionId, directory, onLoadComplete, onErro
         const revertedUserMessages = state.messages.slice(revertIndex).filter(isUserUIMessage)
 
         const history = revertedUserMessages.map(m => {
-          const content = extractUserMessageContent(m)
-          const userInfo = m.info
+          // v2 的会话消息没有 info/parts（那两项是 UI 视图模型），
+          // 因此从 UI 消息的 parts 里抽取文本与附件。
           return {
             messageId: m.info.id,
-            text: content.text,
-            attachments: content.attachments,
-            model: userInfo.model,
-            variant: userInfo.model.variant,
-            agent: userInfo.agent,
+            text: messageStore.extractUserText(m),
+            attachments: messageStore.extractUserAttachments(m),
+            model: m.info.model,
+            variant: m.info.model?.variant,
+            agent: m.info.agent,
           }
         })
 
