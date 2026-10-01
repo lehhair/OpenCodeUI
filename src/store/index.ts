@@ -100,5 +100,6 @@ export {
   shouldShowUpdateToast,
   exportUpdateSettingsBackup,
   importUpdateSettingsBackup,
+  UPDATE_CHANNEL_FROZEN,
 } from './updateStore'
 export type { UpdateRelease, UpdateSettingsBackup, UpdateState } from './updateStore'

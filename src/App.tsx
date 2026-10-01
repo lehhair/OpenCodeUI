@@ -23,6 +23,7 @@ import {
   usePaneControllers,
   usePaneLayout,
   updateStore,
+  UPDATE_CHANNEL_FROZEN,
 } from './store'
 import {
   ChatViewportProvider,
@@ -112,6 +113,8 @@ function App() {
 
   useEffect(() => {
     if (import.meta.env.DEV) return
+    // v1 已停止维护，不再自动检查更新（见 updateStore 的 UPDATE_CHANNEL_FROZEN）。
+    if (UPDATE_CHANNEL_FROZEN) return
     void updateStore.checkForUpdates()
   }, [])
 
@@ -517,9 +520,6 @@ function App() {
   }, [])
   const openSettings = useCallback(() => {
     openSettingsTab('servers')
-  }, [openSettingsTab])
-  const openAboutSettings = useCallback(() => {
-    openSettingsTab('about')
   }, [openSettingsTab])
   const closeSettings = useCallback(() => setSettingsDialogOpen(false), [])
 
@@ -1044,7 +1044,7 @@ function App() {
               </div>
             </>
           )}
-          <ToastContainer onOpenAbout={openAboutSettings} />
+          <ToastContainer />
         </div>
 
         <Suspense fallback={null}>

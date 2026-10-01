@@ -37,6 +37,18 @@ const CHECK_INTERVAL_MS = 12 * 60 * 60 * 1000
 export const RELEASES_API_URL = 'https://api.github.com/repos/lehhair/OpenCodeUI/releases/latest'
 export const RELEASES_PAGE_URL = 'https://github.com/lehhair/OpenCodeUI/releases/latest'
 
+/**
+ * v1 已停止维护（EOL）。
+ *
+ * v1 是 OpenCode v1 协议的前端，v2 之后服务端契约不兼容，
+ * 因此 `releases/latest` 指向的会是 v2 版本，继续检查更新只会把
+ * v1 用户引向一个跑不起来的版本。
+ *
+ * 冻结后：不再发出任何更新请求，并且丢弃本地缓存的发布信息，
+ * 这样更新 toast 与标题栏红点会自动消失，也不会误报。
+ */
+export const UPDATE_CHANNEL_FROZEN = true
+
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
 }
@@ -63,10 +75,12 @@ export function compareVersions(a: string, b: string): number {
 }
 
 export function hasUpdateAvailable(state: UpdateState): boolean {
+  if (UPDATE_CHANNEL_FROZEN) return false
   return !!state.latestRelease && compareVersions(state.latestRelease.version, state.currentVersion) > 0
 }
 
 export function shouldShowUpdateToast(state: UpdateState): boolean {
+  if (UPDATE_CHANNEL_FROZEN) return false
   if (!state.latestRelease || !hasUpdateAvailable(state)) return false
   if (state.dismissedVersion === state.latestRelease.version) return false
   if (state.hiddenToastVersion === state.latestRelease.version) return false
@@ -74,6 +88,11 @@ export function shouldShowUpdateToast(state: UpdateState): boolean {
 }
 
 function loadPersistedState(): PersistedUpdateState {
+  // 更新通道冻结后，本地缓存的发布信息一律丢弃，避免读到旧版本号后弹出升级提示。
+  if (UPDATE_CHANNEL_FROZEN) {
+    return { latestRelease: null, lastCheckedAt: null, dismissedVersion: null }
+  }
+
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) {
@@ -92,6 +111,9 @@ function loadPersistedState(): PersistedUpdateState {
 }
 
 function persistState(state: UpdateState): void {
+  // 冻结后不再写入，避免留下会误导后续版本的发布缓存。
+  if (UPDATE_CHANNEL_FROZEN) return
+
   try {
     const payload: PersistedUpdateState = {
       latestRelease: state.latestRelease,
@@ -181,6 +203,9 @@ export class UpdateStore {
   }
 
   async checkForUpdates(options?: { force?: boolean }): Promise<void> {
+    // v1 已冻结：不再请求 GitHub releases。
+    if (UPDATE_CHANNEL_FROZEN) return
+
     if (this.inflightCheck) return this.inflightCheck
 
     const force = options?.force === true
