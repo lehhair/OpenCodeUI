@@ -107,8 +107,9 @@ vi.mock('../hooks', () => ({
     setPendingPermissionRequests: vi.fn(),
     setPendingQuestionRequests: vi.fn(),
     handlePermissionReply: handlePermissionReplyMock,
-    handleQuestionReply: vi.fn(),
-    handleQuestionReject: vi.fn(),
+    // v2：question 由 form 取代
+    handleFormReply: vi.fn(),
+    handleFormCancel: vi.fn(),
     refreshPendingRequests: refreshPendingRequestsMock,
     resetPendingRequests: vi.fn(),
     isReplying: false,
@@ -142,7 +143,8 @@ vi.mock('../api', () => ({
   abortSession: vi.fn(),
   getSelectableAgents: (...args: unknown[]) => getSelectableAgentsMock(...args),
   getPendingPermissions: vi.fn(() => Promise.resolve([])),
-  getPendingQuestions: vi.fn(() => Promise.resolve([])),
+  // v2：question 由 form 取代
+  getPendingForms: vi.fn(() => Promise.resolve([])),
   prefetchCommands: vi.fn(() => Promise.resolve()),
   prefetchRootDirectory: vi.fn(() => Promise.resolve()),
   getSessionChildren: vi.fn(() => Promise.resolve([])),

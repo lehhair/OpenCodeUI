@@ -66,8 +66,14 @@ function makeSession(id: string, directory = '/workspace/demo') {
 /**
  * v2 的 session.created 负载是**创建记录**（以 sessionID 为键、带 slug/version），
  * 不是 SessionInfo——hook 收到后会回读 getSession 再入列表。
+ *
+ * 回读时要还原该会话真实所属目录，否则「属于别的目录」的会话会被误收进列表，
+ * 因此这里记录每个 id 的目录供 getSession mock 查询。
  */
+const createdDirectories = new Map<string, string>()
+
 function makeCreatedPayload(id: string, directory = '/workspace/demo', parentID?: string) {
+  createdDirectories.set(id, directory)
   return {
     sessionID: id,
     projectID: 'project-1',
@@ -82,9 +88,12 @@ function makeCreatedPayload(id: string, directory = '/workspace/demo', parentID?
 describe('useSessions', () => {
   beforeEach(() => {
     vi.useFakeTimers()
+    createdDirectories.clear()
     getSessionsMock.mockReset()
     getSessionMock.mockReset()
-    getSessionMock.mockImplementation((id: string) => Promise.resolve(makeSession(id)))
+    getSessionMock.mockImplementation((id: string) =>
+      Promise.resolve(makeSession(id, createdDirectories.get(id) ?? '/workspace/demo')),
+    )
     createSessionMock.mockReset()
     deleteSessionMock.mockReset()
     subscribeToEventsMock.mockReset()

@@ -91,7 +91,6 @@ export const SessionChangesPanel = memo(function SessionChangesPanel({
   const [project, setProject] = useState<ApiProject | null>(null)
   const [vcsInfo, setVcsInfo] = useState<VcsInfo | null>(null)
   const [projectLoading, setProjectLoading] = useState(false)
-  const [initializingGit, setInitializingGit] = useState(false)
   const [loadingModes, setLoadingModes] = useState({ git: false, branch: false, session: false, turn: false })
   const [loadedModes, setLoadedModes] = useState({ git: false, branch: false, session: false, turn: false })
   const [gitDiffs, setGitDiffs] = useState<FileDiff[]>([])
@@ -176,7 +175,7 @@ export const SessionChangesPanel = memo(function SessionChangesPanel({
             : turnDiffs,
     [branchDiffs, changeMode, gitDiffs, sessionDiffs, turnDiffs],
   )
-  const loading = projectLoading || initializingGit || loadingModes[changeMode]
+  const loading = projectLoading || loadingModes[changeMode]
 
   const focusChangeMenuOption = useCallback((mode: ChangeMode) => {
     changeMenuOptionRefs.current[mode]?.focus()
@@ -462,31 +461,6 @@ export const SessionChangesPanel = memo(function SessionChangesPanel({
   // 自动刷新：session idle / 窗口聚焦 / SSE 重连
   useAutoRefresh(consumerId, sessionId ?? null, handleRefresh, !!sessionId)
 
-  const handleInitGit = useCallback(async () => {
-    setInitializingGit(true)
-    setError(null)
-
-    try {
-      // v2 删除了 project.initGit；这里直接读取当前项目，未登记时为 null
-      const nextProject = (await getCurrentProject(directory, serverId)) ?? null
-      setProject(nextProject)
-      setVcsInfo(null)
-      setGitDiffs([])
-      setBranchDiffs([])
-      setSessionDiffs([])
-      setTurnDiffs([])
-      setLoadedModes({ git: false, branch: false, session: false, turn: false })
-      setLoadingModes({ git: false, branch: false, session: false, turn: false })
-      setChangeMenuOpen(false)
-      void loadProjectState()
-    } catch (err) {
-      sessionErrorHandler('init git project', err)
-      setError(t('sessionChanges.failedToInitGit'))
-    } finally {
-      setInitializingGit(false)
-    }
-  }, [directory, loadProjectState, t, serverId])
-
   // 选中文件
   const handleSelectFile = useCallback((file: string) => {
     setOpenDiffFiles(prev => (prev.includes(file) ? prev : [...prev, file]))
@@ -612,13 +586,9 @@ export const SessionChangesPanel = memo(function SessionChangesPanel({
             <div className="text-[length:var(--fs-base)] font-medium text-text-200">{t('sessionChanges.noGit')}</div>
             <div className="text-[length:var(--fs-sm)] text-text-400">{t('sessionChanges.noGitHint')}</div>
           </div>
-          <button
-            onClick={handleInitGit}
-            disabled={initializingGit}
-            className="inline-flex items-center justify-center rounded px-3 py-1.5 text-[length:var(--fs-sm)] font-medium bg-accent-main-100 text-white hover:bg-accent-main-90 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
-          >
-            {initializingGit ? t('sessionChanges.initializingGit') : t('sessionChanges.initGit')}
-          </button>
+          {/* v2 删除了 project.initGit（没有初始化仓库的接口），
+              因此这里不再提供「Initialize Git repository」按钮，
+              只保留说明文案引导用户自行 git init。 */}
           {error && <div className="text-[length:var(--fs-sm)] text-danger-100">{error}</div>}
         </div>
       </div>

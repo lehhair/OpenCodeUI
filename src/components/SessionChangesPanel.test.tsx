@@ -5,10 +5,9 @@ import { changeScopeStore } from '../store/changeScopeStore'
 import { layoutStore } from '../store/layoutStore'
 import { FullscreenProvider } from '../contexts'
 
-const { getCurrentProject, initGitProject, getSessionDiff, getLastTurnDiff, getVcsInfo, getVcsDiff } = vi.hoisted(
+const { getCurrentProject, getSessionDiff, getLastTurnDiff, getVcsInfo, getVcsDiff } = vi.hoisted(
   () => ({
     getCurrentProject: vi.fn(),
-    initGitProject: vi.fn(),
     getSessionDiff: vi.fn(),
     getLastTurnDiff: vi.fn(),
     getVcsInfo: vi.fn(),
@@ -18,7 +17,6 @@ const { getCurrentProject, initGitProject, getSessionDiff, getLastTurnDiff, getV
 
 vi.mock('../api/client', () => ({
   getCurrentProject,
-  initGitProject,
 }))
 
 vi.mock('../api/vcs', () => ({
@@ -62,14 +60,15 @@ describe('SessionChangesPanel', () => {
     })
     getCurrentProject.mockResolvedValue({
       id: 'project-1',
-      worktree: '/repo',
+      // v2 的 Project 用 canonical 表示项目根（v1 是 worktree）
+      canonical: '/repo',
       vcs: 'git',
       time: { created: 0, updated: 0 },
       sandboxes: [],
     })
     getVcsInfo.mockResolvedValue({
-      branch: 'feature/test',
-      default_branch: 'main',
+      // v2 的 branch 是 { current?, default? }
+      branch: { current: 'feature/test', default: 'main' },
     })
     getVcsDiff.mockImplementation(async mode => {
       if (mode === 'branch') {
@@ -119,13 +118,6 @@ describe('SessionChangesPanel', () => {
         deletions: 1,
       },
     ])
-    initGitProject.mockResolvedValue({
-      id: 'project-1',
-      worktree: '/repo',
-      vcs: 'git',
-      time: { created: 0, updated: 0 },
-      sandboxes: [],
-    })
   })
 
   afterEach(() => {
@@ -272,10 +264,12 @@ describe('SessionChangesPanel', () => {
     expect(screen.getByRole('menuitemradio', { name: 'Session changes' })).toHaveFocus()
   })
 
-  it('offers git initialization when the project is not a git repository', async () => {
+  it('shows a hint instead of an init action when the project is not a git repository', async () => {
+    // v2 删除了 project.initGit：没有初始化仓库的接口，
+    // 因此面板只提示「不是 git 仓库」，不再提供「Initialize Git repository」按钮。
     getCurrentProject.mockResolvedValueOnce({
       id: 'global',
-      worktree: '/repo',
+      canonical: '/repo',
       time: { created: 0, updated: 0 },
       sandboxes: [],
     })
@@ -287,15 +281,9 @@ describe('SessionChangesPanel', () => {
       await Promise.resolve()
     })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Initialize Git repository' }))
-
-    await act(async () => {
-      await Promise.resolve()
-      await Promise.resolve()
-    })
-
-    expect(initGitProject).toHaveBeenCalledWith('/repo', undefined)
-    expect(getLastTurnDiff).toHaveBeenCalledWith('session-1', '/repo', undefined)
+    expect(screen.queryByRole('button', { name: 'Initialize Git repository' })).toBeNull()
+    // 只保留说明文案（noGit / noGitHint 都含 "git" 字样，用 hint 文案断言）
+    expect(screen.getByText(/not.*git|git.*repository/i)).toBeInTheDocument()
   })
 
   it('opens the selected change file in the files panel from the context menu', async () => {

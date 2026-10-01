@@ -48,8 +48,8 @@ describe('useGitWorkspaceCatalog', () => {
   })
 
   it('refetches workspace metadata on server endpoint changes while stale requests are in flight', async () => {
-    const staleRequest = createDeferred<{ vcs: string; worktree: string }>()
-    const freshRequest = createDeferred<{ vcs: string; worktree: string }>()
+    const staleRequest = createDeferred<{ id: string; vcs: string; canonical: string }>()
+    const freshRequest = createDeferred<{ id: string; vcs: string; canonical: string }>()
 
     getCurrentProjectMock.mockImplementationOnce(() => staleRequest.promise).mockImplementationOnce(() => freshRequest.promise)
 
@@ -66,7 +66,7 @@ describe('useGitWorkspaceCatalog', () => {
     expect(getCurrentProjectMock).toHaveBeenCalledTimes(2)
 
     await act(async () => {
-      freshRequest.resolve({ vcs: 'git', worktree: 'C:/repo' })
+      freshRequest.resolve({ id: 'project-1', vcs: 'git', canonical: 'C:/repo' })
       await Promise.resolve()
       await Promise.resolve()
     })
@@ -76,7 +76,7 @@ describe('useGitWorkspaceCatalog', () => {
     })
 
     await act(async () => {
-      staleRequest.resolve({ vcs: 'git', worktree: 'C:/stale' })
+      staleRequest.resolve({ id: 'project-1', vcs: 'git', canonical: 'C:/stale' })
       await Promise.resolve()
       await Promise.resolve()
     })
