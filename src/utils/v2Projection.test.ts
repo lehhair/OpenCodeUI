@@ -298,6 +298,58 @@ describe('v2Projection — 工具状态机', () => {
   })
 })
 
+describe('v2Projection — retry 消息', () => {
+  it('把助手消息的 retry 字段投影成 retry part（否则 RetryPartView 永远不命中）', () => {
+    const message = toUIMessage(
+      assistantMessage({
+        content: [{ type: 'text', text: 'partial' }],
+        retry: {
+          attempt: 2,
+          at: 1234,
+          error: { type: 'provider_error', message: 'overloaded', status: 503 },
+        },
+      }),
+      SESSION,
+    )
+
+    const retry = message.parts.find(p => p.type === 'retry')
+    expect(retry).toMatchObject({
+      type: 'retry',
+      attempt: 2,
+      time: { created: 1234 },
+      // RetryPart.error 在 UI 里被窄化成 APIError，RetryPartView 直接读
+      // data.isRetryable / data.statusCode
+      error: {
+        name: 'APIError',
+        data: { message: 'overloaded', statusCode: 503, isRetryable: true },
+      },
+    })
+    // 原有 content 仍然保留
+    expect(message.parts.some(p => p.type === 'text')).toBe(true)
+  })
+
+  it('非 API 类的重试原因也包装成 APIError 形状（组件需要 data）', () => {
+    const message = toUIMessage(
+      assistantMessage({
+        retry: { attempt: 1, at: 10, error: { type: 'MessageAbortedError', message: 'aborted' } },
+      }),
+      SESSION,
+    )
+
+    const retry = message.parts.find(p => p.type === 'retry')
+    expect(retry).toMatchObject({
+      type: 'retry',
+      error: { name: 'APIError', data: { message: 'aborted', isRetryable: true } },
+    })
+  })
+
+  it('没有 retry 时不产生 retry part', () => {
+    const message = toUIMessage(assistantMessage({ content: [{ type: 'text', text: 'ok' }] }), SESSION)
+
+    expect(message.parts.some(p => p.type === 'retry')).toBe(false)
+  })
+})
+
 describe('v2Projection — compaction 消息', () => {
   it('投影出一个 compaction part（上下文估算靠它判断压缩点）', () => {
     const message = toUIMessage(

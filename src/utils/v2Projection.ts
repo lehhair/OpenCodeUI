@@ -16,6 +16,7 @@
 
 import type { AssistantContent, AssistantMessage, SessionMessage, ToolContent, ToolState } from '../types/api'
 import type {
+  APIError,
   AssistantMessageInfo,
   Message,
   MessageError,
@@ -76,6 +77,25 @@ function toMessageError(error: NonNullable<AssistantMessage['error']>): MessageE
   }
 
   return { name: 'UnknownError', data: { message } }
+}
+
+/**
+ * 重试原因 → UI 的 APIError。
+ *
+ * `RetryPart.error` 在 UI 里被窄化成 APIError（RetryPartView 直接读
+ * `data.isRetryable` / `data.statusCode`），而 v2 的重试本身也是传输/接口层
+ * 失败，所以统一按 APIError 承载；非 API 类的结构化错误取其 message 后
+ * 仍以 APIError 形状包装，避免组件拿到缺少 data 的对象。
+ */
+function toRetryError(error: NonNullable<AssistantMessage['retry']>['error']): APIError {
+  const mapped = toMessageError(error)
+  if (mapped.name === 'APIError') return mapped
+
+  const message = 'data' in mapped ? ((mapped.data as { message?: string }).message ?? '') : ''
+  return {
+    name: 'APIError',
+    data: { message, isRetryable: true, statusCode: error.status },
+  }
 }
 
 // ============================================
@@ -356,6 +376,25 @@ export function toUIMessage(message: SessionMessage, sessionID: string): Message
     parts = userAttachmentsToParts(message, sessionID, message.id)
   } else if (message.type === 'assistant') {
     parts = contentToParts(message.content, sessionID, message.id)
+
+    // v2 把「重试」放在助手消息的 retry 字段上（{ attempt, at, error }），
+    // 而 UI 有专门的 RetryPartView。不投影的话那条渲染分支永远不会命中，
+    // 用户看不到重试提示与原因。
+    if (message.retry) {
+      const retry = message.retry
+      parts = [
+        ...parts,
+        {
+          id: `${message.id}:retry:${retry.attempt}`,
+          sessionID,
+          messageID: message.id,
+          type: 'retry',
+          attempt: retry.attempt,
+          error: toRetryError(retry.error),
+          time: { created: retry.at },
+        },
+      ]
+    }
   } else if (message.type === 'compaction') {
     // v2 把「压缩」从 v1 的 part 提升为**独立消息类型**。
     // UI 的上下文估算（sessionStatsCompute）靠「压缩之后重新计」来决定是
