@@ -18,12 +18,12 @@ function AgentsHome({ config, setConfig, lang, models }: SectionProps) {
   const { activeChildId, enter, depth } = useDrillContainer()
   const drill = useDrillState()
   const builtins = ['build', 'plan', 'general', 'explore', 'title', 'summary', 'compaction']
-  const map = getObject(config, 'agent')
+  const map = getObject(config, 'agents')
   const names = Array.from(new Set([...Object.keys(map)])).sort()
   const selected = activeChildId?.startsWith('agent:') ? activeChildId.slice('agent:'.length) : ''
-  const item = getObject(config, 'agent')[selected]
+  const item = getObject(config, 'agents')[selected]
   const value = isRecord(item) ? item : {}
-  const set = (next: JsonRecord) => setConfig(setNested(config, ['agent', selected], next))
+  const set = (next: JsonRecord) => setConfig(setNested(config, ['agents', selected], next))
   const setField = (key: string, v: unknown) => set({ ...value, [key]: v })
   const fields = selected ? buildAgentConfigFields({ value, setField, lang, models }) : []
   if (selected) {
@@ -36,7 +36,7 @@ function AgentsHome({ config, setConfig, lang, models }: SectionProps) {
               existing={map}
               lang={lang}
               onCopy={targetId => {
-                setConfig(setNested(config, ['agent', targetId], clone(value)))
+                setConfig(setNested(config, ['agents', targetId], clone(value)))
                 drill.replace(0, { id: `agent:${targetId}`, title: targetId })
               }}
             />
@@ -53,10 +53,14 @@ function AgentsHome({ config, setConfig, lang, models }: SectionProps) {
       items={names}
       addPlaceholder={tx('agent name', 'agent 名称', lang)}
       onOpen={name => enter({ id: `agent:${name}`, title: name })}
-      onAdd={name => setConfig(setNested(config, ['agent', name], { description: '' }))}
+      onAdd={name => setConfig(setNested(config, ['agents', name], { description: '' }))}
       builtins={builtins}
       renderPreview={name => (isRecord(map[name]) ? String((map[name] as JsonRecord).description ?? '') : '')}
-      emptyText={tx('Add an agent name (e.g. build) to override it.', '添加一个 agent 名称（如 build）即可覆盖。', lang)}
+      emptyText={tx(
+        'Add an agent name (e.g. build) to override it.',
+        '添加一个 agent 名称（如 build）即可覆盖。',
+        lang,
+      )}
     />
   )
 }

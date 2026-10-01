@@ -12,23 +12,56 @@ export interface ConfigEditorSearchItem extends SearchMenuItem {
   source: 'section' | 'field' | 'json'
 }
 
-const SENSITIVE_KEY = /(?:api.?key|access.?key|private.?key|auth|cookie|credential|pass(?:word)?|secret|session.?key|token)/i
+const SENSITIVE_KEY =
+  /(?:api.?key|access.?key|private.?key|auth|cookie|credential|pass(?:word)?|secret|session.?key|token)/i
 const SENSITIVE_CONTAINER = /^(?:headers?|environment|env)$/i
 
 const KNOWN_FIELD_PATHS = [
-  ['model'], ['small_model'], ['default_agent'], ['subagent_depth'], ['shell'], ['username'], ['logLevel'], ['share'],
-  ['autoupdate'], ['snapshot'], ['instructions'], ['disabled_providers'], ['enabled_providers'],
-  ['server', 'port'], ['server', 'hostname'], ['server', 'mdns'], ['server', 'mdnsDomain'], ['server', 'cors'],
-  ['skills', 'paths'], ['skills', 'urls'],
-  ['attachment', 'image', 'auto_resize'], ['attachment', 'image', 'max_width'], ['attachment', 'image', 'max_height'],
+  ['model'],
+  ['small_model'],
+  ['default_agent'],
+  ['subagent_depth'],
+  ['shell'],
+  ['username'],
+  ['logLevel'],
+  ['share'],
+  ['autoupdate'],
+  ['snapshot'],
+  ['instructions'],
+  ['disabled_providers'],
+  ['enabled_providers'],
+  ['server', 'port'],
+  ['server', 'hostname'],
+  ['server', 'mdns'],
+  ['server', 'mdnsDomain'],
+  ['server', 'cors'],
+  ['skills', 'paths'],
+  ['skills', 'urls'],
+  ['attachment', 'image', 'auto_resize'],
+  ['attachment', 'image', 'max_width'],
+  ['attachment', 'image', 'max_height'],
   ['attachment', 'image', 'max_base64_bytes'],
-  ['tool_output', 'max_lines'], ['tool_output', 'max_bytes'], ['compaction', 'auto'], ['compaction', 'prune'],
-  ['compaction', 'tail_turns'], ['compaction', 'preserve_recent_tokens'], ['compaction', 'reserved'], ['watcher', 'ignore'],
-  ['enterprise', 'url'], ['tools'],
-  ['experimental', 'batch_tool'], ['experimental', 'openTelemetry'], ['experimental', 'disable_paste_summary'],
-  ['experimental', 'continue_loop_on_deny'], ['experimental', 'mcp_timeout'], ['experimental', 'primary_tools'],
+  ['tool_output', 'max_lines'],
+  ['tool_output', 'max_bytes'],
+  ['compaction', 'auto'],
+  ['compaction', 'prune'],
+  ['compaction', 'tail_turns'],
+  ['compaction', 'preserve_recent_tokens'],
+  ['compaction', 'reserved'],
+  ['watcher', 'ignore'],
+  ['enterprise', 'url'],
+  ['tools'],
+  ['experimental', 'batch_tool'],
+  ['experimental', 'openTelemetry'],
+  ['experimental', 'disable_paste_summary'],
+  ['experimental', 'continue_loop_on_deny'],
+  ['experimental', 'mcp_timeout'],
+  ['experimental', 'primary_tools'],
   ['experimental', 'policies'],
-  ['$schema'], ['autoshare'], ['layout'], ['mode'],
+  ['$schema'],
+  ['autoshare'],
+  ['layout'],
+  ['mode'],
 ]
 
 export function sectionForConfigSegments(segments: string[]): SectionID {
@@ -38,13 +71,20 @@ export function sectionForConfigSegments(segments: string[]): SectionID {
   if (root === 'skills' || root === 'references' || root === 'reference') return 'skills'
   if (root === 'plugin') return 'plugins'
   if (root === 'providers') return 'providers'
-  if (root === 'agent') return 'agents'
+  if (root === 'agents') return 'agents'
   if (root === 'mcp') return 'mcp'
   if (root === 'permission') return 'permissions'
   if (root === 'formatter') return 'formatters'
   if (root === 'lsp') return 'lsp'
   if (root === 'attachment') return 'attachments'
-  if (root === 'tool_output' || root === 'compaction' || root === 'watcher' || root === 'enterprise' || root === 'tools') return 'runtime'
+  if (
+    root === 'tool_output' ||
+    root === 'compaction' ||
+    root === 'watcher' ||
+    root === 'enterprise' ||
+    root === 'tools'
+  )
+    return 'runtime'
   if (root === 'experimental') return 'experimental'
   if (root === '$schema' || root === 'autoshare' || root === 'layout' || root === 'mode') return 'compatibility'
   if (root && !KNOWN_ROOT_KEYS.has(root)) return 'advanced'
@@ -65,7 +105,10 @@ export function navigationForConfigSegments(segments: string[]) {
     push(id ? `command:${id}` : undefined, id)
     fieldKey = third
   } else if (root === 'references' || root === 'reference') {
-    push(id ? `${root === 'references' ? 'reference' : 'legacy-reference'}:${id}` : undefined, id ? `@${id}` : undefined)
+    push(
+      id ? `${root === 'references' ? 'reference' : 'legacy-reference'}:${id}` : undefined,
+      id ? `@${id}` : undefined,
+    )
     fieldKey = third
   } else if (root === 'skills') fieldKey = segments.slice(0, 2).join('.')
   else if (root === 'plugin') {
@@ -79,7 +122,7 @@ export function navigationForConfigSegments(segments: string[]) {
     if (third === 'options') {
       push('options', 'options')
       if (fourth === 'headers') push('headers', 'headers')
-      fieldKey = fourth === 'headers' ? 'headers' : fourth ?? 'options'
+      fieldKey = fourth === 'headers' ? 'headers' : (fourth ?? 'options')
     } else if (third === 'models') {
       push('models', 'models')
       push(fourth ? `model:${fourth}` : undefined, fourth)
@@ -89,10 +132,10 @@ export function navigationForConfigSegments(segments: string[]) {
         fieldKey = seventh ?? 'disabled'
       } else if (['provider', 'headers', 'options'].includes(fifth)) {
         push(fifth, fifth)
-        fieldKey = fifth === 'provider' ? sixth ?? 'provider' : fifth
+        fieldKey = fifth === 'provider' ? (sixth ?? 'provider') : fifth
       } else fieldKey = fifth
     } else fieldKey = third
-  } else if (root === 'agent') {
+  } else if (root === 'agents') {
     push(id ? `agent:${id}` : undefined, id)
     if (['permission', 'tools', 'options'].includes(third)) push(third, third)
     fieldKey = third
@@ -246,17 +289,19 @@ export function buildConfigEditorSearchItems(config: JsonRecord, lang: Lang): Co
     ])
     if (configuredDestinations.has(destination)) return []
     const path = formatConfigPath(segments)
-    return [{
-      id: `field:${path}`,
-      label: path,
-      description: tx('Available field', '可配置字段', lang),
-      tabLabel: tx(SECTION_META[navigation.section].en, SECTION_META[navigation.section].zh, lang),
-      section: navigation.section,
-      segments,
-      stack: navigation.stack,
-      fieldKey: navigation.fieldKey,
-      source: 'field' as const,
-    }]
+    return [
+      {
+        id: `field:${path}`,
+        label: path,
+        description: tx('Available field', '可配置字段', lang),
+        tabLabel: tx(SECTION_META[navigation.section].en, SECTION_META[navigation.section].zh, lang),
+        section: navigation.section,
+        segments,
+        stack: navigation.stack,
+        fieldKey: navigation.fieldKey,
+        source: 'field' as const,
+      },
+    ]
   })
 
   return [...sectionItems, ...configuredItems, ...availableItems]
