@@ -97,6 +97,51 @@ export async function updateShell(shell: string | null, serverId?: string): Prom
 }
 
 /**
+ * 定位可写的配置文档。
+ *
+ * v2 把可写配置收敛了：`config.update` 只接受 `{ shell }`，
+ * 任意字段的保存没有 API。但 `config.get()` 会返回文档及其 `path`，
+ * 因此「写配置」在 v2 里的原生做法是直接写那个文件。
+ *
+ * @returns 文档路径；找不到文档时为 undefined
+ */
+export async function findConfigDocumentPath(
+  directory?: string,
+  serverId?: string,
+): Promise<string | undefined> {
+  const sources = await getConfigSources(directory, serverId)
+  const documents = sources.filter(
+    (source): source is Extract<ConfigSource, { type: 'document' }> => source.type === 'document',
+  )
+  // 取最后一个文档：合并顺序里它优先级最高，写入它才不会被别的来源覆盖
+  return documents[documents.length - 1]?.path
+}
+
+/**
+ * 把配置对象写回其文档文件。
+ *
+ * ⚠️ 这是整文件写入：会以标准 JSON 覆盖原文件，**JSONC 注释与原始排版会丢失**。
+ * v2 没有字段级写入接口，这是唯一能真正持久化配置的途径。
+ *
+ * @returns 写入的路径
+ */
+export async function writeConfigDocument(
+  config: ConfigInfo,
+  directory?: string,
+  serverId?: string,
+): Promise<string> {
+  const path = await findConfigDocumentPath(directory, serverId)
+  if (!path) {
+    throw new Error('No writable config document found')
+  }
+
+  const sdk = getSDKClient(serverId)
+  const payload = new TextEncoder().encode(`${JSON.stringify(config, null, 2)}\n`)
+  await sdk.file.write({ path, payload, location: locationParam(directory, serverId) })
+  return path
+}
+
+/**
  * 获取可用 shell 列表（取代 v1 的 `pty.shells()`）。
  */
 export async function getAvailableShells(serverId?: string): Promise<ConfigShellsResponse> {

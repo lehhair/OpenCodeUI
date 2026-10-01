@@ -18,7 +18,13 @@ import {
 } from '../../../components/Icons'
 import { Dialog } from '../../../components/ui/Dialog'
 import { SettingsSearch } from '../SettingsSearch'
-import { getConfig, getGlobalConfig, getProviderConfigs, listAvailableShells, updateGlobalConfig } from '../../../api'
+import {
+  getConfig,
+  getGlobalConfig,
+  getActiveModels,
+  listAvailableShells,
+  writeConfigDocument,
+} from '../../../api'
 import type { Config } from '../../../types/api/config'
 import { useCurrentDirectory, useIsMobile } from '../../../hooks'
 import { SettingsSection } from './SettingsUI'
@@ -29,7 +35,7 @@ import { SECTION_IDS, SECTION_META } from './configEditorMeta'
 import { buildConfigEditorSearchItems, type ConfigEditorSearchItem } from './configEditorSearch'
 import { SectionRouter } from './configEditorSections'
 import type { Choice, JsonRecord, SectionID } from './configEditorTypes'
-import { clone, createMergePatch, getObject, isRecord, sameValue, tx } from './configEditorUtils'
+import { clone, getObject, sameValue, tx } from './configEditorUtils'
 
 const CONFIG_TAB_ICONS: Record<SectionID, React.ReactNode> = {
   general: <CogIcon size={15} />,
@@ -164,31 +170,30 @@ function ConfigEditorDialog({ isOpen, onClose }: { isOpen: boolean; onClose: () 
     setValidationErrors([])
     setValidationDrillTarget(null)
     try {
-      const [global, nextEffective, shellList, providers] = await Promise.all([
+      const [global, nextEffective, shellList, providerModels] = await Promise.all([
         getGlobalConfig(),
         getConfig(directory),
         listAvailableShells(directory).catch(() => []),
-        getProviderConfigs(directory).catch(() => undefined),
+        // v2 删除了 config.providers()，模型清单改由 model.list() 提供
+        getActiveModels(directory).catch(() => []),
       ])
-      const modelChoices: Choice[] = []
-      if (isRecord(providers)) {
-        for (const [providerID, provider] of Object.entries(providers)) {
-          if (!isRecord(provider) || !isRecord(provider.models)) continue
-          for (const modelID of Object.keys(provider.models)) {
-            modelChoices.push({ value: `${providerID}/${modelID}`, label: `${providerID}/${modelID}` })
-          }
-        }
-      }
+
+      const modelChoices: Choice[] = providerModels.map(model => ({
+        value: `${model.providerId}/${model.id}`,
+        label: `${model.providerId}/${model.id}`,
+      }))
+
       if (request !== loadRequestRef.current) return
       setOriginal(clone(global))
       setConfig(clone(global))
       setJsonDraftErrors(new Set())
       setDraftErrors(new Set())
       setEffective(nextEffective)
-      setProviderCatalog(isRecord(providers) ? providers : {})
+      // v2 没有 provider 目录接口，这里留空（仅供 provider 元信息展示的旧路径）
+      setProviderCatalog({})
       setShells([
         { value: '', label: t('config.shellAuto') },
-        ...shellList.map(shell => ({
+        ...shellList.map((shell: { path: string; name: string; acceptable: boolean }) => ({
           value: shell.name === shell.path ? shell.path : shell.name,
           label: shell.name,
           hint: shell.path,
@@ -269,10 +274,20 @@ function ConfigEditorDialog({ isOpen, onClose }: { isOpen: boolean; onClose: () 
     }
     setSaving(true)
     try {
-      const saved = await updateGlobalConfig(createMergePatch(original, snapshot) as Config)
+      // v2 的 config.update 只接受 { shell }，任意字段的保存没有 API。
+      // 原生做法是直接把合并结果写回配置文档文件（见 api/config 的说明）。
+      const savedPath = await writeConfigDocument(snapshot, directory)
       if (request !== saveRequestRef.current) return
+      const saved = await getGlobalConfig().catch(() => snapshot)
       setOriginal(clone(saved))
       setConfig(current => (sameValue(current, snapshot) ? clone(saved) : current))
+      setSchemaWarning(
+        tx(
+          `Saved to ${savedPath}. Note: v2 has no field-level config API, so the file is rewritten as plain JSON — comments and original formatting are lost.`,
+          `已保存到 ${savedPath}。注意：v2 没有字段级配置接口，此操作会以纯 JSON 重写文件，注释与原始排版会丢失。`,
+          lang,
+        ),
+      )
       try {
         const nextEffective = await getConfig(directory)
         if (request !== saveRequestRef.current) return

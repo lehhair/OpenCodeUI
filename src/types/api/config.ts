@@ -41,8 +41,21 @@ export type PermissionActionConfig = PermissionEffect
 /** v2 不再有独立的 object 形式权限配置 */
 export type PermissionObjectConfig = PermissionRule
 
-/** `config.get()` 的响应：配置来源清单 */
-export type Config = ConfigGetOutput
+/**
+ * 生效配置对象。
+ *
+ * 注意：v1 的 `Config` 是「整份可读写配置」，v2 的 `config.get()` 返回的是
+ * **来源数组**（`ConfigGetOutput`）。生效值是按顺序深合并各 document 的 info，
+ * 形状与单个文档一致，因此这里别名到 `ConfigInfo`——
+ * 之前误别名成 `ConfigGetOutput`（数组），导致编辑器里到处是
+ * `ConfigGetOutput ↔ JsonRecord` 的无效断言。
+ *
+ * 需要原始来源数组时用 `ConfigSource[]` / `ConfigGetOutput`。
+ */
+export type Config = ConfigInfo
+
+/** `config.get()` 的原始响应：配置来源清单 */
+export type ConfigResponse = ConfigGetOutput
 
 /** 单个配置来源 */
 export type ConfigSource = ConfigEntry
