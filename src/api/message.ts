@@ -16,7 +16,7 @@
 
 import { getSDKClient } from './sdk'
 import { resolveSessionTarget } from '../utils/sessionKey'
-import type { SessionMessage } from './types'
+import type { SessionMessage, UserMessage } from './types'
 import type { Attachment, RevertedMessage, SendMessageParams } from './types'
 
 // ============================================
@@ -49,22 +49,27 @@ export async function getSessionMessages(
  *
  * v2 的用户消息自带 `text` 与 `files` / `agents` / `skills` 数组，
  * 不再需要遍历 parts。
+ *
+ * 注意入参与出参的文件形状不同：
+ *   - prompt **入参** 的 files 是 `{ uri, name?, description? }`
+ *   - 消息**记录**里的 files 是 `PromptFileAttachment`
+ *     （`{ data, mime, source, name?, description? }`，没有 uri）
+ * 这里处理的是消息记录，因此路径要从 `source` 取。
  */
-export function extractUserMessageContent(message: {
-  text?: string
-  files?: Array<{ uri: string; name?: string; description?: string }>
-  agents?: Array<{ name: string }>
-  skills?: Array<{ id: string }>
-}): RevertedMessage {
+export function extractUserMessageContent(message: UserMessage): RevertedMessage {
   const attachments: Attachment[] = []
 
   for (const file of message.files ?? []) {
+    const source = file.source
+    const uri = source?.type === 'uri' ? source.uri : ''
+    const displayName = file.name || uri || file.mime || 'attachment'
     attachments.push({
       id: crypto.randomUUID(),
       type: 'file',
-      displayName: file.name || file.uri,
-      url: file.uri,
-      relativePath: file.uri,
+      displayName,
+      // inline 附件没有可回填的路径，只在有 uri 时带上
+      url: uri,
+      relativePath: uri || displayName,
     })
   }
 
