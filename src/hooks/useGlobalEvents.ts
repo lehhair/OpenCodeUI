@@ -21,13 +21,13 @@ import {
   reconnectServerSSE,
   getSessionStatus,
   getPendingPermissions,
-  getPendingQuestions,
+  getPendingForms,
 } from '../api'
 import type { EventCallbacks } from '../types/api/event'
 import { replyPermission } from '../api/permission'
 import { autoApproveStore } from '../store/autoApproveStore'
 import { multiServerStore } from '../store/multiServerStore'
-import type { ApiMessage, ApiFormInfo, ApiPermissionRequest } from '../api/types'
+import type { ApiFormInfo, ApiPermissionRequest } from '../api/types'
 import type { SessionStatusMap } from '../types/api/session'
 
 // ============================================
@@ -142,7 +142,7 @@ interface PendingRequest<T> {
 }
 
 const pendingPermissions = new Map<string, PendingRequest<ApiPermissionRequest>[]>()
-const pendingQuestions = new Map<string, PendingRequest<ApiQuestionRequest>[]>()
+const pendingQuestions = new Map<string, PendingRequest<ApiFormInfo>[]>()
 
 // 5秒后过期，防止内存泄漏
 const PENDING_TIMEOUT = 5000
@@ -200,7 +200,7 @@ async function fetchActiveScopeData(directories: string[] | undefined, serverId:
       const [statusMap, permissions, questions] = await Promise.all([
         getSessionStatus(directory, serverId).catch(() => ({}) as SessionStatusMap),
         getPendingPermissions(undefined, directory, serverId).catch(() => []),
-        getPendingQuestions(undefined, directory, serverId).catch(() => []),
+        getPendingForms(undefined, directory, serverId).catch(() => []),
       ])
 
       return { directory, statusMap, permissions, questions }
@@ -209,7 +209,7 @@ async function fetchActiveScopeData(directories: string[] | undefined, serverId:
 
   const mergedStatusMap: SessionStatusMap = {}
   const permissionMap = new Map<string, ApiPermissionRequest>()
-  const questionMap = new Map<string, ApiQuestionRequest>()
+  const questionMap = new Map<string, ApiFormInfo>()
   const sessionMetaEntries: Array<{ sessionId: string; directory?: string }> = []
 
   results.forEach(({ directory, statusMap, permissions, questions }) => {
@@ -507,59 +507,122 @@ export function useGlobalEvents(directories?: string[]) {
 
       return {
         // ============================================
-        // Message Events → messageStore
+        // 流式文本 / 推理 / 工具 → messageStore
+        //
+        // v2 没有 v1 的 part 事件（message.part.updated/delta/removed）；
+        // 实时输出是一串扁平事件，按 ordinal（文本/推理）或 id（工具）关联。
         // ============================================
 
-        onMessageUpdated: (apiMsg: ApiMessage) => {
-          messageStore.handleMessageUpdated({ ...apiMsg, sessionID: scope(apiMsg.sessionID) })
-        },
-
-        onPartUpdated: (apiPart: ApiPart) => {
-          if ('sessionID' in apiPart && 'messageID' in apiPart) {
-            const scopedId = scope(apiPart.sessionID)
-            messageStore.handlePartUpdated({
-              ...(apiPart as ApiPart & { sessionID: string; messageID: string }),
-              sessionID: scopedId,
-            })
-            scheduleScroll(scopedId)
-          }
-        },
-
-        onPartDelta: data => {
+        onTextStarted: data => {
           const scopedId = scope(data.sessionID)
-          messageStore.handlePartDelta({ ...data, sessionID: scopedId })
+          messageStore.handleTextStarted({ ...data, sessionID: scopedId })
           scheduleScroll(scopedId)
         },
 
-        onPartRemoved: data => {
-          messageStore.handlePartRemoved({ ...data, sessionID: scope(data.sessionID) })
+        onTextDelta: data => {
+          const scopedId = scope(data.sessionID)
+          messageStore.handleTextDelta({ ...data, sessionID: scopedId })
+          scheduleScroll(scopedId)
+        },
+
+        onTextEnded: data => {
+          const scopedId = scope(data.sessionID)
+          messageStore.handleTextEnded({ ...data, sessionID: scopedId })
+          scheduleScroll(scopedId)
+        },
+
+        onReasoningStarted: data => {
+          const scopedId = scope(data.sessionID)
+          messageStore.handleReasoningStarted({ ...data, sessionID: scopedId })
+          scheduleScroll(scopedId)
+        },
+
+        onReasoningDelta: data => {
+          const scopedId = scope(data.sessionID)
+          messageStore.handleReasoningDelta({ ...data, sessionID: scopedId })
+          scheduleScroll(scopedId)
+        },
+
+        onReasoningEnded: data => {
+          const scopedId = scope(data.sessionID)
+          messageStore.handleReasoningEnded({ ...data, sessionID: scopedId })
+          scheduleScroll(scopedId)
+        },
+
+        onToolCalled: data => {
+          const scopedId = scope(data.sessionID)
+          messageStore.handleToolEvent(scopedId, data.assistantMessageID, data.id, {
+            status: 'running',
+            input: data.input as Record<string, unknown>,
+          })
+          scheduleScroll(scopedId)
+        },
+
+        onToolProgress: data => {
+          const scopedId = scope(data.sessionID)
+          messageStore.handleToolEvent(scopedId, data.assistantMessageID, data.id, {
+            status: 'running',
+            metadata: data.metadata as Record<string, unknown>,
+          })
+        },
+
+        onToolSuccess: data => {
+          const scopedId = scope(data.sessionID)
+          messageStore.handleToolEvent(scopedId, data.assistantMessageID, data.id, {
+            status: 'completed',
+            output: (data.content ?? [])
+              .map(entry => (entry.type === 'text' ? entry.text : `[file: ${entry.name ?? entry.uri}]`))
+              .join('\n'),
+            metadata: data.metadata as Record<string, unknown> | undefined,
+          })
+          scheduleScroll(scopedId)
+        },
+
+        onToolFailed: data => {
+          const scopedId = scope(data.sessionID)
+          messageStore.handleToolEvent(scopedId, data.assistantMessageID, data.id, {
+            status: 'error',
+            error: typeof data.error === 'string' ? data.error : JSON.stringify(data.error),
+          })
+          scheduleScroll(scopedId)
         },
 
         // ============================================
         // Session Events → childSessionStore
         // ============================================
 
-        onSessionCreated: session => {
-          const scopedId = scope(session.id)
-          // 注册子 session 关系
-          if (session.parentID) {
-            childSessionStore.registerChildSession(session, serverId)
+        onSessionCreated: data => {
+          // v2 的 session.created 负载以 sessionID 为键（不是 id），
+          // 且带 slug/version 等创建期字段。
+          const scopedId = scope(data.sessionID)
+          activeSessionStore.setSessionMeta(scopedId, data.title, data.location?.directory)
 
-            // 处理因时序问题缓存的权限请求（可能有多个）
+          if (data.parentID) {
+            childSessionStore.registerChildSession(
+              {
+                id: scopedId,
+                parentID: scope(data.parentID),
+                projectID: data.projectID,
+                title: data.title,
+                location: data.location,
+                time: { created: Date.now(), updated: Date.now() },
+                cost: 0,
+                tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
+              } as never,
+              serverId,
+            )
+
+            // 处理因时序问题缓存的权限/表单请求
             if (belongsToCurrentSession(scopedId)) {
               for (const req of drainPending(pendingPermissions, scopedId)) {
                 dispatchToConsumers(req.sessionID, cb => cb.onPermissionAsked?.(req))
               }
               for (const req of drainPending(pendingQuestions, scopedId)) {
-                dispatchToConsumers(req.sessionID, cb => cb.onQuestionAsked?.(req))
+                dispatchToConsumers(req.sessionID, cb => cb.onFormCreated?.(req))
               }
             }
           }
 
-          // 更新 session meta 供 active tab 使用
-          activeSessionStore.setSessionMeta(scopedId, session.title, session.location?.directory)
-
-          // 清理过期缓存
           cleanupExpired(pendingPermissions)
           cleanupExpired(pendingQuestions)
         },
@@ -571,55 +634,40 @@ export function useGlobalEvents(directories?: string[]) {
           dispatchToConsumers(scopedId, cb => cb.onSessionIdle?.(scopedId))
         },
 
-        onSessionError: error => {
-          const isAbort = error.name === 'MessageAbortedError' || error.name === 'AbortError'
-          if (!isAbort && import.meta.env.DEV) {
-            console.warn('[GlobalEvents] Session error:', error)
-          }
-          if (error.sessionID == null || error.sessionID.length < 1) {
-            return // Don't handle errors with no sessionID
-          }
-          const scopedId = scope(error.sessionID)
+        onExecutionFailed: data => {
+          // v2 用 execution.failed 表达会话级失败（取代 v1 的 session.error）
+          const scopedId = scope(data.sessionID)
           messageStore.handleSessionError(scopedId)
           childSessionStore.markError(scopedId)
-          if (!isAbort) {
-            // 从 Working 列表移除
-            activeSessionStore.updateStatus(scopedId, { type: 'idle' })
-            // 通知（跳过当前 session family）
-            if (!belongsToCurrentSession(scopedId)) {
-              const meta = activeSessionStore.getSessionMeta(scopedId)
-              const sessionLabel = meta?.title || error.sessionID.slice(0, 8)
-              notificationStore.push('error', sessionLabel, 'Session error', scopedId, meta?.directory)
-            } else if (isSessionDirectlyOpen(scopedId) && soundStore.getSnapshot().currentSessionEnabled) {
-              playNotificationSoundDeduped('error')
-            }
+          activeSessionStore.updateStatus(scopedId, { type: 'idle' })
+
+          if (!belongsToCurrentSession(scopedId)) {
+            const meta = activeSessionStore.getSessionMeta(scopedId)
+            const sessionLabel = meta?.title || data.sessionID.slice(0, 8)
+            notificationStore.push('error', sessionLabel, 'Session error', scopedId, meta?.directory)
+          } else if (isSessionDirectlyOpen(scopedId) && soundStore.getSnapshot().currentSessionEnabled) {
+            playNotificationSoundDeduped('error')
           }
-          dispatchToConsumers(scopedId, cb => cb.onSessionError?.(scopedId))
+          dispatchToConsumers(scopedId, cb => cb.onExecutionFailed?.(scopedId))
         },
 
-        onSessionUpdated: session => {
-          const scopedId = scope(session.id)
-          // 更新 session meta 供 active tab 使用
-          activeSessionStore.setSessionMeta(scopedId, session.title, session.location?.directory)
-          if (session.parentID) {
-            childSessionStore.registerChildSession(session, serverId)
-          }
-
-          // 同步标题到 messageStore，让 Header 等依赖 messageStore 的组件实时更新
-          if (session.title && messageStore.getSessionState(scopedId)) {
-            messageStore.updateSessionMetadata(scopedId, { title: session.title })
+        onSessionRenamed: data => {
+          const scopedId = scope(data.sessionID)
+          activeSessionStore.setSessionMeta(scopedId, data.title, undefined)
+          if (data.title && messageStore.getSessionState(scopedId)) {
+            messageStore.updateSessionMetadata(scopedId, { title: data.title })
           }
         },
 
-        onSessionDeleted: sessionId => {
-          const scopedId = scope(sessionId)
+        onSessionDeleted: data => {
+          const scopedId = scope(data.sessionID)
           const removedSessionIds = childSessionStore.getSessionAndDescendants(scopedId)
           clearSessionRuntimeState(scopedId)
           for (const id of removedSessionIds) paneLayoutStore.clearSession(id)
         },
 
-        onServerConnected: data => {
-          serverStore.applyServerConnectedTimestamp(serverId, data.timestamp)
+        onServerConnected: () => {
+          serverStore.applyServerConnectedTimestamp(serverId, Date.now())
         },
 
         // ============================================
@@ -669,7 +717,6 @@ export function useGlobalEvents(directories?: string[]) {
             isSessionDirectlyOpen(scopedId) &&
             soundStore.getSnapshot().currentSessionEnabled
           ) {
-            // 当前会话：如果开启了当前会话提示音
             playNotificationSoundDeduped('permission')
           }
 
@@ -685,20 +732,21 @@ export function useGlobalEvents(directories?: string[]) {
         },
 
         // ============================================
-        // Question Events
+        // Form Events（取代 v1 的 Question Events）
         // ============================================
 
-        onQuestionAsked: request => {
-          const scopedId = scope(request.sessionID)
+        onFormCreated: data => {
+          // v2 的 form.created 把表单包在 data.form 里
+          const form = data.form as ApiFormInfo
+          const scopedId = scope(form.sessionID)
           const meta = activeSessionStore.getSessionMeta(scopedId)
-          const sessionLabel = meta?.title || request.sessionID.slice(0, 8)
-          const desc = request.questions?.[0]?.header || 'AI is waiting for your input'
+          const sessionLabel = meta?.title || form.sessionID.slice(0, 8)
+          const desc = form.title || 'AI is waiting for your input'
 
-          // Active 列表：注册 pending request
-          activeSessionStore.addPendingRequest(request.id, scopedId, 'question', desc)
+          activeSessionStore.addPendingRequest(form.id, scopedId, 'question', desc)
           if (activeFetchVersions.get(serverId) !== 0) {
-            latePendingRequests.set(request.id, {
-              requestId: request.id,
+            latePendingRequests.set(form.id, {
+              requestId: form.id,
               sessionId: scopedId,
               type: 'question',
               description: desc,
@@ -707,7 +755,6 @@ export function useGlobalEvents(directories?: string[]) {
             })
           }
 
-          // Toast 通知
           if (!belongsToCurrentSession(scopedId)) {
             notificationStore.push('question', `${sessionLabel} — Question`, desc, scopedId, meta?.directory)
           } else if (isSessionDirectlyOpen(scopedId) && soundStore.getSnapshot().currentSessionEnabled) {
@@ -715,31 +762,31 @@ export function useGlobalEvents(directories?: string[]) {
           }
 
           if (belongsToCurrentSession(scopedId)) {
-            dispatchToConsumers(scopedId, cb => cb.onQuestionAsked?.({ ...request, sessionID: scopedId }))
+            dispatchToConsumers(scopedId, cb => cb.onFormCreated?.({ ...form, sessionID: scopedId }))
           } else {
-            addPending(pendingQuestions, scopedId, { ...request, sessionID: scopedId })
+            addPending(pendingQuestions, scopedId, { ...form, sessionID: scopedId })
           }
         },
 
-        onQuestionReplied: data => {
+        onFormReplied: data => {
           const scopedId = scope(data.sessionID)
-          removePendingByRequestId(pendingQuestions, scopedId, data.requestID)
-          latePendingRequests.delete(data.requestID)
-          activeSessionStore.resolvePendingRequest(data.requestID)
+          removePendingByRequestId(pendingQuestions, scopedId, data.id)
+          latePendingRequests.delete(data.id)
+          activeSessionStore.resolvePendingRequest(data.id)
 
           if (belongsToCurrentSession(scopedId)) {
-            dispatchToConsumers(scopedId, cb => cb.onQuestionReplied?.({ ...data, sessionID: scopedId }))
+            dispatchToConsumers(scopedId, cb => cb.onFormReplied?.({ sessionID: scopedId, formID: data.id }))
           }
         },
 
-        onQuestionRejected: data => {
+        onFormCancelled: data => {
           const scopedId = scope(data.sessionID)
-          removePendingByRequestId(pendingQuestions, scopedId, data.requestID)
-          latePendingRequests.delete(data.requestID)
-          activeSessionStore.resolvePendingRequest(data.requestID)
+          removePendingByRequestId(pendingQuestions, scopedId, data.id)
+          latePendingRequests.delete(data.id)
+          activeSessionStore.resolvePendingRequest(data.id)
 
           if (belongsToCurrentSession(scopedId)) {
-            dispatchToConsumers(scopedId, cb => cb.onQuestionRejected?.({ ...data, sessionID: scopedId }))
+            dispatchToConsumers(scopedId, cb => cb.onFormCancelled?.({ sessionID: scopedId, formID: data.id }))
           }
         },
 

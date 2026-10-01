@@ -194,10 +194,10 @@ class ActiveSessionStore {
   // ============================================
 
   initializePendingRequests(
-    permissions: Array<{ id: string; sessionID: string; permission: string; patterns?: string[] }>,
-    questions: Array<{ id: string; sessionID: string; questions?: Array<{ header?: string }> }>,
+    permissions: Array<{ id: string; sessionID: string; action: string; resources?: readonly string[] }>,
+    forms: Array<{ id: string; sessionID: string; title?: string }>,
   ) {
-    this.applyPendingSnapshot(permissions, questions, new Map<string, PendingRequest>(), new Set<string>())
+    this.applyPendingSnapshot(permissions, forms, new Map<string, PendingRequest>(), new Set<string>())
   }
 
   // ============================================
@@ -205,15 +205,15 @@ class ActiveSessionStore {
   // ============================================
 
   mergePendingRequests(
-    permissions: Array<{ id: string; sessionID: string; permission: string; patterns?: string[] }>,
-    questions: Array<{ id: string; sessionID: string; questions?: Array<{ header?: string }> }>,
+    permissions: Array<{ id: string; sessionID: string; action: string; resources?: readonly string[] }>,
+    forms: Array<{ id: string; sessionID: string; title?: string }>,
   ) {
-    this.applyPendingSnapshot(permissions, questions, new Map(this.pendingRequests), new Set(this.deferredIdleSessions))
+    this.applyPendingSnapshot(permissions, forms, new Map(this.pendingRequests), new Set(this.deferredIdleSessions))
   }
 
   private applyPendingSnapshot(
-    permissions: Array<{ id: string; sessionID: string; permission: string; patterns?: string[] }>,
-    questions: Array<{ id: string; sessionID: string; questions?: Array<{ header?: string }> }>,
+    permissions: Array<{ id: string; sessionID: string; action: string; resources?: readonly string[] }>,
+    questions: Array<{ id: string; sessionID: string; title?: string }>,
     pendingRequests: Map<string, PendingRequest>,
     deferredIdleSessions: Set<string>,
   ) {
@@ -221,7 +221,8 @@ class ActiveSessionStore {
     const newMap = { ...this.state.statusMap }
 
     for (const p of permissions) {
-      const desc = p.patterns?.length ? `${p.permission}: ${p.patterns[0]}` : p.permission
+      // v2：permission→action，patterns→resources
+      const desc = p.resources?.length ? `${p.action}: ${p.resources[0]}` : p.action
       pendingRequests.set(p.id, {
         requestId: p.id,
         sessionId: p.sessionID,
@@ -236,7 +237,8 @@ class ActiveSessionStore {
     }
 
     for (const q of questions) {
-      const desc = q.questions?.[0]?.header || 'Waiting for input'
+      // v2：question.header → form.title
+      const desc = q.title || 'Waiting for input'
       pendingRequests.set(q.id, {
         requestId: q.id,
         sessionId: q.sessionID,

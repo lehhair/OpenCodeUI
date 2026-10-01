@@ -782,6 +782,153 @@ class MessageStore {
     this.notify([data.sessionID])
   }
 
+  /**
+   * 确保助手消息存在于 store。
+   *
+   * v2 的流式事件（text/reasoning/tool）**先于**完整消息到达，
+   * 且事件只带 `assistantMessageID`，因此需要按需建一条占位助手消息，
+   * 后续 content 快照或 delta 再往里填。
+   */
+  ensureAssistantMessage(sessionID: string, messageID: string): void {
+    const state = this.ensureSession(sessionID)
+    if (state.messages.some(m => m.info.id === messageID)) return
+
+    const placeholder: ApiMessage = {
+      id: messageID,
+      type: 'assistant',
+      agent: '',
+      model: { id: '', providerID: '' },
+      content: [],
+      time: { created: Date.now() },
+    }
+    state.messages = [...state.messages, toUIMessage(placeholder, sessionID)]
+    state.isStreaming = true
+    this.notify([sessionID])
+  }
+
+  /**
+   * 文本开始（v2）：确保消息与对应 ordinal 的文本 part 存在。
+   */
+  handleTextStarted(data: { sessionID: string; assistantMessageID: string; ordinal: number }): void {
+    this.ensureAssistantMessage(data.sessionID, data.assistantMessageID)
+    const state = this.sessions.get(data.sessionID)
+    if (!state) return
+
+    const msgIndex = state.messages.findIndex(m => m.info.id === data.assistantMessageID)
+    if (msgIndex === -1) return
+
+    const message = state.messages[msgIndex]
+    const partId = `${data.assistantMessageID}:text:${data.ordinal}`
+    if (message.parts.some(p => p.id === partId)) return
+
+    const parts: Part[] = [
+      ...message.parts,
+      { id: partId, sessionID: data.sessionID, messageID: data.assistantMessageID, type: 'text', text: '' },
+    ]
+    const newMessage = { ...message, parts, isStreaming: true }
+    state.messages = [...state.messages.slice(0, msgIndex), newMessage, ...state.messages.slice(msgIndex + 1)]
+    this.notify([data.sessionID])
+  }
+
+  /**
+   * 文本结束（v2）：用权威文本覆盖该 ordinal 的 part（delta 是易失的，以此对齐）。
+   */
+  handleTextEnded(data: {
+    sessionID: string
+    assistantMessageID: string
+    ordinal: number
+    text: string
+  }): void {
+    this.ensureAssistantMessage(data.sessionID, data.assistantMessageID)
+    this.replaceTextPart(data.sessionID, data.assistantMessageID, data.ordinal, 'text', data.text)
+  }
+
+  /**
+   * 推理开始（v2）
+   */
+  handleReasoningStarted(data: { sessionID: string; assistantMessageID: string; ordinal: number }): void {
+    this.ensureAssistantMessage(data.sessionID, data.assistantMessageID)
+    const state = this.sessions.get(data.sessionID)
+    if (!state) return
+
+    const msgIndex = state.messages.findIndex(m => m.info.id === data.assistantMessageID)
+    if (msgIndex === -1) return
+
+    const message = state.messages[msgIndex]
+    const partId = `${data.assistantMessageID}:reasoning:${data.ordinal}`
+    if (message.parts.some(p => p.id === partId)) return
+
+    const parts: Part[] = [
+      ...message.parts,
+      {
+        id: partId,
+        sessionID: data.sessionID,
+        messageID: data.assistantMessageID,
+        type: 'reasoning',
+        text: '',
+        time: { start: Date.now() },
+      },
+    ]
+    const newMessage = { ...message, parts, isStreaming: true }
+    state.messages = [...state.messages.slice(0, msgIndex), newMessage, ...state.messages.slice(msgIndex + 1)]
+    this.notify([data.sessionID])
+  }
+
+  /**
+   * 推理结束（v2）
+   */
+  handleReasoningEnded(data: {
+    sessionID: string
+    assistantMessageID: string
+    ordinal: number
+    text: string
+  }): void {
+    this.ensureAssistantMessage(data.sessionID, data.assistantMessageID)
+    this.replaceTextPart(data.sessionID, data.assistantMessageID, data.ordinal, 'reasoning', data.text)
+  }
+
+  /** 用权威文本覆盖某个 ordinal 的 text/reasoning part */
+  private replaceTextPart(
+    sessionID: string,
+    messageID: string,
+    ordinal: number,
+    kind: 'text' | 'reasoning',
+    text: string,
+  ): void {
+    const state = this.sessions.get(sessionID)
+    if (!state) return
+
+    const msgIndex = state.messages.findIndex(m => m.info.id === messageID)
+    if (msgIndex === -1) return
+
+    const message = state.messages[msgIndex]
+    const partId = `${messageID}:${kind}:${ordinal}`
+    const partIndex = message.parts.findIndex(p => p.id === partId)
+
+    const parts =
+      partIndex === -1
+        ? [
+            ...message.parts,
+            kind === 'text'
+              ? { id: partId, sessionID, messageID, type: 'text' as const, text }
+              : {
+                  id: partId,
+                  sessionID,
+                  messageID,
+                  type: 'reasoning' as const,
+                  text,
+                  time: { start: Date.now() },
+                },
+          ]
+        : message.parts.map((part, index) =>
+            index === partIndex ? ({ ...part, text } as Part) : part,
+          )
+
+    const newMessage = { ...message, parts }
+    state.messages = [...state.messages.slice(0, msgIndex), newMessage, ...state.messages.slice(msgIndex + 1)]
+    this.notify([sessionID])
+  }
+
   handleSessionIdle(sessionId: string) {
     const state = this.sessions.get(sessionId)
     if (!state) return
