@@ -291,8 +291,8 @@ export const ChatPane = memo(function ChatPane({
     pendingPermissionRequests,
     pendingQuestionRequests,
     handlePermissionReply,
-    handleQuestionReply,
-    handleQuestionReject,
+    handleFormReply,
+    handleFormCancel,
     isReplying,
 
     loadMoreHistory,
@@ -800,8 +800,8 @@ export const ChatPane = memo(function ChatPane({
         const request = pendingPermissionRequests.find(r => r.id === requestId)
         return handlePermissionReply(requestId, reply, effectiveDirectory, request?.sessionID)
       },
-      onQuestionReply: (requestId, answers) => handleQuestionReply(requestId, answers, effectiveDirectory),
-      onQuestionReject: requestId => handleQuestionReject(requestId, effectiveDirectory),
+      onQuestionReply: (form, answer) => handleFormReply(form, answer),
+      onQuestionReject: form => handleFormCancel(form),
       isReplying,
     }),
     [
@@ -809,8 +809,8 @@ export const ChatPane = memo(function ChatPane({
       pendingPermissionRequests,
       pendingQuestionRequests,
       handlePermissionReply,
-      handleQuestionReply,
-      handleQuestionReject,
+      handleFormReply,
+      handleFormCancel,
       isReplying,
       effectiveDirectory,
     ],
@@ -1011,9 +1011,9 @@ export const ChatPane = memo(function ChatPane({
 
       {!inlineToolRequests && pendingPermissionRequests.length === 0 && pendingQuestionRequests.length > 0 && (
         <QuestionDialog
-          request={pendingQuestionRequests[0]}
-          onReply={answers => handleQuestionReply(pendingQuestionRequests[0].id, answers, effectiveDirectory)}
-          onReject={() => handleQuestionReject(pendingQuestionRequests[0].id, effectiveDirectory)}
+          form={pendingQuestionRequests[0]}
+          onReply={(_formId, answer) => handleFormReply(pendingQuestionRequests[0], answer)}
+          onCancel={() => handleFormCancel(pendingQuestionRequests[0])}
           queueLength={pendingQuestionRequests.length}
           isReplying={isReplying}
           collapsed={questionCollapsed}

@@ -7,6 +7,9 @@
 
 export type * from '../types/api'
 
+/** 运行时辅助：判断表单字段是否属于「有选项可点」的类型 */
+export { isChoiceField } from '../types/api'
+
 export type { ModelInfo, FileCapabilities, Attachment, AttachmentType } from '../types/ui'
 
 export type { Model as ApiModel, Provider as ApiProvider, ProvidersResponse } from '../types/api/model'

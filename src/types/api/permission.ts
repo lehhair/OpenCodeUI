@@ -113,10 +113,17 @@ export type QuestionOption = FormOption
 
 export type QuestionAnswer = FormAnswer
 
-/** 表单字段是否属于「有选项可点」的类型 */
-export function isChoiceField(
-  field: FormField,
-): field is FormMultiselectField | FormStringField {
+/**
+ * 表单字段是否属于「有选项可点」的类型。
+ *
+ * 注意：**不是**类型谓词。v2 的 `FormStringField.options` 是可选的，
+ * 「有没有选项」不是类型层面的判别式；若声明成
+ * `field is FormMultiselectField | FormStringField`，TypeScript 会在
+ * 否定分支里把 FormStringField 一并排除，导致「无选项的字符串字段」
+ * 被窄化成 never。因此这里只返回 boolean。
+ */
+export function isChoiceField(field: FormField): boolean {
   if (field.type === 'multiselect') return true
-  return field.type === 'string' && Array.isArray(field.options) && field.options.length > 0
+  if (field.type === 'string') return Array.isArray(field.options) && field.options.length > 0
+  return false
 }

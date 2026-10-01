@@ -1,18 +1,18 @@
 // ============================================
-// usePermissionHandler - Permission & Question 处理 (Enhanced)
+// usePermissionHandler - 权限与表单处理（OpenCode v2）
 // ============================================
 
 import { useState, useCallback, useRef } from 'react'
 import {
   replyPermission,
-  replyQuestion,
-  rejectQuestion,
+  replyForm,
+  cancelForm,
   getPendingPermissions,
-  getPendingQuestions,
+  getPendingForms,
   type ApiPermissionRequest,
-  type ApiQuestionRequest,
+  type ApiFormInfo,
   type PermissionReply,
-  type QuestionAnswer,
+  type FormAnswer,
 } from '../api'
 import { activeSessionStore } from '../store'
 import { makeSessionKey } from '../utils/sessionKey'
@@ -21,10 +21,11 @@ import { permissionErrorHandler } from '../utils'
 export interface UsePermissionHandlerResult {
   // State
   pendingPermissionRequests: ApiPermissionRequest[]
-  pendingQuestionRequests: ApiQuestionRequest[]
+  /** v2 的待处理表单（取代 v1 的 question；命名保留以减少调用点改动） */
+  pendingQuestionRequests: ApiFormInfo[]
   // Setters (for SSE events)
   setPendingPermissionRequests: React.Dispatch<React.SetStateAction<ApiPermissionRequest[]>>
-  setPendingQuestionRequests: React.Dispatch<React.SetStateAction<ApiQuestionRequest[]>>
+  setPendingQuestionRequests: React.Dispatch<React.SetStateAction<ApiFormInfo[]>>
   // Handlers
   handlePermissionReply: (
     requestId: string,
@@ -32,8 +33,10 @@ export interface UsePermissionHandlerResult {
     directory?: string,
     sessionId?: string,
   ) => Promise<boolean>
-  handleQuestionReply: (requestId: string, answers: QuestionAnswer[], directory?: string) => Promise<boolean>
-  handleQuestionReject: (requestId: string, directory?: string) => Promise<boolean>
+  /** 提交表单答案（v2：键值对象） */
+  handleFormReply: (form: ApiFormInfo, answer: FormAnswer) => Promise<boolean>
+  /** 取消表单 */
+  handleFormCancel: (form: ApiFormInfo, message?: string) => Promise<boolean>
   // Refresh (fallback sync for pending requests) - 支持单个或多个 session IDs
   refreshPendingRequests: (sessionIds?: string | string[], directory?: string) => Promise<void>
   // Reset
@@ -80,7 +83,7 @@ async function withRetry<T>(fn: () => Promise<T>, retries = MAX_RETRIES, delay =
 
 export function usePermissionHandler(serverId: string): UsePermissionHandlerResult {
   const [pendingPermissionRequests, setPendingPermissionRequests] = useState<ApiPermissionRequest[]>([])
-  const [pendingQuestionRequests, setPendingQuestionRequests] = useState<ApiQuestionRequest[]>([])
+  const [pendingQuestionRequests, setPendingQuestionRequests] = useState<ApiFormInfo[]>([])
   const [isReplying, setIsReplying] = useState(false)
 
   // 防止重复回复
@@ -129,57 +132,69 @@ export function usePermissionHandler(serverId: string): UsePermissionHandlerResu
     [serverId],
   )
 
-  const handleQuestionReply = useCallback(
-    async (requestId: string, answers: QuestionAnswer[], directory?: string): Promise<boolean> => {
-      if (replyingIdsRef.current.has(requestId)) {
-        console.warn(`[Question] Already replying to ${requestId}`)
+  /**
+   * 提交表单答案。
+   *
+   * v2 的 `session.form.reply` 需要 sessionID（表单自带），
+   * 答案形状也从位置数组变为 `{ [field.key]: FormValue }`。
+   */
+  const handleFormReply = useCallback(
+    async (form: ApiFormInfo, answer: FormAnswer): Promise<boolean> => {
+      const formId = form.id
+      if (replyingIdsRef.current.has(formId)) {
+        console.warn(`[Form] Already replying to ${formId}`)
         return false
       }
 
-      replyingIdsRef.current.add(requestId)
+      replyingIdsRef.current.add(formId)
       setIsReplying(true)
 
       try {
-        await withRetry(() => replyQuestion(requestId, answers, directory, serverId))
-        setPendingQuestionRequests(prev => prev.filter(r => r.id !== requestId))
-        activeSessionStore.resolvePendingRequest(requestId)
+        await withRetry(() => replyForm(form.sessionID, formId, answer, serverId))
+        setPendingQuestionRequests(prev => prev.filter(r => r.id !== formId))
+        activeSessionStore.resolvePendingRequest(formId)
         return true
       } catch (error) {
-        permissionErrorHandler('question reply after retries', error)
-        setPendingQuestionRequests(prev => prev.filter(r => r.id !== requestId))
-        activeSessionStore.resolvePendingRequest(requestId)
+        permissionErrorHandler('form reply after retries', error)
+        setPendingQuestionRequests(prev => prev.filter(r => r.id !== formId))
+        activeSessionStore.resolvePendingRequest(formId)
         return false
       } finally {
-        replyingIdsRef.current.delete(requestId)
+        replyingIdsRef.current.delete(formId)
         setIsReplying(false)
       }
     },
     [serverId],
   )
 
-  const handleQuestionReject = useCallback(async (requestId: string, directory?: string): Promise<boolean> => {
-    if (replyingIdsRef.current.has(requestId)) {
-      return false
-    }
+  /** 取消表单（取代 v1 的 question.reject） */
+  const handleFormCancel = useCallback(
+    async (form: ApiFormInfo, message?: string): Promise<boolean> => {
+      const formId = form.id
+      if (replyingIdsRef.current.has(formId)) {
+        return false
+      }
 
-    replyingIdsRef.current.add(requestId)
-    setIsReplying(true)
+      replyingIdsRef.current.add(formId)
+      setIsReplying(true)
 
-    try {
-      await withRetry(() => rejectQuestion(requestId, directory, serverId))
-      setPendingQuestionRequests(prev => prev.filter(r => r.id !== requestId))
-      activeSessionStore.resolvePendingRequest(requestId)
-      return true
-    } catch (error) {
-      permissionErrorHandler('question reject after retries', error)
-      setPendingQuestionRequests(prev => prev.filter(r => r.id !== requestId))
-      activeSessionStore.resolvePendingRequest(requestId)
-      return false
-    } finally {
-      replyingIdsRef.current.delete(requestId)
-      setIsReplying(false)
-    }
-  }, [serverId])
+      try {
+        await withRetry(() => cancelForm(form.sessionID, formId, message, serverId))
+        setPendingQuestionRequests(prev => prev.filter(r => r.id !== formId))
+        activeSessionStore.resolvePendingRequest(formId)
+        return true
+      } catch (error) {
+        permissionErrorHandler('form cancel after retries', error)
+        setPendingQuestionRequests(prev => prev.filter(r => r.id !== formId))
+        activeSessionStore.resolvePendingRequest(formId)
+        return false
+      } finally {
+        replyingIdsRef.current.delete(formId)
+        setIsReplying(false)
+      }
+    },
+    [serverId],
+  )
 
   // 主动轮询获取 pending 请求（用于 SSE 可能丢失事件的情况）
   // 一次拉取全量数据，用 sessionFamily 过滤后直接替换本地状态
@@ -197,7 +212,7 @@ export function usePermissionHandler(serverId: string): UsePermissionHandlerResu
       // 只请求一次全量数据（不按 sessionId 分别请求）
       const [allPermissions, allQuestions] = await Promise.all([
         getPendingPermissions(undefined, directory, serverId).catch(() => []),
-        getPendingQuestions(undefined, directory, serverId).catch(() => []),
+        getPendingForms(undefined, directory, serverId).catch(() => []),
       ])
 
       const nextPermissions =
@@ -245,8 +260,8 @@ export function usePermissionHandler(serverId: string): UsePermissionHandlerResu
     setPendingPermissionRequests,
     setPendingQuestionRequests,
     handlePermissionReply,
-    handleQuestionReply,
-    handleQuestionReject,
+    handleFormReply,
+    handleFormCancel,
     refreshPendingRequests,
     resetPendingRequests,
     isReplying,

@@ -27,7 +27,7 @@ import type { EventCallbacks } from '../types/api/event'
 import { replyPermission } from '../api/permission'
 import { autoApproveStore } from '../store/autoApproveStore'
 import { multiServerStore } from '../store/multiServerStore'
-import type { ApiMessage, ApiPart, ApiPermissionRequest, ApiQuestionRequest } from '../api/types'
+import type { ApiMessage, ApiFormInfo, ApiPermissionRequest } from '../api/types'
 import type { SessionStatusMap } from '../types/api/session'
 
 // ============================================
@@ -41,12 +41,14 @@ import type { SessionStatusMap } from '../types/api/session'
 export interface SessionEventCallbacks {
   onPermissionAsked?: (request: ApiPermissionRequest) => void
   onPermissionReplied?: (data: { sessionID: string; requestID: string }) => void
-  onQuestionAsked?: (request: ApiQuestionRequest) => void
-  onQuestionReplied?: (data: { sessionID: string; requestID: string }) => void
-  onQuestionRejected?: (data: { sessionID: string; requestID: string }) => void
+  /** v2：question 由 form 取代 */
+  onFormCreated?: (form: ApiFormInfo) => void
+  onFormReplied?: (data: { sessionID: string; formID: string }) => void
+  onFormCancelled?: (data: { sessionID: string; formID: string }) => void
   onScrollRequest?: () => void
   onSessionIdle?: (sessionID: string) => void
-  onSessionError?: (sessionID: string) => void
+  /** v2：会话错误由 execution.failed 表达 */
+  onExecutionFailed?: (sessionID: string) => void
   onReconnected?: (reason: 'network' | 'server-switch') => void
 }
 

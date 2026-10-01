@@ -73,8 +73,8 @@ export const ToolPartView = memo(function ToolPartView({
     pendingPermissions,
     pendingQuestions,
     onPermissionReply,
-    onQuestionReply,
-    onQuestionReject,
+    onFormReply,
+    onFormCancel,
     isReplying,
   } = useInlineToolRequests()
   const childSession = getTaskChildSessionRef(part, serverId)
