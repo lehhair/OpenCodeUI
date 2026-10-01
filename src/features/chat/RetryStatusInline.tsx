@@ -25,9 +25,22 @@ export const RetryStatusInline = memo(function RetryStatusInline({ status }: { s
   const [expanded, setExpanded] = useState(false)
   const shouldRenderBody = useMessageExpandRender(expanded)
 
+  /**
+   * 距下次重试的剩余毫秒。
+   *
+   * **单位假设**：v2 的 `SessionStatus.retry.next` 按「绝对时间戳（ms）」使用，
+   * 因此这里算 `next - now`。客户端类型只写了 `next: number`，没有任何注释
+   * 说明单位，我用真实服务端验证不了——所以加了一道上限保护：
+   * 若结果超过 10 分钟，说明大概率不是时间戳（例如服务端给的是「延迟毫秒数」），
+   * 此时宁可不显示倒计时，也不显示一个荒谬的数字（比如 "1758000000.0s"）。
+   */
+  const MAX_SANE_REMAINING_MS = 10 * 60 * 1000
+
   const remainingMs = useMemo(() => {
     if (!Number.isFinite(status.next)) return null
-    return status.next - now
+    const diff = status.next - now
+    if (diff > MAX_SANE_REMAINING_MS) return null
+    return diff
   }, [status.next, now])
 
   const nextLabel = remainingMs !== null && remainingMs > 0 ? formatRemaining(remainingMs) : null
