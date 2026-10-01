@@ -22,7 +22,6 @@ import type {
   FileReadOutput,
   FileSystemEntry,
   FileWriteOutput,
-  VcsFileStatus,
 } from '@opencode/client/promise'
 
 /** 文件系统条目类型 */
@@ -63,10 +62,19 @@ export interface FileContent {
 export type FileWriteResponse = FileWriteOutput
 
 /**
- * 文件在版本控制中的状态。
- * v1 的 `File` 在 v2 由 `vcs.status` 提供，形状等价于 FileDiffInfo 去掉 patch。
+ * 文件在版本控制中的状态（UI 侧形状）。
+ *
+ * v2 的 `vcs.status()` 返回 `{ file, additions, deletions, status }`，
+ * 而 UI 内部（FileExplorer / useFileExplorer）一直用 `added`/`removed` 计数，
+ * 因此这里保留 UI 命名，由 api/file.ts 与 useFileExplorer 在投影时换算。
  */
-export type FileStatusItem = VcsFileStatus
+export interface FileStatusItem {
+  /** 根相对路径（与 statusMap 的 key 一致） */
+  file: string
+  added: number
+  removed: number
+  status: 'added' | 'modified' | 'deleted'
+}
 
 /**
  * 可 diff 的文件条目。

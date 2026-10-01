@@ -14,7 +14,7 @@ import {
   useMemo,
 } from 'react'
 import { useTranslation } from 'react-i18next'
-import { searchFiles, listDirectory, type ApiAgent } from '../../api/client'
+import { searchFiles, listDirectory, fileBaseName, type ApiAgent } from '../../api/client'
 import { fileErrorHandler } from '../../utils'
 import { scrollItemIntoView } from '../../utils/scrollUtils'
 import type { MentionType, MentionItem } from './types'
@@ -176,15 +176,17 @@ export const MentionMenu = forwardRef<MentionMenuHandle, MentionMenuProps>(funct
           const lowerFilter = filter.toLowerCase()
 
           nodes.forEach(n => {
+            // v2 条目只有 { path, type }：展示名取 basename
+            const name = fileBaseName(n.path)
             // 过滤
-            if (lowerFilter && !n.name.toLowerCase().includes(lowerFilter)) {
+            if (lowerFilter && !name.toLowerCase().includes(lowerFilter)) {
               return
             }
-            const fullPath = cleanPath === '.' ? n.name : `${cleanPath}/${n.name}`
+            const fullPath = cleanPath === '.' ? name : `${cleanPath}/${name}`
             if (n.type === 'directory') {
-              folders.push(createItem('folder', n.name, fullPath))
+              folders.push(createItem('folder', name, fullPath))
             } else {
-              files.push(createItem('file', n.name, fullPath))
+              files.push(createItem('file', name, fullPath))
             }
           })
 

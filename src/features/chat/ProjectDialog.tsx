@@ -1,7 +1,7 @@
 import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { FolderIcon, ArrowUpIcon, SpinnerIcon, PlusIcon } from '../../components/Icons'
-import { listDirectory, getPath } from '../../api'
+import { listDirectory, getPath, fileBaseName, toAbsoluteFilePath } from '../../api'
 import { fileErrorHandler } from '../../utils'
 import { scrollItemIntoView } from '../../utils/scrollUtils'
 import { Dialog } from '../../components/ui/Dialog'
@@ -105,7 +105,8 @@ export function ProjectDialog({ isOpen, onClose, onSelect, initialPath = '', ser
         if (!path) {
           try {
             const p = await getPath(serverId)
-            path = p.home
+            // v2 的 LocationPublicInfo 没有 home；用服务器工作目录作为默认起点
+            path = p.directory
           } catch {
             /* ignore */
           }
@@ -151,10 +152,11 @@ export function ProjectDialog({ isOpen, onClose, onSelect, initialPath = '', ser
 
           const fileItems = nodes
             .filter(n => n.type === 'directory')
-            .sort((a, b) => a.name.localeCompare(b.name))
+            // v2 条目只有 { path, type }：展示名与绝对路径由 path 派生
+            .sort((a, b) => fileBaseName(a.path).localeCompare(fileBaseName(b.path)))
             .map(n => ({
-              name: n.name,
-              path: normalizePath(n.absolute),
+              name: fileBaseName(n.path),
+              path: normalizePath(toAbsoluteFilePath(n.path, currentDir)),
               type: n.type,
             }))
 

@@ -157,24 +157,29 @@ export function useFileExplorer(options: UseFileExplorerOptions = {}): UseFileEx
         if (loadId !== statusLoadIdRef.current) return
 
         status.forEach(item => {
-          const normalized = normalizePath(item.path)
+          // v2 的 VcsFileStatus 用 `file` 而不是 `path`
+          const normalized = normalizePath(item.file)
           if (normalized.startsWith('../')) return
-          statusMap.set(normalized, { ...item, path: normalized })
+          statusMap.set(normalized, { ...item, file: normalized })
         })
       } else {
+        // v2 的 vcs.diff 模式只有 working / branch / committed，
+        // UI 的 'git' 对应 working
         const diffs =
-          changeMode === 'git' || changeMode === 'branch'
-            ? await getVcsDiff(changeMode, effectiveDirectory, serverId)
-            : changeMode === 'turn'
-              ? await getLastTurnDiff(sessionId, effectiveDirectory, serverId)
-              : await getSessionDiff(sessionId, effectiveDirectory, serverId)
+          changeMode === 'git'
+            ? await getVcsDiff('working', effectiveDirectory, serverId)
+            : changeMode === 'branch'
+              ? await getVcsDiff('branch', effectiveDirectory, serverId)
+              : changeMode === 'turn'
+                ? await getLastTurnDiff(sessionId, effectiveDirectory, serverId)
+                : await getSessionDiff(sessionId, effectiveDirectory, serverId)
 
         if (loadId !== statusLoadIdRef.current) return
 
         diffs.forEach(diff => {
           const normalized = normalizePath(diff.file)
           statusMap.set(normalized, {
-            path: normalized,
+            file: normalized,
             added: diff.additions,
             removed: diff.deletions,
             status: getFileStatusFromDiff(diff),
@@ -572,7 +577,7 @@ function computeDirectoryStatus(statusMap: Map<string, FileStatusItem>): void {
   // 将目录状态添加到 statusMap
   for (const [dirPath, status] of dirStatuses) {
     if (!statusMap.has(dirPath)) {
-      statusMap.set(dirPath, { path: dirPath, added: 0, removed: 0, status })
+      statusMap.set(dirPath, { file: dirPath, added: 0, removed: 0, status })
     }
   }
 }
