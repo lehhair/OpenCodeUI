@@ -137,7 +137,6 @@ function getReconnectDelay(attempt: number): number {
 // v2 的事件是扁平对象，直接读 `event.type` 与 `event.data`。
 
 function dispatchEvent(callbacks: EventCallbacks, event: GlobalEvent): void {
-
   switch (event.type) {
     // ---- 会话生命周期 ----
     case 'session.created':
@@ -167,6 +166,18 @@ function dispatchEvent(callbacks: EventCallbacks, event: GlobalEvent): void {
     case 'session.permissions':
       callbacks.onSessionPermissions?.(event.data)
       break
+
+    // 注意：**不要**在这里加 `session.message.content.updated`。
+    //
+    // 该事件类型确实存在于生成类型里（SessionMessageContentUpdated），
+    // 但**不在事件流的联合类型 V2Event 里**——也就是说 SSE 不会推送它
+    //（它属于持久化/回放侧的事件，不是订阅面）。我曾在 useGlobalEvents 里
+    // 实现过对应的 onMessageContentUpdated，看上去"接好了"，实际永远收不到，
+    // 属于"实现了却没人调用"的死代码。
+    //
+    // 因此助手消息的 content 只有两条来源，两者都在下面的流式事件里：
+    //   1. 文本/推理：session.text.* / session.reasoning.*
+    //   2. 工具：session.tool.input.started（**唯一带工具名**）+ called/progress/success/failed
 
     // ---- 文本流 ----
     case 'session.text.started':
@@ -550,10 +561,7 @@ export function getConnectionInfo(): ConnectionInfo {
 /**
  * 订阅指定服务器的连接状态变化。
  */
-export function subscribeToServerConnectionState(
-  serverId: string,
-  fn: (info: ConnectionInfo) => void,
-): () => void {
+export function subscribeToServerConnectionState(serverId: string, fn: (info: ConnectionInfo) => void): () => void {
   let set = connectionListeners.get(serverId)
   if (!set) {
     set = new Set()

@@ -518,20 +518,15 @@ export function useGlobalEvents(directories?: string[]) {
         //
         // v2 没有 v1 的 part 事件（message.part.updated/delta/removed）；
         // 实时输出是一串扁平事件，按 ordinal（文本/推理）或 id（工具）关联。
+        //
+        // 这里**不接** `session.message.content.updated`：该类型虽然存在于生成
+        // 类型里，但不在事件流的联合类型 V2Event 中 —— SSE 根本不会推送它。
+        // （我曾实现过 onMessageContentUpdated，看起来"接好了"，实际永远收不到，
+        // 属于"实现了却没人调用"的死代码；已删除，避免再次误判。）
+        // 助手消息的 content 只有两条来源，都在下面：
+        //   1. 文本/推理 → session.text.* / session.reasoning.*
+        //   2. 工具 → session.tool.input.started（唯一带工具名）+ called/progress/success/failed
         // ============================================
-
-        /**
-         * 助手消息的 content 快照。
-         *
-         * v2 会把助手消息的完整 content 推过来（`session.message.content.updated`），
-         * 这是工具 part 的权威来源、也是文本/推理的最终定稿。
-         * store 里早有 handleMessageContent，但一直没人接线，导致快照被整条丢弃。
-         */
-        onMessageContentUpdated: data => {
-          const scopedId = scope(data.sessionID)
-          messageStore.handleMessageContent(data.messageID, scopedId, data.content)
-          scheduleScroll(scopedId)
-        },
 
         /**
          * 工具开始接收输入。
