@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { ApiSession } from '../../api'
+import { createSessionPlaceholder, type ApiSession } from '../../api'
 import { pinnedSessionsStore } from '../../store/pinnedSessionsStore'
 import { SessionListItem } from './SessionList'
 
@@ -34,12 +34,12 @@ vi.mock('../chat/sidebar/SessionChildrenSlot', () => ({
 }))
 
 describe('SessionListItem', () => {
-  const session: ApiSession = {
+  // v2 的 SessionInfo 字段较多，测试里用占位构造器补齐必填项
+  const session: ApiSession = createSessionPlaceholder({
     id: 'session-1',
     title: 'Session One',
     directory: '/workspace/demo',
-    time: { updated: 1 },
-  } as ApiSession
+  })
 
   beforeEach(() => {
     useSessionActiveEntryMock.mockReturnValue(null)

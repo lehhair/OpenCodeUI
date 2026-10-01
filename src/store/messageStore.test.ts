@@ -42,9 +42,24 @@ function textAt(sessionId: string, msgIndex: number, partIndex = 0): string | un
   return part && part.type === 'text' ? part.text : undefined
 }
 
+// 流式 delta 通过 requestAnimationFrame 节流，测试里收集回调后手动 flush
+const rafQueue: Array<(time: number) => void> = []
+
+function flushFrames(): void {
+  while (rafQueue.length > 0) {
+    rafQueue.shift()?.(0)
+  }
+}
+
 describe('messageStore (v2)', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
+    rafQueue.length = 0
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation(cb => {
+      rafQueue.push(cb as (time: number) => void)
+      return rafQueue.length
+    })
+    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => undefined)
     messageStore.clearAll()
   })
 
@@ -80,14 +95,14 @@ describe('messageStore (v2)', () => {
       ordinal: 0,
       delta: ' world',
     })
-    messageStore.flushDirtyMessages()
+    flushFrames()
     messageStore.handleTextDelta({
       sessionID: SESSION,
       assistantMessageID: 'message-1',
       ordinal: 0,
       delta: '!',
     })
-    messageStore.flushDirtyMessages()
+    flushFrames()
 
     expect(textAt(SESSION, 0)).toBe('hello world!')
   })
@@ -102,7 +117,7 @@ describe('messageStore (v2)', () => {
       ordinal: 0,
       delta: 'early',
     })
-    messageStore.flushDirtyMessages()
+    flushFrames()
 
     expect(textAt(SESSION, 0)).toBe('early')
   })
@@ -116,7 +131,7 @@ describe('messageStore (v2)', () => {
       ordinal: 1,
       delta: 'second',
     })
-    messageStore.flushDirtyMessages()
+    flushFrames()
 
     expect(textAt(SESSION, 0, 0)).toBe('first')
     expect(textAt(SESSION, 0, 1)).toBe('second')
@@ -131,7 +146,7 @@ describe('messageStore (v2)', () => {
       ordinal: 0,
       delta: 'thinking',
     })
-    messageStore.flushDirtyMessages()
+    flushFrames()
 
     const part = messageStore.getSessionState(SESSION)?.messages[0].parts[0]
     expect(part).toMatchObject({ type: 'reasoning', text: 'thinking' })

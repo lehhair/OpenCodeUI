@@ -9,7 +9,7 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { findPermissionRequestForTool, findQuestionRequestForTool } from './InlineToolRequestContext'
-import type { ApiPermissionRequest, ApiQuestionRequest } from '../../api'
+import type { ApiPermissionRequest, ApiFormInfo } from '../../api'
 
 const { childSessionStoreMock } = vi.hoisted(() => {
   // 仿真 childSessionStore 的存储语义：key 一律是复合 `${serverId}::${sessionId}`，按父子链递归查找
@@ -57,10 +57,9 @@ describe('task 工具按 pane 服务器匹配子 session 请求', () => {
     const permission: ApiPermissionRequest = {
       id: 'perm-1',
       sessionID: `${PANE_SERVER}::ses_grand`,
-      permission: 'bash',
-      patterns: ['npm test'],
+      action: 'bash',
+      resources: ['npm test'],
       metadata: {},
-      always: [],
     }
 
     const matched = findPermissionRequestForTool([permission], 'call-unknown', {
@@ -72,10 +71,11 @@ describe('task 工具按 pane 服务器匹配子 session 请求', () => {
   })
 
   it('孙 session 发出的提问请求同样按 pane 服务器匹配', () => {
-    const question: ApiQuestionRequest = {
+    const question: ApiFormInfo = {
       id: 'ques-1',
       sessionID: `${PANE_SERVER}::ses_grand`,
-      questions: [],
+      title: 'Pick one',
+      fields: [{ key: 'choice', type: 'string' }],
     }
 
     const matched = findQuestionRequestForTool([question], 'call-unknown', {

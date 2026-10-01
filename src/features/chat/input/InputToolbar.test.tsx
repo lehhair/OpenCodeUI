@@ -10,8 +10,8 @@ const isTauriMobileMock = vi.fn()
 const openMock = vi.fn()
 const readFileMock = vi.fn()
 const agents: ApiAgent[] = [
-  { name: 'build', description: 'Build things', mode: 'primary', permission: [], options: {} },
-  { name: 'plan', description: 'Plan work', mode: 'primary', permission: [], options: {} },
+  { id: 'build', name: 'build', description: 'Build things', mode: 'primary', permissions: [], request: { settings: {}, headers: {}, body: {} }, hidden: false },
+  { id: 'plan', name: 'plan', description: 'Plan work', mode: 'primary', permissions: [], request: { settings: {}, headers: {}, body: {} }, hidden: false },
 ]
 
 vi.mock('../../../hooks', () => ({

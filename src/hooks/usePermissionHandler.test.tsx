@@ -2,12 +2,12 @@ import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { usePermissionHandler } from './usePermissionHandler'
 
-const { replyPermissionMock, getPendingPermissionsMock, replyQuestionMock, rejectQuestionMock, activeSessionStoreMock } =
+const { replyPermissionMock, getPendingPermissionsMock, replyFormMock, cancelFormMock, activeSessionStoreMock } =
   vi.hoisted(() => ({
     replyPermissionMock: vi.fn(() => Promise.resolve(true)),
     getPendingPermissionsMock: vi.fn(() => Promise.resolve([])),
-    replyQuestionMock: vi.fn((..._args: unknown[]) => Promise.resolve(true)),
-    rejectQuestionMock: vi.fn((..._args: unknown[]) => Promise.resolve(true)),
+    replyFormMock: vi.fn((..._args: unknown[]) => Promise.resolve(true)),
+    cancelFormMock: vi.fn((..._args: unknown[]) => Promise.resolve(true)),
     activeSessionStoreMock: {
       resolvePendingRequest: vi.fn(),
     },
@@ -15,10 +15,10 @@ const { replyPermissionMock, getPendingPermissionsMock, replyQuestionMock, rejec
 
 vi.mock('../api', () => ({
   replyPermission: replyPermissionMock,
-  replyQuestion: replyQuestionMock,
-  rejectQuestion: rejectQuestionMock,
+  replyForm: replyFormMock,
+  cancelForm: cancelFormMock,
   getPendingPermissions: getPendingPermissionsMock,
-  getPendingQuestions: vi.fn(() => Promise.resolve([])),
+  getPendingForms: vi.fn(() => Promise.resolve([])),
 }))
 
 vi.mock('../store', () => ({
@@ -46,10 +46,9 @@ describe('usePermissionHandler', () => {
         {
           id: 'perm-1',
           sessionID: 'session-1',
-          permission: 'bash',
-          patterns: ['npm test'],
+          action: 'bash',
+          resources: ['npm test'],
           metadata: {},
-          always: [],
         },
       ])
     })
@@ -75,10 +74,9 @@ describe('usePermissionHandler', () => {
         {
           id: 'perm-stale',
           sessionID: 'session-1',
-          permission: 'bash',
-          patterns: ['npm test'],
+          action: 'bash',
+          resources: ['npm test'],
           metadata: {},
-          always: [],
         },
       ])
     })
@@ -106,11 +104,15 @@ describe('usePermissionHandler', () => {
     rerender({ serverId: 'wsl:Ubuntu' })
 
     await act(async () => {
-      await result.current.handleQuestionReply('question-1', [['A']], '/home/u/project')
-      await result.current.handleQuestionReject('question-2', '/home/u/project')
+      // v2 的表单接口需要 sessionID（表单自带），答案是键值对象
+      await result.current.handleFormReply(
+        { id: 'form-1', sessionID: 'session-1', title: 'Pick', fields: [{ key: 'choice', type: 'string' }] },
+        { choice: 'A' },
+      )
+      await result.current.handleFormCancel({ id: 'form-2', sessionID: 'session-1', title: 'Pick', fields: [{ key: 'choice', type: 'string' }] })
     })
 
-    expect(replyQuestionMock).toHaveBeenCalledWith('question-1', [['A']], '/home/u/project', 'wsl:Ubuntu')
-    expect(rejectQuestionMock).toHaveBeenCalledWith('question-2', '/home/u/project', 'wsl:Ubuntu')
+    expect(replyFormMock).toHaveBeenCalledWith('session-1', 'form-1', { choice: 'A' }, 'wsl:Ubuntu')
+    expect(cancelFormMock).toHaveBeenCalledWith('session-1', 'form-2', undefined, 'wsl:Ubuntu')
   })
 })

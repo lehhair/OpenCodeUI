@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { ApiSession } from '../../../api'
+import { createSessionPlaceholder, type ApiSession } from '../../../api'
 import type { NotificationEntry } from '../../../store/notificationStore'
 import { NotificationItem } from './NotificationItem'
 
@@ -30,11 +30,12 @@ describe('NotificationItem', () => {
     timestamp: Date.now(),
     read: false,
   }
-  const resolvedSession: ApiSession = {
+  // v2 的 SessionInfo 字段较多，测试里用占位构造器补齐必填项
+  const resolvedSession: ApiSession = createSessionPlaceholder({
     id: 'session-1',
     title: 'Build finished',
     directory: '/workspace',
-  } as ApiSession
+  })
 
   beforeEach(() => {
     markReadMock.mockReset()

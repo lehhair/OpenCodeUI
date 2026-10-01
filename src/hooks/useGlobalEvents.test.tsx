@@ -483,10 +483,13 @@ describe('useGlobalEvents', () => {
 
     await waitFor(() => expect(getSessionStatusMock).toHaveBeenCalledWith('/two', 'local'))
 
-    callbacks!.onQuestionAsked?.({
-      id: 'question-1',
-      sessionID: 'question-session',
-      questions: [{ header: 'Need input' }],
+    callbacks!.onFormCreated?.({
+      form: {
+        id: 'question-1',
+        sessionID: 'question-session',
+        title: 'Need input',
+        fields: [{ key: 'choice', type: 'string' }],
+      },
     } as never)
 
     statusDeferreds.get('/two')?.resolve({})
@@ -535,22 +538,18 @@ describe('useGlobalEvents', () => {
 
     await waitFor(() => expect(callbacks).toBeDefined())
 
-    callbacks!.onQuestionAsked?.({
-      id: 'question-1',
-      sessionID: 'child-session',
-      questions: [{ header: 'First question' }],
-    })
-    callbacks!.onQuestionAsked?.({
-      id: 'question-2',
-      sessionID: 'child-session',
-      questions: [{ header: 'Second question' }],
-    })
+    callbacks!.onFormCreated?.({
+      form: { id: 'question-1', sessionID: 'child-session', title: 'First question', fields: [{ key: 'choice', type: 'string' }] },
+    } as never)
+    callbacks!.onFormCreated?.({
+      form: { id: 'question-2', sessionID: 'child-session', title: 'Second question', fields: [{ key: 'choice', type: 'string' }] },
+    } as never)
 
     expect(consumerAskedMock).not.toHaveBeenCalled()
 
-    callbacks!.onQuestionReplied?.({
+    callbacks!.onFormReplied?.({
       sessionID: 'child-session',
-      requestID: 'question-1',
+      id: 'question-1',
     })
 
     getFocusedSessionIdMock.mockReturnValue('local::parent-session')
@@ -559,7 +558,7 @@ describe('useGlobalEvents', () => {
     })
 
     const unregister = registerSessionConsumer('pane-1', 'local::parent-session', {
-      onQuestionAsked: consumerAskedMock,
+      onFormCreated: consumerAskedMock,
     })
 
     callbacks!.onSessionCreated?.({
@@ -810,11 +809,14 @@ describe('useGlobalEvents', () => {
     },
     {
       disabledType: 'question',
-      trigger: 'onQuestionAsked',
+      trigger: 'onFormCreated',
       payload: {
-        id: 'question-3',
-        sessionID: 'background-session',
-        questions: [{ header: 'Need input' }],
+        form: {
+          id: 'question-3',
+          sessionID: 'background-session',
+          title: 'Need input',
+          fields: [{ key: 'choice', type: 'string' }],
+        },
       },
     },
     {

@@ -1,6 +1,6 @@
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { ApiMessage, ApiMessageWithParts, ApiPart } from '../api/types'
+import type { AssistantMessage, SessionMessage, UserMessage } from '../api/types'
 import { messageStore } from './messageStore'
 import {
   useHasMessages,
@@ -10,6 +10,15 @@ import {
   useSessionState,
 } from './messageStoreHooks'
 import { paneLayoutStore } from './paneLayoutStore'
+
+// ============================================
+// v2 变更说明
+//
+// v1 的测试用 `{ info, parts }` 入参与 handlePartUpdated 驱动 store。
+// v2 的消息自带 content，且入参是**原生消息**（store 内部做投影），
+// 因此工厂改为原生形状；「同一条消息内容变化」改用
+// handleMessageContent（权威 content 快照）。
+// ============================================
 
 const { paneLayoutListeners } = vi.hoisted(() => ({
   paneLayoutListeners: new Set<() => void>(),
@@ -25,36 +34,38 @@ vi.mock('./paneLayoutStore', () => ({
   },
 }))
 
-function createUserMessage(id: string, created: number): ApiMessage {
+function createUserMessage(id: string, created: number): UserMessage {
   return {
     id,
-    sessionID: 'session-1',
-    role: 'user',
+    type: 'user',
     time: { created },
-    agent: 'build',
-    model: { providerID: 'provider-1', modelID: 'model-1' },
+    text: id,
   }
 }
 
-function createTextPart(
-  id: string,
-  messageID: string,
-  text: string,
-): ApiPart & { sessionID: string; messageID: string } {
+function createAssistantMessage(id: string, text: string, created: number): AssistantMessage {
   return {
     id,
-    sessionID: 'session-1',
-    messageID,
-    type: 'text',
-    text,
+    type: 'assistant',
+    agent: 'build',
+    model: { id: 'model-1', providerID: 'provider-1' },
+    content: [{ type: 'text', text }],
+    time: { created },
   }
 }
 
-function createMessageWithParts(id: string, text: string, created: number): ApiMessageWithParts {
-  return {
-    info: createUserMessage(id, created),
-    parts: [createTextPart(`part-${id}`, id, text)],
-  }
+function textContent(text: string): AssistantMessage['content'] {
+  return [{ type: 'text', text }]
+}
+
+function messageText(sessionId: string, messageId: string): string | undefined {
+  const message = messageStore.getSessionState(sessionId)?.messages.find(m => m.info.id === messageId)
+  const part = message?.parts[0]
+  return part && part.type === 'text' ? part.text : undefined
+}
+
+function sessionsOf(sessionId: string): SessionMessage[] {
+  return messageStore.getSessionState(sessionId)?.messages.map(m => ({ id: m.info.id })) as SessionMessage[]
 }
 
 describe('useSessionState', () => {
@@ -64,9 +75,9 @@ describe('useSessionState', () => {
 
   it('returns only visible messages after revert', () => {
     messageStore.setMessages('session-1', [
-      createMessageWithParts('message-1', 'one', 1),
-      createMessageWithParts('message-2', 'two', 2),
-      createMessageWithParts('message-3', 'three', 3),
+      createUserMessage('message-1', 1),
+      createUserMessage('message-2', 2),
+      createUserMessage('message-3', 3),
     ])
     messageStore.setRevertState('session-1', {
       messageId: 'message-2',
@@ -80,7 +91,7 @@ describe('useSessionState', () => {
   })
 
   it('disables undo when no visible user messages remain', () => {
-    messageStore.setMessages('session-1', [createMessageWithParts('message-1', 'one', 1)])
+    messageStore.setMessages('session-1', [createUserMessage('message-1', 1)])
     messageStore.setRevertState('session-1', {
       messageId: 'message-1',
       history: [],
@@ -93,13 +104,8 @@ describe('useSessionState', () => {
   })
 
   it('does not re-render when another session changes', async () => {
-    messageStore.setMessages('session-1', [createMessageWithParts('message-1', 'one', 1)])
-    messageStore.setMessages('session-2', [
-      {
-        info: { ...createUserMessage('message-2', 2), sessionID: 'session-2' },
-        parts: [{ ...createTextPart('part-message-2', 'message-2', 'two'), sessionID: 'session-2' }],
-      },
-    ])
+    messageStore.setMessages('session-1', [createUserMessage('message-1', 1)])
+    messageStore.setMessages('session-2', [createUserMessage('message-2', 2)])
 
     let renderCount = 0
     const { result } = renderHook(() => {
@@ -108,10 +114,7 @@ describe('useSessionState', () => {
     })
     expect(result.current?.messages.map(message => message.info.id)).toEqual(['message-1'])
 
-    messageStore.handlePartUpdated({
-      ...createTextPart('part-message-2', 'message-2', 'two updated'),
-      sessionID: 'session-2',
-    })
+    messageStore.handleMessageUpdated(createUserMessage('message-3', 3), 'session-2')
     await new Promise(resolve => requestAnimationFrame(resolve))
 
     expect(renderCount).toBe(1)
@@ -127,22 +130,14 @@ describe('focused snapshot reuse', () => {
   })
 
   it('reuses the focused snapshot object when only unrelated session data changes', async () => {
-    messageStore.setMessages('session-1', [createMessageWithParts('message-1', 'one', 1)])
-    messageStore.setMessages('session-2', [
-      {
-        info: { ...createUserMessage('message-2', 2), sessionID: 'session-2' },
-        parts: [{ ...createTextPart('part-message-2', 'message-2', 'two'), sessionID: 'session-2' }],
-      },
-    ])
+    messageStore.setMessages('session-1', [createUserMessage('message-1', 1)])
+    messageStore.setMessages('session-2', [createUserMessage('message-2', 2)])
 
     const { result } = renderHook(() => useMessageStore())
     const first = result.current
 
     await act(async () => {
-      messageStore.handlePartUpdated({
-        ...createTextPart('part-message-2', 'message-2', 'two updated'),
-        sessionID: 'session-2',
-      })
+      messageStore.handleMessageUpdated(createUserMessage('message-3', 3), 'session-2')
       await new Promise(resolve => requestAnimationFrame(resolve))
     })
 
@@ -150,7 +145,7 @@ describe('focused snapshot reuse', () => {
   })
 
   it('keeps selector result stable when selected fields do not change', async () => {
-    messageStore.setMessages('session-1', [createMessageWithParts('message-1', 'one', 1)])
+    messageStore.setMessages('session-1', [createAssistantMessage('message-1', 'one', 1)])
 
     let renderCount = 0
     const { result } = renderHook(() => {
@@ -164,17 +159,17 @@ describe('focused snapshot reuse', () => {
     const afterMount = renderCount
 
     await act(async () => {
-      messageStore.handlePartUpdated(createTextPart('part-message-1', 'message-1', 'one updated'))
+      // 内容变了，但消息条数与 sessionId 没变 → selector 不应逼组件再渲
+      messageStore.handleMessageContent('message-1', 'session-1', textContent('one updated'))
       await new Promise(resolve => requestAnimationFrame(resolve))
     })
 
-    // sessionId / 是否有消息 未变，selector 不应逼组件再渲
     expect(renderCount).toBe(afterMount)
     expect(result.current).toEqual({ sessionId: 'session-1', hasMessages: true })
   })
 
   it('keeps header meta and hasMessages stable across text deltas', async () => {
-    messageStore.setMessages('session-1', [createMessageWithParts('message-1', 'one', 1)])
+    messageStore.setMessages('session-1', [createAssistantMessage('message-1', 'one', 1)])
     messageStore.updateSessionMetadata('session-1', { title: 'Hello', directory: '/repo' })
     await act(async () => {
       await new Promise(resolve => requestAnimationFrame(resolve))
@@ -201,7 +196,7 @@ describe('focused snapshot reuse', () => {
     const hasMessagesAfterMount = hasMessagesRenders
 
     await act(async () => {
-      messageStore.handlePartUpdated(createTextPart('part-message-1', 'message-1', 'one updated'))
+      messageStore.handleMessageContent('message-1', 'session-1', textContent('one updated'))
       await new Promise(resolve => requestAnimationFrame(resolve))
     })
 
@@ -209,5 +204,20 @@ describe('focused snapshot reuse', () => {
     expect(hasMessagesRenders).toBe(hasMessagesAfterMount)
     expect(header.result.current.sessionTitle).toBe('Hello')
     expect(hasMessages.result.current).toBe(true)
+  })
+
+  it('applies text deltas to the projected part', () => {
+    messageStore.setMessages('session-1', [createAssistantMessage('message-1', 'hello', 1)])
+
+    messageStore.handleTextDelta({
+      sessionID: 'session-1',
+      assistantMessageID: 'message-1',
+      ordinal: 0,
+      delta: ' world',
+    })
+
+    expect(messageText('session-1', 'message-1')).toBe('hello world')
+    // 仅为避免未使用告警的引用（辅助函数保留给后续断言使用）
+    expect(sessionsOf('session-1')).toHaveLength(1)
   })
 })

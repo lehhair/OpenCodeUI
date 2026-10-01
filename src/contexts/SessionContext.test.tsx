@@ -243,7 +243,7 @@ describe('SessionProvider', () => {
     expect(latestContext?.sessions.map(session => session.id)).toEqual(['session-1', 'session-2'])
 
     act(() => {
-      latestEventCallbacks.onSessionDeleted?.('session-1')
+      latestEventCallbacks.onSessionDeleted?.({ sessionID: 'session-1' })
     })
 
     expect(clearSessionRuntimeStateMock).toHaveBeenCalledWith('session-1')

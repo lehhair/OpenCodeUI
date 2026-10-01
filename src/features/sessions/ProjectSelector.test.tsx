@@ -6,14 +6,18 @@ import type { ApiProject } from '../../api'
 const GLOBAL_PROJECT = {
   id: 'global',
   name: 'Global',
-  worktree: '',
-} as ApiProject
+  canonical: '',
+  time: { created: 0, updated: 0 },
+  sandboxes: [],
+} as unknown as ApiProject
 
 const APP_PROJECT = {
   id: 'project-1',
   name: 'App',
-  worktree: '/workspace/app',
-} as ApiProject
+  canonical: '/workspace/app',
+  time: { created: 0, updated: 0 },
+  sandboxes: [],
+} as unknown as ApiProject
 
 describe('ProjectSelector', () => {
   it('opens remove confirmation without selecting the project row', async () => {

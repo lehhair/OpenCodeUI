@@ -16,12 +16,14 @@ function createDeferred<T>() {
 type AnyFn = (...args: any[]) => any
 const {
   getSessionsMock,
+  getSessionMock,
   createSessionMock,
   deleteSessionMock,
   subscribeToEventsMock,
   onServerChangeMock,
 } = vi.hoisted(() => ({
   getSessionsMock: vi.fn<AnyFn>(),
+  getSessionMock: vi.fn<AnyFn>(),
   createSessionMock: vi.fn<AnyFn>(),
   deleteSessionMock: vi.fn<AnyFn>(),
   subscribeToEventsMock: vi.fn<AnyFn>(),
@@ -32,6 +34,7 @@ let latestServerChange: ((serverId: string, reason: ServerChangeReason) => void)
 
 vi.mock('../api', () => ({
   getSessions: (...args: unknown[]) => getSessionsMock(...args),
+  getSession: (...args: unknown[]) => getSessionMock(...args),
   createSession: (...args: unknown[]) => createSessionMock(...args),
   deleteSession: (...args: unknown[]) => deleteSessionMock(...args),
   subscribeToEvents: (...args: unknown[]) => subscribeToEventsMock(...args),
@@ -44,14 +47,15 @@ vi.mock('../store/serverStore', () => ({
   },
 }))
 
+/** v2 的 SessionInfo：目录在 location.directory，且 cost/tokens 必填 */
 function makeSession(id: string, directory = '/workspace/demo') {
   return {
     id,
-    slug: id,
     projectID: 'project-1',
-    directory,
+    location: { directory },
     title: `Session ${id}`,
-    version: '1',
+    cost: 0,
+    tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
     time: {
       created: 1,
       updated: 2,
@@ -59,10 +63,28 @@ function makeSession(id: string, directory = '/workspace/demo') {
   }
 }
 
+/**
+ * v2 的 session.created 负载是**创建记录**（以 sessionID 为键、带 slug/version），
+ * 不是 SessionInfo——hook 收到后会回读 getSession 再入列表。
+ */
+function makeCreatedPayload(id: string, directory = '/workspace/demo', parentID?: string) {
+  return {
+    sessionID: id,
+    projectID: 'project-1',
+    location: { directory },
+    slug: id,
+    title: `Session ${id}`,
+    version: '1',
+    ...(parentID ? { parentID } : {}),
+  }
+}
+
 describe('useSessions', () => {
   beforeEach(() => {
     vi.useFakeTimers()
     getSessionsMock.mockReset()
+    getSessionMock.mockReset()
+    getSessionMock.mockImplementation((id: string) => Promise.resolve(makeSession(id)))
     createSessionMock.mockReset()
     deleteSessionMock.mockReset()
     subscribeToEventsMock.mockReset()
@@ -102,7 +124,8 @@ describe('useSessions', () => {
 
     expect(getSessionsMock).toHaveBeenCalledWith(
       {
-        roots: true,
+        // v2 的根会话过滤用 parentID: null
+        parentID: null,
         limit: 20,
         directory: '/workspace/demo',
       },
@@ -138,9 +161,9 @@ describe('useSessions', () => {
     })
 
     await act(async () => {
-      latestEventCallbacks.onSessionCreated?.(makeSession('session-1'))
-      latestEventCallbacks.onSessionCreated?.(makeSession('session-ignored', '/workspace/other'))
-      latestEventCallbacks.onSessionCreated?.({ ...makeSession('session-child'), parentID: 'parent-1' })
+      latestEventCallbacks.onSessionCreated?.(makeCreatedPayload('session-1') as never)
+      latestEventCallbacks.onSessionCreated?.(makeCreatedPayload('session-ignored', '/workspace/other') as never)
+      latestEventCallbacks.onSessionCreated?.(makeCreatedPayload('session-child', '/workspace/demo', 'parent-1') as never)
     })
 
     expect(result.current.sessions.map(session => session.id)).toEqual(['session-1'])

@@ -86,7 +86,7 @@ describe('Config editor drill path', () => {
   it('keeps the full provider path when copying a model', () => {
     function ProviderHarness() {
       const [config, setConfig] = useState<Config>({
-        provider: { openai: { models: { gpt: { name: 'GPT' } } } },
+        model: 'openai/gpt',
       })
       return (
         <ProvidersSection
