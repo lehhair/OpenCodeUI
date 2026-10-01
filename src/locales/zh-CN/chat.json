@@ -83,7 +83,8 @@
     "browserSession": "前端临时",
     "thisSession": "后端始终",
     "autoApproveEnabled": "前端会临时记住始终允许规则，刷新后清空。",
-    "changePermissionSettings": "始终允许将交给后端处理，可在设置中更改。"
+    "changePermissionSettings": "始终允许将交给后端处理，可在设置中更改。",
+    "applying": "正在应用…"
   },
   "projectDialog": {
     "typePath": "输入路径...",
@@ -173,7 +174,8 @@
     "searchFolderUnit": " 文件夹",
     "searchSessionUnit": " 会话",
     "searchServerMatchHint": "服务器匹配 · 点击组头切换焦点",
-    "searchingSessions": "搜索会话中…"
+    "searchingSessions": "搜索会话中…",
+    "dragToReorder": "拖动以重新排序"
   },
   "activeSession": {
     "awaitingPermission": "等待权限",

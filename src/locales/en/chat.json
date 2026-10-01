@@ -83,7 +83,8 @@
     "browserSession": "Frontend temporary",
     "thisSession": "Backend always",
     "autoApproveEnabled": "The frontend temporarily remembers Always allow rules. Refresh to clear them.",
-    "changePermissionSettings": "Always allow is handled by the backend. You can change this in settings."
+    "changePermissionSettings": "Always allow is handled by the backend. You can change this in settings.",
+    "applying": "Applying…"
   },
   "projectDialog": {
     "typePath": "Type path...",
@@ -173,7 +174,8 @@
     "searchFolderUnit": " folders",
     "searchSessionUnit": " chats",
     "searchServerMatchHint": "Server match · click the header to switch focus",
-    "searchingSessions": "Searching chats…"
+    "searchingSessions": "Searching chats…",
+    "dragToReorder": "Drag to reorder"
   },
   "activeSession": {
     "awaitingPermission": "Awaiting Permission",

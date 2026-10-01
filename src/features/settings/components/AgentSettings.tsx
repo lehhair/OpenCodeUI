@@ -19,7 +19,11 @@ export function AgentSettings() {
 
   const handleAlwaysAllowModeChange = (mode: AlwaysAllowMode) => {
     const hasFrontendRules = autoApproveStore.getDebugInfo().sessions.some(session => session.rules.length > 0)
-    if (mode === 'backend' && hasFrontendRules && !window.confirm(t('agent.clearFrontendRulesConfirm'))) return false
+    // 该键在 locale 里位于 `chat.` 下（settings.json → chat.clearFrontendRulesConfirm）。
+    // 原先写成 `agent.` 前缀 → 查不到、且**没有 defaultValue**，
+    // 于是原生 confirm 对话框会把原始 key 直接显示给用户
+    //（"agent.clearFrontendRulesConfirm"）。
+    if (mode === 'backend' && hasFrontendRules && !window.confirm(t('chat.clearFrontendRulesConfirm'))) return false
     setAlwaysAllowMode(mode)
     autoApproveStore.setAlwaysAllowMode(mode)
     if (mode === 'backend') autoApproveStore.clearAllRules()

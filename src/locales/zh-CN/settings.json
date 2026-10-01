@@ -339,6 +339,7 @@
     "saving": "保存中...",
     "loading": "正在加载配置...",
     "loadFailed": "加载配置失败",
+    "validationFailed": "配置校验未通过",
     "saveFailed": "保存配置失败",
     "noResults": "没有匹配当前筛选的配置项",
     "searchPlaceholder": "搜索配置字段...",

@@ -339,6 +339,7 @@
     "saving": "Saving...",
     "loading": "Loading config...",
     "loadFailed": "Failed to load config",
+    "validationFailed": "Config validation failed",
     "saveFailed": "Failed to save config",
     "noResults": "No config fields match the current filters",
     "searchPlaceholder": "Search config fields...",
