@@ -1,6 +1,6 @@
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { ApiMessage, ApiMessageWithParts, ApiPart } from '../api/types'
+import type { AssistantMessage, SessionMessage, UserMessage } from '../api/types'
 import { messageStore } from '../store/messageStore'
 import { useSessionStats } from './useSessionStats'
 
@@ -11,115 +11,74 @@ vi.mock('../store/paneLayoutStore', () => ({
   },
 }))
 
-function createUserMessage(id: string, created: number): ApiMessage {
-  return {
-    id,
-    sessionID: 'session-1',
-    role: 'user',
-    time: { created },
-    agent: 'build',
-    model: { providerID: 'provider-1', modelID: 'model-1' },
-  }
+// ============================================
+// v2 变更说明
+//
+// 本文件原先用 v1 的 `{ info, parts }` 夹具。v2 中：
+//   - 消息自带 content，store.setMessages 接收**原生消息**并自行投影
+//   - 「压缩」从 v1 的 part 提升为**独立消息类型** `type: 'compaction'`
+//     （v2Projection 会把它投影成 UI 的 compaction part，供上下文估算判断
+//     是否需要放弃服务端 tokens、改用重新估算）
+// ============================================
+
+function createUserMessage(id: string, created: number, text: string): UserMessage {
+  return { id, type: 'user', time: { created }, text }
 }
 
-function createTextPart(
+function createAssistantMessage(
   id: string,
-  messageID: string,
+  created: number,
   text: string,
-): ApiPart & { sessionID: string; messageID: string } {
+  tokens?: AssistantMessage['tokens'],
+): AssistantMessage {
   return {
     id,
-    sessionID: 'session-1',
-    messageID,
-    type: 'text',
-    text,
+    type: 'assistant',
+    agent: 'default',
+    model: { id: 'model-1', providerID: 'provider-1' },
+    content: [{ type: 'text', text }],
+    time: { created },
+    ...(tokens ? { tokens } : {}),
   }
 }
 
-function createMessageWithParts(id: string, text: string, created: number): ApiMessageWithParts {
+function createCompactionMessage(id: string, created: number): SessionMessage {
   return {
-    info: createUserMessage(id, created),
-    parts: [createTextPart(`part-${id}`, id, text)],
-  }
+    id,
+    type: 'compaction',
+    status: 'completed',
+    reason: 'auto',
+    summary: 'short summary',
+    recent: '',
+    time: { created },
+  } as SessionMessage
 }
 
-// 阻塞（两个用例）：v2 把「压缩」从 v1 的 part（`part.type === 'compaction'`）
-// 提升为**独立消息类型** `SessionMessageCompactionCompleted`
-// （`{ type:'compaction', status:'completed', summary, recent, tokens? }`）。
-// 但 v2Projection 目前把 compaction 消息当作「UI 无对应展示」直接跳过，
-// 于是 sessionStatsCompute 拿不到压缩信号，上下文估算不会在压缩后重置。
-// 另外本文件的夹具仍是 v1 的 { info, parts } 形状，需要改成 v2 原生消息
-// （store 的 setMessages 现在接收原生消息并自行投影）。
-// 待补齐 compaction → UI 的投影后，去掉 .skip 并把夹具改为 v2 形状。
+async function flushFrames(): Promise<void> {
+  await act(async () => {
+    await new Promise(resolve => requestAnimationFrame(resolve))
+  })
+}
+
 describe('useSessionStats', () => {
   beforeEach(() => {
     messageStore.clearAll()
   })
 
-  it.skip('returns estimated context after a compaction turn', async () => {
+  it('returns estimated context after a compaction turn', async () => {
     messageStore.setMessages('session-1', [
-      {
-        info: {
-          id: 'user-1',
-          role: 'user',
-          time: { created: 1 },
-          sessionID: 'session-1',
-          agent: 'build',
-          model: { providerID: 'p', modelID: 'm' },
-        },
-        parts: [{ type: 'text', text: 'hello world', id: 'p1', sessionID: 's1', messageID: 'user-1' }],
-      },
-      {
-        info: {
-          id: 'assistant-1',
-          role: 'assistant',
-          sessionID: 'session-1',
-          time: { created: 2 },
-          parentID: 'user-1',
-          modelID: 'model',
-          providerID: 'provider',
-          mode: 'chat',
-          agent: 'default',
-          path: { cwd: '/', root: '/' },
-          cost: 0,
-          tokens: { input: 12000, output: 800, reasoning: 200, cache: { read: 0, write: 0 } },
-        },
-        parts: [{ type: 'text', text: 'long reply', id: 'p2', sessionID: 's1', messageID: 'assistant-1' }],
-      },
-      {
-        info: {
-          id: 'user-2',
-          role: 'user',
-          time: { created: 3 },
-          sessionID: 'session-1',
-          agent: 'build',
-          model: { providerID: 'p', modelID: 'm' },
-        },
-        parts: [{ type: 'compaction', id: 'p3', sessionID: 's1', messageID: 'user-2', auto: false }],
-      },
-      {
-        info: {
-          id: 'assistant-2',
-          role: 'assistant',
-          sessionID: 'session-1',
-          time: { created: 4 },
-          parentID: 'user-2',
-          modelID: 'model',
-          providerID: 'provider',
-          mode: 'compaction',
-          agent: 'compaction',
-          path: { cwd: '/', root: '/' },
-          cost: 0,
-          summary: true,
-          tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
-        },
-        parts: [{ type: 'text', text: 'short summary', id: 'p4', sessionID: 's1', messageID: 'assistant-2' }],
-      },
+      createUserMessage('user-1', 1, 'hello world'),
+      createAssistantMessage('assistant-1', 2, 'long reply', {
+        input: 12000,
+        output: 800,
+        reasoning: 200,
+        cache: { read: 0, write: 0 },
+      }),
+      // 压缩之后应该放弃服务端 tokens，改用重新估算
+      createCompactionMessage('compaction-1', 3),
     ])
 
-    await act(async () => {
-      await new Promise(resolve => requestAnimationFrame(resolve))
-    })
+    await flushFrames()
 
     const { result } = renderHook(() => useSessionStats(200000))
 
@@ -128,11 +87,16 @@ describe('useSessionStats', () => {
     expect(result.current.contextUsed).toBeGreaterThan(0)
   })
 
-  it.skip('reuses the same stats object when numeric fields do not change', async () => {
-    messageStore.setMessages('session-1', [createMessageWithParts('message-1', 'one', 1)])
-    await act(async () => {
-      await new Promise(resolve => requestAnimationFrame(resolve))
-    })
+  it('reuses the same stats object when numeric fields do not change', async () => {
+    messageStore.setMessages('session-1', [
+      createAssistantMessage('assistant-1', 1, 'one', {
+        input: 100,
+        output: 20,
+        reasoning: 0,
+        cache: { read: 0, write: 0 },
+      }),
+    ])
+    await flushFrames()
 
     const { result, rerender } = renderHook(() => useSessionStats(200000))
     const first = result.current

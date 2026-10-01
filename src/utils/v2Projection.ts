@@ -304,6 +304,20 @@ export function toUIMessage(message: SessionMessage, sessionID: string): Message
     parts = userAttachmentsToParts(message, sessionID, message.id)
   } else if (message.type === 'assistant') {
     parts = contentToParts(message.content, sessionID, message.id)
+  } else if (message.type === 'compaction') {
+    // v2 把「压缩」从 v1 的 part 提升为**独立消息类型**。
+    // UI 的上下文估算（sessionStatsCompute）靠「压缩之后重新计」来决定是
+    // 用服务端 tokens 还是本地估算，因此这里必须投影出一个 compaction part，
+    // 否则压缩后的用量会一直按压缩前累计。
+    parts = [
+      {
+        id: `${message.id}:compaction:0`,
+        sessionID,
+        messageID: message.id,
+        type: 'compaction',
+        auto: message.reason === 'auto',
+      },
+    ]
   }
 
   return {
