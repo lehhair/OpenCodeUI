@@ -15,25 +15,25 @@
 
 import { getSDKClient } from './sdk'
 import { locationParam } from './location'
-import type { MCPResourceMap, MCPStatus, MCPServer, MCPStatusResponse } from '../types/api/mcp'
-import type { McpServerConfig } from '../types/api/config'
+import type { MCPResourceMap, MCPStatus, MCPServer, McpServerConfig } from '../types/api/mcp'
 
 /**
  * 获取所有 MCP 服务器状态。
  *
- * v2 返回 `{ location, data }`；这里保持返回整个响应对象以兼容旧调用点。
+ * v2 的 `mcp.list` 返回 `{ location, data }`；这里返回 data（服务器数组），
+ * 避免把响应信封泄漏到调用点。
  */
-export async function getMcpStatus(directory?: string, serverId?: string): Promise<MCPStatusResponse> {
+export async function getMcpStatus(directory?: string, serverId?: string): Promise<MCPServer[]> {
   const sdk = getSDKClient(serverId)
-  return await sdk.mcp.list({ location: locationParam(directory, serverId) })
+  const result = await sdk.mcp.list({ location: locationParam(directory, serverId) })
+  return result.data
 }
 
 /**
- * 获取 MCP 服务器列表（只取数据部分）。
+ * 获取 MCP 服务器列表（`getMcpStatus` 的别名，语义更直白）。
  */
 export async function listMcpServers(directory?: string, serverId?: string): Promise<MCPServer[]> {
-  const result = await getMcpStatus(directory, serverId)
-  return result.data
+  return await getMcpStatus(directory, serverId)
 }
 
 /**

@@ -10,14 +10,17 @@
 
 import type {
   McpListOutput,
+  McpResource,
   McpResourceCatalog,
   McpResourceCatalogOutput,
+  McpResourceTemplate,
   McpServer,
   McpStatusConnected,
   McpStatusDisabled,
   McpStatusFailed,
   McpStatusNeedsAuth,
   McpStatusPending,
+  OpenCodeClient,
 } from '@opencode/client/promise'
 
 export type MCPStatusConnected = McpStatusConnected
@@ -36,10 +39,25 @@ export type MCPStatus = McpServer['status']
 /** MCP 服务器 */
 export type MCPServer = McpServer
 
+/**
+ * `mcp.add()` 的服务器配置。
+ *
+ * 这里从**客户端方法签名**取，而不是从生成的 `McpAddInput` 取：
+ * 生成的输入类型把字段标成 readonly，而客户端方法接受可变版本，
+ * 直接复用生成类型会导致「readonly 不能赋给可变」的错误。
+ */
+export type McpServerConfig = Parameters<OpenCodeClient['mcp']['add']>[0]['config']
+
 /** `mcp.list()` 的响应 */
 export type MCPStatusResponse = McpListOutput
 
-/** MCP 资源目录 */
+/** 单条 MCP 资源 */
+export type MCPResourceEntry = McpResource
+
+/** 单个 MCP 资源模板 */
+export type MCPResourceTemplate = McpResourceTemplate
+
+/** 某个服务器暴露的资源目录（v2 的 group 形状） */
 export type MCPResource = McpResourceCatalog
 
 export type MCPResourceMap = Record<string, MCPResource>

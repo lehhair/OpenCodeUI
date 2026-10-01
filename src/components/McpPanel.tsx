@@ -25,11 +25,9 @@ import {
   getMcpResources,
   connectMcpServer,
   disconnectMcpServer,
-  startMcpAuth,
-  authenticateMcp,
   addMcpServer,
 } from '../api/mcp'
-import type { MCPResource, MCPStatus, McpServerConfig } from '../types/api/mcp'
+import type { MCPResourceEntry, MCPStatus, McpServerConfig } from '../types/api/mcp'
 import { useDirectory } from '../hooks'
 import { logger } from '../utils/logger'
 import { apiErrorHandler } from '../utils'
@@ -41,7 +39,7 @@ import { apiErrorHandler } from '../utils'
 interface ServerEntry {
   name: string
   status: MCPStatus
-  resources: MCPResource[]
+  resources: MCPResourceEntry[]
 }
 
 // ============================================
@@ -69,10 +67,13 @@ export const McpPanel = memo(function McpPanel({ isResizing: _isResizing }: McpP
       const statusResponse = await getMcpStatus(currentDirectory)
       logger.log('[McpPanel] Status:', statusResponse)
 
-      let resourcesByClient = new Map<string, MCPResource[]>()
+      let resourcesByClient = new Map<string, MCPResourceEntry[]>()
       try {
         const resourceResponse = await getMcpResources(currentDirectory)
-        resourcesByClient = groupResourcesByClient(Object.values(resourceResponse))
+        // v2 的 catalog 按 server 归组，展开成资源数组后统一分组
+        resourcesByClient = groupResourcesByClient(
+          Object.values(resourceResponse).flatMap(group => group.resources),
+        )
         setResourceError(null)
       } catch (err) {
         apiErrorHandler('load MCP resources', err)
@@ -80,10 +81,10 @@ export const McpPanel = memo(function McpPanel({ isResizing: _isResizing }: McpP
       }
 
       // 构建 server entries
-      const entries: ServerEntry[] = Object.entries(statusResponse).map(([name, status]) => ({
-        name,
-        status: status as MCPStatus,
-        resources: resourcesByClient.get(name) ?? [],
+      const entries: ServerEntry[] = statusResponse.map(server => ({
+        name: server.name,
+        status: server.status,
+        resources: resourcesByClient.get(server.name) ?? [],
       }))
 
       // 按名称排序
@@ -143,32 +144,21 @@ export const McpPanel = memo(function McpPanel({ isResizing: _isResizing }: McpP
     [currentDirectory, loadStatus],
   )
 
-  // 开始认证流程
+  /**
+   * 处理需要认证的服务器。
+   *
+   * v2 删除了 OAuth 专用端点（`mcp.auth.*` 已不存在），认证由服务端在
+   * 连接过程中自行处理，因此这里只触发一次 connect 再刷新状态。
+   */
   const handleAuth = useCallback(
     async (name: string) => {
       setActionLoading(name)
       try {
-        // 尝试使用 authenticate 接口（自动打开浏览器）
-        await authenticateMcp(name, currentDirectory)
-        // 等待用户完成认证
-        await new Promise(r => setTimeout(r, 3000))
+        await connectMcpServer(name, currentDirectory)
+        await new Promise(r => setTimeout(r, 500))
         await loadStatus()
-      } catch {
-        // 如果失败，尝试 startMcpAuth 获取 URL
-        try {
-          const result = await startMcpAuth(name, currentDirectory)
-          if ((await import('../utils/tauri')).isTauri()) {
-            import('@tauri-apps/plugin-opener')
-              .then(mod => mod.openUrl(result.url))
-              .catch(() => window.open(result.url, '_blank', 'noopener,noreferrer'))
-          } else {
-            window.open(result.url, '_blank', 'noopener,noreferrer')
-          }
-          await new Promise(r => setTimeout(r, 3000))
-          await loadStatus()
-        } catch (err2) {
-          apiErrorHandler('start MCP auth', err2)
-        }
+      } catch (err) {
+        apiErrorHandler('connect MCP server for auth', err)
       } finally {
         setActionLoading(null)
       }
@@ -297,13 +287,19 @@ export const McpPanel = memo(function McpPanel({ isResizing: _isResizing }: McpP
   )
 })
 
-function groupResourcesByClient(resources: MCPResource[]): Map<string, MCPResource[]> {
-  const groups = new Map<string, MCPResource[]>()
+/**
+ * 按 MCP 服务器归组资源。
+ *
+ * v2 的每条资源自带 `server` 字段（`{ server, name, uri, ... }`），
+ * 因此直接按该字段分组，无需像 v1 那样依赖 client 标识。
+ */
+function groupResourcesByClient(resources: MCPResourceEntry[]): Map<string, MCPResourceEntry[]> {
+  const groups = new Map<string, MCPResourceEntry[]>()
 
   for (const resource of resources) {
-    const items = groups.get(resource.client) ?? []
+    const items = groups.get(resource.server) ?? []
     items.push(resource)
-    groups.set(resource.client, items)
+    groups.set(resource.server, items)
   }
 
   for (const items of groups.values()) {
@@ -490,9 +486,6 @@ const ServerItem = memo(function ServerItem({ server, isLoading, onConnect, onDi
     if (status.status === 'failed') {
       return status.error
     }
-    if (status.status === 'needs_client_registration') {
-      return status.error
-    }
     return null
   }
 
@@ -510,8 +503,6 @@ const ServerItem = memo(function ServerItem({ server, isLoading, onConnect, onDi
         return { color: 'text-danger-100', label: t('common:failed'), icon: AlertCircleIcon }
       case 'needs_auth':
         return { color: 'text-warning-100', label: t('mcpPanel.needsAuth'), icon: KeyIcon }
-      case 'needs_client_registration':
-        return { color: 'text-warning-100', label: t('mcpPanel.needsRegistration'), icon: KeyIcon }
       default:
         return { color: 'text-text-400', label: t('common:unknown'), icon: null }
     }
@@ -553,7 +544,6 @@ const ServerItem = memo(function ServerItem({ server, isLoading, onConnect, onDi
           </button>
         )
       case 'needs_auth':
-      case 'needs_client_registration':
         return (
           <button
             onClick={e => {
@@ -581,7 +571,6 @@ const ServerItem = memo(function ServerItem({ server, isLoading, onConnect, onDi
       case 'failed':
         return 'bg-danger-100'
       case 'needs_auth':
-      case 'needs_client_registration':
         return 'bg-warning-100'
       default:
         return 'bg-text-500'
