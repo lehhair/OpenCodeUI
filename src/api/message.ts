@@ -140,10 +140,33 @@ function buildPromptInput(
  *
  * v2 的 prompt 是入队语义：立即返回入队项，助手输出经事件流到达。
  * 因此 v1 的 sendMessage / sendMessageAsync 在 v2 合并为同一个调用。
+ *
+ * **模型 / agent 必须在发送前单独切换**：v2 的 `SessionPromptInput` 里
+ * 根本没有 model / agent / variant 字段（与 v1 的 per-prompt model 不同），
+ * 它们只能通过 `session.switchModel` / `session.switchAgent` 生效。
+ * 之前这里把 params 里的 model/agent 直接丢掉 → 会话中途切换模型/agent
+ * 完全不起作用（新建会话不受影响，因为 create 已带上这两个字段）。
  */
 export async function sendMessage(params: SendMessageParams, serverId?: string): Promise<void> {
   const target = resolveSessionTarget(params.sessionId, serverId)
   const sdk = getSDKClient(target.serverId)
+
+  if (params.model) {
+    await sdk.session.switchModel({
+      sessionID: target.sessionId,
+      // 注意字段名不同：prompt 侧叫 modelID，switch 侧叫 id
+      model: {
+        id: params.model.modelID,
+        providerID: params.model.providerID,
+        ...(params.variant ? { variant: params.variant } : {}),
+      },
+    })
+  }
+
+  if (params.agent) {
+    await sdk.session.switchAgent({ sessionID: target.sessionId, agent: params.agent })
+  }
+
   await sdk.session.prompt(buildPromptInput(params, target.sessionId))
 }
 
