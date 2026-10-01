@@ -14,22 +14,69 @@
 // 投影是纯粹的、可测的：输入 v2 消息，输出 UI 消息。
 // ============================================
 
-import type {
-  AssistantContent,
-  AssistantMessage,
-  SessionMessage,
-  ToolContent,
-  ToolState,
-} from '../types/api'
+import type { AssistantContent, AssistantMessage, SessionMessage, ToolContent, ToolState } from '../types/api'
 import type {
   AssistantMessageInfo,
   Message,
+  MessageError,
   MessageInfo,
   Part,
   ToolPart,
   ToolState as UIToolState,
   UserMessageInfo,
 } from '../types/message'
+
+// ============================================
+// 错误投影
+// ============================================
+
+/**
+ * v2 的结构化错误 → UI 的 MessageError 联合。
+ *
+ * 两边形状完全不同，**必须显式映射**：
+ *   v2: { type: string; message: string; status?: number; response?: { body: string } }
+ *   UI: { name: 'APIError' | 'ProviderAuthError' | ...; data: { ... } }
+ *
+ * 之前这里是 `error: message.error as never`，等于把不匹配的形状硬塞进 UI 模型：
+ * MessageErrorView 按 `error.name` 分支、读 `error.data.*`，拿到 v2 形状后
+ * name 与 data 都是 undefined，只能落到 default 分支显示通用的
+ * 「未知错误」——真实错误信息（以及状态码、响应体）全丢了。
+ */
+function toMessageError(error: NonNullable<AssistantMessage['error']>): MessageError {
+  const message = error.message ?? ''
+  const type = (error.type ?? '').toLowerCase()
+
+  // 中断：v2 通过 type 表达
+  if (type.includes('abort')) {
+    return { name: 'MessageAbortedError', data: { message } }
+  }
+
+  // 输出长度上限
+  if (type.includes('length') || type.includes('max_token') || type.includes('context')) {
+    return { name: 'MessageOutputLengthError', data: {} }
+  }
+
+  // 认证：v2 不在这里带 providerID，只能留空
+  if (type.includes('auth')) {
+    return { name: 'ProviderAuthError', data: { providerID: '', message } }
+  }
+
+  // 带 HTTP 状态或响应体 → 按 API 错误展示，保留状态码与响应体
+  if (error.status != null || error.response) {
+    return {
+      name: 'APIError',
+      data: {
+        message,
+        statusCode: error.status,
+        responseBody: error.response?.body,
+        // 429/5xx 这类通常是可重试的瞬时错误
+        isRetryable: error.status == null || error.status === 429 || error.status >= 500,
+      },
+    }
+  }
+
+  return { name: 'UnknownError', data: { message } }
+}
 
 // ============================================
 // 时间戳
@@ -94,7 +141,7 @@ export function toAssistantMessageInfo(message: AssistantMessage, sessionID: str
       },
     },
     finish: message.finish,
-    error: message.error as never,
+    error: message.error ? toMessageError(message.error) : undefined,
   }
 }
 
@@ -201,11 +248,7 @@ export function toUIToolState(state: ToolState): UIToolState {
  *
  * UI part 需要 `id` / `sessionID` / `messageID`，由参数补全。
  */
-export function contentToParts(
-  content: AssistantContent[],
-  sessionID: string,
-  messageID: string,
-): Part[] {
+export function contentToParts(content: AssistantContent[], sessionID: string, messageID: string): Part[] {
   const parts: Part[] = []
 
   content.forEach((entry, index) => {

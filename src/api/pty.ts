@@ -46,22 +46,20 @@ export async function listPtySessions(directory?: string, serverId?: string): Pr
 /**
  * 获取当前机器可用 shell 列表。
  *
- * v2 把该能力从 `pty.shells()` 移到 `config.shells()`。
+ * v2 把该能力从 `pty.shells()` 移到 `config.shells()`，返回
+ * `{ path, name, acceptable }[]`，与下面的 ShellInfo 结构完全一致，
+ * 因此直接返回即可（之前多写了一次 `as unknown as ShellInfo[]`，
+ * 等于把「形状是否一致」交给运行时赌——一旦 v2 改了字段就静默失效）。
  */
 export async function listAvailableShells(_directory?: string, serverId?: string): Promise<ShellInfo[]> {
   const sdk = getSDKClient(serverId)
-  const result = await sdk.config.shells()
-  return result as unknown as ShellInfo[]
+  return await sdk.config.shells()
 }
 
 /**
  * 创建新的 PTY 会话。
  */
-export async function createPtySession(
-  params: PtyCreateParams,
-  directory?: string,
-  serverId?: string,
-): Promise<Pty> {
+export async function createPtySession(params: PtyCreateParams, directory?: string, serverId?: string): Promise<Pty> {
   const sdk = getSDKClient(serverId)
   const result = await sdk.pty.create({ ...params, location: locationParam(directory, serverId) })
   return result.data

@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import type { AssistantMessage, SessionMessage, UserMessage } from '../api/types'
-import { contentToParts, toAssistantMessageInfo, toMessageInfo, toUIMessage, toUIMessages, toUIToolState } from './v2Projection'
+import {
+  contentToParts,
+  toAssistantMessageInfo,
+  toMessageInfo,
+  toUIMessage,
+  toUIMessages,
+  toUIToolState,
+} from './v2Projection'
 
 // ============================================
 // v2Projection 是整个迁移的枢纽：渲染层完全依赖它把 v2 的
@@ -62,6 +69,87 @@ describe('v2Projection — 消息 info', () => {
 
     expect(info.tokens).toEqual({ input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } })
     expect(info.cost).toBe(0)
+  })
+
+  /**
+   * v2 的错误形状（{ type, message, status?, response? }）与 UI 的
+   * MessageError 联合（{ name, data }）完全不同。这里曾是
+   * `error: message.error as never`，导致 MessageErrorView 按 error.name
+   * 分支时拿到 undefined，只能显示通用的「未知错误」，真实信息全丢。
+   */
+  describe('错误投影', () => {
+    it('带 HTTP 状态与响应体时映射成 APIError，并保留状态码/响应体', () => {
+      const info = toAssistantMessageInfo(
+        assistantMessage({
+          error: { type: 'provider_error', message: 'rate limited', status: 429, response: { body: '{"e":1}' } },
+        }),
+        SESSION,
+      )
+
+      expect(info.error).toEqual({
+        name: 'APIError',
+        data: {
+          message: 'rate limited',
+          statusCode: 429,
+          responseBody: '{"e":1}',
+          isRetryable: true,
+        },
+      })
+    })
+
+    it('5xx 视为可重试，4xx（非 429）视为不可重试', () => {
+      const server = toAssistantMessageInfo(
+        assistantMessage({ error: { type: 'x', message: 'boom', status: 500 } }),
+        SESSION,
+      )
+      const client = toAssistantMessageInfo(
+        assistantMessage({ error: { type: 'x', message: 'bad request', status: 400 } }),
+        SESSION,
+      )
+
+      expect((server.error as { data: { isRetryable: boolean } }).data.isRetryable).toBe(true)
+      expect((client.error as { data: { isRetryable: boolean } }).data.isRetryable).toBe(false)
+    })
+
+    it('中断类错误映射成 MessageAbortedError 并保留原文', () => {
+      const info = toAssistantMessageInfo(
+        assistantMessage({ error: { type: 'MessageAbortedError', message: 'aborted by user' } }),
+        SESSION,
+      )
+
+      expect(info.error).toEqual({ name: 'MessageAbortedError', data: { message: 'aborted by user' } })
+    })
+
+    it('认证类错误映射成 ProviderAuthError', () => {
+      const info = toAssistantMessageInfo(
+        assistantMessage({ error: { type: 'auth_failed', message: 'no api key' } }),
+        SESSION,
+      )
+
+      expect(info.error).toMatchObject({ name: 'ProviderAuthError', data: { message: 'no api key' } })
+    })
+
+    it('长度上限类错误映射成 MessageOutputLengthError', () => {
+      const info = toAssistantMessageInfo(
+        assistantMessage({ error: { type: 'max_tokens_exceeded', message: 'too long' } }),
+        SESSION,
+      )
+
+      expect(info.error).toMatchObject({ name: 'MessageOutputLengthError' })
+    })
+
+    it('没有线索时落到 UnknownError，但至少保住原始 message', () => {
+      const info = toAssistantMessageInfo(
+        assistantMessage({ error: { type: 'weird', message: 'something odd' } }),
+        SESSION,
+      )
+
+      expect(info.error).toEqual({ name: 'UnknownError', data: { message: 'something odd' } })
+    })
+
+    it('没有 error 时保持 undefined', () => {
+      expect(toAssistantMessageInfo(assistantMessage(), SESSION).error).toBeUndefined()
+    })
   })
 
   it('未定稿（无 completed）的助手消息标记为流式中', () => {

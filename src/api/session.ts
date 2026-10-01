@@ -23,13 +23,7 @@ import { getSDKClient } from './sdk'
 import { locationParam } from './location'
 import { resolveSessionTarget } from '../utils/sessionKey'
 import { normalizeFileDiffs } from '../types/api/file'
-import type {
-  FileDiff,
-  Session,
-  SessionListParams,
-  SessionRevert,
-  SessionStatusMap,
-} from './types'
+import type { FileDiff, Session, SessionListParams, SessionRevert, SessionStatusMap } from './types'
 import type { SessionTransferData } from '@opencode/client/promise'
 
 // ============================================
@@ -113,7 +107,11 @@ export async function getSessions(params: SessionListParams = {}, serverId?: str
  *
  * v1 的 `session.children()` 在 v2 折进 `list({ parentID })`。
  */
-export async function getSessionChildren(sessionId: string, _directory?: string, serverId?: string): Promise<Session[]> {
+export async function getSessionChildren(
+  sessionId: string,
+  _directory?: string,
+  serverId?: string,
+): Promise<Session[]> {
   const target = resolveSessionTarget(sessionId, serverId)
   const sdk = getSDKClient(target.serverId)
   const result = await sdk.session.list({ parentID: target.sessionId })
@@ -159,13 +157,16 @@ export async function createSession(
 /**
  * 更新会话。
  *
- * v2 的 update 只接受 title / metadata / permissions。
+ * v2 的 update 接受 title / metadata / permissions，但目前所有调用点只改标题
+ * （重命名），因此这里只暴露 `title`——不保留 `metadata` 这个没人传的参数，
+ * 它之前只是为了让 `metadata as never` 这个强转有地方待着。
+ *
  * 注意：v2 **没有归档端点**——`SessionInfo.time.archived` 只读不可写，
  * 因此 v1 的归档功能整体移除了（不再用 metadata 假装归档）。
  */
 export async function updateSession(
   sessionId: string,
-  params: { title?: string; metadata?: Record<string, unknown> },
+  params: { title?: string },
   _directory?: string,
   serverId?: string,
 ): Promise<Session> {
@@ -174,7 +175,6 @@ export async function updateSession(
   await sdk.session.update({
     sessionID: target.sessionId,
     title: params.title,
-    metadata: params.metadata as never,
   })
   // v2 的 update 返回 void，回读一次保证调用点拿到最新会话
   return await sdk.session.get({ sessionID: target.sessionId })
