@@ -122,6 +122,50 @@ describe('messageStore (v2)', () => {
     expect(textAt(SESSION, 0)).toBe('early')
   })
 
+  /**
+   * 跨模块契约：投影层用「content 数组下标」拼 part id
+   *（`${messageID}:text:${index}`），而流式事件带的是 `ordinal`。
+   * 两者必须用同一套编号，否则增量会落到错误的 part 上。
+   */
+  it('delta 的 ordinal 与投影层 content 下标对齐（含推理与文本交错）', () => {
+    messageStore.handleMessageUpdated(
+      createAssistantMessage('message-1', [
+        { type: 'text', text: 'first' },
+        { type: 'reasoning', text: 'thinking' },
+        { type: 'text', text: 'second' },
+      ]),
+      SESSION,
+    )
+
+    // 下标 2 是第二个文本 part → 追加到 'second' 后面
+    messageStore.handleTextDelta({
+      sessionID: SESSION,
+      assistantMessageID: 'message-1',
+      ordinal: 2,
+      delta: ' +more',
+    })
+    flushFrames()
+
+    // 下标 1 是推理 part → 追加到推理上
+    messageStore.handleReasoningDelta({
+      sessionID: SESSION,
+      assistantMessageID: 'message-1',
+      ordinal: 1,
+      delta: ' +deeper',
+    })
+    flushFrames()
+
+    const parts = messageStore.getSessionState(SESSION)?.messages[0].parts ?? []
+    expect(parts.map(p => `${p.type}:${p.id}`)).toEqual([
+      'text:message-1:text:0',
+      'reasoning:message-1:reasoning:1',
+      'text:message-1:text:2',
+    ])
+    expect(parts[0]).toMatchObject({ text: 'first' })
+    expect(parts[1]).toMatchObject({ text: 'thinking +deeper' })
+    expect(parts[2]).toMatchObject({ text: 'second +more' })
+  })
+
   it('keeps separate text parts per ordinal', () => {
     messageStore.handleMessageUpdated(createAssistantMessage('message-1', textContent('first')), SESSION)
 
