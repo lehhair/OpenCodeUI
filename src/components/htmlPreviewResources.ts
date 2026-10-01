@@ -1,6 +1,7 @@
 import { getFileContent } from '../api/file'
 import type { FileContent } from '../api/types'
-import { buildDataUrl, buildTextDataUrl, decodeBase64Text, isBinaryContent } from '../utils/mimeUtils'
+import { buildBytesDataUrl, buildTextDataUrl } from '../utils/mimeUtils'
+import { getMimeFromPath } from '../features/chat/input/inputUtils'
 
 const ABSOLUTE_RESOURCE_PATTERN = /^(?:[a-z][a-z0-9+.-]*:|\/\/|#)/i
 
@@ -76,14 +77,21 @@ function fallbackMimeType(path: string): string {
   return (extension && types[extension]) || 'application/octet-stream'
 }
 
+/**
+ * 取出文本内容。
+ *
+ * v2 的 file.read 返回原始字节（在 FileContent 里已解码到 `content`，
+ * 二进制会标记 isBinary），没有 v1 的 base64 encoding。
+ */
 function fileContentToText(content: FileContent): string {
-  return isBinaryContent(content.encoding) ? decodeBase64Text(content.content) : content.content
+  return content.content
 }
 
+/** 构造内联资源用的 data URL（v2：二进制用 bytes 编码，文本直接 URL 编码） */
 function fileContentToDataUrl(content: FileContent, path: string): string {
-  const mimeType = content.mimeType || fallbackMimeType(path)
-  return isBinaryContent(content.encoding)
-    ? buildDataUrl(mimeType, content.content)
+  const mimeType = getMimeFromPath(path) || fallbackMimeType(path)
+  return content.isBinary
+    ? buildBytesDataUrl(mimeType, content.bytes)
     : buildTextDataUrl(mimeType, content.content)
 }
 
@@ -113,8 +121,9 @@ function isPotentiallyAllowedPath(path: string, kind: ResourceKind): boolean {
   ].includes(extension)
 }
 
-function isAllowedResource(content: FileContent, path: string, kind: ResourceKind): boolean {
-  const mimeType = (content.mimeType || fallbackMimeType(path)).split(';', 1)[0].toLowerCase()
+function isAllowedResource(_content: FileContent, path: string, kind: ResourceKind): boolean {
+  // v2 无 mimeType 字段，按路径推断
+  const mimeType = (getMimeFromPath(path) || fallbackMimeType(path)).split(';', 1)[0].toLowerCase()
   const extension = path.split('.').pop()?.toLowerCase() ?? ''
   if (kind === 'script') {
     return ['js', 'mjs', 'cjs'].includes(extension) || ['application/javascript', 'text/javascript'].includes(mimeType)

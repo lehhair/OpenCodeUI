@@ -65,7 +65,7 @@ export function EmptyState({ currentProject, projects, onStartChat }: EmptyState
   }, [isCustomMode])
 
   // 当前选中的目录
-  const currentDirectory = currentProject?.id === 'global' ? pathInfo?.directory || '' : currentProject?.worktree || ''
+  const currentDirectory = currentProject?.id === 'global' ? pathInfo?.directory || '' : currentProject?.canonical || ''
 
   // 处理开始聊天
   const handleStart = () => {
@@ -93,8 +93,8 @@ export function EmptyState({ currentProject, projects, onStartChat }: EmptyState
 
   // 其他可选目录（排除当前的）
   const otherDirectories = projects
-    .filter(p => p.id !== 'global' && p.worktree !== currentDirectory)
-    .map(p => p.worktree)
+    .filter(p => p.id !== 'global' && p.canonical !== currentDirectory)
+    .map(p => p.canonical)
 
   return (
     <div className="flex-1 flex items-center justify-center p-8">

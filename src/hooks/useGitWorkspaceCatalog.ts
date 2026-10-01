@@ -7,6 +7,8 @@ import { normalizeToForwardSlash } from '../utils'
 export interface GitWorkspaceMeta {
   isGit: boolean
   rootDirectory: string
+  /** v2 的 worktree 接口按 projectID 定位，列表刷新时需要它 */
+  projectID?: string
   // root workspace 放第一位，后面才是 sandbox worktree
   workspaces: string[]
 }
@@ -59,7 +61,8 @@ export function useGitWorkspaceCatalog(directories: string[], serverId?: string)
 
       if (!mountedRef.current || version !== versionRef.current) return
 
-      const rootDirectories = new Set<string>()
+      // 根目录 → projectID：v2 的 worktree 接口按 projectID 定位（v1 用目录）
+      const rootDirectories = new Map<string, string>()
       const directoryToRoot = new Map<string, string>()
       const nextCatalog: GitWorkspaceCatalog = new Map()
       const previousWorkspacesByRoot = new Map<string, string[]>()
@@ -80,8 +83,8 @@ export function useGitWorkspaceCatalog(directories: string[], serverId?: string)
 
         if (result.status !== 'fulfilled') {
           const previousMeta = previousCatalog.get(directory)
-          if (previousMeta?.isGit) {
-            rootDirectories.add(previousMeta.rootDirectory)
+          if (previousMeta?.isGit && previousMeta.projectID) {
+            rootDirectories.set(previousMeta.rootDirectory, previousMeta.projectID)
             directoryToRoot.set(directory, previousMeta.rootDirectory)
           }
           continue
@@ -89,9 +92,10 @@ export function useGitWorkspaceCatalog(directories: string[], serverId?: string)
 
         const { project } = result.value
 
-        if (project.vcs === 'git' && project.worktree) {
-          const rootDirectory = normalizeToForwardSlash(project.worktree)
-          rootDirectories.add(rootDirectory)
+        // getCurrentProject 在 v2 里可能返回 undefined（项目尚未登记）
+        if (project && project.vcs === 'git' && project.canonical) {
+          const rootDirectory = normalizeToForwardSlash(project.canonical)
+          rootDirectories.set(rootDirectory, project.id)
           directoryToRoot.set(directory, rootDirectory)
         } else {
           nextCatalog.set(directory, {
@@ -102,12 +106,12 @@ export function useGitWorkspaceCatalog(directories: string[], serverId?: string)
         }
       }
 
-      const rootDirectoryList = Array.from(rootDirectories)
+      const rootDirectoryList = Array.from(rootDirectories.keys())
 
       const workspaceResults = await Promise.allSettled(
         rootDirectoryList.map(async rootDirectory => ({
           rootDirectory,
-          worktrees: await listWorktrees(rootDirectory, serverId),
+          worktrees: await listWorktrees(rootDirectories.get(rootDirectory) ?? '', serverId),
         })),
       )
 
@@ -134,6 +138,7 @@ export function useGitWorkspaceCatalog(directories: string[], serverId?: string)
         nextCatalog.set(directory, {
           isGit: true,
           rootDirectory,
+          projectID: rootDirectories.get(rootDirectory),
           workspaces: rootToWorkspaces.get(rootDirectory) ?? [rootDirectory],
         })
       }
@@ -156,8 +161,9 @@ export function useGitWorkspaceCatalog(directories: string[], serverId?: string)
 
   useEffect(() => {
     return subscribeToEvents({
-      onWorktreeReady: () => void refresh(),
-      onWorktreeFailed: () => void refresh(),
+      // v2：v1 的 worktree.ready/failed 改为 worktree.resolved/updated
+      onWorktreeResolved: () => void refresh(),
+      onWorktreeUpdated: () => void refresh(),
       onReconnected: reason => {
         if (reason !== 'server-switch') void refresh()
       },

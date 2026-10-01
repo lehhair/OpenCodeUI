@@ -67,6 +67,23 @@ const EDITS = [
     ],
   },
 
+  // ---- 项目根目录：v1 Project.worktree → v2 Project.canonical ----
+  {
+    file: 'src/features/chat/EmptyState.tsx',
+    replace: [
+      ['currentProject?.worktree', 'currentProject?.canonical'],
+      ['p.worktree', 'p.canonical'],
+    ],
+  },
+  {
+    file: 'src/features/sessions/ProjectSelector.tsx',
+    replace: [['project.worktree', 'project.canonical']],
+  },
+  {
+    file: 'src/hooks/useGitWorkspaceCatalog.ts',
+    replace: [['project.worktree', 'project.canonical']],
+  },
+
   // ---- 权限：v1 permission/patterns/always → v2 action/resources/save ----
   {
     file: 'src/features/chat/InlinePermission.tsx',

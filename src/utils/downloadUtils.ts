@@ -1,24 +1,12 @@
 // ============================================
 // 文件下载工具函数
-// 支持文本文件和二进制文件（base64）的下载
+// v2 的 file.read 返回原始字节，因此下载直接用 bytes
 // 浏览器环境使用 <a download>，Tauri 环境使用原生保存对话框
 // ============================================
 
 import type { FileContent } from '../api/types'
-import { isBinaryContent } from './mimeUtils'
+import { getMimeFromPath } from '../features/chat/input/inputUtils'
 import { isTauri } from './tauri'
-
-/**
- * 将 base64 字符串转为 Uint8Array
- */
-function base64ToBytes(base64: string): Uint8Array {
-  const binary = atob(base64)
-  const bytes = new Uint8Array(binary.length)
-  for (let i = 0; i < binary.length; i++) {
-    bytes[i] = binary.charCodeAt(i)
-  }
-  return bytes
-}
 
 /**
  * 触发浏览器下载（仅浏览器环境）
@@ -64,22 +52,18 @@ async function tauriSaveFile(data: Uint8Array, fileName: string): Promise<void> 
 
 /**
  * 从 FileContent 下载文件
- * - 二进制文件：从 base64 解码后下载
- * - 文本文件：直接以 UTF-8 编码下载
+ *
+ * v2 的 `file.read` 返回原始字节，没有 base64 encoding，也没有 mimeType，
+ * 因此直接用 `content.bytes`；MIME 按路径推断。
  * - Tauri 环境：弹出原生保存对话框
  * - 浏览器环境：使用 <a download> 触发下载
  */
 export function downloadFileContent(content: FileContent, fileName: string): void {
-  // 统一转为 Uint8Array
-  const data = isBinaryContent(content.encoding)
-    ? base64ToBytes(content.content)
-    : new TextEncoder().encode(content.content)
+  const mimeType = content.isBinary
+    ? getMimeFromPath(content.path) || 'application/octet-stream'
+    : `${getMimeFromPath(content.path) || 'text/plain'};charset=utf-8`
 
-  const mimeType = isBinaryContent(content.encoding)
-    ? content.mimeType || 'application/octet-stream'
-    : `${content.mimeType || 'text/plain'};charset=utf-8`
-
-  saveData(data, fileName, mimeType)
+  saveData(content.bytes, fileName, mimeType)
 }
 
 /**

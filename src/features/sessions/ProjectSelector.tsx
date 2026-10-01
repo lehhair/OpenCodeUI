@@ -74,7 +74,7 @@ export function ProjectSelector({
       if (project.name) return project.name
       if (project.id === 'global') return t('chat:sidebar.global')
 
-      const worktree = project.worktree || ''
+      const worktree = project.canonical || ''
       const parts = worktree.replace(/\\/g, '/').split('/').filter(Boolean)
       return parts[parts.length - 1] || worktree
     },
@@ -85,7 +85,7 @@ export function ProjectSelector({
     (project: ApiProject | null): string => {
       if (!project) return ''
       if (project.id === 'global') return t('chat:sidebar.allProjects')
-      return project.worktree || ''
+      return project.canonical || ''
     },
     [t],
   )
