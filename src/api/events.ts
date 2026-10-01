@@ -224,6 +224,23 @@ function dispatchEvent(callbacks: EventCallbacks, event: GlobalEvent): void {
       callbacks.onToolFailed?.(event.data)
       break
 
+    // ---- 会话内的实时补充信息 ----
+    //
+    // 这三个事件都在 V2Event 联合里（确实会通过 SSE 送达）：
+    //   - retry.scheduled：负载与 UI 的 RetryPart 一一对应；不接的话
+    //     重试提示只在重新加载后才出现
+    //   - synthetic：注入的系统上下文，对应 UI 已有的 synthetic part
+    //   - usage.updated：成本/token，让用量指示在流式期间即准确
+    case 'session.retry.scheduled':
+      callbacks.onRetryScheduled?.(event.data)
+      break
+    case 'session.synthetic':
+      callbacks.onSynthetic?.(event.data)
+      break
+    case 'session.usage.updated':
+      callbacks.onUsageUpdated?.(event.data)
+      break
+
     // ---- step ----
     case 'session.step.started':
       callbacks.onStepStarted?.(event.data)

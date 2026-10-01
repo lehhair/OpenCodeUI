@@ -87,7 +87,7 @@ function toMessageError(error: NonNullable<AssistantMessage['error']>): MessageE
  * 失败，所以统一按 APIError 承载；非 API 类的结构化错误取其 message 后
  * 仍以 APIError 形状包装，避免组件拿到缺少 data 的对象。
  */
-function toRetryError(error: NonNullable<AssistantMessage['retry']>['error']): APIError {
+export function toRetryError(error: NonNullable<AssistantMessage['retry']>['error']): APIError {
   const mapped = toMessageError(error)
   if (mapped.name === 'APIError') return mapped
 

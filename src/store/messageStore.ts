@@ -11,10 +11,15 @@
 import type { Message, MessageError, Part, FilePart, AgentPart } from '../types/message'
 import type { ToolState as UIToolState } from '../types/message'
 import type { Attachment } from '../types/ui'
-import type { SessionMessage as ApiMessage, AssistantContent, Session as ApiSession } from '../api/types'
+import type {
+  SessionMessage as ApiMessage,
+  AssistantContent,
+  AssistantMessage as ApiAssistantMessage,
+  Session as ApiSession,
+} from '../api/types'
 import { logger } from '../utils/logger'
 import { isUserUIMessage, toUIMessage } from '../utils/messageConversion'
-import { contentToParts } from '../utils/v2Projection'
+import { contentToParts, toRetryError } from '../utils/v2Projection'
 import type { RevertState, RevertHistoryItem, SessionState, SendRollbackSnapshot } from './messageStoreTypes'
 
 // Re-export types for consumers
@@ -754,6 +759,51 @@ class MessageStore {
     const newMessage = { ...message, parts }
     state.messages = [...state.messages.slice(0, msgIndex), newMessage, ...state.messages.slice(msgIndex + 1)]
     this.notify([sessionID])
+  }
+
+  /**
+   * 重试已排期（v2：`session.retry.scheduled`）。
+   *
+   * 该事件负载是 `{ sessionID, assistantMessageID, attempt, at, error }`，
+   * 与 UI 的 RetryPart **一一对应**。不接这个事件的话，重试提示只能在
+   * 重新加载后（走消息级 `retry` 字段的投影）才出现，实时会话中看不到。
+   *
+   * 按 `attempt` 生成 part id，因此同一轮多次重试会各自留下一条记录。
+   */
+  handleRetryScheduled(data: {
+    sessionID: string
+    assistantMessageID: string
+    attempt: number
+    at: number
+    error: NonNullable<ApiAssistantMessage['retry']>['error']
+  }): void {
+    const state = this.ensureSession(data.sessionID)
+    this.ensureAssistantMessage(data.sessionID, data.assistantMessageID)
+
+    const msgIndex = state.messages.findIndex(m => m.info.id === data.assistantMessageID)
+    if (msgIndex === -1) return
+
+    const message = state.messages[msgIndex]
+    const partId = `${data.assistantMessageID}:retry:${data.attempt}`
+    if (message.parts.some(p => p.id === partId)) return
+
+    const newMessage = {
+      ...message,
+      parts: [
+        ...message.parts,
+        {
+          id: partId,
+          sessionID: data.sessionID,
+          messageID: data.assistantMessageID,
+          type: 'retry' as const,
+          attempt: data.attempt,
+          error: toRetryError(data.error),
+          time: { created: data.at },
+        },
+      ],
+    }
+    state.messages = [...state.messages.slice(0, msgIndex), newMessage, ...state.messages.slice(msgIndex + 1)]
+    this.notify([data.sessionID])
   }
 
   /**

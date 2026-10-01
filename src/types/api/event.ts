@@ -50,6 +50,7 @@ import type {
   SessionReasoningEnded,
   SessionReasoningStarted,
   SessionRenamed,
+  SessionRetryScheduled,
   SessionRevertCleared,
   SessionRevertCommitted,
   SessionRevertStaged,
@@ -59,11 +60,13 @@ import type {
   SessionStepFailed,
   SessionStepStarted,
   SessionStepStreamed,
+  SessionSynthetic,
   SessionTextDelta,
   SessionTextEnded,
   SessionTextStarted,
   SessionToolCalled,
   SessionToolFailed,
+  SessionUsageUpdated,
   SessionToolInputDelta,
   SessionToolInputEnded,
   SessionToolInputStarted,
@@ -147,10 +150,7 @@ export type InboxCancelledPayload = SessionInboxCancelled['data']
  * 它**不在**实时 `event.subscribe()` 的 `V2Event` 联合里。
  * 因此这里从 durable 联合中提取，而不是从 `V2Event`。
  */
-export type SessionContentUpdatedEvent = Extract<
-  SessionEventDurable,
-  { type: 'session.message.content.updated' }
->
+export type SessionContentUpdatedEvent = Extract<SessionEventDurable, { type: 'session.message.content.updated' }>
 
 export type SessionContentUpdatedPayload = SessionContentUpdatedEvent['data']
 
@@ -190,6 +190,15 @@ export type ToolProgressPayload = SessionToolProgress['data']
 export type ToolSuccessPayload = SessionToolSuccess['data']
 
 export type ToolFailedPayload = SessionToolFailed['data']
+
+/** 重试已排期：负载与 UI 的 RetryPart 一一对应（attempt / at / error） */
+export type RetryScheduledPayload = SessionRetryScheduled['data']
+
+/** 注入的系统上下文（合成消息） */
+export type SyntheticPayload = SessionSynthetic['data']
+
+/** 会话用量（成本 / token）更新 */
+export type UsageUpdatedPayload = SessionUsageUpdated['data']
 
 export type StepStartedPayload = SessionStepStarted['data']
 
@@ -287,6 +296,14 @@ export interface EventCallbacks {
   onToolProgress?: (data: ToolProgressPayload) => void
   onToolSuccess?: (data: ToolSuccessPayload) => void
   onToolFailed?: (data: ToolFailedPayload) => void
+
+  // ---- 会话内的实时补充信息 ----
+  /** 重试已排期：实时补出 RetryPart（否则只在重新加载后才显示） */
+  onRetryScheduled?: (data: RetryScheduledPayload) => void
+  /** 注入的系统上下文（合成消息），对应 UI 的 synthetic part */
+  onSynthetic?: (data: SyntheticPayload) => void
+  /** 会话用量更新：让上下文用量指示在流式期间就准确 */
+  onUsageUpdated?: (data: UsageUpdatedPayload) => void
 
   // ---- step ----
   onStepStarted?: (data: StepStartedPayload) => void

@@ -319,6 +319,75 @@ describe('messageStore (v2)', () => {
     expect(message?.parts[0]).toMatchObject({ type: 'text', text: 'from snapshot' })
   })
 
+  /**
+   * v2 的 `session.retry.scheduled` 负载与 RetryPart 一一对应。
+   * 不接这个事件的话，重试提示只在重新加载后（走消息级 retry 字段的投影）才出现。
+   */
+  describe('重试排期（session.retry.scheduled）', () => {
+    it('在助手消息上补出 retry part，错误转成可读的 APIError', () => {
+      messageStore.handleRetryScheduled({
+        sessionID: SESSION,
+        assistantMessageID: 'message-1',
+        attempt: 2,
+        at: 1700,
+        error: { type: 'provider_error', message: 'overloaded', status: 503 },
+      })
+
+      const part = messageStore.getSessionState(SESSION)?.messages[0].parts[0]
+      expect(part).toMatchObject({
+        type: 'retry',
+        attempt: 2,
+        time: { created: 1700 },
+        error: { name: 'APIError', data: { message: 'overloaded', statusCode: 503, isRetryable: true } },
+      })
+    })
+
+    it('助手消息不存在时也能建（重试可能早于任何文本）', () => {
+      messageStore.handleRetryScheduled({
+        sessionID: SESSION,
+        assistantMessageID: 'message-fresh',
+        attempt: 1,
+        at: 10,
+        error: { type: 'x', message: 'boom' },
+      })
+
+      const message = messageStore.getSessionState(SESSION)?.messages[0]
+      expect(message?.info.id).toBe('message-fresh')
+      expect(message?.parts[0]).toMatchObject({ type: 'retry', attempt: 1 })
+    })
+
+    it('同一 attempt 重复到达时不会重复添加（事件可能重放）', () => {
+      const payload = {
+        sessionID: SESSION,
+        assistantMessageID: 'message-1',
+        attempt: 3,
+        at: 20,
+        error: { type: 'x', message: 'again' },
+      } as const
+
+      messageStore.handleRetryScheduled({ ...payload })
+      messageStore.handleRetryScheduled({ ...payload })
+
+      const parts = messageStore.getSessionState(SESSION)?.messages[0].parts ?? []
+      expect(parts.filter(p => p.type === 'retry')).toHaveLength(1)
+    })
+
+    it('不同 attempt 各自留下记录', () => {
+      for (const attempt of [1, 2]) {
+        messageStore.handleRetryScheduled({
+          sessionID: SESSION,
+          assistantMessageID: 'message-1',
+          attempt,
+          at: attempt * 10,
+          error: { type: 'x', message: `try ${attempt}` },
+        })
+      }
+
+      const parts = messageStore.getSessionState(SESSION)?.messages[0].parts ?? []
+      expect(parts.filter(p => p.type === 'retry').map(p => (p as { attempt: number }).attempt)).toEqual([1, 2])
+    })
+  })
+
   it('marks cached sessions stale after reconnect and clears the flag after a fresh load', () => {
     messageStore.setMessages(SESSION, [createAssistantMessage('message-1', textContent('hello'))])
 

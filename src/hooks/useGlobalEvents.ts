@@ -620,6 +620,35 @@ export function useGlobalEvents(directories?: string[]) {
           scheduleScroll(scopedId)
         },
 
+        /**
+         * 重试已排期。
+         *
+         * 负载是 `{ assistantMessageID, attempt, at, error }`，正好是 RetryPart
+         * 需要的字段。不接的话，重试提示只能在重新加载后（走消息级 retry 字段
+         * 的投影）出现，实时会话中看不到"正在重试"。
+         */
+        onRetryScheduled: data => {
+          const scopedId = scope(data.sessionID)
+          messageStore.handleRetryScheduled({
+            sessionID: scopedId,
+            assistantMessageID: data.assistantMessageID,
+            attempt: data.attempt,
+            at: data.at,
+            error: data.error,
+          })
+        },
+
+        // `session.synthetic` 与 `session.usage.updated` 已在分发层接好
+        // （类型安全、事件不会再无声丢失），但**这里刻意还没消费**，
+        // 因为两者的 UI 归属不明确，猜测实现反而会引入缺陷：
+        //   - synthetic: { sessionID, text, description? } 没有 messageID，
+        //     而 UI 的 synthetic part 挂在**用户消息**上（UserMessageView 的
+        //     syntheticParts）。要接就得决定"挂到哪条消息"，且要防重复注入
+        //   - usage.updated: { cost, tokens } 是会话级数据，而目前的用量指示
+        //     由 sessionStatsCompute 从消息 tokens 本地推算，需要先定下
+        //     "服务端值优先还是本地估算优先"，否则会出现两套数字打架
+        // 保留为已知缺口，等有真实服务端可对照时再决定语义。
+
         // ============================================
         // Session Events → childSessionStore
         // ============================================
