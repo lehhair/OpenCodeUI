@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   getSessions,
+  getSession,
   createSession,
   deleteSession,
   subscribeToEvents,
@@ -135,7 +136,8 @@ export function useSessions(options: UseSessionsOptions = {}): UseSessionsResult
           try {
             const data = await getSessions(
               {
-                roots: rootsOnly,
+                // v2 没有 roots 开关：只要根会话时传 parentID: null
+                ...(rootsOnly ? { parentID: null } : {}),
                 limit: currentLimitRef.current,
                 directory: normalizedDirectory,
                 ...queryParams,
@@ -241,49 +243,43 @@ export function useSessions(options: UseSessionsOptions = {}): UseSessionsResult
       : subscribeToEvents
 
     const unsubscribe = subscribe({
-      onSessionCreated: session => {
-        if (session.parentID) return
-        if (!matchesDirectory(session)) return
+      onSessionCreated: data => {
+        if (data.parentID) return
 
-        if (searchRef.current) {
-          void fetchSessionsRef.current({ search: searchRef.current || undefined })
-          return
-        }
+        // v2 的 session.created 负载是创建记录（以 sessionID 为键、带 slug/version），
+        // 不是 SessionInfo，回读一次拿到完整会话再入列表。
+        void getSession(data.sessionID, undefined, serverId)
+          .then(session => {
+            if (!session || !matchesDirectory(session)) return
 
-        setSessions(prev => {
-          if (prev.some(item => item.id === session.id)) return prev
-          return [session, ...prev]
-        })
-      },
-      onSessionUpdated: session => {
-        if (session.parentID) return
+            if (searchRef.current) {
+              void fetchSessionsRef.current({ search: searchRef.current || undefined })
+              return
+            }
 
-        if (searchRef.current) {
-          if (matchesDirectory(session)) {
+            setSessions(prev => {
+              if (prev.some(item => item.id === session.id)) return prev
+              return [session, ...prev]
+            })
+          })
+          .catch(() => {
+            // 回读失败退回整表刷新
             void fetchSessionsRef.current({ search: searchRef.current || undefined })
-          } else {
-            setSessions(prev => prev.filter(item => item.id !== session.id))
-          }
-          return
-        }
-
+          })
+      },
+      onSessionRenamed: data => {
+        // v2 把 v1 的 session.updated 收敛成 session.renamed（只有标题变化）
         setSessions(prev => {
-          const index = prev.findIndex(item => item.id === session.id)
-
-          if (!matchesDirectory(session)) {
-            return index === -1 ? prev : prev.filter(item => item.id !== session.id)
-          }
-
-          if (index === -1) {
-            return [session, ...prev]
-          }
-
-          const updated = prev.filter(item => item.id !== session.id)
-          return [session, ...updated]
+          const index = prev.findIndex(item => item.id === data.sessionID)
+          if (index === -1) return prev
+          const next = [...prev]
+          next[index] = { ...next[index], title: data.title }
+          return next
         })
       },
-      onSessionDeleted: sessionId => {
-        setSessions(prev => prev.filter(item => item.id !== sessionId))
+      onSessionDeleted: data => {
+        // v2 的 session.deleted 负载是 { sessionID }
+        setSessions(prev => prev.filter(item => item.id !== data.sessionID))
       },
       onReconnected: reason => {
         if (reason === 'server-switch') return
