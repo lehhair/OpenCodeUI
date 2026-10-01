@@ -42,12 +42,12 @@ import {
   updateSession,
   deleteSession as apiDeleteSession,
   getSession,
-  createSessionPlaceholder,
   subscribeToConnectionState,
   type ApiSession,
   type ConnectionInfo,
 } from '../../../api'
 import { getDirectoryName, isSameDirectory, normalizeToForwardSlash } from '../../../utils'
+import { createSessionPlaceholder } from '../../../utils/sessionPlaceholder'
 import { makeSessionKey, splitSessionKey } from '../../../utils/sessionKey'
 import { uiErrorHandler } from '../../../utils'
 

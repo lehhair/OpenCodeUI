@@ -154,8 +154,14 @@ export type SessionContentUpdatedEvent = Extract<
 
 export type SessionContentUpdatedPayload = SessionContentUpdatedEvent['data']
 
-/** 服务器已连接（v2 为带 type 的事件对象） */
-export type ServerConnectedPayload = V2EventServerConnected
+/**
+ * 服务器已连接。
+ *
+ * v2 的 `server.connected` 负载是 `{}`（既没有服务端时间戳，也没有其它信息），
+ * 因此这个回调**不带参数**——之前的签名要求传整个事件对象，导致分发层不得不
+ * 把 event 硬塞给只想要负载的回调。需要时间戳的调用方自行取本地时间。
+ */
+export type ServerConnectedPayload = V2EventServerConnected['data']
 
 // ---- 流式增量负载 ----
 
@@ -326,7 +332,7 @@ export interface EventCallbacks {
   onPtyDeleted?: (data: PtyDeletedPayload) => void
 
   // ---- 连接 ----
-  onServerConnected?: (data: ServerConnectedPayload) => void
+  onServerConnected?: () => void
   onError?: (error: Error) => void
   onReconnected?: (reason: 'network' | 'server-switch') => void
 }

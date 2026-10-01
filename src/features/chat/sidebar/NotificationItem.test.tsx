@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { createSessionPlaceholder, type ApiSession } from '../../../api'
+import type { ApiSession } from '../../../api'
+import { createSessionPlaceholder } from '../../../utils/sessionPlaceholder'
 import type { NotificationEntry } from '../../../store/notificationStore'
 import { NotificationItem } from './NotificationItem'
 

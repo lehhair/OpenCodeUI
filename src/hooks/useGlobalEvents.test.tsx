@@ -284,7 +284,7 @@ describe('useGlobalEvents', () => {
     await waitFor(() => expect(callbacks).toBeDefined())
 
     // v2 的 server.connected 负载是 {}，没有服务端时间戳，钩子用本地时间打点
-    callbacks!.onServerConnected?.({})
+    callbacks!.onServerConnected?.()
 
     expect(applyServerConnectedTimestampMock).toHaveBeenCalledWith('local', expect.any(Number))
   })

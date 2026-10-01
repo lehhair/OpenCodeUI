@@ -137,185 +137,183 @@ function getReconnectDelay(attempt: number): number {
 // v2 的事件是扁平对象，直接读 `event.type` 与 `event.data`。
 
 function dispatchEvent(callbacks: EventCallbacks, event: GlobalEvent): void {
-  const data = (event as { data?: unknown }).data as never
-  if (data === undefined) return
 
   switch (event.type) {
     // ---- 会话生命周期 ----
     case 'session.created':
-      callbacks.onSessionCreated?.(data)
+      callbacks.onSessionCreated?.(event.data)
       break
     case 'session.renamed':
-      callbacks.onSessionRenamed?.(data)
+      callbacks.onSessionRenamed?.(event.data)
       break
     case 'session.deleted':
-      callbacks.onSessionDeleted?.(data)
+      callbacks.onSessionDeleted?.(event.data)
       break
     case 'session.idle':
-      callbacks.onSessionIdle?.(data)
+      callbacks.onSessionIdle?.(event.data)
       break
     case 'session.status':
-      callbacks.onSessionStatus?.(data)
+      callbacks.onSessionStatus?.(event.data)
       break
     case 'session.viewed':
-      callbacks.onSessionViewed?.(data)
+      callbacks.onSessionViewed?.(event.data)
       break
     case 'session.moved':
-      callbacks.onSessionMoved?.(data)
+      callbacks.onSessionMoved?.(event.data)
       break
     case 'session.forked':
-      callbacks.onSessionForked?.(data)
+      callbacks.onSessionForked?.(event.data)
       break
     case 'session.permissions':
-      callbacks.onSessionPermissions?.(data)
+      callbacks.onSessionPermissions?.(event.data)
       break
 
     // ---- 文本流 ----
     case 'session.text.started':
-      callbacks.onTextStarted?.(data)
+      callbacks.onTextStarted?.(event.data)
       break
     case 'session.text.delta':
-      callbacks.onTextDelta?.(data)
+      callbacks.onTextDelta?.(event.data)
       break
     case 'session.text.ended':
-      callbacks.onTextEnded?.(data)
+      callbacks.onTextEnded?.(event.data)
       break
 
     // ---- 推理流 ----
     case 'session.reasoning.started':
-      callbacks.onReasoningStarted?.(data)
+      callbacks.onReasoningStarted?.(event.data)
       break
     case 'session.reasoning.delta':
-      callbacks.onReasoningDelta?.(data)
+      callbacks.onReasoningDelta?.(event.data)
       break
     case 'session.reasoning.ended':
-      callbacks.onReasoningEnded?.(data)
+      callbacks.onReasoningEnded?.(event.data)
       break
 
     // ---- 工具流 ----
     case 'session.tool.input.started':
-      callbacks.onToolInputStarted?.(data)
+      callbacks.onToolInputStarted?.(event.data)
       break
     case 'session.tool.input.delta':
-      callbacks.onToolInputDelta?.(data)
+      callbacks.onToolInputDelta?.(event.data)
       break
     case 'session.tool.input.ended':
-      callbacks.onToolInputEnded?.(data)
+      callbacks.onToolInputEnded?.(event.data)
       break
     case 'session.tool.called':
-      callbacks.onToolCalled?.(data)
+      callbacks.onToolCalled?.(event.data)
       break
     case 'session.tool.progress':
-      callbacks.onToolProgress?.(data)
+      callbacks.onToolProgress?.(event.data)
       break
     case 'session.tool.success':
-      callbacks.onToolSuccess?.(data)
+      callbacks.onToolSuccess?.(event.data)
       break
     case 'session.tool.failed':
-      callbacks.onToolFailed?.(data)
+      callbacks.onToolFailed?.(event.data)
       break
 
     // ---- step ----
     case 'session.step.started':
-      callbacks.onStepStarted?.(data)
+      callbacks.onStepStarted?.(event.data)
       break
     case 'session.step.streamed':
-      callbacks.onStepStreamed?.(data)
+      callbacks.onStepStreamed?.(event.data)
       break
     case 'session.step.ended':
-      callbacks.onStepEnded?.(data)
+      callbacks.onStepEnded?.(event.data)
       break
     case 'session.step.failed':
-      callbacks.onStepFailed?.(data)
+      callbacks.onStepFailed?.(event.data)
       break
 
     // ---- 执行生命周期 ----
     case 'session.execution.started':
-      callbacks.onExecutionStarted?.(data)
+      callbacks.onExecutionStarted?.(event.data)
       break
     case 'session.execution.succeeded':
-      callbacks.onExecutionSucceeded?.(data)
+      callbacks.onExecutionSucceeded?.(event.data)
       break
     case 'session.execution.failed':
-      callbacks.onExecutionFailed?.(data)
+      callbacks.onExecutionFailed?.(event.data)
       break
     case 'session.execution.interrupted':
-      callbacks.onExecutionInterrupted?.(data)
+      callbacks.onExecutionInterrupted?.(event.data)
       break
 
     // ---- 权限 ----
     case 'permission.asked':
-      callbacks.onPermissionAsked?.(data)
+      callbacks.onPermissionAsked?.(event.data)
       break
     case 'permission.replied':
-      callbacks.onPermissionReplied?.(data)
+      callbacks.onPermissionReplied?.(event.data)
       break
 
     // ---- 表单（取代 v1 question） ----
     case 'form.created':
-      callbacks.onFormCreated?.(data)
+      callbacks.onFormCreated?.(event.data)
       break
     case 'form.replied':
-      callbacks.onFormReplied?.(data)
+      callbacks.onFormReplied?.(event.data)
       break
     case 'form.cancelled':
-      callbacks.onFormCancelled?.(data)
+      callbacks.onFormCancelled?.(event.data)
       break
 
     // ---- 回退 ----
     case 'session.revert.staged':
-      callbacks.onRevertStaged?.(data)
+      callbacks.onRevertStaged?.(event.data)
       break
     case 'session.revert.cleared':
-      callbacks.onRevertCleared?.(data)
+      callbacks.onRevertCleared?.(event.data)
       break
     case 'session.revert.committed':
-      callbacks.onRevertCommitted?.(data)
+      callbacks.onRevertCommitted?.(event.data)
       break
 
     // ---- inbox ----
     case 'session.inbox.enqueued':
-      callbacks.onInboxEnqueued?.(data)
+      callbacks.onInboxEnqueued?.(event.data)
       break
     case 'session.inbox.delivered':
-      callbacks.onInboxDelivered?.(data)
+      callbacks.onInboxDelivered?.(event.data)
       break
     case 'session.inbox.cancelled':
-      callbacks.onInboxCancelled?.(data)
+      callbacks.onInboxCancelled?.(event.data)
       break
 
     // ---- 外围 ----
     case 'project.updated':
-      callbacks.onProjectUpdated?.(data)
+      callbacks.onProjectUpdated?.(event.data)
       break
     case 'worktree.updated':
-      callbacks.onWorktreeUpdated?.(data)
+      callbacks.onWorktreeUpdated?.(event.data)
       break
     case 'worktree.resolved':
-      callbacks.onWorktreeResolved?.(data)
+      callbacks.onWorktreeResolved?.(event.data)
       break
     case 'vcs.branch.updated':
-      callbacks.onVcsBranchUpdated?.(data)
+      callbacks.onVcsBranchUpdated?.(event.data)
       break
     case 'mcp.status.changed':
-      callbacks.onMcpStatusChanged?.(data)
+      callbacks.onMcpStatusChanged?.(event.data)
       break
     case 'filesystem.changed':
-      callbacks.onFilesystemChanged?.(data)
+      callbacks.onFilesystemChanged?.(event.data)
       break
 
     // ---- PTY ----
     case 'pty.created':
-      callbacks.onPtyCreated?.(data)
+      callbacks.onPtyCreated?.(event.data)
       break
     case 'pty.updated':
-      callbacks.onPtyUpdated?.(data)
+      callbacks.onPtyUpdated?.(event.data)
       break
     case 'pty.exited':
-      callbacks.onPtyExited?.(data)
+      callbacks.onPtyExited?.(event.data)
       break
     case 'pty.deleted':
-      callbacks.onPtyDeleted?.(data)
+      callbacks.onPtyDeleted?.(event.data)
       break
 
     default:
@@ -378,15 +376,15 @@ async function connectServer(serverId: string): Promise<void> {
           reconnectAttempt: 0,
           error: undefined,
         })
-        if (event.type === 'server.connected') {
-          conn.subscribers.forEach(cb => cb.onServerConnected?.(event as never))
-        }
       } else if (conn.info.state !== 'connected') {
         updateConnectionState(serverId, { state: 'connected', reconnectAttempt: 0, error: undefined })
       }
 
+      // server.connected 没有可分发的内容（data 是 {}），只用来标记连接已建立。
+      // 通知只在**这一处**发：之前上面那个分支里也发过一次，导致首次连接时
+      // 每个订阅者被触发两遍。
       if (event.type === 'server.connected') {
-        conn.subscribers.forEach(cb => cb.onServerConnected?.(event as never))
+        conn.subscribers.forEach(cb => cb.onServerConnected?.())
         continue
       }
 

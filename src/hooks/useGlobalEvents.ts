@@ -23,6 +23,7 @@ import {
   getPendingPermissions,
   getPendingForms,
 } from '../api'
+import { createSessionPlaceholder } from '../utils/sessionPlaceholder'
 import type { EventCallbacks } from '../types/api/event'
 import { replyPermission } from '../api/permission'
 import { autoApproveStore } from '../store/autoApproveStore'
@@ -598,17 +599,19 @@ export function useGlobalEvents(directories?: string[]) {
           activeSessionStore.setSessionMeta(scopedId, data.title, data.location?.directory)
 
           if (data.parentID) {
+            // session.created 的负载是**创建记录**（没有 cost/tokens/time.updated 等），
+            // 因此用占位构造器补齐 SessionInfo 的必填字段，而不是强转。
+            const placeholder = createSessionPlaceholder({
+              id: scopedId,
+              title: data.title,
+              directory: data.location?.directory,
+            })
             childSessionStore.registerChildSession(
               {
-                id: scopedId,
+                ...placeholder,
                 parentID: scope(data.parentID),
                 projectID: data.projectID,
-                title: data.title,
-                location: data.location,
-                time: { created: Date.now(), updated: Date.now() },
-                cost: 0,
-                tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
-              } as never,
+              },
               serverId,
             )
 
