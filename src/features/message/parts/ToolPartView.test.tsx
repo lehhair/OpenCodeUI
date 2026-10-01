@@ -73,9 +73,8 @@ vi.mock('../tools', () => ({
   extractToolData: () => ({}),
   getToolConfig: () => undefined,
   DefaultRenderer: () => null,
-  TodoRenderer: () => null,
+  // v2 删除了 TodoRenderer / hasTodos（todo 能力整体移除）
   TaskRenderer: () => null,
-  hasTodos: () => false,
 }))
 
 function createRunningToolPart(): ToolPart {

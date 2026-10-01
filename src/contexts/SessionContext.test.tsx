@@ -21,7 +21,6 @@ const {
   subscribeToEventsMock,
   clearChildrenMock,
   clearFollowupQueueMock,
-  setTodosMock,
   clearSessionRuntimeStateMock,
   sessionErrorHandlerMock,
   autoDetectPathStyleMock,
@@ -33,7 +32,6 @@ const {
   subscribeToEventsMock: vi.fn(),
   clearChildrenMock: vi.fn(),
   clearFollowupQueueMock: vi.fn(),
-  setTodosMock: vi.fn(),
   clearSessionRuntimeStateMock: vi.fn(),
   sessionErrorHandlerMock: vi.fn(),
   autoDetectPathStyleMock: vi.fn(),
@@ -66,12 +64,7 @@ vi.mock('../store/followupQueueStore', () => ({
   },
 }))
 
-vi.mock('../store/todoStore', () => ({
-  todoStore: {
-    setTodos: setTodosMock,
-  },
-}))
-
+// v2 删除了 todoStore（连同整块 todo UI），这里不再 mock
 vi.mock('../store/serverStore', () => ({
   serverStore: {
     onServerChange: (...args: unknown[]) => onServerChangeMock(...args),
@@ -111,7 +104,6 @@ describe('SessionProvider', () => {
     subscribeToEventsMock.mockReset()
     clearChildrenMock.mockReset()
     clearFollowupQueueMock.mockReset()
-    setTodosMock.mockReset()
     clearSessionRuntimeStateMock.mockReset()
     sessionErrorHandlerMock.mockReset()
     autoDetectPathStyleMock.mockReset()

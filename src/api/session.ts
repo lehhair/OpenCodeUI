@@ -13,8 +13,9 @@
 //   - `summarize()`  → `compact()`
 //   - `children()`   → `list({ parentID })`
 //   - `messages()`   → `client.message.list()`（移出 session）
-//   - `todo()`       → **v2 已移除**（无替代；见 api/todo.ts 的说明）
+//   - `todo()`       → **v2 已移除**（无替代：整个 todo 能力连同 UI 一并删除）
 //   - `share()/unshare()` → 移除（导出改走 `session.export()`）
+//   - `archive`      → **v2 无归档端点**（`time.archived` 只读不可写，功能已移除）
 //   - `list()` 返回 `{ data, cursor }`，不再是裸数组
 // ============================================
 

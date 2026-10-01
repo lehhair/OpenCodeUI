@@ -69,7 +69,7 @@ serverStore.onServerChange((serverId, reason) => {
     void getSDKClientAsync(serverId).catch(err => apiErrorHandler('reinitialize sdk client after server endpoint change', err))
   }
 
-  // 多服务器模式：messageStore / childSessionStore / todoStore 的数据按 `serverId::sessionId`
+  // 多服务器模式：messageStore / childSessionStore 的数据按 `serverId::sessionId`
   // 分片存储，切换 active server 不应清空其他 pane 正在使用的服务器数据，因此不再 clearAll。
 
   // 以下动作只作用于「当前 active 服务器的数据/连接」，必须按 reason 门控：
