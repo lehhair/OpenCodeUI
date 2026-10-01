@@ -303,7 +303,7 @@ class MessageStore {
         directory: '',
         title: undefined,
         loadError: undefined,
-          isStale: false,
+        isStale: false,
       }
       this.sessions.set(sessionId, state)
     }
@@ -350,7 +350,7 @@ class MessageStore {
       directory?: string
       title?: string
       loadState?: SessionState['loadState']
-        loadError?: MessageError
+      loadError?: MessageError
     },
   ) {
     const state = this.sessions.get(sessionId)
@@ -427,7 +427,7 @@ class MessageStore {
       title?: string
       hasMoreHistory?: boolean
       revertState?: ApiSession['revert'] | null
-      },
+    },
   ) {
     const state = this.ensureSession(sessionId)
     const previousMessages = state.messages
@@ -584,8 +584,11 @@ class MessageStore {
    * content 数组是权威快照，直接重建 parts，不做增量合并。
    */
   handleMessageContent(messageID: string, sessionID: string, content: AssistantContent[]) {
-    const state = this.sessions.get(sessionID)
-    if (!state) return
+    // 内容快照可能早于任何文本/推理事件到达（例如一轮里只有工具调用），
+    // 甚至早于会话被登记；用 ensureSession 而不是「没有就 return」，
+    // 否则首轮快照会被整条丢弃。
+    const state = this.ensureSession(sessionID)
+    this.ensureAssistantMessage(sessionID, messageID)
 
     const msgIndex = state.messages.findIndex(m => m.info.id === messageID)
     if (msgIndex === -1) return
@@ -602,12 +605,7 @@ class MessageStore {
    * v2 用 `data.ordinal` 标识助手消息内的第几段文本，
    * 与 UI 的 part 一一对应（投影时 id 为 `${messageID}:text:${ordinal}`）。
    */
-  handleTextDelta(data: {
-    sessionID: string
-    assistantMessageID: string
-    ordinal: number
-    delta: string
-  }) {
+  handleTextDelta(data: { sessionID: string; assistantMessageID: string; ordinal: number; delta: string }) {
     const state = this.sessions.get(data.sessionID)
     if (!state) return
 
@@ -653,12 +651,7 @@ class MessageStore {
   /**
    * v2 推理增量。与文本增量同构，按 ordinal 定位。
    */
-  handleReasoningDelta(data: {
-    sessionID: string
-    assistantMessageID: string
-    ordinal: number
-    delta: string
-  }) {
+  handleReasoningDelta(data: { sessionID: string; assistantMessageID: string; ordinal: number; delta: string }) {
     const state = this.sessions.get(data.sessionID)
     if (!state) return
 
@@ -722,8 +715,12 @@ class MessageStore {
     toolID: string,
     update: Partial<UIToolState> & { toolName?: string },
   ) {
-    const state = this.sessions.get(sessionID)
-    if (!state) return
+    // 工具可能是一轮里的第一个动作（还没有任何文本），此时助手消息尚不存在。
+    // 之前的实现会在 `if (!state) return` 处直接返回，把**所有**工具事件丢光——
+    // 因为工具 part 永远不会被创建，而唯一带工具名的 `tool.input.started`
+    // 事件当时也没接线（现已接上）。
+    const state = this.ensureSession(sessionID)
+    this.ensureAssistantMessage(sessionID, assistantMessageID)
 
     const msgIndex = state.messages.findIndex(m => m.info.id === assistantMessageID)
     if (msgIndex === -1) return
@@ -829,12 +826,7 @@ class MessageStore {
   /**
    * 文本结束（v2）：用权威文本覆盖该 ordinal 的 part（delta 是易失的，以此对齐）。
    */
-  handleTextEnded(data: {
-    sessionID: string
-    assistantMessageID: string
-    ordinal: number
-    text: string
-  }): void {
+  handleTextEnded(data: { sessionID: string; assistantMessageID: string; ordinal: number; text: string }): void {
     this.ensureAssistantMessage(data.sessionID, data.assistantMessageID)
     this.replaceTextPart(data.sessionID, data.assistantMessageID, data.ordinal, 'text', data.text)
   }
@@ -873,12 +865,7 @@ class MessageStore {
   /**
    * 推理结束（v2）
    */
-  handleReasoningEnded(data: {
-    sessionID: string
-    assistantMessageID: string
-    ordinal: number
-    text: string
-  }): void {
+  handleReasoningEnded(data: { sessionID: string; assistantMessageID: string; ordinal: number; text: string }): void {
     this.ensureAssistantMessage(data.sessionID, data.assistantMessageID)
     this.replaceTextPart(data.sessionID, data.assistantMessageID, data.ordinal, 'reasoning', data.text)
   }
@@ -916,9 +903,7 @@ class MessageStore {
                   time: { start: Date.now() },
                 },
           ]
-        : message.parts.map((part, index) =>
-            index === partIndex ? ({ ...part, text } as Part) : part,
-          )
+        : message.parts.map((part, index) => (index === partIndex ? ({ ...part, text } as Part) : part))
 
     const newMessage = { ...message, parts }
     state.messages = [...state.messages.slice(0, msgIndex), newMessage, ...state.messages.slice(msgIndex + 1)]

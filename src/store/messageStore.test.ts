@@ -273,6 +273,52 @@ describe('messageStore (v2)', () => {
     expect(part).toMatchObject({ type: 'tool', callID: 'tool-9', tool: 'read' })
   })
 
+  /**
+   * 工具可能是一轮里的第一个动作（前面没有任何文本），此时助手消息还不存在。
+   * 之前 handleToolEvent 直接 return，把所有工具事件丢光。
+   */
+  it('助手消息尚不存在时也能建出工具 part（工具先于文本出现）', () => {
+    messageStore.handleToolEvent(SESSION, 'message-fresh', 'tool-1', {
+      status: 'running',
+      toolName: 'bash',
+    })
+
+    const message = messageStore.getSessionState(SESSION)?.messages[0]
+    expect(message?.info.id).toBe('message-fresh')
+    expect(message?.parts[0]).toMatchObject({ type: 'tool', tool: 'bash' })
+  })
+
+  /**
+   * 唯一带工具名的事件是 tool.input.started（useGlobalEvents 在此建 part）。
+   * 之后 called/progress/success 都不带名字，但 part 已存在，因此能正常更新。
+   */
+  it('先用 tool.input.started 建 part，随后不带名字的成功事件也能更新到它', () => {
+    messageStore.handleToolEvent(SESSION, 'message-1', 'tool-1', {
+      status: 'running',
+      toolName: 'read',
+    })
+    // 以下事件在 v2 里都不带工具名
+    messageStore.handleToolEvent(SESSION, 'message-1', 'tool-1', {
+      status: 'completed',
+      output: 'file contents',
+    })
+
+    const part = messageStore.getSessionState(SESSION)?.messages[0].parts[0]
+    expect(part).toMatchObject({
+      type: 'tool',
+      tool: 'read',
+      state: { status: 'completed', output: 'file contents' },
+    })
+  })
+
+  it('content 快照在助手消息不存在时也能落地（快照可能先到）', () => {
+    messageStore.handleMessageContent('message-snap', SESSION, textContent('from snapshot'))
+
+    const message = messageStore.getSessionState(SESSION)?.messages[0]
+    expect(message?.info.id).toBe('message-snap')
+    expect(message?.parts[0]).toMatchObject({ type: 'text', text: 'from snapshot' })
+  })
+
   it('removes a part from a message', () => {
     messageStore.handleMessageUpdated(createAssistantMessage('message-1', textContent('hello')), SESSION)
 
@@ -318,7 +364,10 @@ describe('messageStore (v2)', () => {
 
     messageStore.prependMessages(
       SESSION,
-      [createAssistantMessage('message-1', textContent('one')), createAssistantMessage('message-2', textContent('duplicate'))],
+      [
+        createAssistantMessage('message-1', textContent('one')),
+        createAssistantMessage('message-2', textContent('duplicate')),
+      ],
       true,
     )
 

@@ -520,6 +520,35 @@ export function useGlobalEvents(directories?: string[]) {
         // 实时输出是一串扁平事件，按 ordinal（文本/推理）或 id（工具）关联。
         // ============================================
 
+        /**
+         * 助手消息的 content 快照。
+         *
+         * v2 会把助手消息的完整 content 推过来（`session.message.content.updated`），
+         * 这是工具 part 的权威来源、也是文本/推理的最终定稿。
+         * store 里早有 handleMessageContent，但一直没人接线，导致快照被整条丢弃。
+         */
+        onMessageContentUpdated: data => {
+          const scopedId = scope(data.sessionID)
+          messageStore.handleMessageContent(data.messageID, scopedId, data.content)
+          scheduleScroll(scopedId)
+        },
+
+        /**
+         * 工具开始接收输入。
+         *
+         * **只有这个事件带工具名**（`data.name`）：called / progress / success /
+         * failed 都不带。因此必须在这里就把 tool part 建出来（带上 toolName），
+         * 否则后续事件会因为「part 不存在且没有 toolName」而被 store 丢弃——
+         * 那样工具调用在整个实时会话里都不会显示，只有重新加载后才出现。
+         */
+        onToolInputStarted: data => {
+          const scopedId = scope(data.sessionID)
+          messageStore.handleToolEvent(scopedId, data.assistantMessageID, data.id, {
+            status: 'running',
+            toolName: data.name,
+          })
+        },
+
         onTextStarted: data => {
           const scopedId = scope(data.sessionID)
           messageStore.handleTextStarted({ ...data, sessionID: scopedId })
