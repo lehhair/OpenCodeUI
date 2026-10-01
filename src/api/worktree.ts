@@ -1,41 +1,61 @@
 // ============================================
-// Worktree API - Git Worktree 管理
+// Worktree API — OpenCode v2 原生
+//
+// ## v1 → v2 关键差异
+//
+//   - 作用域从 `directory` 改为 **`projectID`**
+//   - `list()` 返回 `WorktreeDirectory[]`（`{ directory, strategy? }`），
+//     **不是字符串数组**（v1 返回 string[]）
+//   - `create()` 按 projectID 创建，返回 `WorktreeInfo`
+//   - `reset()` 在 v2 **已移除**；新增 `refresh()`
+//   - `remove()` 按 directory 删除
 // ============================================
 
-import { getSDKClient, unwrap } from './sdk'
-import type { Worktree, WorktreeCreateInput, WorktreeRemoveInput, WorktreeResetInput } from '../types/api/worktree'
-import { formatPathForApi } from '../utils/directoryUtils'
+import { getSDKClient } from './sdk'
+import type {
+  Worktree,
+  WorktreeCreateInput,
+  WorktreeDirectory,
+  WorktreeRemoveInput,
+} from '../types/api/worktree'
 
 /**
- * 获取所有 worktree 列表
+ * 获取项目下的 worktree 列表。
  */
-export async function listWorktrees(directory?: string, serverId?: string): Promise<string[]> {
+export async function listWorktreeEntries(projectID: string, serverId?: string): Promise<WorktreeDirectory[]> {
   const sdk = getSDKClient(serverId)
-  return unwrap(await sdk.worktree.list({ directory: formatPathForApi(directory, serverId) }))
+  return await sdk.worktree.list({ projectID })
 }
 
 /**
- * 创建新的 worktree
+ * 获取 worktree 目录路径列表（便捷方法）。
  */
-export async function createWorktree(params: WorktreeCreateInput, directory?: string): Promise<Worktree> {
-  const sdk = getSDKClient()
-  return unwrap(await sdk.worktree.create({ directory: formatPathForApi(directory), worktreeCreateInput: params }))
+export async function listWorktrees(projectID: string, serverId?: string): Promise<string[]> {
+  const entries = await listWorktreeEntries(projectID, serverId)
+  return entries.map(entry => entry.directory)
 }
 
 /**
- * 删除 worktree
+ * 创建新的 worktree。
  */
-export async function removeWorktree(params: WorktreeRemoveInput, directory?: string): Promise<boolean> {
-  const sdk = getSDKClient()
-  unwrap(await sdk.worktree.remove({ directory: formatPathForApi(directory), worktreeRemoveInput: params }))
+export async function createWorktree(params: WorktreeCreateInput, serverId?: string): Promise<Worktree> {
+  const sdk = getSDKClient(serverId)
+  return await sdk.worktree.create(params)
+}
+
+/**
+ * 删除 worktree。
+ */
+export async function removeWorktree(params: WorktreeRemoveInput, serverId?: string): Promise<boolean> {
+  const sdk = getSDKClient(serverId)
+  await sdk.worktree.remove(params)
   return true
 }
 
 /**
- * 重置 worktree
+ * 重新扫描 worktree（v2 新增，取代 v1 的 reset）。
  */
-export async function resetWorktree(params: WorktreeResetInput, directory?: string): Promise<boolean> {
-  const sdk = getSDKClient()
-  unwrap(await sdk.worktree.reset({ directory: formatPathForApi(directory), worktreeResetInput: params }))
-  return true
+export async function refreshWorktrees(projectID: string, serverId?: string): Promise<void> {
+  const sdk = getSDKClient(serverId)
+  await sdk.worktree.refresh({ projectID })
 }

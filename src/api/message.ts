@@ -1,242 +1,149 @@
 // ============================================
-// Message API Functions
-// 基于 @opencode-ai/sdk: /session/{sessionID}/message 相关接口
+// Message API — OpenCode v2 原生
+//
+// ## v1 → v2 关键差异
+//
+//   - 读取消息：v1 `session.messages()` → v2 `message.list()`
+//     返回 `{ data, cursor }`，元素是**自带内容的完整消息**
+//     （不再有独立的 parts 数组）。
+//   - 发送消息：v1 `session.prompt({ parts: [...] })` 且另有 promptAsync；
+//     v2 `session.prompt({ sessionID, text, files?, agents?, skills? })`
+//     —— **入参是 text + 附件数组**，不是 parts 联合；
+//     且 prompt 本身就是入队语义（等价于 v1 的 promptAsync），
+//     响应是入队项（SessionInboxUser），不是助手回复。
+//     助手输出通过事件流到达。
 // ============================================
 
-import { getSDKClient, unwrap } from './sdk'
+import { getSDKClient } from './sdk'
 import { resolveSessionTarget } from '../utils/sessionKey'
-import { formatPathForApi } from '../utils/directoryUtils'
-import type {
-  ApiMessageWithParts,
-  AgentPartInput,
-  ApiAgentPart,
-  ApiTextPart,
-  ApiFilePart,
-  Attachment,
-  FilePartInput,
-  RevertedMessage,
-  SendMessageParams,
-  SendMessageResponse,
-  TextPartInput,
-} from './types'
-
-type PromptParams = Parameters<ReturnType<typeof getSDKClient>['session']['prompt']>[0]
-type UserContentSource = {
-  parts: Array<
-    | ApiTextPart
-    | ApiFilePart
-    | ApiAgentPart
-    | {
-        type: string
-      }
-  >
-}
-
-function isTextUserContentPart(part: UserContentSource['parts'][number]): part is ApiTextPart {
-  return part.type === 'text' && 'text' in part
-}
-
-function isFileUserContentPart(part: UserContentSource['parts'][number]): part is ApiFilePart {
-  return part.type === 'file' && 'mime' in part && 'url' in part
-}
-
-function isAgentUserContentPart(part: UserContentSource['parts'][number]): part is ApiAgentPart {
-  return part.type === 'agent' && 'name' in part
-}
+import type { SessionMessage } from './types'
+import type { Attachment, RevertedMessage, SendMessageParams } from './types'
 
 // ============================================
-// Message Query
+// 消息查询
 // ============================================
 
 /**
- * 获取 session 的消息列表
+ * 获取会话消息列表。
+ *
+ * v2 返回 `{ data, cursor }`；这里返回 `data`，调用点保持不变。
  */
 export async function getSessionMessages(
   sessionId: string,
   limit?: number,
-  directory?: string,
+  _directory?: string,
   serverId?: string,
-): Promise<ApiMessageWithParts[]> {
+): Promise<SessionMessage[]> {
   const target = resolveSessionTarget(sessionId, serverId)
   const sdk = getSDKClient(target.serverId)
-  return unwrap<ApiMessageWithParts[]>(
-    await sdk.session.messages({
-      sessionID: target.sessionId,
-      directory: formatPathForApi(directory, target.serverId),
-      limit,
-    }),
-  )
+  const result = await sdk.message.list({ sessionID: target.sessionId, limit })
+  return result.data
 }
 
 // ============================================
-// Message Content Extraction
+// 用户消息内容提取
 // ============================================
 
 /**
- * 从 API 消息中提取用户消息内容（文本+附件）
+ * 从 v2 用户消息中提取纯文本与附件。
+ *
+ * v2 的用户消息自带 `text` 与 `files` / `agents` / `skills` 数组，
+ * 不再需要遍历 parts。
  */
-export function extractUserMessageContent(message: UserContentSource): RevertedMessage {
-  const { parts } = message
-
-  const textParts = parts.filter((part): part is ApiTextPart => isTextUserContentPart(part) && !part.synthetic)
-  const text = textParts.map(p => p.text).join('\n')
-
+export function extractUserMessageContent(message: {
+  text?: string
+  files?: Array<{ uri: string; name?: string; description?: string }>
+  agents?: Array<{ name: string }>
+  skills?: Array<{ id: string }>
+}): RevertedMessage {
   const attachments: Attachment[] = []
 
-  const getSourcePath = (source: ApiFilePart['source']): string | undefined => {
-    if (!source || !('path' in source)) return undefined
-    return source.path
+  for (const file of message.files ?? []) {
+    attachments.push({
+      id: crypto.randomUUID(),
+      type: 'file',
+      displayName: file.name || file.uri,
+      url: file.uri,
+      relativePath: file.uri,
+    })
   }
 
-  for (const part of parts) {
-    if (isFileUserContentPart(part)) {
-      const isFolder = part.mime === 'application/x-directory'
-      const sourcePath = getSourcePath(part.source)
-      attachments.push({
-        id: part.id || crypto.randomUUID(),
-        type: isFolder ? 'folder' : 'file',
-        displayName: part.filename || sourcePath || 'file',
-        url: part.url,
-        mime: part.mime,
-        relativePath: sourcePath,
-        textRange: part.source?.text
-          ? {
-              value: part.source.text.value,
-              start: part.source.text.start,
-              end: part.source.text.end,
-            }
-          : undefined,
-      })
-    } else if (isAgentUserContentPart(part)) {
-      attachments.push({
-        id: part.id || crypto.randomUUID(),
-        type: 'agent',
-        displayName: part.name,
-        agentName: part.name,
-        textRange: part.source
-          ? {
-              value: part.source.value,
-              start: part.source.start,
-              end: part.source.end,
-            }
-          : undefined,
-      })
-    }
+  for (const agent of message.agents ?? []) {
+    attachments.push({
+      id: crypto.randomUUID(),
+      type: 'agent',
+      displayName: agent.name,
+      agentName: agent.name,
+    })
   }
 
-  return { text, attachments }
+  return { text: message.text ?? '', attachments }
 }
 
 // ============================================
-// Send Message
+// 发送消息
 // ============================================
 
 /**
- * 构建 file:// URL
+ * 构建 v2 的 prompt 入参。
+ *
+ * v2 的形状是 `{ text, files?, agents?, skills? }`：
+ *   - 文本走 `text`
+ *   - 文件附件走 `files[].uri`（不再是 file part 的 url + mime）
+ *   - agent 提及走 `agents[].name`
  */
-function toFileUrl(path: string): string {
-  if (!path) return ''
+function buildPromptInput(
+  params: SendMessageParams,
+  sessionID: string,
+): {
+  sessionID: string
+  text: string
+  files?: Array<{ uri: string; name?: string; description?: string }>
+  agents?: Array<{ name: string }>
+} {
+  const files: Array<{ uri: string; name?: string; description?: string }> = []
+  const agents: Array<{ name: string }> = []
 
-  if (path.startsWith('file://')) {
-    return path
-  }
-
-  if (path.startsWith('data:')) {
-    return path
-  }
-
-  const normalized = path.replace(/\\/g, '/')
-  if (/^[a-zA-Z]:/.test(normalized)) {
-    return `file:///${normalized}`
-  }
-  if (normalized.startsWith('/')) {
-    return `file://${normalized}`
-  }
-  return `file:///${normalized}`
-}
-
-/**
- * 构建 SDK 发送消息所需的参数
- */
-function buildPromptParams(params: SendMessageParams, serverId?: string): PromptParams {
-  const { sessionId, text, attachments, model, agent, variant, directory } = params
-
-  const parts: NonNullable<PromptParams['parts']> = []
-
-  // 文本 part
-  const textPart: TextPartInput = {
-    type: 'text',
-    text,
-  }
-  parts.push(textPart)
-
-  // 附件 parts
-  for (const attachment of attachments) {
+  for (const attachment of params.attachments) {
     if (attachment.type === 'agent') {
-      const agentPart: AgentPartInput = {
-        type: 'agent',
-        name: attachment.agentName || attachment.displayName,
-        source: attachment.textRange
-          ? {
-              value: attachment.textRange.value,
-              start: attachment.textRange.start,
-              end: attachment.textRange.end,
-            }
-          : undefined,
-      }
-      parts.push(agentPart)
-    } else {
-      const fileUrl = toFileUrl(attachment.url || '')
-      if (!fileUrl) {
-        console.warn('Skipping attachment with empty URL:', attachment)
-        continue
-      }
-
-      const filePart: FilePartInput = {
-        type: 'file',
-        mime: attachment.mime || (attachment.type === 'folder' ? 'application/x-directory' : 'text/plain'),
-        url: fileUrl,
-        filename: attachment.displayName,
-        source: attachment.textRange
-          ? {
-              text: {
-                value: attachment.textRange.value,
-                start: attachment.textRange.start,
-                end: attachment.textRange.end,
-              },
-              type: 'file',
-              path: attachment.relativePath || attachment.displayName,
-            }
-          : undefined,
-      }
-      parts.push(filePart)
+      agents.push({ name: attachment.agentName || attachment.displayName })
+      continue
     }
+
+    const uri = attachment.url || ''
+    if (!uri) {
+      console.warn('Skipping attachment with empty URL:', attachment)
+      continue
+    }
+    files.push({
+      uri,
+      name: attachment.displayName,
+      description: attachment.relativePath,
+    })
   }
 
   return {
-    sessionID: sessionId,
-    directory: formatPathForApi(directory, serverId),
-    parts,
-    model,
-    agent,
-    variant,
+    sessionID,
+    text: params.text,
+    ...(files.length > 0 ? { files } : {}),
+    ...(agents.length > 0 ? { agents } : {}),
   }
 }
 
 /**
- * 同步发送消息（等待完成）
+ * 发送消息（入队）。
+ *
+ * v2 的 prompt 是入队语义：立即返回入队项，助手输出经事件流到达。
+ * 因此 v1 的 sendMessage / sendMessageAsync 在 v2 合并为同一个调用。
  */
-export async function sendMessage(params: SendMessageParams, serverId?: string): Promise<SendMessageResponse> {
+export async function sendMessage(params: SendMessageParams, serverId?: string): Promise<void> {
   const target = resolveSessionTarget(params.sessionId, serverId)
   const sdk = getSDKClient(target.serverId)
-  return unwrap<SendMessageResponse>(await sdk.session.prompt(buildPromptParams({ ...params, sessionId: target.sessionId }, target.serverId)))
+  await sdk.session.prompt(buildPromptInput(params, target.sessionId))
 }
 
 /**
- * 异步发送消息 — 立即返回，AI 响应通过 SSE 推送
+ * 异步发送消息 —— v2 中与 sendMessage 等价（prompt 本身即入队）。
+ * 保留导出以兼容旧调用点。
  */
-export async function sendMessageAsync(params: SendMessageParams, serverId?: string): Promise<void> {
-  const target = resolveSessionTarget(params.sessionId, serverId)
-  const sdk = getSDKClient(target.serverId)
-  unwrap(await sdk.session.promptAsync(buildPromptParams({ ...params, sessionId: target.sessionId }, target.serverId)))
-}
+export const sendMessageAsync = sendMessage

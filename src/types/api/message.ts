@@ -1,87 +1,143 @@
+// ============================================
+// Message Types — OpenCode v2 原生
+//
+// ## v2 的消息形状（与 v1 根本不同）
+//
+// v1：`{ info: Message, parts: Part[] }` —— 消息与内容分离，靠 messageID 关联。
+// v2：消息**自带内容**，统一在 `content` 字段里，且是判别联合：
+//
+//   SessionMessageUser      → { type: 'user', text, files?, agents?, skills? }
+//   SessionMessageAssistant → { type: 'assistant', content: AssistantContent[] }
+//   SessionMessageSystem / Synthetic / Skill / Shell / ...
+//
+// 助手内容三态（`content` 数组元素）：
+//   { type: 'text',      text }
+//   { type: 'reasoning', text, time? }
+//   { type: 'tool',      id, name, state }   state.status ∈ streaming|running|completed|error
+//
+// 因此本层**不提供** v1 的 `parts` 概念；UI 直接消费 `content`。
+// 实时增量通过独立事件（text.delta / reasoning.delta / tool.*）到达，
+// 由 store 投影进这些结构，见 `src/api/events.ts`。
+// ============================================
+
 import type {
-  AgentPart as SDKAgentPart,
-  AgentPartInput as SDKAgentPartInput,
-  AssistantMessage as SDKAssistantMessage,
-  CompactionPart as SDKCompactionPart,
-  FilePart as SDKFilePart,
-  FilePartInput as SDKFilePartInput,
-  FilePartSource as SDKFilePartSource,
-  PatchPart as SDKPatchPart,
-  ReasoningPart as SDKReasoningPart,
-  RetryPart as SDKRetryPart,
-  SnapshotPart as SDKSnapshotPart,
-  StepFinishPart as SDKStepFinishPart,
-  StepStartPart as SDKStepStartPart,
-  SubtaskPart as SDKSubtaskPart,
-  SubtaskPartInput as SDKSubtaskPartInput,
-  TextPart as SDKTextPart,
-  TextPartInput as SDKTextPartInput,
-  ToolPart as SDKToolPart,
-  ToolState as SDKToolState,
-  UserMessage as SDKUserMessage,
-} from '@opencode-ai/sdk/v2/client'
+  SessionMessageAgentSelected as V2AgentSelected,
+  SessionMessageAssistant as V2Assistant,
+  SessionMessageAssistantReasoning as V2AssistantReasoning,
+  SessionMessageAssistantText as V2AssistantText,
+  SessionMessageAssistantTool as V2AssistantTool,
+  SessionMessageCompactionFailed as V2CompactionFailed,
+  SessionMessageCompactionRunning as V2CompactionRunning,
+  SessionMessageCompactionCompleted as V2CompactionCompleted,
+  SessionMessageIdle as V2Idle,
+  SessionMessageLocationSwitched as V2LocationSwitched,
+  SessionMessageModelSelected as V2ModelSelected,
+  SessionMessageShell as V2Shell,
+  SessionMessageSkill as V2Skill,
+  SessionMessageSynthetic as V2Synthetic,
+  SessionMessageSystem as V2System,
+  SessionMessageUser as V2User,
+  SessionMessageToolStateCompleted as V2ToolStateCompleted,
+  SessionMessageToolStateError as V2ToolStateError,
+  SessionMessageToolStateRunning as V2ToolStateRunning,
+  SessionMessageToolStateStreaming as V2ToolStateStreaming,
+  SessionMessagesResponse as V2MessagesResponse,
+  ToolContent as V2ToolContent,
+} from '@opencode/client/promise'
 
-export type MessageSummary = NonNullable<SDKUserMessage['summary']>
+// ============================================
+// 消息实体
+// ============================================
 
-export type UserMessage = SDKUserMessage
+export type UserMessage = V2User
 
-export type AssistantMessage = SDKAssistantMessage
+export type AssistantMessage = V2Assistant
 
-export type Message = UserMessage | AssistantMessage
+/** 会话里的全部消息形态 */
+export type SessionMessage =
+  | V2User
+  | V2Assistant
+  | V2System
+  | V2Synthetic
+  | V2Skill
+  | V2Shell
+  | V2AgentSelected
+  | V2ModelSelected
+  | V2LocationSwitched
+  | V2CompactionRunning
+  | V2CompactionCompleted
+  | V2CompactionFailed
+  | V2Idle
 
-export type TextPart = SDKTextPart
+/** 向后兼容别名（旧调用点仍写 Message） */
+export type Message = SessionMessage
 
-export type ReasoningPart = SDKReasoningPart
+/** `message.list()` 的响应：{ data, cursor } */
+export type MessagesResponse = V2MessagesResponse
 
-export type ToolState = SDKToolState
+// ============================================
+// 助手内容（content 数组元素）
+// ============================================
 
-export type ToolPart = SDKToolPart
+export type AssistantText = V2AssistantText
 
-export type FileSource = SDKFilePartSource
+export type AssistantReasoning = V2AssistantReasoning
 
-export type FileSourceType = NonNullable<FileSource>['type']
+export type AssistantTool = V2AssistantTool
 
-export type FilePart = SDKFilePart
+/** 助手消息的内容联合 */
+export type AssistantContent = AssistantText | AssistantReasoning | AssistantTool
 
-export type AgentPart = SDKAgentPart
+/** 工具调用状态（判别联合，按 status 细分） */
+export type ToolStateStreaming = V2ToolStateStreaming
 
-export type StepStartPart = SDKStepStartPart
+export type ToolStateRunning = V2ToolStateRunning
 
-export type StepFinishPart = SDKStepFinishPart
+export type ToolStateCompleted = V2ToolStateCompleted
 
-export type SnapshotPart = SDKSnapshotPart
+export type ToolStateError = V2ToolStateError
 
-export type PatchPart = SDKPatchPart
+export type ToolState = ToolStateStreaming | ToolStateRunning | ToolStateCompleted | ToolStateError
 
-export type SubtaskPart = SDKSubtaskPart
+/** 工具产出内容（文本或文件） */
+export type ToolContent = V2ToolContent
 
-export type RetryPart = SDKRetryPart
+// ============================================
+// 判别辅助
+// ============================================
 
-export type CompactionPart = SDKCompactionPart
-
-export type Part =
-  | TextPart
-  | ReasoningPart
-  | ToolPart
-  | FilePart
-  | AgentPart
-  | StepStartPart
-  | StepFinishPart
-  | SnapshotPart
-  | PatchPart
-  | SubtaskPart
-  | RetryPart
-  | CompactionPart
-
-export interface MessageWithParts {
-  info: Message
-  parts: Part[]
+export function isUserMessage(message: SessionMessage): message is UserMessage {
+  return message.type === 'user'
 }
 
-export type TextPartInput = SDKTextPartInput
+export function isAssistantMessage(message: SessionMessage): message is AssistantMessage {
+  return message.type === 'assistant'
+}
 
-export type FilePartInput = SDKFilePartInput
+export function isAssistantText(content: AssistantContent): content is AssistantText {
+  return content.type === 'text'
+}
 
-export type AgentPartInput = SDKAgentPartInput
+export function isAssistantReasoning(content: AssistantContent): content is AssistantReasoning {
+  return content.type === 'reasoning'
+}
 
-export type SubtaskPartInput = SDKSubtaskPartInput
+export function isAssistantTool(content: AssistantContent): content is AssistantTool {
+  return content.type === 'tool'
+}
+
+/** 助手消息的可见文本（拼接全部 text 片段） */
+export function assistantText(message: AssistantMessage): string {
+  return message.content
+    .filter(isAssistantText)
+    .map(part => part.text)
+    .join('')
+}
+
+/** 助手消息是否含可渲染内容 */
+export function hasRenderableContent(message: AssistantMessage): boolean {
+  return message.content.some(part => {
+    if (part.type === 'text') return part.text.trim().length > 0
+    return true
+  })
+}

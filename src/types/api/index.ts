@@ -1,64 +1,57 @@
 // ============================================
-// API Types - 统一导出
+// API Types — OpenCode v2 原生统一导出
 // ============================================
 //
-// 所有 API 类型都从这里导出
-// 使用方式: import type { Session, Message, Part } from '@/types/api'
+// 本层是 UI 与 @opencode/client 之间的唯一边界：
+//   - 类型直接取自 v2 客户端（或做最小收敛）
+//   - 不再有任何 v1 形状的兼容包装
+//
+// 使用方式: import type { Session, SessionMessage } from '../types/api'
 //
 
-// Common types
-export type {
-  ErrorInfo,
-  ProviderAuthError,
-  UnknownError,
-  MessageOutputLengthError,
-  MessageAbortedError,
-  APIError,
-} from './common'
-
-// Session types
+// ---- Session ----
 export type {
   Session,
+  SessionActive,
   SessionStatus,
   SessionStatusMap,
-  SessionSummary,
-  SessionShare,
   SessionRevert,
   SessionListParams,
   SessionCreateParams,
   SessionUpdateParams,
   SessionForkParams,
 } from './session'
+export { sessionDirectory } from './session'
 
-// Message types
+// ---- Message ----
 export type {
   Message,
+  SessionMessage,
   UserMessage,
   AssistantMessage,
-  MessageSummary,
-  MessageWithParts,
-  Part,
-  TextPart,
-  ReasoningPart,
-  ToolPart,
-  FilePart,
-  FileSource,
-  FileSourceType,
-  AgentPart,
-  StepStartPart,
-  StepFinishPart,
-  SnapshotPart,
-  PatchPart,
-  SubtaskPart,
-  RetryPart,
-  CompactionPart,
-  TextPartInput,
-  FilePartInput,
-  AgentPartInput,
-  SubtaskPartInput,
+  AssistantContent,
+  AssistantText,
+  AssistantReasoning,
+  AssistantTool,
+  ToolState,
+  ToolStateStreaming,
+  ToolStateRunning,
+  ToolStateCompleted,
+  ToolStateError,
+  ToolContent,
+  MessagesResponse,
+} from './message'
+export {
+  isUserMessage,
+  isAssistantMessage,
+  isAssistantText,
+  isAssistantReasoning,
+  isAssistantTool,
+  assistantText,
+  hasRenderableContent,
 } from './message'
 
-// Model types
+// ---- Model / Provider ----
 export type {
   Model,
   ModelStatus,
@@ -67,22 +60,45 @@ export type {
   ModelIOCapabilities,
   Provider,
   ProvidersResponse,
-  ProviderAuthMethod,
-  ProviderAuthAuthorization,
+  ModelListResponse,
+  ProviderListResponse,
+  ModelDefaultResponse,
 } from './model'
 
-// Permission types
+// ---- Permission / Form ----
 export type {
-  PermissionToolInfo,
-  PermissionRequest,
+  PermissionRequestModel,
+  PermissionRequestType,
+  PermissionRequestPayload,
   PermissionReply,
-  QuestionOption,
-  QuestionInfo,
+  PermissionEffect,
+  PermissionSavedInfo,
+  PermissionSourceInfo,
+  PermissionToolInfo,
+  FormInfo,
+  FormDetail,
+  FormField,
+  FormFields,
+  FormState,
+  FormValue,
+  FormAnswer,
+  FormMetadata,
+  FormOptionInfo,
+  FormWhenCondition,
+  FormStringFieldType,
+  FormNumberFieldType,
+  FormIntegerFieldType,
+  FormBooleanFieldType,
+  FormMultiselectFieldType,
+  FormExternalFieldType,
   QuestionRequest,
+  QuestionInfo,
+  QuestionOption,
   QuestionAnswer,
 } from './permission'
+export { isChoiceField } from './permission'
 
-// File types
+// ---- File ----
 export type {
   FileNode,
   FileNodeType,
@@ -91,82 +107,155 @@ export type {
   FileStatusItem,
   FilePatch,
   PatchHunk,
+  FileListResponse,
+  FileFindResponse,
+  FileWriteResponse,
   Symbol,
   SymbolLocation,
   SymbolRange,
   TextSearchMatch,
 } from './file'
+export { normalizeFileDiffs } from './file'
 
-// Project types
-export type { Project, ProjectIcon, ProjectCommands, ProjectUpdateParams, PathResponse } from './project'
+// ---- Project ----
+export type {
+  Project,
+  ProjectIcon,
+  ProjectCommands,
+  ProjectVcs,
+  ProjectList,
+  ProjectUpdateParams,
+  PathResponse,
+} from './project'
 
-// Agent types
+// ---- Agent ----
 export type { Agent, AgentMode, AgentPermission } from './agent'
 
-// Event types
+// ---- Event ----
 export type {
   GlobalEvent,
+  OpenCodeEvent,
   EventType,
   EventCallbacks,
   ServerConnectedPayload,
   SessionIdlePayload,
-  SessionErrorPayload,
   SessionStatusPayload,
-  SessionDiffPayload,
-  PartDeltaPayload,
-  PartRemovedPayload,
+  SessionCreatedPayload,
+  SessionDeletedPayload,
+  SessionRenamedPayload,
+  SessionContentUpdatedPayload,
+  TextStartedPayload,
+  TextDeltaPayload,
+  TextEndedPayload,
+  ReasoningStartedPayload,
+  ReasoningDeltaPayload,
+  ReasoningEndedPayload,
+  ToolInputStartedPayload,
+  ToolInputDeltaPayload,
+  ToolInputEndedPayload,
+  ToolCalledPayload,
+  ToolProgressPayload,
+  ToolSuccessPayload,
+  ToolFailedPayload,
+  StepStartedPayload,
+  StepStreamedPayload,
+  StepEndedPayload,
+  StepFailedPayload,
+  ExecutionStartedPayload,
+  ExecutionSucceededPayload,
+  ExecutionFailedPayload,
+  ExecutionInterruptedPayload,
+  PermissionAskedPayload,
   PermissionRepliedPayload,
-  QuestionRepliedPayload,
-  QuestionRejectedPayload,
-  TodoItem,
-  TodoUpdatedPayload,
-  WorktreeReadyPayload,
-  WorktreeFailedPayload,
+  FormCreatedPayload,
+  FormRepliedPayload,
+  FormCancelledPayload,
+  RevertStagedPayload,
+  RevertClearedPayload,
+  RevertCommittedPayload,
+  InboxEnqueuedPayload,
+  InboxDeliveredPayload,
+  InboxCancelledPayload,
+  ProjectUpdatedPayload,
+  WorktreeUpdatedPayload,
+  WorktreeResolvedPayload,
   VcsBranchUpdatedPayload,
+  McpStatusChangedPayload,
+  FilesystemChangedPayload,
+  PtyCreatedPayload,
+  PtyUpdatedPayload,
+  PtyExitedPayload,
+  PtyDeletedPayload,
 } from './event'
 export { EventTypes } from './event'
 
-// Config types
+// ---- Config ----
 export type {
   Config,
-  LogLevel,
-  ServerConfig,
+  ConfigSource,
+  ConfigDocument,
+  ConfigInfo,
+  ConfigUpdateParams,
+  ConfigShellsResponse,
   PermissionConfig,
+  PermissionRuleConfig,
   PermissionActionConfig,
   PermissionObjectConfig,
-  PermissionRuleConfig,
+  LogLevel,
+  ServerConfig,
   AgentConfig,
   ProviderConfig,
+  McpServerConfig,
   McpLocalConfig,
-  McpOAuthConfig,
   McpRemoteConfig,
+  McpOAuthConfig,
+  McpProtocol,
   LayoutConfig,
 } from './config'
 
-// MCP types
+// ---- MCP ----
 export type {
+  MCPServer,
   MCPStatus,
   MCPStatusConnected,
+  MCPStatusPending,
   MCPStatusDisabled,
   MCPStatusFailed,
   MCPStatusNeedsAuth,
-  MCPStatusNeedsClientRegistration,
   MCPResource,
+  MCPResourceMap,
   MCPStatusResponse,
-  McpServerConfig,
+  MCPResourceCatalogResponse,
 } from './mcp'
 
-// Skill types
+// ---- Skill ----
 export type { Skill, SkillList } from './skill'
 
-// PTY types
-export type { Pty, PtySize, PtyCreateParams, PtyUpdateParams } from './pty'
+// ---- PTY ----
+export type { Pty, PtySize, PtyCreateParams, PtyUpdateParams, ShellList } from './pty'
 
-// VCS types
-export type { VcsInfo, VcsDiffMode } from './vcs'
+// ---- VCS ----
+export type {
+  VcsInfo,
+  VcsDiffMode,
+  VcsFileStatus,
+  VcsBaseOutput,
+  VcsBranchListOutput,
+  VcsDiffOutput,
+  VcsGetOutput,
+  VcsStatusOutput,
+} from './vcs'
 
-// Worktree types
-export type { Worktree, WorktreeCreateInput, WorktreeRemoveInput, WorktreeResetInput } from './worktree'
+// ---- Worktree ----
+export type {
+  Worktree,
+  WorktreeDirectory,
+  WorktreeList,
+  WorktreeListInput,
+  WorktreeCreateInput,
+  WorktreeRemoveInput,
+  WorktreeRefreshInput,
+} from './worktree'
 
-// Tool types
+// ---- Tool ----
 export type { ToolIDs, ToolList, ToolListItem } from './tool'

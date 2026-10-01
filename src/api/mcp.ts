@@ -1,81 +1,115 @@
 // ============================================
-// MCP API - Model Context Protocol 服务器管理
+// MCP API — OpenCode v2 原生
+//
+// ## v1 → v2 关键差异
+//
+//   - `mcp.status()`  → `mcp.list()`，返回 `{ location, data: McpServer[] }`，
+//     元素是 `{ name, status, integrationID? }`（v1 是 name → status 的 map）
+//   - 服务器标识字段是 **`server`**（v1 用 `name`）
+//   - 新增 `mcp.add` / `mcp.remove` / `mcp.connect` / `mcp.disconnect`
+//   - 资源目录：v1 `experimental.resource.list()` → v2 `mcp.resource.catalog()`，
+//     返回 `{ resources[], templates[] }`
+//   - v1 的 `mcp.auth.*`（start/remove/callback/authenticate）在 v2 不存在；
+//     远程 MCP 的认证改由 `integration.*` / `credential.*` 承担
 // ============================================
 
-import { getSDKClient, unwrap } from './sdk'
-import { formatPathForApi } from '../utils/directoryUtils'
-import type { MCPResourceMap, MCPStatusResponse, McpServerConfig } from '../types/api/mcp'
+import { getSDKClient } from './sdk'
+import { locationParam } from './location'
+import type { MCPResourceMap, MCPStatus, MCPServer, MCPStatusResponse } from '../types/api/mcp'
+import type { McpServerConfig } from '../types/api/config'
 
 /**
- * 获取所有 MCP 服务器状态
+ * 获取所有 MCP 服务器状态。
+ *
+ * v2 返回 `{ location, data }`；这里保持返回整个响应对象以兼容旧调用点。
  */
-export async function getMcpStatus(directory?: string): Promise<MCPStatusResponse> {
-  const sdk = getSDKClient()
-  return unwrap(await sdk.mcp.status({ directory: formatPathForApi(directory) }))
+export async function getMcpStatus(directory?: string, serverId?: string): Promise<MCPStatusResponse> {
+  const sdk = getSDKClient(serverId)
+  return await sdk.mcp.list({ location: locationParam(directory, serverId) })
 }
 
 /**
- * 获取已连接 MCP 服务器暴露的 resources
+ * 获取 MCP 服务器列表（只取数据部分）。
  */
-export async function getMcpResources(directory?: string): Promise<MCPResourceMap> {
-  const sdk = getSDKClient()
-  return unwrap(await sdk.experimental.resource.list({ directory: formatPathForApi(directory) }))
+export async function listMcpServers(directory?: string, serverId?: string): Promise<MCPServer[]> {
+  const result = await getMcpStatus(directory, serverId)
+  return result.data
 }
 
 /**
- * 添加 MCP 服务器
+ * 按名字取单个 MCP 服务器状态。
  */
-export async function addMcpServer(name: string, config: McpServerConfig, directory?: string): Promise<void> {
-  const sdk = getSDKClient()
-  unwrap(await sdk.mcp.add({ name, config, directory: formatPathForApi(directory) }))
+export async function getMcpServerStatus(
+  name: string,
+  directory?: string,
+  serverId?: string,
+): Promise<MCPStatus | undefined> {
+  const servers = await listMcpServers(directory, serverId)
+  return servers.find(server => server.name === name)?.status
+}
+
+/**
+ * 获取已连接 MCP 服务器暴露的资源。
+ *
+ * v2 的 catalog 返回 `{ resources, templates }`，这里按 server 名归组，
+ * 保持 v1 的 `Record<serverName, resource>` 形状。
+ */
+export async function getMcpResources(directory?: string, serverId?: string): Promise<MCPResourceMap> {
+  const sdk = getSDKClient(serverId)
+  const result = await sdk.mcp.resource.catalog({ location: locationParam(directory, serverId) })
+
+  const map: MCPResourceMap = {}
+  for (const entry of result.data.resources) {
+    map[entry.server] = {
+      resources: [...(map[entry.server]?.resources ?? []), entry],
+      templates: map[entry.server]?.templates ?? [],
+    }
+  }
+  for (const entry of result.data.templates) {
+    map[entry.server] = {
+      resources: map[entry.server]?.resources ?? [],
+      templates: [...(map[entry.server]?.templates ?? []), entry],
+    }
+  }
+  return map
+}
+
+/**
+ * 添加 MCP 服务器。
+ *
+ * v2 的配置形状与 v1 不同（local 用 command 数组、remote 用 url），
+ * 由调用点按 McpServerConfig 提供。
+ */
+export async function addMcpServer(
+  name: string,
+  config: McpServerConfig,
+  directory?: string,
+  serverId?: string,
+): Promise<void> {
+  const sdk = getSDKClient(serverId)
+  await sdk.mcp.add({ server: name, config, location: locationParam(directory, serverId) })
+}
+
+/**
+ * 移除 MCP 服务器（v2 新增）。
+ */
+export async function removeMcpServer(name: string, directory?: string, serverId?: string): Promise<void> {
+  const sdk = getSDKClient(serverId)
+  await sdk.mcp.remove({ server: name, location: locationParam(directory, serverId) })
 }
 
 /**
  * 连接到 MCP 服务器
  */
-export async function connectMcpServer(name: string, directory?: string): Promise<void> {
-  const sdk = getSDKClient()
-  unwrap(await sdk.mcp.connect({ name, directory: formatPathForApi(directory) }))
+export async function connectMcpServer(name: string, directory?: string, serverId?: string): Promise<void> {
+  const sdk = getSDKClient(serverId)
+  await sdk.mcp.connect({ server: name, location: locationParam(directory, serverId) })
 }
 
 /**
  * 断开 MCP 服务器连接
  */
-export async function disconnectMcpServer(name: string, directory?: string): Promise<void> {
-  const sdk = getSDKClient()
-  unwrap(await sdk.mcp.disconnect({ name, directory: formatPathForApi(directory) }))
-}
-
-/**
- * 开始 MCP 认证流程
- */
-export async function startMcpAuth(name: string, directory?: string): Promise<{ url: string }> {
-  const sdk = getSDKClient()
-  const result = unwrap(await sdk.mcp.auth.start({ name, directory: formatPathForApi(directory) }))
-  // SDK 返回 { authorizationUrl: string }，转换为我们期望的 { url: string }
-  return { url: result.authorizationUrl }
-}
-
-/**
- * 移除 MCP 认证
- */
-export async function removeMcpAuth(name: string, directory?: string): Promise<void> {
-  const sdk = getSDKClient()
-  unwrap(await sdk.mcp.auth.remove({ name, directory: formatPathForApi(directory) }))
-}
-
-/**
- * 完成 MCP OAuth 认证（使用授权码）
- */
-export async function completeMcpAuth(name: string, code: string, directory?: string): Promise<void> {
-  const sdk = getSDKClient()
-  unwrap(await sdk.mcp.auth.callback({ name, code, directory: formatPathForApi(directory) }))
-}
-
-/**
- * 启动完整的 OAuth 认证流程
- */
-export async function authenticateMcp(name: string, directory?: string): Promise<void> {
-  const sdk = getSDKClient()
-  unwrap(await sdk.mcp.auth.authenticate({ name, directory: formatPathForApi(directory) }))
+export async function disconnectMcpServer(name: string, directory?: string, serverId?: string): Promise<void> {
+  const sdk = getSDKClient(serverId)
+  await sdk.mcp.disconnect({ server: name, location: locationParam(directory, serverId) })
 }

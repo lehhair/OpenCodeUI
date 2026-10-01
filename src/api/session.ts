@@ -1,291 +1,300 @@
 // ============================================
-// Session API Functions
-// 基于 @opencode-ai/sdk: /session 相关接口
+// Session API — OpenCode v2 原生
+//
+// ## v1 → v2 关键差异
+//
+//   - 所有会话方法只按 `sessionID` 定位，**不接受 location/directory**
+//     （只有 create / import / list 涉及目录）
+//   - `status()`     → `active()`（返回全部「运行中」会话）+ `session.status` 事件
+//   - `delete()`     → `remove()`
+//   - `abort()`      → `interrupt()`
+//   - `revert()`     → `revert.stage()` / `revert.clear()` / `revert.commit()`
+//   - `unrevert()`   → `revert.clear()`
+//   - `summarize()`  → `compact()`
+//   - `children()`   → `list({ parentID })`
+//   - `messages()`   → `client.message.list()`（移出 session）
+//   - `todo()`       → **v2 已移除**（无替代；见 api/todo.ts 的说明）
+//   - `share()/unshare()` → 移除（导出改走 `session.export()`）
+//   - `list()` 返回 `{ data, cursor }`，不再是裸数组
 // ============================================
 
-import { getSDKClient, unwrap } from './sdk'
+import { getSDKClient } from './sdk'
+import { locationParam } from './location'
 import { resolveSessionTarget } from '../utils/sessionKey'
-import { normalizeTodoItems } from './todo'
-import { formatPathForApi } from '../utils/directoryUtils'
-import { getSessionMessages } from './message'
 import { normalizeFileDiffs } from '../types/api/file'
-import { INITIAL_MESSAGE_LIMIT } from '../constants/pagination'
-import type { ApiSession, SessionListParams, FileDiff, ApiMessageWithParts, ApiUserMessage } from './types'
-import type { SessionStatusMap } from '../types/api/session'
-import type { TodoItem } from '../types/api/event'
-
-function normalizeSessionList(value: unknown): ApiSession[] {
-  if (Array.isArray(value)) return value as ApiSession[]
-  throw new Error('Invalid OpenCode session list response')
-}
+import type {
+  FileDiff,
+  Session,
+  SessionListParams,
+  SessionRevert,
+  SessionStatusMap,
+} from './types'
 
 // ============================================
-// Session Status & Diff
+// 会话状态
 // ============================================
 
 /**
- * 获取所有 session 的当前状态
+ * 获取所有「运行中」的会话。
+ *
+ * v2 的 `session.active()` 只返回运行中的会话（`{ [sessionID]: {type:'running'} }`），
+ * 完整的 idle/busy/retry 状态由 `session.status` 事件推送，
+ * 由 store 维护成 SessionStatusMap。
  */
-export async function getSessionStatus(directory?: string, serverId?: string): Promise<SessionStatusMap> {
+export async function getActiveSessions(serverId?: string): Promise<Record<string, { type: 'running' }>> {
   const sdk = getSDKClient(serverId)
-  return unwrap(await sdk.session.status({ directory: formatPathForApi(directory, serverId) }))
+  return await sdk.session.active()
 }
 
 /**
- * 获取 session 的 diff
- * 返回可在 UI 中渲染的 SnapshotFileDiff（过滤缺少 file 的异常项）
+ * 兼容旧调用点：v2 没有「一次性拉全部状态」的接口，
+ * 这里把 `active()` 的结果投影成 status map（只有 running 是确定的）。
+ */
+export async function getSessionStatus(_directory?: string, serverId?: string): Promise<SessionStatusMap> {
+  const active = await getActiveSessions(serverId)
+  const result: SessionStatusMap = {}
+  for (const sessionID of Object.keys(active)) {
+    result[sessionID] = { type: 'busy' }
+  }
+  return result
+}
+
+// ============================================
+// Diff
+// ============================================
+
+/**
+ * 获取会话的 diff。
+ *
+ * v2 的 `session.diff({ sessionID, from?, to?, context? })` 返回 `FileDiffInfo[]`，
+ * 其中 `patch` 是 unified diff 文本。
  */
 export async function getSessionDiff(
   sessionId: string,
-  directory?: string,
-  messageId?: string,
+  _directory?: string,
+  _messageId?: string,
   serverId?: string,
 ): Promise<FileDiff[]> {
   const target = resolveSessionTarget(sessionId, serverId)
   const sdk = getSDKClient(target.serverId)
-  return normalizeFileDiffs(
-    unwrap(
-      await sdk.session.diff({
-        sessionID: target.sessionId,
-        directory: formatPathForApi(directory, target.serverId),
-        messageID: messageId,
-      }),
-    ),
-  )
+  const diffs = await sdk.session.diff({ sessionID: target.sessionId })
+  return normalizeFileDiffs(diffs)
 }
 
-function isUserMessage(message: ApiMessageWithParts): message is ApiMessageWithParts & { info: ApiUserMessage } {
-  return message.info.role === 'user'
-}
+// ============================================
+// 会话 CRUD
+// ============================================
 
 /**
- * 获取当前可见用户消息对应的本轮 diff
+ * 获取会话列表。
  *
- * 对齐 opencode 官方行为：官方 turn 模式的变更列表直接取最近一条 user 消息
- * 的 summary.diffs（见 packages/app/src/pages/session.tsx 的 turnDiffs），
- * 而不是全量拉取消息。这里只取最近一批消息（INITIAL_MESSAGE_LIMIT，分页语义），
- * 避免 limit=undefined 时的全量下载——带 directory 参数时，全量消息响应会包含
- * 整个工作区相关的文件 part，大项目里一次请求可能非常大（issue #157）。
+ * v2 返回 `{ data, cursor }`；调用点普遍期望数组，这里返回 `data`。
  */
-export async function getLastTurnDiff(sessionId: string, directory?: string, serverId?: string): Promise<FileDiff[]> {
-  const [session, messages] = await Promise.all([
-    getSession(sessionId, directory, serverId),
-    getSessionMessages(sessionId, INITIAL_MESSAGE_LIMIT, directory, serverId),
-  ])
-
-  const userMessages = messages.filter(isUserMessage)
-  const revertMessageId = session.revert?.messageID
-  const visibleUserMessages = revertMessageId
-    ? userMessages.filter(message => message.info.id < revertMessageId)
-    : userMessages
-
-  return normalizeFileDiffs(visibleUserMessages.at(-1)?.info.summary?.diffs)
-}
-
-// ============================================
-// Session CRUD
-// ============================================
-
-/**
- * 获取 session 列表
- */
-export async function getSessions(params: SessionListParams = {}, serverId?: string): Promise<ApiSession[]> {
+export async function getSessions(params: SessionListParams = {}, serverId?: string): Promise<Session[]> {
   const sdk = getSDKClient(serverId)
-  const { directory, roots, start, search, limit } = params
-  return normalizeSessionList(
-    unwrap(
-      await sdk.session.list({
-        directory: formatPathForApi(directory, serverId),
-        roots,
-        start,
-        search,
-        limit,
-      }),
-    ),
-  )
+  const { directory, parentID, search, limit, order, cursor, project, subpath } = params
+  const result = await sdk.session.list({
+    directory: locationParam(directory, serverId)?.directory,
+    parentID,
+    search,
+    limit,
+    order,
+    cursor,
+    project,
+    subpath,
+  })
+  return result.data
 }
 
 /**
- * 获取单个 session
+ * 获取子会话。
+ *
+ * v1 的 `session.children()` 在 v2 折进 `list({ parentID })`。
  */
-export async function getSession(sessionId: string, directory?: string, serverId?: string): Promise<ApiSession> {
+export async function getSessionChildren(sessionId: string, _directory?: string, serverId?: string): Promise<Session[]> {
   const target = resolveSessionTarget(sessionId, serverId)
   const sdk = getSDKClient(target.serverId)
-  return unwrap(await sdk.session.get({ sessionID: target.sessionId, directory: formatPathForApi(directory, target.serverId) }))
+  const result = await sdk.session.list({ parentID: target.sessionId })
+  return result.data
+}
+
+export async function getSession(sessionId: string, _directory?: string, serverId?: string): Promise<Session> {
+  const target = resolveSessionTarget(sessionId, serverId)
+  const sdk = getSDKClient(target.serverId)
+  return await sdk.session.get({ sessionID: target.sessionId })
 }
 
 /**
- * 创建 session
+ * 创建会话。
+ *
+ * v2 的目录参数是 `location.directory`；title / agent / model 直接传。
  */
 export async function createSession(
   params: {
     directory?: string
     title?: string
     parentID?: string
+    agent?: string
+    model?: { id: string; providerID: string; variant?: string }
   } = {},
   serverId?: string,
-): Promise<ApiSession> {
+): Promise<Session> {
   const sdk = getSDKClient(serverId)
-  const { directory, title, parentID } = params
-  return unwrap(
-    await sdk.session.create({
-      directory: formatPathForApi(directory, serverId),
-      title,
-      parentID,
-    }),
-  )
+  const { directory, title, parentID, agent, model } = params
+  const location = locationParam(directory, serverId)
+  return await sdk.session.create({
+    title,
+    agent,
+    model,
+    // v2 的 create 里 location.directory 是必填的（给了 location 就必须带目录）
+    ...(location ? { location: { directory: location.directory as string } } : {}),
+    // v2 用 parentID 表达子会话；create 输入里没有独立字段，
+    // 通过 metadata 传递会被服务端忽略，因此这里仅在 list 侧支持子会话过滤。
+    ...(parentID ? { metadata: { parentID } } : {}),
+  })
 }
 
 /**
- * 更新 session
+ * 更新会话。
+ *
+ * v2 只支持 title / metadata / permissions（v1 的 archived 走 metadata）。
  */
 export async function updateSession(
   sessionId: string,
-  params: { title?: string; time?: { archived?: number } },
-  directory?: string,
+  params: { title?: string; metadata?: Record<string, unknown> },
+  _directory?: string,
   serverId?: string,
-): Promise<ApiSession> {
+): Promise<Session> {
   const target = resolveSessionTarget(sessionId, serverId)
   const sdk = getSDKClient(target.serverId)
-  return unwrap(
-    await sdk.session.update({
-      sessionID: target.sessionId,
-      directory: formatPathForApi(directory, target.serverId),
-      ...params,
-    }),
-  )
+  await sdk.session.update({
+    sessionID: target.sessionId,
+    title: params.title,
+    metadata: params.metadata as never,
+  })
+  // v2 的 update 返回 void，回读一次保证调用点拿到最新会话
+  return await sdk.session.get({ sessionID: target.sessionId })
 }
 
 /**
- * 删除 session
+ * 归档会话。
+ *
+ * v2 没有独立的 archive 接口，归档语义放在 `time.archived`，
+ * 由 `update` 的 metadata 承载。
  */
-export async function deleteSession(sessionId: string, directory?: string, serverId?: string): Promise<boolean> {
+export async function archiveSession(sessionId: string, archived: boolean, serverId?: string): Promise<void> {
   const target = resolveSessionTarget(sessionId, serverId)
   const sdk = getSDKClient(target.serverId)
-  unwrap(await sdk.session.delete({ sessionID: target.sessionId, directory: formatPathForApi(directory, target.serverId) }))
+  await sdk.session.update({
+    sessionID: target.sessionId,
+    metadata: { archived: archived ? Date.now() : null },
+  })
+}
+
+/** 删除会话（v1 的 delete → v2 的 remove） */
+export async function deleteSession(sessionId: string, _directory?: string, serverId?: string): Promise<boolean> {
+  const target = resolveSessionTarget(sessionId, serverId)
+  const sdk = getSDKClient(target.serverId)
+  await sdk.session.remove({ sessionID: target.sessionId })
   return true
 }
 
 // ============================================
-// Session Actions
+// 会话动作
 // ============================================
 
 /**
- * 中止 session
+ * 中断会话（v1 的 abort → v2 的 interrupt）。
+ * 返回是否真的中断了正在进行的执行。
  */
-export async function abortSession(sessionId: string, directory?: string, serverId?: string): Promise<boolean> {
+export async function abortSession(sessionId: string, _directory?: string, serverId?: string): Promise<boolean> {
   const target = resolveSessionTarget(sessionId, serverId)
   const sdk = getSDKClient(target.serverId)
-  unwrap(await sdk.session.abort({ sessionID: target.sessionId, directory: formatPathForApi(directory, target.serverId) }))
-  return true
+  const result = await sdk.session.interrupt({ sessionID: target.sessionId })
+  return result.interrupted
 }
 
 /**
- * 回退消息
+ * 回退到某条消息（v1 revert → v2 revert.stage）。
  */
 export async function revertMessage(
   sessionId: string,
   messageId: string,
-  partId?: string,
-  directory?: string,
+  _partId?: string,
+  _directory?: string,
   serverId?: string,
-): Promise<ApiSession> {
+): Promise<SessionRevert> {
   const target = resolveSessionTarget(sessionId, serverId)
   const sdk = getSDKClient(target.serverId)
-  return unwrap(
-    await sdk.session.revert({
-      sessionID: target.sessionId,
-      directory: formatPathForApi(directory, target.serverId),
-      messageID: messageId,
-      partID: partId,
-    }),
-  )
+  return await sdk.session.revert.stage({ sessionID: target.sessionId, messageID: messageId })
 }
 
 /**
- * 恢复已回退的消息
+ * 取消已 staged 的回退（v1 的 unrevert → v2 revert.clear）。
  */
-export async function unrevertSession(sessionId: string, directory?: string, serverId?: string): Promise<ApiSession> {
+export async function unrevertSession(sessionId: string, _directory?: string, serverId?: string): Promise<void> {
   const target = resolveSessionTarget(sessionId, serverId)
   const sdk = getSDKClient(target.serverId)
-  return unwrap(await sdk.session.unrevert({ sessionID: target.sessionId, directory: formatPathForApi(directory, target.serverId) }))
+  await sdk.session.revert.clear({ sessionID: target.sessionId })
 }
 
 /**
- * 分享 session
+ * 提交已 staged 的回退（v2 新增）。
  */
-export async function shareSession(sessionId: string, directory?: string, serverId?: string): Promise<ApiSession> {
+export async function commitRevert(sessionId: string, _directory?: string, serverId?: string): Promise<void> {
   const target = resolveSessionTarget(sessionId, serverId)
   const sdk = getSDKClient(target.serverId)
-  return unwrap(await sdk.session.share({ sessionID: target.sessionId, directory: formatPathForApi(directory, target.serverId) }))
+  await sdk.session.revert.commit({ sessionID: target.sessionId })
 }
 
 /**
- * 取消分享 session
+ * Fork 会话。
+ *
+ * v2 用 `before`（消息 ID）表达分叉边界，取代 v1 的 messageID。
  */
-export async function unshareSession(sessionId: string, directory?: string, serverId?: string): Promise<ApiSession> {
+export async function forkSession(
+  sessionId: string,
+  messageId?: string,
+  _directory?: string,
+  serverId?: string,
+): Promise<Session> {
   const target = resolveSessionTarget(sessionId, serverId)
   const sdk = getSDKClient(target.serverId)
-  return unwrap(await sdk.session.unshare({ sessionID: target.sessionId, directory: formatPathForApi(directory, target.serverId) }))
+  return await sdk.session.fork({ sessionID: target.sessionId, before: messageId })
 }
 
 /**
- * Fork session
- */
-export async function forkSession(sessionId: string, messageId?: string, directory?: string, serverId?: string): Promise<ApiSession> {
-  const target = resolveSessionTarget(sessionId, serverId)
-  const sdk = getSDKClient(target.serverId)
-  return unwrap(
-    await sdk.session.fork({
-      sessionID: target.sessionId,
-      directory: formatPathForApi(directory, target.serverId),
-      messageID: messageId,
-    }),
-  )
-}
-
-/**
- * 总结 session
+ * 压缩上下文（v1 summarise → v2 compact）。
+ *
+ * v2 不再需要显式传 provider/model —— 会话已绑定模型。
  */
 export async function summarizeSession(
   sessionId: string,
-  params: { providerID: string; modelID: string; auto?: boolean },
-  directory?: string,
+  _params?: { providerID?: string; modelID?: string; auto?: boolean },
+  _directory?: string,
   serverId?: string,
 ): Promise<boolean> {
   const target = resolveSessionTarget(sessionId, serverId)
   const sdk = getSDKClient(target.serverId)
-  unwrap(
-    await sdk.session.summarize({
-      sessionID: target.sessionId,
-      directory: formatPathForApi(directory, target.serverId),
-      ...params,
-    }),
-  )
+  await sdk.session.compact({ sessionID: target.sessionId })
   return true
 }
 
 /**
- * 获取子 session
+ * 等待会话进入 idle。
  */
-export async function getSessionChildren(sessionId: string, directory?: string, serverId?: string): Promise<ApiSession[]> {
+export async function waitSession(sessionId: string, serverId?: string): Promise<void> {
   const target = resolveSessionTarget(sessionId, serverId)
   const sdk = getSDKClient(target.serverId)
-  return unwrap(await sdk.session.children({ sessionID: target.sessionId, directory: formatPathForApi(directory, target.serverId) }))
+  await sdk.session.wait({ sessionID: target.sessionId })
 }
 
 /**
- * Session Todo
+ * 取本轮可见 diff。
+ *
+ * v2 的会话不再带 `summary.diffs`，diff 统一由 `session.diff()` 提供，
+ * 因此这里退化为直接取会话 diff。
  */
-export type ApiTodo = TodoItem
-
-/**
- * 获取 session 的 todo 列表
- * SDK 的 Todo 没有 id 字段，用 index+content+status 合成
- */
-export async function getSessionTodos(sessionId: string, directory?: string, serverId?: string): Promise<ApiTodo[]> {
-  const target = resolveSessionTarget(sessionId, serverId)
-  const sdk = getSDKClient(target.serverId)
-  const todos = unwrap(await sdk.session.todo({ sessionID: target.sessionId, directory: formatPathForApi(directory, target.serverId) }))
-  return normalizeTodoItems(todos)
+export async function getLastTurnDiff(sessionId: string, directory?: string, serverId?: string): Promise<FileDiff[]> {
+  return getSessionDiff(sessionId, directory, undefined, serverId)
 }

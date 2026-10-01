@@ -1,15 +1,22 @@
 // ============================================
-// SDK Client - 基于 @opencode-ai/sdk 的统一客户端
+// SDK Client — OpenCode v2 原生客户端
 //
-// 职责：
-// 1. 根据当前活动服务器动态创建 SDK client
-// 2. 整合 baseUrl / auth / tauri fetch
-// 3. 为上层 API 模块提供统一的 client 获取方式
+// 本层只做三件事：
+//   1. 按当前活动服务器创建 v2 客户端（OpenCode.make）
+//   2. 整合 baseUrl / Basic Auth / Tauri fetch
+//   3. 提供按 serverId 的实例缓存与请求中断
+//
+// v2 的 promise 客户端**直接返回数据**（`Promise<T>`），不再有 v1 的
+// `{ data, error }` 包装，因此这里没有 unwrap —— 失败直接是 reject。
 // ============================================
 
-import { createOpencodeClient, type OpencodeClient } from '@opencode-ai/sdk/v2/client'
+import { OpenCode } from '@opencode/client/promise'
+import type { OpenCodeClient } from '@opencode/client/promise'
 import { serverStore, makeBasicAuthHeader } from '../store/serverStore'
 import { isTauri } from '../utils/tauri'
+
+/** v2 客户端实例（内部 API 层的唯一形状） */
+export type ServerApi = OpenCodeClient
 
 // Tauri fetch 缓存
 let _tauriFetch: typeof globalThis.fetch | null = null
@@ -35,7 +42,11 @@ function createAbortError(message: string) {
   return new DOMException(message, 'AbortError')
 }
 
-async function trackedFetch(input: RequestInfo | URL, init: RequestInit | undefined, generation: number): Promise<Response> {
+async function trackedFetch(
+  input: RequestInfo | URL,
+  init: RequestInit | undefined,
+  generation: number,
+): Promise<Response> {
   const controller = new AbortController()
   const externalSignal = init?.signal
   const abortFromExternal = () => controller.abort(externalSignal?.reason)
@@ -63,6 +74,10 @@ async function trackedFetch(input: RequestInfo | URL, init: RequestInit | undefi
   }
 }
 
+/**
+ * 中断所有在途请求（服务器端点变化时调用）。
+ * 通过递增代次让旧请求在起飞前就失败，避免响应乱序落库。
+ */
 export function abortInFlightApiRequests(reason = 'Server endpoint changed'): void {
   _apiRequestGeneration++
   for (const controller of _apiRequestControllers) {
@@ -75,7 +90,7 @@ export function abortInFlightApiRequests(reason = 'Server endpoint changed'): vo
 // 缺省 serverId（undefined）表示活动服务器
 interface CachedClientEntry {
   key: string
-  client: OpencodeClient
+  client: ServerApi
 }
 
 const _cachedClients = new Map<string | undefined, CachedClientEntry>()
@@ -97,11 +112,11 @@ function buildHeaders(serverId?: string): Record<string, string> {
 }
 
 /**
- * 同步获取 SDK client（浏览器环境 or tauri fetch 已加载）
+ * 同步获取 v2 客户端（浏览器环境 or tauri fetch 已加载）
  * 如果 tauri fetch 还没加载完，先用原生 fetch
  * @param serverId 指定服务器（缺省用活动服务器）
  */
-export function getSDKClient(serverId?: string): OpencodeClient {
+export function getSDKClient(serverId?: string): ServerApi {
   const key = buildCacheKey(serverId)
   const cached = _cachedClients.get(serverId)
   if (cached && cached.key === key) {
@@ -112,7 +127,7 @@ export function getSDKClient(serverId?: string): OpencodeClient {
   const headers = buildHeaders(serverId)
   const generation = _apiRequestGeneration
 
-  const client = createOpencodeClient({
+  const client = OpenCode.make({
     baseUrl,
     headers,
     fetch: (input, init) => trackedFetch(input, init, generation),
@@ -122,11 +137,11 @@ export function getSDKClient(serverId?: string): OpencodeClient {
 }
 
 /**
- * 异步获取 SDK client（确保 tauri fetch 已加载）
+ * 异步获取 v2 客户端（确保 tauri fetch 已加载）
  * 在应用初始化时应该先调一次这个
  * @param serverId 指定服务器（缺省用活动服务器）
  */
-export async function getSDKClientAsync(serverId?: string): Promise<OpencodeClient> {
+export async function getSDKClientAsync(serverId?: string): Promise<ServerApi> {
   if (isTauri()) {
     await getTauriFetch()
   }
@@ -136,7 +151,7 @@ export async function getSDKClientAsync(serverId?: string): Promise<OpencodeClie
 }
 
 /**
- * 强制重建 client（服务器切换时调用）
+ * 强制重建客户端（服务器切换时调用）
  * @param serverId 指定服务器（缺省全部失效）
  */
 export function invalidateSDKClient(serverId?: string): void {
@@ -145,20 +160,4 @@ export function invalidateSDKClient(serverId?: string): void {
   } else {
     _cachedClients.clear()
   }
-}
-
-/**
- * 从 SDK 返回值中提取 data，如果有 error 则抛出
- *
- * SDK 默认返回 { data, error, request, response }
- * 我们的上层 API 函数期望直接返回数据，所以需要 unwrap
- */
-export function unwrap<T>(result: { data?: T; error?: unknown }): T {
-  if (result.error != null) {
-    const err = result.error
-    if (err instanceof Error) throw err
-    if (typeof err === 'string') throw new Error(err)
-    throw new Error(JSON.stringify(err))
-  }
-  return result.data as T
 }

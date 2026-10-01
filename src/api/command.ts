@@ -1,13 +1,20 @@
 // ============================================
-// Command API - 命令列表和执行
+// Command API — OpenCode v2 原生
+//
+// v1: `sdk.command.list({ directory })` → Command[]
+// v2: `command.list({ location })`      → { location, data: CommandInfo[] }
+//
+// v1: `sdk.session.command({ sessionID, directory, command, arguments })`
+// v2: `session.command({ sessionID, name, text })`
+//     —— 字段改名：command → name，arguments → text
 // ============================================
 
-import { getSDKClient, unwrap } from './sdk'
+import { getSDKClient } from './sdk'
+import { locationParam } from './location'
 import { resolveSessionTarget } from '../utils/sessionKey'
 import { formatPathForApi } from '../utils/directoryUtils'
 import { serverStore } from '../store/serverStore'
 import i18n from '../i18n'
-
 export interface Command {
   name: string
   description?: string
@@ -15,10 +22,7 @@ export interface Command {
   source: 'frontend' | 'api'
 }
 
-type ApiCommand = Omit<Command, 'source'>
-
-// Frontend-added slash commands that do not come from GET /command.
-// These are executed locally or via dedicated session actions.
+// 前端本地补的斜杠命令，不来自 command.list。
 function getFrontendCommands(): Command[] {
   return [
     { name: 'new', description: i18n.t('commands:slashCommand.newSessionDesc'), source: 'frontend' },
@@ -36,12 +40,13 @@ function getCommandCacheKey(directory?: string, serverId?: string): string {
 }
 
 async function fetchCommands(directory?: string, serverId?: string): Promise<Command[]> {
-  let apiCommands: ApiCommand[] = []
+  let apiCommands: Array<{ name: string; description?: string }> = []
   try {
     const sdk = getSDKClient(serverId)
-    apiCommands = unwrap(await sdk.command.list({ directory: formatPathForApi(directory, serverId) })) ?? []
+    const result = await sdk.command.list({ location: locationParam(directory, serverId) })
+    apiCommands = result.data ?? []
   } catch {
-    // Backend unreachable — frontend commands still available
+    // 后端不可达时仍提供前端命令
   }
   const frontendCommands = getFrontendCommands()
   const commandsFromApi: Command[] = apiCommands.map(command => ({ ...command, source: 'api' }))
@@ -79,21 +84,24 @@ export async function prefetchCommands(directory?: string, serverId?: string): P
   await getCommands(directory, serverId)
 }
 
+/**
+ * 执行斜杠命令。
+ *
+ * v2 的 `session.command` 只按 sessionID 定位（不接受 location），
+ * 返回 void（命令通过事件流反馈）。
+ */
 export async function executeCommand(
   sessionId: string,
   command: string,
   args: string = '',
-  directory?: string,
+  _directory?: string,
   serverId?: string,
-): Promise<unknown> {
+): Promise<void> {
   const target = resolveSessionTarget(sessionId, serverId)
   const sdk = getSDKClient(target.serverId)
-  return unwrap(
-    await sdk.session.command({
-      sessionID: target.sessionId,
-      directory: formatPathForApi(directory, target.serverId),
-      command,
-      arguments: args,
-    }),
-  )
+  await sdk.session.command({
+    sessionID: target.sessionId,
+    name: command,
+    text: args,
+  })
 }

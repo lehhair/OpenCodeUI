@@ -1,4 +1,9 @@
-// API Types - 向后兼容层
+// ============================================
+// API Types — UI 侧别名层（OpenCode v2 原生）
+//
+// 这里把 `src/types/api` 的 v2 类型收敛成 UI 习惯的命名，
+// 不引入任何 v1 形状。
+// ============================================
 
 export type * from '../types/api'
 
@@ -12,36 +17,34 @@ export type {
   SessionRevert as SessionRevertState,
 } from '../types/api/session'
 export type {
-  Message as ApiMessage,
+  SessionMessage as ApiMessage,
+  SessionMessage as ApiMessageWithParts,
   UserMessage as ApiUserMessage,
   AssistantMessage as ApiAssistantMessage,
-  MessageWithParts as ApiMessageWithParts,
-  Part as ApiPart,
-  TextPart as ApiTextPart,
-  ReasoningPart as ApiReasoningPart,
-  ToolPart as ApiToolPart,
-  FilePart as ApiFilePart,
-  AgentPart as ApiAgentPart,
-  StepStartPart as ApiStepStartPart,
-  StepFinishPart as ApiStepFinishPart,
-  SnapshotPart as ApiSnapshotPart,
-  PatchPart as ApiPatchPart,
-  RetryPart as ApiRetryPart,
-  CompactionPart as ApiCompactionPart,
-  SubtaskPart as ApiSubtaskPart,
+  AssistantContent as ApiPart,
+  AssistantText as ApiTextPart,
+  AssistantReasoning as ApiReasoningPart,
+  AssistantTool as ApiToolPart,
+  ToolState as ApiToolState,
 } from '../types/api/message'
 export type {
-  PermissionRequest as ApiPermissionRequest,
+  PermissionRequestModel as ApiPermissionRequest,
   PermissionReply,
+  FormInfo as ApiFormInfo,
+  FormField as ApiFormField,
+  FormAnswer,
+  QuestionRequest as ApiQuestionRequest,
   QuestionOption as ApiQuestionOption,
   QuestionInfo as ApiQuestionInfo,
-  QuestionRequest as ApiQuestionRequest,
   QuestionAnswer,
 } from '../types/api/permission'
 export type { Agent as ApiAgent, AgentPermission as ApiAgentPermission } from '../types/api/agent'
-export type { Symbol as SymbolInfo } from '../types/api/file'
 
 import type { Attachment } from '../types/ui'
+
+// ============================================
+// 发送消息
+// ============================================
 
 export interface RevertedMessage {
   text: string
@@ -52,16 +55,11 @@ export interface SendMessageParams {
   sessionId: string
   text: string
   attachments: Attachment[]
-  model: {
+  model?: {
     providerID: string
     modelID: string
   }
   agent?: string
   variant?: string
   directory?: string
-}
-
-export interface SendMessageResponse {
-  info: import('../types/api/message').AssistantMessage
-  parts: import('../types/api/message').Part[]
 }

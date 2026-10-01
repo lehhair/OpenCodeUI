@@ -1,14 +1,24 @@
 // ============================================
-// PTY API - 终端管理
+// PTY API — OpenCode v2 原生
+//
+// ## v1 → v2 关键差异
+//
+//   - 状态字段：v1 有 `running` 或 `status`；v2 统一为 `status: 'running' | 'exited'`
+//   - `pty.shells()` → **`config.shells()`**（v2 把可用 shell 移到 config）
+//   - 所有方法带 `location`
+//   - `pty.list` 返回 `{ location, data: Pty[] }`
+//   - 新增 `pty.connect.token()` 用于获取连接票据
+//
+// WebSocket 连接 URL 的构造保持在本地（浏览器/桥接两种认证方式）。
 // ============================================
 
-import { getSDKClient, unwrap } from './sdk'
+import { getSDKClient } from './sdk'
+import { locationParam } from './location'
 import { getApiBaseUrl, buildQueryString } from './http'
 import { formatPathForApi } from '../utils/directoryUtils'
 import { serverStore } from '../store/serverStore'
 import type { Pty, PtyCreateParams, PtyUpdateParams } from '../types/api/pty'
 
-type LegacyPty = Pty & { running?: boolean; status?: Pty['status'] }
 export interface ShellInfo {
   path: string
   name: string
@@ -24,50 +34,50 @@ interface PtyConnectUrlOptions {
   cursor?: number
 }
 
-function normalizePty(pty: LegacyPty): Pty {
-  if (pty.status) return pty as Pty
-  return {
-    ...pty,
-    status: pty.running ? 'running' : 'exited',
-  } as Pty
-}
-
 /**
- * 获取所有 PTY 会话列表
+ * 获取所有 PTY 会话列表。
  */
 export async function listPtySessions(directory?: string, serverId?: string): Promise<Pty[]> {
   const sdk = getSDKClient(serverId)
-  return unwrap(await sdk.pty.list({ directory: formatPathForApi(directory, serverId) })).map(pty =>
-    normalizePty(pty as LegacyPty),
-  )
+  const result = await sdk.pty.list({ location: locationParam(directory, serverId) })
+  return result.data
 }
 
 /**
- * 获取当前机器可用 shell 列表，用于 opencode config.shell 的候选项。
+ * 获取当前机器可用 shell 列表。
+ *
+ * v2 把该能力从 `pty.shells()` 移到 `config.shells()`。
  */
-export async function listAvailableShells(directory?: string, serverId?: string): Promise<ShellInfo[]> {
+export async function listAvailableShells(_directory?: string, serverId?: string): Promise<ShellInfo[]> {
   const sdk = getSDKClient(serverId)
-  return unwrap(await sdk.pty.shells({ directory: formatPathForApi(directory, serverId) }))
+  const result = await sdk.config.shells()
+  return result as unknown as ShellInfo[]
 }
 
 /**
- * 创建新的 PTY 会话
+ * 创建新的 PTY 会话。
  */
-export async function createPtySession(params: PtyCreateParams, directory?: string, serverId?: string): Promise<Pty> {
+export async function createPtySession(
+  params: PtyCreateParams,
+  directory?: string,
+  serverId?: string,
+): Promise<Pty> {
   const sdk = getSDKClient(serverId)
-  return normalizePty(unwrap(await sdk.pty.create({ directory: formatPathForApi(directory, serverId), ...params })) as LegacyPty)
+  const result = await sdk.pty.create({ ...params, location: locationParam(directory, serverId) })
+  return result.data
 }
 
 /**
- * 获取单个 PTY 会话信息
+ * 获取单个 PTY 会话信息。
  */
 export async function getPtySession(ptyId: string, directory?: string, serverId?: string): Promise<Pty> {
   const sdk = getSDKClient(serverId)
-  return normalizePty(unwrap(await sdk.pty.get({ ptyID: ptyId, directory: formatPathForApi(directory, serverId) })) as LegacyPty)
+  const result = await sdk.pty.get({ ptyID: ptyId, location: locationParam(directory, serverId) })
+  return result.data
 }
 
 /**
- * 更新 PTY 会话
+ * 更新 PTY 会话（标题 / 尺寸）。
  */
 export async function updatePtySession(
   ptyId: string,
@@ -76,22 +86,26 @@ export async function updatePtySession(
   serverId?: string,
 ): Promise<Pty> {
   const sdk = getSDKClient(serverId)
-  return normalizePty(
-    unwrap(await sdk.pty.update({ ptyID: ptyId, directory: formatPathForApi(directory, serverId), ...params })) as LegacyPty,
-  )
+  const result = await sdk.pty.update({
+    ptyID: ptyId,
+    title: params.title,
+    size: params.size,
+    location: locationParam(directory, serverId),
+  })
+  return result.data
 }
 
 /**
- * 删除 PTY 会话
+ * 删除 PTY 会话。
  */
 export async function removePtySession(ptyId: string, directory?: string, serverId?: string): Promise<boolean> {
   const sdk = getSDKClient(serverId)
-  unwrap(await sdk.pty.remove({ ptyID: ptyId, directory: formatPathForApi(directory, serverId) }))
+  await sdk.pty.remove({ ptyID: ptyId, location: locationParam(directory, serverId) })
   return true
 }
 
 /**
- * 获取 PTY 连接 WebSocket URL
+ * 获取 PTY 连接 WebSocket URL。
  *
  * 浏览器 WebSocket 不支持自定义 header，认证方式：
  * - 跨域：auth_token query parameter（与官方 opencode app 一致）

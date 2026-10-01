@@ -1,5 +1,9 @@
-import type { AppSkillsResponse } from '@opencode-ai/sdk/v2/client'
+// ============================================
+// Skill Types — OpenCode v2 原生
+// ============================================
 
-export type Skill = AppSkillsResponse[number]
+import type { SkillInfo, SkillListOutput } from '@opencode/client/promise'
 
-export type SkillList = AppSkillsResponse
+export type Skill = SkillInfo
+
+export type SkillList = SkillListOutput

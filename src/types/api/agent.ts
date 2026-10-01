@@ -1,7 +1,16 @@
-import type { Agent as SDKAgent } from '@opencode-ai/sdk/v2/client'
+// ============================================
+// Agent Types — OpenCode v2 原生
+//
+// v1 的 Agent 有 mode/permission 等散字段；v2 收敛为 AgentInfo，
+// 权限统一为 PermissionRuleset。
+// ============================================
 
-export type AgentMode = SDKAgent['mode']
+import type { AgentInfo, PermissionRuleset } from '@opencode/client/promise'
 
-export type AgentPermission = SDKAgent['permission'][number]
+export type Agent = AgentInfo
 
-export type Agent = SDKAgent
+/** Agent 运行模式 */
+export type AgentMode = AgentInfo['mode']
+
+/** Agent 权限规则集 */
+export type AgentPermission = PermissionRuleset
