@@ -22,9 +22,7 @@ import {
   extractToolData,
   getToolConfig,
   DefaultRenderer,
-  TodoRenderer,
   TaskRenderer,
-  hasTodos,
 } from '../tools'
 import { MSG_SPACING } from '../messageSpacing'
 import { MessageExpandPanel, useMessageExpandRender } from '../messageExpand'
@@ -536,10 +534,6 @@ const ToolBody = memo(function ToolBody({
 
   if (lowerTool === 'task') {
     return <TaskRenderer part={part} data={data} onFullscreenChange={onFullscreenChange} />
-  }
-
-  if (lowerTool.includes('todo') && hasTodos(part)) {
-    return <TodoRenderer part={part} data={data} onFullscreenChange={onFullscreenChange} />
   }
 
   const config = getToolConfig(tool)

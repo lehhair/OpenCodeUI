@@ -53,9 +53,6 @@ export type { KeybindingAction, KeybindingBackup, KeybindingConfig, ParsedKeybin
 export { themeStore, exportThemeBackup, importThemeBackup } from './themeStore'
 export type { ColorMode, ThemeBackup, ThemeState } from './themeStore'
 
-export { todoStore, useTodos, useTodoStats, useCurrentTask } from './todoStore'
-export type { SessionTodos } from './todoStore'
-
 export {
   notificationStore,
   exportNotificationPreferencesBackup,

@@ -7,7 +7,6 @@ import {
   type ApiSession,
   type SessionListParams,
 } from '../api'
-import { todoStore } from '../store/todoStore'
 import { affectsBoundServer } from '../store/serverChangeScope'
 import { serverStore } from '../store/serverStore'
 import { pinnedSessionsStore } from '../store/pinnedSessionsStore'
@@ -195,10 +194,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
           const updated = prev.filter(s => s.id !== session.id)
           return [session, ...updated]
         })
-      },
-      onTodoUpdated: data => {
-        // 更新 todoStore
-        todoStore.setTodos(data.sessionID, data.todos)
       },
       onSessionDeleted: sessionId => {
         clearSessionRuntimeState(sessionId)

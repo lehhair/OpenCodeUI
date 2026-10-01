@@ -8,4 +8,4 @@ export { toolRegistry, getToolConfig, getToolIcon, extractToolData, defaultExtra
 export * from './icons'
 
 // Renderers
-export { DefaultRenderer, TodoRenderer, TaskRenderer, hasTodos } from './renderers'
+export { DefaultRenderer, TaskRenderer } from './renderers'

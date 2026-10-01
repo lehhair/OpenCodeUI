@@ -44,7 +44,6 @@ export * from './pty'
 export * from './worktree'
 export * from './command'
 export * from './global'
-export * from './todo'
 
 // ============================================
 // Model API — v2 model.list + provider.list
