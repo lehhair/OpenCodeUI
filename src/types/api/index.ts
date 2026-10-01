@@ -110,10 +110,6 @@ export type {
   FileListResponse,
   FileFindResponse,
   FileWriteResponse,
-  Symbol,
-  SymbolLocation,
-  SymbolRange,
-  TextSearchMatch,
 } from './file'
 export { normalizeFileDiffs } from './file'
 

@@ -27,7 +27,6 @@ function createSnapshot(): MessageStoreSnapshot {
     hasMoreHistory: messageStore.getHasMoreHistory(sessionId),
     sessionDirectory: messageStore.getSessionDirectory(sessionId),
     sessionTitle: messageStore.getSessionTitle(sessionId),
-    shareUrl: messageStore.getShareUrl(sessionId),
     canUndo: messageStore.canUndo(sessionId),
     canRedo: messageStore.canRedo(sessionId),
     redoSteps: messageStore.getRedoSteps(sessionId),
@@ -46,7 +45,6 @@ function isSameFocusedSnapshot(a: MessageStoreSnapshot, b: MessageStoreSnapshot)
     a.hasMoreHistory === b.hasMoreHistory &&
     a.sessionDirectory === b.sessionDirectory &&
     a.sessionTitle === b.sessionTitle &&
-    a.shareUrl === b.shareUrl &&
     a.canUndo === b.canUndo &&
     a.canRedo === b.canRedo &&
     a.redoSteps === b.redoSteps &&
@@ -160,7 +158,6 @@ const selectHeaderSessionMeta = (state: MessageStoreSnapshot) => ({
 })
 const selectShareSessionMeta = (state: MessageStoreSnapshot) => ({
   sessionId: state.sessionId,
-  shareUrl: state.shareUrl,
   sessionDirectory: state.sessionDirectory,
 })
 const selectUndoRedoState = (state: MessageStoreSnapshot) => ({

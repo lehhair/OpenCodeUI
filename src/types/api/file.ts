@@ -93,16 +93,6 @@ export function normalizeFileDiffs(diffs: FileDiffInfo[] | undefined | null): Fi
   return (diffs ?? []).filter((diff): diff is FileDiff => typeof diff.file === 'string' && diff.file.length > 0)
 }
 
-/** 符号搜索在 v2 已移除；保留类型别名以免旧引用直接报错，值为 never。 */
-export type Symbol = never
-
-export type SymbolLocation = never
-
-export type SymbolRange = never
-
-/** 全文内容搜索在 v2 已移除 */
-export type TextSearchMatch = never
-
 /** 单个文件的 patch 与 hunks（v2 里 patch 是 unified diff 文本） */
 export interface FilePatch {
   hunks: PatchHunk[]

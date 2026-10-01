@@ -275,11 +275,6 @@ class MessageStore {
     return this.sessions.get(sessionId)?.title ?? ''
   }
 
-  getShareUrl(sessionId: string | null): string | undefined {
-    if (!sessionId) return undefined
-    return this.sessions.get(sessionId)?.shareUrl
-  }
-
   getLoadState(sessionId: string | null): SessionState['loadState'] {
     if (!sessionId) return 'idle'
     return this.sessions.get(sessionId)?.loadState ?? 'idle'
@@ -308,8 +303,7 @@ class MessageStore {
         directory: '',
         title: undefined,
         loadError: undefined,
-        shareUrl: undefined,
-        isStale: false,
+          isStale: false,
       }
       this.sessions.set(sessionId, state)
     }
@@ -356,8 +350,7 @@ class MessageStore {
       directory?: string
       title?: string
       loadState?: SessionState['loadState']
-      shareUrl?: string
-      loadError?: MessageError
+        loadError?: MessageError
     },
   ) {
     const state = this.sessions.get(sessionId)
@@ -368,7 +361,6 @@ class MessageStore {
     if (options.title !== undefined) state.title = options.title
     if (options.loadState !== undefined) state.loadState = options.loadState
     if (options.loadError !== undefined) state.loadError = options.loadError
-    if (options.shareUrl !== undefined) state.shareUrl = options.shareUrl
 
     this.notify([sessionId])
   }
@@ -435,8 +427,7 @@ class MessageStore {
       title?: string
       hasMoreHistory?: boolean
       revertState?: ApiSession['revert'] | null
-      shareUrl?: string
-    },
+      },
   ) {
     const state = this.ensureSession(sessionId)
     const previousMessages = state.messages
@@ -471,7 +462,6 @@ class MessageStore {
     state.hasMoreHistory = options?.hasMoreHistory ?? false
     state.directory = options?.directory ?? ''
     if (options?.title !== undefined) state.title = options.title
-    state.shareUrl = options?.shareUrl
     state.isStale = false
 
     // Revert 状态
@@ -547,13 +537,6 @@ class MessageStore {
     this.sessions.delete(sessionId)
     this.sessionAccessTime.delete(sessionId)
     this.dirtyPartsBySession.delete(sessionId)
-    this.notify([sessionId])
-  }
-
-  setShareUrl(sessionId: string, url: string | undefined) {
-    const state = this.sessions.get(sessionId)
-    if (!state) return
-    state.shareUrl = url
     this.notify([sessionId])
   }
 
