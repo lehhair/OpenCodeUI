@@ -262,15 +262,39 @@ describe('v2Projection — 工具状态机', () => {
     expect((state as { output?: string }).output).toContain('line2')
   })
 
-  it('error 状态带上错误信息', () => {
+  it('error 状态把结构化错误取成可读字符串（而不是原始 JSON）', () => {
+    // v2 的 state.error 是 SessionStructuredError 对象，UI 要的是字符串。
+    // 之前直接 JSON.stringify，界面上工具失败会显示一坨 {"type":...}。
     const state = toUIToolState({
       status: 'error',
       input: {},
-      error: 'boom',
+      error: { type: 'provider_error', message: 'command not found' },
     } as never)
 
-    expect(state).toMatchObject({ status: 'error' })
-    expect(JSON.stringify(state)).toContain('boom')
+    expect(state).toMatchObject({ status: 'error', error: 'command not found' })
+    // 关键点：错误字段本身是可读文案，不是序列化后的 JSON
+    expect(state.error).toBe('command not found')
+    expect(state.error).not.toContain('"type"')
+  })
+
+  it('结构化错误没有 message 时退回 type', () => {
+    const state = toUIToolState({
+      status: 'error',
+      input: {},
+      error: { type: 'weird_failure' },
+    } as never)
+
+    expect(state).toMatchObject({ status: 'error', error: 'weird_failure' })
+  })
+
+  it('error 仍是字符串时原样保留（防御服务端发旧形状）', () => {
+    const state = toUIToolState({
+      status: 'error',
+      input: {},
+      error: 'plain text failure',
+    } as never)
+
+    expect(state).toMatchObject({ status: 'error', error: 'plain text failure' })
   })
 })
 

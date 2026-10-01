@@ -222,13 +222,22 @@ export function toUIToolState(state: ToolState): UIToolState {
         title: typeof state.metadata?.title === 'string' ? state.metadata.title : undefined,
         metadata: (state.metadata ?? {}) as Record<string, unknown>,
       }
-    case 'error':
+    case 'error': {
+      // v2 的 state.error 是**结构化对象**（SessionStructuredError：
+      // { type, message, status?, response? }），不是字符串。
+      // 之前直接 JSON.stringify，界面上的工具失败会显示一坨原始 JSON。
+      // UI 的 ToolStateError.error 要的是可读字符串，因此优先取 message。
+      const structured = state.error as { message?: string; type?: string } | undefined
+      const readable =
+        typeof state.error === 'string' ? state.error : structured?.message || structured?.type || 'Tool failed'
+
       return {
         status: 'error',
         input: (state.input ?? {}) as Record<string, unknown>,
-        error: typeof state.error === 'string' ? state.error : JSON.stringify(state.error),
+        error: readable,
         metadata: (state.metadata ?? {}) as Record<string, unknown>,
       }
+    }
     default:
       return { status: 'running', input: {} }
   }
