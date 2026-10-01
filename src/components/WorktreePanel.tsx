@@ -18,12 +18,12 @@ import {
   ExternalLinkIcon,
 } from './Icons'
 import { getCurrentProject } from '../api/client'
-import { disposeInstance } from '../api/global'
 import { listPtySessions, removePtySession } from '../api/pty'
-import { listWorktrees, createWorktree, removeWorktree, resetWorktree } from '../api/worktree'
+import { listWorktrees, createWorktree, removeWorktree, refreshWorktrees } from '../api/worktree'
 import { subscribeToEvents } from '../api/events'
 import { useDirectory, useVcsInfo, requestGitWorkspaceCatalogRefresh } from '../hooks'
 import { getDirectoryName, isSameDirectory, normalizeToForwardSlash } from '../utils'
+import type { ApiProject } from '../api'
 import { ConfirmDialog } from './ui/ConfirmDialog'
 
 // ============================================
@@ -39,7 +39,13 @@ export const WorktreePanel = memo(function WorktreePanel({ isResizing: _isResizi
   const { currentDirectory, addDirectory, setCurrentDirectory } = useDirectory()
   const { vcsInfo, refresh: refreshVcs } = useVcsInfo(currentDirectory)
   const [worktrees, setWorktrees] = useState<string[]>([])
-  const [rootDirectory, setRootDirectory] = useState<string | null>(null)
+  /**
+   * 当前项目。
+   *
+   * v2 的 worktree 接口按 **projectID** 定位（v1 用 directory），
+   * 且 Project 上不再有 `worktree` 字段——项目根用 `canonical`。
+   */
+  const [project, setProject] = useState<ApiProject | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
@@ -54,11 +60,18 @@ export const WorktreePanel = memo(function WorktreePanel({ isResizing: _isResizi
     directory: null,
   })
 
-  const resolveRootDirectory = useCallback(async (directory?: string) => {
+  /**
+   * 解析当前目录所属项目。
+   *
+   * v2 的 Project 只有 `canonical`（项目根），没有 v1 的 `worktree` 字段；
+   * worktree 列表改由 `worktree.list({ projectID })` 提供。
+   */
+  const resolveProject = useCallback(async (directory?: string): Promise<ApiProject | null> => {
     if (!directory) return null
-    const project = await getCurrentProject(directory)
-    if (project.vcs !== 'git' || !project.worktree) return null
-    return normalizeToForwardSlash(project.worktree)
+    const current = await getCurrentProject(directory)
+    // v2 的 ProjectVcs 是字符串（v1 是对象）
+    if (!current || current.vcs !== 'git') return null
+    return current
   }, [])
 
   // 加载 worktree 列表
@@ -68,7 +81,7 @@ export const WorktreePanel = memo(function WorktreePanel({ isResizing: _isResizi
     if (!currentDirectory) {
       setError(null)
       setWorktrees([])
-      setRootDirectory(null)
+      setProject(null)
       setLoading(false)
       return
     }
@@ -76,19 +89,19 @@ export const WorktreePanel = memo(function WorktreePanel({ isResizing: _isResizi
     try {
       setLoading(true)
       setError(null)
-      const baseDirectory = await resolveRootDirectory(currentDirectory)
+      const resolvedProject = await resolveProject(currentDirectory)
       if (requestId !== loadRequestIdRef.current) return
 
-      setRootDirectory(baseDirectory)
-      if (!baseDirectory) {
+      setProject(resolvedProject)
+      if (!resolvedProject) {
         setWorktrees([])
         return
       }
 
-      const list = await listWorktrees(baseDirectory)
+      const list = await listWorktrees(resolvedProject.id)
       if (requestId !== loadRequestIdRef.current) return
 
-      setWorktrees(list)
+      setWorktrees(list.map(entry => normalizeToForwardSlash(entry)))
     } catch (e) {
       if (requestId !== loadRequestIdRef.current) return
       setError(e instanceof Error ? e.message : t('worktreePanel.failedToLoad'))
@@ -97,27 +110,27 @@ export const WorktreePanel = memo(function WorktreePanel({ isResizing: _isResizi
         setLoading(false)
       }
     }
-  }, [currentDirectory, resolveRootDirectory, t])
+  }, [currentDirectory, resolveProject, t])
 
   useEffect(() => {
     loadWorktrees()
   }, [loadWorktrees])
 
-  // 订阅 SSE 事件：worktree ready/failed + vcs branch 变更
+  // 订阅 SSE 事件：worktree 变更 + vcs branch 变更
   useEffect(() => {
     return subscribeToEvents({
-      onWorktreeReady: () => {
+      // v2 用 worktree.resolved / worktree.updated 取代 v1 的 ready / failed
+      onWorktreeResolved: () => {
         loadWorktrees()
       },
-      onWorktreeFailed: data => {
-        setError(t('worktreePanel.failedWithMessage', { message: data.message }))
-        setActionLoading(null)
+      onWorktreeUpdated: () => {
+        loadWorktrees()
       },
       onVcsBranchUpdated: () => {
         refreshVcs()
       },
     })
-  }, [loadWorktrees, refreshVcs, t])
+  }, [loadWorktrees, refreshVcs])
 
   const releaseWorktreeResources = useCallback(async (directory: string) => {
     try {
@@ -127,21 +140,17 @@ export const WorktreePanel = memo(function WorktreePanel({ isResizing: _isResizi
       // ignore cleanup failure here, let remove/reset report the real error
     }
 
-    try {
-      await disposeInstance(directory)
-    } catch {
-      // ignore cleanup failure here, let remove/reset report the real error
-    }
+    // v2 删除了 global.dispose / instance.dispose，改由 worktree.refresh 让服务端重扫
   }, [])
 
-  const requireRootDirectory = useCallback(() => {
-    if (!rootDirectory) {
+  const requireProject = useCallback((): ApiProject => {
+    if (!project) {
       throw new Error(t('worktreePanel.failedToLoad'))
     }
-    return rootDirectory
-  }, [rootDirectory, t])
+    return project
+  }, [project, t])
 
-  const canManageWorktrees = !!rootDirectory && !loading
+  const canManageWorktrees = !!project && !loading
 
   // 在 worktree 目录下开启新 session
   const handleOpenSession = useCallback(
@@ -162,8 +171,8 @@ export const WorktreePanel = memo(function WorktreePanel({ isResizing: _isResizi
 
       setActionLoading('create')
       try {
-        const baseDirectory = requireRootDirectory()
-        const wt = await createWorktree({ name: name.trim() }, baseDirectory)
+        const current = requireProject()
+        const wt = await createWorktree({ projectID: current.id, name: name.trim() })
         setShowCreateForm(false)
         await loadWorktrees()
         requestGitWorkspaceCatalogRefresh()
@@ -176,7 +185,7 @@ export const WorktreePanel = memo(function WorktreePanel({ isResizing: _isResizi
         setActionLoading(null)
       }
     },
-    [currentDirectory, handleOpenSession, loadWorktrees, requireRootDirectory, t],
+    [currentDirectory, handleOpenSession, loadWorktrees, requireProject, t],
   )
 
   // 删除 worktree
@@ -186,15 +195,15 @@ export const WorktreePanel = memo(function WorktreePanel({ isResizing: _isResizi
 
       setActionLoading(`delete-${directory}`)
       try {
-        const baseDirectory = requireRootDirectory()
+        const current = requireProject()
         const isCurrentDirectory = isSameDirectory(currentDirectory, directory)
 
-        if (isCurrentDirectory && !isSameDirectory(currentDirectory, baseDirectory)) {
-          setCurrentDirectory(baseDirectory)
+        if (isCurrentDirectory && !isSameDirectory(currentDirectory, current.canonical)) {
+          setCurrentDirectory(current.canonical)
         }
 
         await releaseWorktreeResources(directory)
-        await removeWorktree({ directory }, baseDirectory)
+        await removeWorktree({ projectID: current.id, directory, force: true })
         await loadWorktrees()
         requestGitWorkspaceCatalogRefresh()
       } catch (e) {
@@ -204,19 +213,24 @@ export const WorktreePanel = memo(function WorktreePanel({ isResizing: _isResizi
         setDeleteConfirm({ isOpen: false, directory: null })
       }
     },
-    [currentDirectory, loadWorktrees, releaseWorktreeResources, requireRootDirectory, setCurrentDirectory, t],
+    [currentDirectory, loadWorktrees, releaseWorktreeResources, requireProject, setCurrentDirectory, t],
   )
 
-  // 重置 worktree
+  /**
+   * 刷新 worktree。
+   *
+   * v2 删除了 v1 的 `worktree.reset`，取而代之的是 `worktree.refresh`
+   * （让服务端重新扫描 worktree 状态，而不是丢弃本地改动）。
+   */
   const handleReset = useCallback(
     async (directory: string) => {
       if (!currentDirectory) return
 
       setActionLoading(`reset-${directory}`)
       try {
-        const baseDirectory = requireRootDirectory()
+        const current = requireProject()
         await releaseWorktreeResources(directory)
-        await resetWorktree({ directory }, baseDirectory)
+        await refreshWorktrees(current.id)
         await loadWorktrees()
         requestGitWorkspaceCatalogRefresh()
       } catch (e) {
@@ -226,7 +240,7 @@ export const WorktreePanel = memo(function WorktreePanel({ isResizing: _isResizi
         setResetConfirm({ isOpen: false, directory: null })
       }
     },
-    [currentDirectory, loadWorktrees, releaseWorktreeResources, requireRootDirectory, t],
+    [currentDirectory, loadWorktrees, releaseWorktreeResources, requireProject, t],
   )
 
   // ==========================================
@@ -267,13 +281,16 @@ export const WorktreePanel = memo(function WorktreePanel({ isResizing: _isResizi
         <div className="pointer-events-none absolute inset-x-3 bottom-0 h-px bg-border-200/30" />
       </div>
 
-      {/* VCS Branch */}
-      {vcsInfo?.branch && (
+      {/* VCS Branch — v2 的 branch 是 { current?, default? }，不是字符串 */}
+      {vcsInfo?.branch?.current && (
         <div className="relative px-3 py-2">
           <div className="flex items-center gap-2">
             <GitBranchIcon size={14} className="text-accent-main-100 shrink-0" />
-            <span className="text-[length:var(--fs-sm)] font-mono text-text-100 truncate" title={vcsInfo.branch}>
-              {vcsInfo.branch}
+            <span
+              className="text-[length:var(--fs-sm)] font-mono text-text-100 truncate"
+              title={vcsInfo.branch.current}
+            >
+              {vcsInfo.branch.current}
             </span>
           </div>
           <div className="pointer-events-none absolute inset-x-3 bottom-0 h-px bg-border-200/30" />
