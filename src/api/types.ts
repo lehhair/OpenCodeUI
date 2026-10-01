@@ -21,7 +21,6 @@ export type {
 } from '../types/api/session'
 export type {
   SessionMessage as ApiMessage,
-  SessionMessage as ApiMessageWithParts,
   UserMessage as ApiUserMessage,
   AssistantMessage as ApiAssistantMessage,
   AssistantContent as ApiPart,

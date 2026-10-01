@@ -221,6 +221,10 @@ export const WorktreePanel = memo(function WorktreePanel({ isResizing: _isResizi
    *
    * v2 删除了 v1 的 `worktree.reset`，取而代之的是 `worktree.refresh`
    * （让服务端重新扫描 worktree 状态，而不是丢弃本地改动）。
+   *
+   * 因此这里**不再是破坏性操作**：文案与确认提示都已相应改为「重新扫描 /
+   * 不会丢弃未提交的改动」，避免沿用 v1 的「会丢弃所有未提交更改」造成误导。
+   * 函数名与 i18n 键名保留 reset* 前缀只是历史原因。
    */
   const handleReset = useCallback(
     async (directory: string) => {

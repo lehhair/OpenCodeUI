@@ -133,13 +133,13 @@
     "noWorktrees": "No worktrees found",
     "removeWorktree": "Remove Worktree",
     "removeWorktreeConfirm": "Remove worktree \"{{name}}\"? This will delete the worktree directory.",
-    "resetWorktree": "Reset Worktree",
-    "resetWorktreeConfirm": "Reset worktree \"{{name}}\"? This will discard all uncommitted changes.",
+    "resetWorktree": "Refresh Worktree",
+    "resetWorktreeConfirm": "Re-scan worktree \"{{name}}\"? This does not discard any uncommitted changes.",
     "newWorktree": "New Worktree",
     "worktreeNamePlaceholder": "Worktree name (e.g. feature-xyz)",
     "openSessionAfter": "Open session after creation",
     "openSession": "Open session in this worktree",
-    "resetWorktreeAction": "Reset worktree",
+    "resetWorktreeAction": "Refresh worktree",
     "removeWorktreeAction": "Remove worktree"
   },
   "toast": {
