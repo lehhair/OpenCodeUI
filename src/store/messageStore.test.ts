@@ -1,278 +1,333 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { ApiMessage, ApiMessageWithParts, ApiPart } from '../api/types'
+import type { AssistantMessage, SessionMessage } from '../api/types'
 import { messageStore } from './messageStore'
 
-function createAssistantMessage(id: string, sessionID = 'session-1'): ApiMessage {
-  return {
-    id,
-    sessionID,
-    role: 'assistant',
-    parentID: 'user-1',
-    modelID: 'model-1',
-    providerID: 'provider-1',
-    mode: 'chat',
-    agent: 'build',
-    path: {
-      cwd: '/workspace',
-      root: '/workspace',
-    },
-    cost: 0,
-    tokens: {
-      input: 0,
-      output: 0,
-      reasoning: 0,
-      cache: { read: 0, write: 0 },
-    },
-    time: {
-      created: 1,
-      completed: 2,
-    },
-  }
-}
+const SESSION = 'session-1'
 
-function createTextPart(
+/** 构造一条 v2 助手消息（自带 content，不再有 parts） */
+function createAssistantMessage(
   id: string,
-  messageID: string,
-  text: string,
-  sessionID = 'session-1',
-): ApiPart & { sessionID: string; messageID: string } {
+  content: AssistantMessage['content'] = [],
+  completed?: number,
+): AssistantMessage {
   return {
     id,
-    sessionID,
-    messageID,
-    type: 'text',
-    text,
+    type: 'assistant',
+    agent: 'build',
+    model: { id: 'model-1', providerID: 'provider-1' },
+    content,
+    time: { created: 1, ...(completed != null ? { completed } : {}) },
   }
 }
 
-function createMessageWithParts(id: string, text: string, sessionID = 'session-1'): ApiMessageWithParts {
-  return {
-    info: createAssistantMessage(id, sessionID),
-    parts: [createTextPart(`part-${id}`, id, text, sessionID)],
-  }
+function textContent(text: string): AssistantMessage['content'] {
+  return [{ type: 'text', text }]
 }
 
-describe('messageStore', () => {
+// ============================================
+// v2 变更说明
+//
+// v1 的测试围绕 `{ info, parts }` 入参与 `handlePartUpdated` / `handlePartDelta`
+// 展开。v2 中消息**自带 content**，且流式增量是独立事件：
+//   - handleMessageUpdated(msg, sessionID)  接收完整消息
+//   - handleTextDelta({ sessionID, assistantMessageID, ordinal, delta })
+//   - handleMessageContent(messageID, sessionID, content)  权威快照
+// 因此这些用例改为按 v2 的形状与语义来验证同样的行为。
+// ============================================
+
+/** UI parts 里的第 index 个文本 */
+function textAt(sessionId: string, msgIndex: number, partIndex = 0): string | undefined {
+  const parts = messageStore.getSessionState(sessionId)?.messages[msgIndex]?.parts
+  const part = parts?.[partIndex]
+  return part && part.type === 'text' ? part.text : undefined
+}
+
+describe('messageStore (v2)', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
     messageStore.clearAll()
   })
 
-  it('applies a part update when the message already exists', () => {
-    messageStore.handleMessageUpdated(createAssistantMessage('message-1'))
-    messageStore.handlePartUpdated(createTextPart('part-1', 'message-1', 'hello'))
+  it('projects a v2 assistant message into UI parts on update', () => {
+    messageStore.handleMessageUpdated(createAssistantMessage('message-1', textContent('hello')), SESSION)
 
-    const state = messageStore.getSessionState('session-1')
+    const state = messageStore.getSessionState(SESSION)
     expect(state?.messages).toHaveLength(1)
-    expect(state?.messages[0].parts).toHaveLength(1)
-    expect(state?.messages[0].parts[0]).toMatchObject({ id: 'part-1', type: 'text', text: 'hello' })
+    expect(state?.messages[0].info.id).toBe('message-1')
+    expect(state?.messages[0].info.role).toBe('assistant')
+    expect(textAt(SESSION, 0)).toBe('hello')
   })
 
-  it('silently drops a part update when the message does not exist yet', () => {
-    // Part arrives before message — should be silently dropped (no pending queue)
-    messageStore.handlePartUpdated(createTextPart('part-1', 'message-1', 'hello'))
+  it('projects a v2 user message with its text', () => {
+    const user: SessionMessage = {
+      id: 'user-1',
+      type: 'user',
+      time: { created: 1 },
+      text: 'hi there',
+    }
+    messageStore.handleMessageUpdated(user, SESSION)
 
-    const state = messageStore.getSessionState('session-1')
-    // session-1 doesn't exist because handlePartUpdated doesn't ensureSession
-    expect(state).toBeUndefined()
+    const state = messageStore.getSessionState(SESSION)
+    expect(state?.messages[0].info.role).toBe('user')
+  })
+
+  it('appends a text delta by ordinal when the message exists', () => {
+    messageStore.handleMessageUpdated(createAssistantMessage('message-1', textContent('hello')), SESSION)
+
+    messageStore.handleTextDelta({
+      sessionID: SESSION,
+      assistantMessageID: 'message-1',
+      ordinal: 0,
+      delta: ' world',
+    })
+    messageStore.flushDirtyMessages()
+    messageStore.handleTextDelta({
+      sessionID: SESSION,
+      assistantMessageID: 'message-1',
+      ordinal: 0,
+      delta: '!',
+    })
+    messageStore.flushDirtyMessages()
+
+    expect(textAt(SESSION, 0)).toBe('hello world!')
+  })
+
+  it('creates a text part when a delta arrives before any content snapshot', () => {
+    // v2 的 delta 可能先于 message.content.updated 到达
+    messageStore.handleMessageUpdated(createAssistantMessage('message-1'), SESSION)
+
+    messageStore.handleTextDelta({
+      sessionID: SESSION,
+      assistantMessageID: 'message-1',
+      ordinal: 0,
+      delta: 'early',
+    })
+    messageStore.flushDirtyMessages()
+
+    expect(textAt(SESSION, 0)).toBe('early')
+  })
+
+  it('keeps separate text parts per ordinal', () => {
+    messageStore.handleMessageUpdated(createAssistantMessage('message-1', textContent('first')), SESSION)
+
+    messageStore.handleTextDelta({
+      sessionID: SESSION,
+      assistantMessageID: 'message-1',
+      ordinal: 1,
+      delta: 'second',
+    })
+    messageStore.flushDirtyMessages()
+
+    expect(textAt(SESSION, 0, 0)).toBe('first')
+    expect(textAt(SESSION, 0, 1)).toBe('second')
+  })
+
+  it('appends reasoning deltas to a reasoning part', () => {
+    messageStore.handleMessageUpdated(createAssistantMessage('message-1'), SESSION)
+
+    messageStore.handleReasoningDelta({
+      sessionID: SESSION,
+      assistantMessageID: 'message-1',
+      ordinal: 0,
+      delta: 'thinking',
+    })
+    messageStore.flushDirtyMessages()
+
+    const part = messageStore.getSessionState(SESSION)?.messages[0].parts[0]
+    expect(part).toMatchObject({ type: 'reasoning', text: 'thinking' })
+  })
+
+  it('silently drops a delta when the message does not exist yet', () => {
+    messageStore.handleTextDelta({
+      sessionID: SESSION,
+      assistantMessageID: 'missing',
+      ordinal: 0,
+      delta: 'x',
+    })
+
+    expect(messageStore.getSessionState(SESSION)).toBeUndefined()
+  })
+
+  it('replaces content wholesale from an authoritative snapshot', () => {
+    messageStore.handleMessageUpdated(createAssistantMessage('message-1', textContent('streamed partial')), SESSION)
+
+    messageStore.handleMessageContent('message-1', SESSION, textContent('server final text'))
+
+    expect(textAt(SESSION, 0)).toBe('server final text')
+  })
+
+  it('projects tool content into a tool part', () => {
+    messageStore.handleMessageUpdated(
+      createAssistantMessage('message-1', [
+        {
+          type: 'tool',
+          id: 'tool-1',
+          name: 'bash',
+          state: { status: 'completed', input: { cmd: 'ls' }, content: [{ type: 'text', text: 'file.txt' }] },
+          time: { created: 1, completed: 2 },
+        },
+      ]),
+      SESSION,
+    )
+
+    const part = messageStore.getSessionState(SESSION)?.messages[0].parts[0]
+    expect(part).toMatchObject({
+      type: 'tool',
+      callID: 'tool-1',
+      tool: 'bash',
+      state: { status: 'completed', output: 'file.txt' },
+    })
+  })
+
+  it('updates a tool part in place from a tool lifecycle event', () => {
+    messageStore.handleMessageUpdated(
+      createAssistantMessage('message-1', [
+        {
+          type: 'tool',
+          id: 'tool-1',
+          name: 'bash',
+          state: { status: 'running', input: {}, metadata: {} },
+          time: { created: 1 },
+        },
+      ]),
+      SESSION,
+    )
+
+    messageStore.handleToolEvent(SESSION, 'message-1', 'tool-1', {
+      status: 'completed',
+      output: 'done',
+    })
+
+    const part = messageStore.getSessionState(SESSION)?.messages[0].parts[0]
+    expect(part).toMatchObject({ type: 'tool', state: { status: 'completed', output: 'done' } })
+  })
+
+  it('creates a placeholder tool part when the tool event precedes content', () => {
+    messageStore.handleMessageUpdated(createAssistantMessage('message-1'), SESSION)
+
+    messageStore.handleToolEvent(SESSION, 'message-1', 'tool-9', {
+      status: 'running',
+      toolName: 'read',
+    })
+
+    const part = messageStore.getSessionState(SESSION)?.messages[0].parts[0]
+    expect(part).toMatchObject({ type: 'tool', callID: 'tool-9', tool: 'read' })
+  })
+
+  it('removes a part from a message', () => {
+    messageStore.handleMessageUpdated(createAssistantMessage('message-1', textContent('hello')), SESSION)
+
+    messageStore.handlePartRemoved({
+      sessionID: SESSION,
+      messageID: 'message-1',
+      partID: 'message-1:text:0',
+    })
+
+    expect(messageStore.getSessionState(SESSION)?.messages[0].parts).toHaveLength(0)
   })
 
   it('marks cached sessions stale after reconnect and clears the flag after a fresh load', () => {
-    messageStore.setMessages('session-1', [createMessageWithParts('message-1', 'hello')])
+    messageStore.setMessages(SESSION, [createAssistantMessage('message-1', textContent('hello'))])
 
-    expect(messageStore.isSessionStale('session-1')).toBe(false)
+    expect(messageStore.isSessionStale(SESSION)).toBe(false)
 
     messageStore.markAllSessionsStale()
-    expect(messageStore.isSessionStale('session-1')).toBe(true)
+    expect(messageStore.isSessionStale(SESSION)).toBe(true)
 
-    messageStore.setMessages('session-1', [createMessageWithParts('message-1', 'hello again')])
-    expect(messageStore.isSessionStale('session-1')).toBe(false)
-  })
-
-  it('accepts exported message envelopes that use message instead of info', () => {
-    messageStore.setMessages('session-1', [
-      {
-        message: createAssistantMessage('message-1'),
-        parts: [createTextPart('part-message-1', 'message-1', 'hello')],
-      } as unknown as ApiMessageWithParts,
-    ])
-
-    const state = messageStore.getSessionState('session-1')
-    expect(state?.messages).toHaveLength(1)
-    expect(state?.messages[0].info.id).toBe('message-1')
-    expect(state?.messages[0].parts[0]).toMatchObject({ id: 'part-message-1', type: 'text', text: 'hello' })
+    messageStore.setMessages(SESSION, [createAssistantMessage('message-1', textContent('hello again'))])
+    expect(messageStore.isSessionStale(SESSION)).toBe(false)
   })
 
   it('truncates messages after revert point', () => {
-    messageStore.setMessages('session-1', [
-      createMessageWithParts('message-1', 'one'),
-      createMessageWithParts('message-2', 'two'),
-      createMessageWithParts('message-3', 'three'),
+    messageStore.setMessages(SESSION, [
+      createAssistantMessage('message-1', textContent('one')),
+      createAssistantMessage('message-2', textContent('two')),
+      createAssistantMessage('message-3', textContent('three')),
     ])
-    messageStore.setRevertState('session-1', {
-      messageId: 'message-2',
-      history: [],
-    })
+    messageStore.setRevertState(SESSION, { messageId: 'message-2', history: [] })
 
-    messageStore.truncateAfterRevert('session-1')
+    messageStore.truncateAfterRevert(SESSION)
 
-    const state = messageStore.getSessionState('session-1')
+    const state = messageStore.getSessionState(SESSION)
     expect(state?.messages).toHaveLength(1)
     expect(state?.messages[0].info.id).toBe('message-1')
     expect(state?.revertState).toBeNull()
   })
 
-  it('removes a part from a message', () => {
-    messageStore.setMessages('session-1', [createMessageWithParts('message-1', 'hello')])
-
-    messageStore.handlePartRemoved({
-      sessionID: 'session-1',
-      messageID: 'message-1',
-      partID: 'part-message-1',
-    })
-
-    const state = messageStore.getSessionState('session-1')
-    expect(state?.messages[0].parts).toHaveLength(0)
-  })
-
   it('deduplicates messages in prependMessages', () => {
-    messageStore.setMessages('session-1', [createMessageWithParts('message-2', 'two')])
+    messageStore.setMessages(SESSION, [createAssistantMessage('message-2', textContent('two'))])
 
     messageStore.prependMessages(
-      'session-1',
-      [createMessageWithParts('message-1', 'one'), createMessageWithParts('message-2', 'duplicate')],
+      SESSION,
+      [createAssistantMessage('message-1', textContent('one')), createAssistantMessage('message-2', textContent('duplicate'))],
       true,
     )
 
-    const state = messageStore.getSessionState('session-1')
+    const state = messageStore.getSessionState(SESSION)
     expect(state?.messages).toHaveLength(2)
     expect(state?.messages[0].info.id).toBe('message-1')
     expect(state?.messages[1].info.id).toBe('message-2')
   })
 
   it('creates a session when starting streaming', () => {
-    messageStore.setStreaming('session-1', true)
+    messageStore.setStreaming(SESSION, true)
 
-    const state = messageStore.getSessionState('session-1')
+    const state = messageStore.getSessionState(SESSION)
     expect(state?.isStreaming).toBe(true)
     expect(state?.messages).toHaveLength(0)
     expect(state?.loadState).toBe('idle')
   })
 
   it('does not create a session when stopping streaming for a missing session', () => {
-    messageStore.setStreaming('session-1', false)
+    messageStore.setStreaming(SESSION, false)
 
-    expect(messageStore.getSessionState('session-1')).toBeUndefined()
+    expect(messageStore.getSessionState(SESSION)).toBeUndefined()
   })
 
-  it('does not regress longer live part text when a shorter snapshot arrives while streaming', () => {
-    messageStore.setMessages('session-1', [
-      {
-        info: {
-          ...createAssistantMessage('message-1'),
-          time: { created: 1 },
-        },
-        parts: [createTextPart('part-message-1', 'message-1', 'hello world')],
-      },
-    ])
-    messageStore.setStreaming('session-1', true)
-    const live = messageStore.getSessionState('session-1')?.messages[0]
+  it('does not regress longer live text when a shorter snapshot arrives while streaming', () => {
+    messageStore.setMessages(SESSION, [createAssistantMessage('message-1', textContent('hello world'))])
+    messageStore.setStreaming(SESSION, true)
+    const live = messageStore.getSessionState(SESSION)?.messages[0]
     if (live) live.isStreaming = true
 
-    messageStore.handlePartUpdated({
-      ...createTextPart('part-message-1', 'message-1', 'hello'),
-    })
+    // 未定稿（无 completed）→ 保留更长的本地文本
+    messageStore.handleMessageUpdated(createAssistantMessage('message-1', textContent('hello')), SESSION)
 
-    expect(messageStore.getSessionState('session-1')?.messages[0].parts[0]).toMatchObject({
-      text: 'hello world',
-    })
+    expect(textAt(SESSION, 0)).toBe('hello world')
   })
 
   it('adopts a longer server snapshot when reloading messages', () => {
-    messageStore.setMessages('session-1', [createMessageWithParts('message-1', 'hello')])
-    messageStore.setStreaming('session-1', true)
-    const live = messageStore.getSessionState('session-1')?.messages[0]
+    messageStore.setMessages(SESSION, [createAssistantMessage('message-1', textContent('hello'))])
+    messageStore.setStreaming(SESSION, true)
+    const live = messageStore.getSessionState(SESSION)?.messages[0]
     if (live) live.isStreaming = true
 
-    messageStore.setMessages('session-1', [createMessageWithParts('message-1', 'hello world')])
+    messageStore.setMessages(SESSION, [createAssistantMessage('message-1', textContent('hello world'))])
 
-    expect(messageStore.getSessionState('session-1')?.messages[0].parts[0]).toMatchObject({
-      text: 'hello world',
-    })
-  })
-
-  it('keeps longer live text when setMessages receives a shorter server snapshot while streaming', () => {
-    messageStore.setMessages('session-1', [
-      {
-        info: {
-          ...createAssistantMessage('message-1'),
-          time: { created: 1 },
-        },
-        parts: [createTextPart('part-message-1', 'message-1', 'hello world')],
-      },
-    ])
-    messageStore.setStreaming('session-1', true)
-    const live = messageStore.getSessionState('session-1')?.messages[0]
-    if (live) live.isStreaming = true
-
-    messageStore.setMessages('session-1', [
-      {
-        info: {
-          ...createAssistantMessage('message-1'),
-          time: { created: 1 },
-        },
-        parts: [createTextPart('part-message-1', 'message-1', 'hello')],
-      },
-    ])
-
-    expect(messageStore.getSessionState('session-1')?.messages[0].parts[0]).toMatchObject({
-      text: 'hello world',
-    })
+    expect(textAt(SESSION, 0)).toBe('hello world')
   })
 
   it('adopts completed server text even when local live text was longer', () => {
-    messageStore.setMessages('session-1', [
-      {
-        info: {
-          ...createAssistantMessage('message-1'),
-          time: { created: 1 },
-        },
-        parts: [createTextPart('part-message-1', 'message-1', 'hello world extra')],
-      },
-    ])
-    messageStore.setStreaming('session-1', true)
-    const live = messageStore.getSessionState('session-1')?.messages[0]
+    messageStore.setMessages(SESSION, [createAssistantMessage('message-1', textContent('hello world extra'))])
+    messageStore.setStreaming(SESSION, true)
+    const live = messageStore.getSessionState(SESSION)?.messages[0]
     if (live) live.isStreaming = true
 
     // 定稿：completed 快照强制采用服务端，不再 preserve
-    const completed = createMessageWithParts('message-1', 'hello world')
-    if (completed.info.role === 'assistant') {
-      completed.info.time = { created: 1, completed: 99 }
-    }
-    messageStore.setMessages('session-1', [completed])
+    messageStore.setMessages(SESSION, [createAssistantMessage('message-1', textContent('hello world'), 99)])
 
-    expect(messageStore.getSessionState('session-1')?.messages[0].parts[0]).toMatchObject({
-      text: 'hello world',
-    })
+    expect(textAt(SESSION, 0)).toBe('hello world')
   })
 
-  it('forces completed message part updates from the server', () => {
-    const completed = createMessageWithParts('message-1', 'hello world extra')
-    if (completed.info.role === 'assistant') {
-      completed.info.time = { created: 1, completed: 10 }
-    }
-    messageStore.setMessages('session-1', [completed])
+  it('forces completed message updates from the server', () => {
+    messageStore.setMessages(SESSION, [createAssistantMessage('message-1', textContent('hello world extra'), 10)])
 
-    messageStore.handlePartUpdated({
-      ...createTextPart('part-message-1', 'message-1', 'hello world'),
-    })
+    messageStore.handleMessageUpdated(createAssistantMessage('message-1', textContent('hello world'), 10), SESSION)
 
-    expect(messageStore.getSessionState('session-1')?.messages[0].parts[0]).toMatchObject({
-      text: 'hello world',
-    })
+    expect(textAt(SESSION, 0)).toBe('hello world')
   })
 
-  it('flushes mutable part deltas for multiple sessions in the same frame', () => {
+  it('flushes mutable text deltas for multiple sessions in the same frame', () => {
     const rafCallbacks: Array<(time: number) => void> = []
     vi.spyOn(window, 'requestAnimationFrame').mockImplementation(cb => {
       rafCallbacks.push(cb as (time: number) => void)
@@ -280,24 +335,22 @@ describe('messageStore', () => {
     })
     vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => undefined)
 
-    messageStore.setMessages('session-1', [createMessageWithParts('message-1', 'hello')])
-    messageStore.setMessages('session-2', [createMessageWithParts('message-2', 'world', 'session-2')])
+    messageStore.setMessages(SESSION, [createAssistantMessage('message-1', textContent('hello'))])
+    messageStore.setMessages('session-2', [createAssistantMessage('message-2', textContent('world'))])
 
-    const beforeMessage1 = messageStore.getSessionState('session-1')?.messages[0]
+    const beforeMessage1 = messageStore.getSessionState(SESSION)?.messages[0]
     const beforeMessage2 = messageStore.getSessionState('session-2')?.messages[0]
 
-    messageStore.handlePartDelta({
-      sessionID: 'session-1',
-      messageID: 'message-1',
-      partID: 'part-message-1',
-      field: 'text',
+    messageStore.handleTextDelta({
+      sessionID: SESSION,
+      assistantMessageID: 'message-1',
+      ordinal: 0,
       delta: '!',
     })
-    messageStore.handlePartDelta({
+    messageStore.handleTextDelta({
       sessionID: 'session-2',
-      messageID: 'message-2',
-      partID: 'part-message-2',
-      field: 'text',
+      assistantMessageID: 'message-2',
+      ordinal: 0,
       delta: '?',
     })
 
@@ -307,7 +360,7 @@ describe('messageStore', () => {
     }
     scheduledFrame(0)
 
-    const afterMessage1 = messageStore.getSessionState('session-1')?.messages[0]
+    const afterMessage1 = messageStore.getSessionState(SESSION)?.messages[0]
     const afterMessage2 = messageStore.getSessionState('session-2')?.messages[0]
 
     expect(afterMessage1?.parts[0]).toMatchObject({ text: 'hello!' })
@@ -323,24 +376,26 @@ describe('messageStore', () => {
       return 1
     })
 
-    const message = createMessageWithParts('message-1', 'settled')
-    message.parts.push(createTextPart('part-live', 'message-1', 'live'))
-    messageStore.setMessages('session-1', [message])
+    messageStore.setMessages(SESSION, [
+      createAssistantMessage('message-1', [
+        { type: 'text', text: 'settled' },
+        { type: 'text', text: 'live' },
+      ]),
+    ])
 
-    const beforeMessage = messageStore.getSessionState('session-1')?.messages[0]
+    const beforeMessage = messageStore.getSessionState(SESSION)?.messages[0]
     const beforeSettledPart = beforeMessage?.parts[0]
     const beforeLivePart = beforeMessage?.parts[1]
 
-    messageStore.handlePartDelta({
-      sessionID: 'session-1',
-      messageID: 'message-1',
-      partID: 'part-live',
-      field: 'text',
+    messageStore.handleTextDelta({
+      sessionID: SESSION,
+      assistantMessageID: 'message-1',
+      ordinal: 1,
       delta: ' text',
     })
     rafCallbacks[0]?.(0)
 
-    const afterMessage = messageStore.getSessionState('session-1')?.messages[0]
+    const afterMessage = messageStore.getSessionState(SESSION)?.messages[0]
     expect(afterMessage).not.toBe(beforeMessage)
     expect(afterMessage?.parts[0]).toBe(beforeSettledPart)
     expect(afterMessage?.parts[1]).not.toBe(beforeLivePart)
@@ -357,11 +412,11 @@ describe('messageStore', () => {
       return rafCallbacks.length
     })
 
-    const unsubscribeSession1 = messageStore.subscribeSession('session-1', session1Subscriber)
+    const unsubscribeSession1 = messageStore.subscribeSession(SESSION, session1Subscriber)
     const unsubscribeSession2 = messageStore.subscribeSession('session-2', session2Subscriber)
     const unsubscribeAll = messageStore.subscribe(allSubscriber)
 
-    messageStore.setMessages('session-2', [createMessageWithParts('message-2', 'world', 'session-2')])
+    messageStore.setMessages('session-2', [createAssistantMessage('message-2', textContent('world'))])
     rafCallbacks.shift()?.(0)
 
     expect(session1Subscriber).not.toHaveBeenCalled()
