@@ -319,18 +319,6 @@ describe('messageStore (v2)', () => {
     expect(message?.parts[0]).toMatchObject({ type: 'text', text: 'from snapshot' })
   })
 
-  it('removes a part from a message', () => {
-    messageStore.handleMessageUpdated(createAssistantMessage('message-1', textContent('hello')), SESSION)
-
-    messageStore.handlePartRemoved({
-      sessionID: SESSION,
-      messageID: 'message-1',
-      partID: 'message-1:text:0',
-    })
-
-    expect(messageStore.getSessionState(SESSION)?.messages[0].parts).toHaveLength(0)
-  })
-
   it('marks cached sessions stale after reconnect and clears the flag after a fresh load', () => {
     messageStore.setMessages(SESSION, [createAssistantMessage('message-1', textContent('hello'))])
 

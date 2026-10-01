@@ -256,10 +256,6 @@ class MessageStore {
     return this.sessions.get(sessionId)?.revertState ?? null
   }
 
-  getPrependedCount(): number {
-    return 0
-  }
-
   getHasMoreHistory(sessionId: string | null): boolean {
     if (!sessionId) return false
     return this.sessions.get(sessionId)?.hasMoreHistory ?? false
@@ -760,21 +756,6 @@ class MessageStore {
     this.notify([sessionID])
   }
 
-  handlePartRemoved(data: { partID: string; messageID: string; sessionID: string }) {
-    const state = this.sessions.get(data.sessionID)
-    if (!state) return
-
-    const msgIndex = state.messages.findIndex(m => m.info.id === data.messageID)
-    if (msgIndex === -1) return
-
-    const oldMessage = state.messages[msgIndex]
-    if (!oldMessage.parts.some(p => p.id === data.partID)) return
-
-    const newMessage = { ...oldMessage, parts: oldMessage.parts.filter(p => p.id !== data.partID) }
-    state.messages = [...state.messages.slice(0, msgIndex), newMessage, ...state.messages.slice(msgIndex + 1)]
-    this.notify([data.sessionID])
-  }
-
   /**
    * 确保助手消息存在于 store。
    *
@@ -1011,14 +992,6 @@ class MessageStore {
     if (!state) return
     state.revertState = revertState
     this.notify([sessionId])
-  }
-
-  getLastUserMessageId(sessionId: string | null): string | null {
-    const messages = this.getVisibleMessages(sessionId)
-    for (let i = messages.length - 1; i >= 0; i--) {
-      if (messages[i].info.role === 'user') return messages[i].info.id
-    }
-    return null
   }
 
   canUndo(sessionId: string | null): boolean {
