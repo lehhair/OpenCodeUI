@@ -8,13 +8,14 @@ import type { FilePart, AgentPart, TextPart } from '../../../types/message'
 
 interface FilePartViewProps {
   part: FilePart
+  defaultExpanded?: boolean
 }
 
-export const FilePartView = memo(function FilePartView({ part }: FilePartViewProps) {
+export const FilePartView = memo(function FilePartView({ part, defaultExpanded = false }: FilePartViewProps) {
   // 转换为 Attachment 类型
   const attachment = fromFilePart(part)
 
-  return <AttachmentItem attachment={attachment} expandable size="sm" />
+  return <AttachmentItem attachment={attachment} expandable size="sm" defaultExpanded={defaultExpanded} />
 })
 
 // ============================================
