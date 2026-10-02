@@ -632,7 +632,10 @@ class MessageStore {
         const revertedUserMessages = state.messages.slice(revertIndex).filter(isUserMessage)
         state.revertState = {
           messageId: revert.messageID,
-          history: revertedUserMessages.map(message => this.buildRevertHistoryItem(state, message)),
+          // buildRevertHistoryItem 在 session 不存在时返回 undefined；此处 state 必然存在
+          history: revertedUserMessages
+            .map(message => this.buildRevertHistoryItem(sessionId, message))
+            .filter((item): item is RevertHistoryItem => item !== undefined),
         }
       }
     } else {
@@ -1503,7 +1506,16 @@ class MessageStore {
     return attachments
   }
 
-  private buildRevertHistoryItem(state: SessionState, message: UserMessage): RevertHistoryItem {
+  /**
+   * 构造一条撤销历史项。
+   *
+   * 公开：`useSessionManager` 的 undo 路径需要构造同样的结构，这里保持**唯一实现**，
+   * 否则两份会漂移（v2 的用户消息不带 model/agent，必须按会话级当前值回填，
+   * 这种细节最容易两边写得不一致）。
+   */
+  buildRevertHistoryItem(sessionId: string, message: UserMessage): RevertHistoryItem | undefined {
+    const state = this.sessions.get(sessionId)
+    if (!state) return undefined
     const model = state.model
     return {
       messageId: message.id,

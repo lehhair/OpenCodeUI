@@ -249,21 +249,12 @@ export function useSessionManager({
         // 收集被撤销的用户消息，构建 redo 历史
         const revertedUserMessages = state.messages.slice(revertIndex).filter(isUserMessage)
 
-        // v2 的用户消息不带 model / agent（那是会话级状态），与 store 的
-        // `buildRevertHistoryItem` 保持同一口径：取会话当前的 model / agent 回填。
-        const sessionModel = state.model
-        const history = revertedUserMessages.map(m => {
-          return {
-            messageId: m.id,
-            text: messageStore.extractUserText(m),
-            attachments: messageStore.extractUserAttachments(m),
-            model: sessionModel
-              ? { providerID: sessionModel.providerID, modelID: sessionModel.id, variant: sessionModel.variant }
-              : undefined,
-            variant: sessionModel?.variant,
-            agent: state.agent,
-          }
-        })
+        // 收集被撤销的用户消息，构建 redo 历史。
+        // 用 store 的公开构造器，保证与 setMessages 里那条路径是**同一口径**
+        //（v2 用户消息不带 model/agent，需按会话级当前值回填，这种细节两边各写一份必然漂移）。
+        const history = revertedUserMessages
+          .map(m => messageStore.buildRevertHistoryItem(sessionId, m))
+          .filter((item): item is RevertState['history'][number] => item !== undefined)
 
         // 更新 store 的 revert 状态
         const revertState: RevertState = {
