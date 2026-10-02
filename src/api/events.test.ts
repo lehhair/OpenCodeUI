@@ -138,6 +138,65 @@ describe('v2 event dispatch', () => {
     unsubscribe()
   })
 
+  /**
+   * 真机验证（v2 服务端 v2.0.14）：`provider.updated` / `model.updated` 在连接
+   * 建立后与配置变更时确实会推，负载为空 `{}`。此前完全没有分发，导致
+   * `useModels` 的模块级缓存陈旧（模型选择器显示旧目录）。
+   */
+  it('dispatches provider/model catalog-invalidation events', async () => {
+    const harness = createEventStream()
+    subscribeMock.mockReturnValue(harness.stream)
+
+    const { subscribeToServerEvents } = await import('./events')
+
+    const onProviderUpdated = vi.fn()
+    const onModelUpdated = vi.fn()
+
+    const unsubscribe = subscribeToServerEvents('test-server', { onProviderUpdated, onModelUpdated })
+    await Promise.resolve()
+
+    harness.emit(v2Event('provider.updated', {}))
+    harness.emit(v2Event('model.updated', {}))
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    const facts = expect.objectContaining({ id: expect.any(String), created: expect.any(Number) })
+    expect(onProviderUpdated).toHaveBeenCalledWith({}, facts)
+    expect(onModelUpdated).toHaveBeenCalledWith({}, facts)
+
+    unsubscribe()
+  })
+
+  /**
+   * `server.connected` 是**唯一**信封里没有 `created` 的事件
+   *（真机抓包确认：信封只有 `{id, type, data}`，data 为 `{}`）。
+   * 分发层必须用 `in` 收窄而不是整体强转，否则该事件会让 `event.created` 报错。
+   */
+  it('tolerates server.connected, the only envelope without created', async () => {
+    const harness = createEventStream()
+    subscribeMock.mockReturnValue(harness.stream)
+
+    const { subscribeToServerEvents } = await import('./events')
+
+    const onTextDelta = vi.fn()
+    const unsubscribe = subscribeToServerEvents('test-server', { onTextDelta })
+    await Promise.resolve()
+
+    // 不带 created 的信封（真机形状）
+    harness.emit({ id: 'evt_connected', type: 'server.connected', data: {} })
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    // 不应抛错；后续带 created 的事件仍能拿到它
+    harness.emit(v2Event('session.text.delta', { sessionID: 's1', assistantMessageID: 'm1', ordinal: 0, delta: 'x' }))
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    expect(onTextDelta).toHaveBeenCalledWith(
+      expect.objectContaining({ delta: 'x' }),
+      expect.objectContaining({ created: expect.any(Number) }),
+    )
+
+    unsubscribe()
+  })
+
   it('ignores event types the UI does not consume', async () => {
     const harness = createEventStream()
     subscribeMock.mockReturnValue(harness.stream)

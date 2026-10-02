@@ -25,6 +25,7 @@ import {
   getSessionMessages,
 } from '../api'
 import { createSessionPlaceholder } from '../utils/sessionPlaceholder'
+import { refreshModels } from './useModels'
 import type { EventCallbacks } from '../types/api/event'
 import { replyPermission } from '../api/permission'
 import { autoApproveStore } from '../store/autoApproveStore'
@@ -789,6 +790,20 @@ export function useGlobalEvents(directories?: string[]) {
         onUsageUpdated: data => {
           const scopedId = scope(data.sessionID)
           messageStore.handleUsageUpdated({ ...data, sessionID: scopedId })
+        },
+
+        // ---- 目录失效 ----
+        //
+        // 真机验证（v2 服务端 v2.0.14）：`provider.updated` / `model.updated`
+        // 在连接建立后与配置变更时确实会推（负载为空 `{}`）。
+        // 本地只有 `useModels` 是**模块级缓存**，不刷新就会一直显示旧目录；
+        // 其余目录（agents / commands / skills / MCP 资源）都是打开时现拉，无陈旧问题。
+        // 官方对应处理：invalidate + 重新 sync（client/solid/data.ts:1208-1215）。
+        onProviderUpdated: () => {
+          void refreshModels(serverId)
+        },
+        onModelUpdated: () => {
+          void refreshModels(serverId)
         },
 
         // ---- 执行生命周期 ----

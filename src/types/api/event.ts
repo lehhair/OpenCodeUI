@@ -90,7 +90,9 @@ import type {
   FormCreated,
   FormReplied,
   McpStatusChanged,
+  ModelUpdated,
   ProjectUpdated,
+  ProviderUpdated,
   PtyCreated,
   PtyDeleted,
   PtyExited,
@@ -145,6 +147,17 @@ export type WorktreeResolvedPayload = WorktreeResolved['data']
 export type VcsBranchUpdatedPayload = VcsBranchUpdated['data']
 
 export type McpStatusChangedPayload = McpStatusChanged['data']
+
+/**
+ * provider / model 目录失效（负载为空 `{}`）。
+ *
+ * 真机验证（v2.0.14）：这两个事件在连接后与配置变更时确实会推。
+ * 官方的处理是 invalidate + 重新 sync 该 location 的 provider/model 目录
+ *（packages/client/src/solid/data.ts:1208-1215）。
+ */
+export type ProviderUpdatedPayload = ProviderUpdated['data']
+
+export type ModelUpdatedPayload = ModelUpdated['data']
 
 export type InboxEnqueuedPayload = SessionInboxEnqueued['data']
 
@@ -415,6 +428,14 @@ export interface EventCallbacks {
   onWorktreeResolved?: (data: WorktreeResolvedPayload, facts?: EventFacts) => void
   onVcsBranchUpdated?: (data: VcsBranchUpdatedPayload, facts?: EventFacts) => void
   onMcpStatusChanged?: (data: McpStatusChangedPayload, facts?: EventFacts) => void
+  /**
+   * provider / model 目录失效 → 调用方应重新拉取模型目录。
+   *
+   * 本地只有 `useModels` 是模块级缓存（其余目录如 agents/commands/skills 都是
+   * 打开即拉，不存在陈旧问题），所以这两个事件的消费方就是它。
+   */
+  onProviderUpdated?: (data: ProviderUpdatedPayload, facts?: EventFacts) => void
+  onModelUpdated?: (data: ModelUpdatedPayload, facts?: EventFacts) => void
   onFilesystemChanged?: (data: FilesystemChangedPayload, facts?: EventFacts) => void
   onPtyCreated?: (data: PtyCreatedPayload, facts?: EventFacts) => void
   onPtyUpdated?: (data: PtyUpdatedPayload, facts?: EventFacts) => void
@@ -507,6 +528,8 @@ export const EventTypes = {
   WORKTREE_RESOLVED: 'worktree.resolved',
   VCS_BRANCH_UPDATED: 'vcs.branch.updated',
   MCP_STATUS_CHANGED: 'mcp.status.changed',
+  PROVIDER_UPDATED: 'provider.updated',
+  MODEL_UPDATED: 'model.updated',
   FILESYSTEM_CHANGED: 'filesystem.changed',
 
   PTY_CREATED: 'pty.created',

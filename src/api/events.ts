@@ -372,6 +372,15 @@ function dispatchEvent(callbacks: EventCallbacks, event: GlobalEvent): void {
     case 'mcp.status.changed':
       callbacks.onMcpStatusChanged?.(event.data, facts)
       break
+    // provider / model 目录失效。真机验证（v2.0.14）：连接建立后与配置变更时
+    // 都会推，负载为空 `{}`。此前**完全没有分发**，导致模型目录缓存陈旧。
+    // 官方对应处理见 packages/client/src/solid/data.ts:1208-1215（invalidate + sync）。
+    case 'provider.updated':
+      callbacks.onProviderUpdated?.(event.data, facts)
+      break
+    case 'model.updated':
+      callbacks.onModelUpdated?.(event.data, facts)
+      break
     case 'filesystem.changed':
       callbacks.onFilesystemChanged?.(event.data, facts)
       break
