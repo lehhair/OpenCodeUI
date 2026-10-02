@@ -16,6 +16,24 @@
 //
 // 唯一改动：官方用 effect 的 Schema 解析流式 input 的 JSON 字符串，
 // 这里换成等价的普通 try/catch（行为一致：解析失败返回空对象）。
+//
+// ---------------------------------------------------------------------------
+// 使用情况（避免后来者误以为每个导出都已接线）
+//
+// 生产代码实际在用的：currentToolInput / Metadata / Output / Files /
+// Error / Failed，以及 internal 复用的 shellResultFailed、executeToolFailed。
+//
+// **当前无人调用**（保留原因：它们是官方模块的忠实移植、有单测覆盖，
+// 且对应的是官方确实会做的行为；一旦本端要采纳官方那套展开策略就会用上）：
+//   - currentContentDefaultOpen  官方"该工具默认是否展开"的规则。
+//     渲染层刻意**没有**采纳（会改变现有交互，属于重构而非迁移），
+//     仍沿用本仓按 running/readable/streaming 展开的既有行为。
+//   - currentToolErrorStatus     错误卡片目前只显示 error.message
+//   - currentToolHasLoadedFiles  本仓用不上（官方用于决定 read 工具默认展开）
+//
+// 这三条不删的理由与之前保留 commitRevert 一致：**未使用的官方能力 ≠ v1 垫片**。
+// 垫片要删，能力不必删。
+// ---------------------------------------------------------------------------
 // ============================================
 
 import type { AssistantMessage, AssistantTool, ToolContent } from './message'
