@@ -123,11 +123,17 @@ describe('messageStore (v2)', () => {
   })
 
   /**
-   * 跨模块契约：投影层用「content 数组下标」拼 part id
-   *（`${messageID}:text:${index}`），而流式事件带的是 `ordinal`。
-   * 两者必须用同一套编号，否则增量会落到错误的 part 上。
+   * 跨模块契约：投影层与流式事件必须用同一套 ordinal 编号。
+   *
+   * 这套编号是**按 kind 各自计数**（text 一个、reasoning 一个），
+   * 依据官方仓库（core/publish-llm-event.ts 的 nextOrdinal++、
+   * session-ui/timeline/projection.ts 的 { text: 0, reasoning: 0 }、
+   * cli/acp/event.ts 的注释 "count only reasoning parts, not the mixed content array"）。
+   *
+   * 我此前把两者都写成混合 content 下标，导致「流式建的 part」与
+   * 「重新加载投影出的 part」id 不同，同一段内容会显示两遍。
    */
-  it('delta 的 ordinal 与投影层 content 下标对齐（含推理与文本交错）', () => {
+  it('delta 的 ordinal 按 kind 计数，与投影层 part id 对齐（含推理与文本交错）', () => {
     messageStore.handleMessageUpdated(
       createAssistantMessage('message-1', [
         { type: 'text', text: 'first' },
@@ -137,20 +143,20 @@ describe('messageStore (v2)', () => {
       SESSION,
     )
 
-    // 下标 2 是第二个文本 part → 追加到 'second' 后面
+    // 第二个文本 part（text 计数器 = 1）→ 追加到 'second' 后面
     messageStore.handleTextDelta({
       sessionID: SESSION,
       assistantMessageID: 'message-1',
-      ordinal: 2,
+      ordinal: 1,
       delta: ' +more',
     })
     flushFrames()
 
-    // 下标 1 是推理 part → 追加到推理上
+    // 唯一的推理 part（reasoning 计数器 = 0）→ 追加到推理上
     messageStore.handleReasoningDelta({
       sessionID: SESSION,
       assistantMessageID: 'message-1',
-      ordinal: 1,
+      ordinal: 0,
       delta: ' +deeper',
     })
     flushFrames()
@@ -158,8 +164,8 @@ describe('messageStore (v2)', () => {
     const parts = messageStore.getSessionState(SESSION)?.messages[0].parts ?? []
     expect(parts.map(p => `${p.type}:${p.id}`)).toEqual([
       'text:message-1:text:0',
-      'reasoning:message-1:reasoning:1',
-      'text:message-1:text:2',
+      'reasoning:message-1:reasoning:0',
+      'text:message-1:text:1',
     ])
     expect(parts[0]).toMatchObject({ text: 'first' })
     expect(parts[1]).toMatchObject({ text: 'thinking +deeper' })

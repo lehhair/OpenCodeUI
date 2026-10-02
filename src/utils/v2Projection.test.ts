@@ -170,7 +170,7 @@ describe('v2Projection — 消息 info', () => {
 })
 
 describe('v2Projection — content → parts', () => {
-  it('part id 用 content 数组下标作为 ordinal（流式增量靠它定位）', () => {
+  it('part id 的 ordinal 按 kind 各自计数（与官方投影/流式事件一致）', () => {
     const parts = contentToParts(
       [
         { type: 'text', text: 'first' },
@@ -181,11 +181,18 @@ describe('v2Projection — content → parts', () => {
       'assistant-1',
     )
 
-    // 关键契约：ordinal 是**在整个 content 数组里的下标**，不是「同类里的第几个」。
-    // v2 的 session.text.delta / reasoning.delta 携带的 ordinal 就是 content 下标，
-    // messageStore 的 handleTextDelta/handleReasoningDelta 按同一个规则拼 part id，
-    // 两边必须一致，否则流式文本会落到错误的位置。
-    expect(parts.map(p => p.id)).toEqual(['assistant-1:text:0', 'assistant-1:reasoning:1', 'assistant-1:text:2'])
+    // 关键契约：ordinal **按 kind 各自计数**，不是混合 content 数组的下标。
+    // 官方仓库三处实现一致：
+    //   - packages/core/src/session/runner/publish-llm-event.ts
+    //     每个 fragment kind 各自维护 nextOrdinal++
+    //   - packages/session-ui/src/timeline/projection.ts
+    //     const ordinals = { text: 0, reasoning: 0 } → `${id}:${type}:${ordinals[type]++}`
+    //   - packages/cli/src/acp/event.ts
+    //     "Live reasoning ordinals count only reasoning parts, not the mixed content array."
+    //
+    // 我此前写成混合下标（text:0 / reasoning:1 / text:2），
+    // 与流式事件以及重新加载后的投影（text:0 / reasoning:0 / text:1）都不一致。
+    expect(parts.map(p => p.id)).toEqual(['assistant-1:text:0', 'assistant-1:reasoning:0', 'assistant-1:text:1'])
     expect(parts.map(p => p.type)).toEqual(['text', 'reasoning', 'text'])
   })
 

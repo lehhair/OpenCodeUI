@@ -293,10 +293,26 @@ export function toUIToolState(state: ToolState): UIToolState {
 export function contentToParts(content: AssistantContent[], sessionID: string, messageID: string): Part[] {
   const parts: Part[] = []
 
-  content.forEach((entry, index) => {
+  // ordinal 必须按 **kind 各自计数**（text 一个计数器、reasoning 一个计数器），
+  // 而不是混合 content 数组的下标。依据（官方仓库）：
+  //   - packages/core/src/session/runner/publish-llm-event.ts：每个 fragment kind
+  //     各自维护 `nextOrdinal++`
+  //   - packages/session-ui/src/timeline/projection.ts：
+  //     `const ordinals = { text: 0, reasoning: 0 }` → `${id}:${type}:${ordinals[type]++}`
+  //   - packages/cli/src/acp/event.ts 明确写着：
+  //     "Live reasoning ordinals count only reasoning parts, not the mixed content array."
+  //
+  // 之前这里用的是 content.forEach 的 index（混合下标），于是对
+  // [text, reasoning, text] 会产出 text:0 / reasoning:1 / text:2，
+  // 而流式事件与重新加载后的官方投影都是 text:0 / reasoning:0 / text:1。
+  // 两边 ID 不一致的后果：流式已经建好的 reasoning part 与投影出来的
+  // 会被当成两个不同的 part，界面上重复出现。
+  const ordinals = { text: 0, reasoning: 0 }
+
+  content.forEach(entry => {
     if (entry.type === 'text') {
       parts.push({
-        id: `${messageID}:text:${index}`,
+        id: `${messageID}:text:${ordinals.text++}`,
         sessionID,
         messageID,
         type: 'text',
@@ -307,7 +323,7 @@ export function contentToParts(content: AssistantContent[], sessionID: string, m
 
     if (entry.type === 'reasoning') {
       parts.push({
-        id: `${messageID}:reasoning:${index}`,
+        id: `${messageID}:reasoning:${ordinals.reasoning++}`,
         sessionID,
         messageID,
         type: 'reasoning',
