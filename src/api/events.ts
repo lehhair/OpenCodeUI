@@ -135,6 +135,41 @@ function getReconnectDelay(attempt: number): number {
 // ============================================
 //
 // v2 的事件是扁平对象，直接读 `event.type` 与 `event.data`。
+//
+// ---------------------------------------------------------------------------
+// 已分发但本应用**故意不消费**的事件（盘点，避免以后误判成漏接）
+//
+// 这些回调会被调用、但没有任何消费方。逐个核对过，都不是"忘了接"：
+//
+//   worktree.updated / worktree.resolved / vcs.branch.updated
+//       → 由 WorktreePanel 与 useGitWorkspaceCatalog 通过 subscribeToEvents 直接消费
+//   pty.created / updated / exited / deleted
+//       → 终端自己用 WebSocket 桥（api/ptyBridge.ts）感知 connected/data/
+//         disconnected，PTY 结束时 socket 本身会断，无需再听这些事件
+//   session.created / renamed
+//       → SessionContext 通过 subscribeToEvents 直接消费（会话列表）
+//   session.permissions / session.viewed / session.forked
+//       → 待办权限走 permission.request.list；查看/分叉都由本端主动操作后刷新
+//   mcp.status.changed
+//       → McpPanel 打开时现拉，无缓存可失效
+//   project.updated
+//       → 项目信息由会话/目录切换时刷新
+//   session.inbox.enqueued / delivered / cancelled
+//       → 本应用有自己的客户端队列（followupQueueStore）；服务端 inbox 是
+//         prompt 的投递机制，UI 不需要为它建视图
+//   session.revert.staged / cleared / committed
+//       → 撤销/重做目前由 UI 驱动并随后重拉消息（store 的 setRevertState /
+//         truncateAfterRevert）。**已知偏差**：官方 revert.committed 会就地
+//         splice 掉 id >= to 的消息（data.ts:1076-1092），本端没做，因此
+//         多客户端同时操作时可能不同步。单客户端使用不受影响。
+//   session.moved
+//       → 官方会插入 location-switched 消息并更新会话 location；本端切换
+//         worktree 走的是整表重拉，因此没做。**已知偏差**，同上属多客户端场景。
+//   filesystem.changed
+//       → 真机验证（v2.0.14）：在监听目录里创建/修改/删除文件，12 秒内
+//         **没有**收到该事件（只有 server.connected）。因此"没消费它"目前
+//         不是可复现的缺口，未做处理。若将来发现它真的会推，再考虑接。
+// ---------------------------------------------------------------------------
 
 function dispatchEvent(callbacks: EventCallbacks, event: GlobalEvent): void {
   // 信封里负载之外的字段（id/created/metadata），官方处理器能直接拿到，这里显式转发。
