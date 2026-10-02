@@ -1,9 +1,10 @@
 import { memo } from 'react'
 import { MarkdownRenderer } from '../../../components'
-import type { TextPart } from '../../../types/message'
+import type { AssistantText } from '../../../types/api/message'
 
 interface TextPartViewProps {
-  part: TextPart
+  /** v2 原生文本内容：`{ type: 'text', text, state? }` */
+  part: AssistantText
   isStreaming?: boolean
 }
 
@@ -15,9 +16,6 @@ export const TextPartView = memo(function TextPartView({ part, isStreaming = fal
 
   // 跳过空文本（除非正在 streaming）
   if (!displayText.trim() && !isStreaming) return null
-
-  // 跳过 synthetic 文本（系统上下文，单独处理）
-  if (part.synthetic) return null
 
   return (
     <div style={{ contain: 'layout' }}>

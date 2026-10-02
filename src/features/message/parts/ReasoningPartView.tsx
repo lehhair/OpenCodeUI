@@ -5,7 +5,7 @@ import { ScrollArea } from '../../../components/ui'
 import { useDisclosureScrollLock } from '../../../hooks'
 import { useTheme } from '../../../hooks/useTheme'
 import { MarkdownRenderer } from '../../../components/MarkdownRenderer'
-import type { ReasoningPart } from '../../../types/message'
+import type { AssistantReasoning } from '../../../types/api/message'
 import { useUiDisclosureState } from '../../../utils/uiDisclosureState'
 import { MSG_SPACING } from '../messageSpacing'
 import { chevronClass, MessageExpandPanel, useMessageExpandRender } from '../messageExpand'
@@ -14,20 +14,29 @@ import { chevronClass, MessageExpandPanel, useMessageExpandRender } from '../mes
 const ITALIC_SHOW_LEADING_GLYPH = false
 
 interface ReasoningPartViewProps {
-  part: ReasoningPart
+  /** v2 原生推理内容：`{ type:'reasoning', text, state?, time? }` */
+  part: AssistantReasoning
+  /** 内容派生 id（`${messageID}:reasoning:${ordinal}`），用于展开状态 key */
+  partID: string
+  /** 所属助手消息仍在流式中（`time.completed == null`） */
   isStreaming?: boolean
 }
 
-export const ReasoningPartView = memo(function ReasoningPartView({ part, isStreaming }: ReasoningPartViewProps) {
+export const ReasoningPartView = memo(function ReasoningPartView({
+  part,
+  partID,
+  isStreaming,
+}: ReasoningPartViewProps) {
   const { t } = useTranslation('message')
   const { reasoningDisplayMode } = useTheme()
   const rawText = part.text || ''
 
-  const isPartStreaming = isStreaming && !part.time?.end
+  // v2 的推理时间段是 { created, completed }（毫秒）；completed 缺失说明还在生成
+  const isPartStreaming = isStreaming && part.time?.completed == null
   const hasContent = !!rawText.trim()
 
   const displayText = rawText
-  const [expanded, setExpanded] = useUiDisclosureState(`message:${part.messageID}:reasoning:${part.id}`, false)
+  const [expanded, setExpanded] = useUiDisclosureState(`message:${partID}:reasoning`, false)
   const shouldRenderBody = useMessageExpandRender(expanded)
   const { rootRef, headerRef, withScrollLock } = useDisclosureScrollLock()
   const scrollAreaRef = useRef<HTMLDivElement>(null)
@@ -45,14 +54,14 @@ export const ReasoningPartView = memo(function ReasoningPartView({ part, isStrea
     return firstLine.trim() || collapsedPreview
   }, [displayText, collapsedPreview])
   const thoughtDurationLabel = useMemo(() => {
-    const start = part.time?.start
-    const end = part.time?.end
+    const start = part.time?.created
+    const end = part.time?.completed
     if (!start || !end || end <= start) return null
     const durationMs = end - start
     if (durationMs < 1000) return `${Math.max(1, Math.round(durationMs))}ms`
     if (durationMs < 10000) return `${(durationMs / 1000).toFixed(1)}s`
     return `${Math.round(durationMs / 1000)}s`
-  }, [part.time?.start, part.time?.end])
+  }, [part.time?.created, part.time?.completed])
   const summaryText = collapsedPreview || (isPartStreaming ? t('reasoning.thinking') : '')
   const hasLineBreak = /[\r\n]/.test(rawText)
 
@@ -163,9 +172,7 @@ export const ReasoningPartView = memo(function ReasoningPartView({ part, isStrea
           <div ref={summaryContainerRef} className="relative min-w-0 flex-1 overflow-hidden">
             <span className="relative block min-w-0 max-w-full">
               {expanded ? (
-                <span className={expandedMetaClassName}>
-                  {expandedMetaText}
-                </span>
+                <span className={expandedMetaClassName}>{expandedMetaText}</span>
               ) : isMarkdownMode ? (
                 <div className={`min-w-0 text-[length:var(--fs-sm)] leading-5 ${collapsedMarkdownClassName}`}>
                   <MarkdownRenderer
@@ -176,11 +183,7 @@ export const ReasoningPartView = memo(function ReasoningPartView({ part, isStrea
                 </div>
               ) : (
                 <span
-                  className={[
-                    'block min-w-0 italic',
-                    summaryClassName,
-                    isPartStreaming ? 'reasoning-shimmer-text' : '',
-                  ]
+                  className={['block min-w-0 italic', summaryClassName, isPartStreaming ? 'reasoning-shimmer-text' : '']
                     .filter(Boolean)
                     .join(' ')}
                 >
@@ -210,14 +213,19 @@ export const ReasoningPartView = memo(function ReasoningPartView({ part, isStrea
                 <MarkdownRenderer content={displayText} variant="reasoning" isStreaming={isPartStreaming} />
               </div>
             ) : (
-              <div className={`${MSG_SPACING.body} text-[length:var(--fs-sm)] leading-6 italic whitespace-pre-wrap break-words overflow-x-hidden text-text-300`}>
+              <div
+                className={`${MSG_SPACING.body} text-[length:var(--fs-sm)] leading-6 italic whitespace-pre-wrap break-words overflow-x-hidden text-text-300`}
+              >
                 {displayText}
               </div>
             ))}
         </MessageExpandPanel>
       </div>
     ) : (
-      <div ref={summaryContainerRef} className={`relative min-w-0 overflow-hidden ${MSG_SPACING.header} text-[length:var(--fs-sm)]`}>
+      <div
+        ref={summaryContainerRef}
+        className={`relative min-w-0 overflow-hidden ${MSG_SPACING.header} text-[length:var(--fs-sm)]`}
+      >
         {isMarkdownMode ? (
           <MarkdownRenderer content={displayText} variant="reasoning" isStreaming={isPartStreaming} />
         ) : (

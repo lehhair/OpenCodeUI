@@ -1,6 +1,6 @@
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { AssistantMessage, SessionMessage, UserMessage } from '../api/types'
+import type { AssistantMessage, UserMessage } from '../api/types'
 import { messageStore } from './messageStore'
 import {
   useHasMessages,
@@ -12,12 +12,11 @@ import {
 import { paneLayoutStore } from './paneLayoutStore'
 
 // ============================================
-// v2 变更说明
+// 原生（v2）语义说明
 //
-// v1 的测试用 `{ info, parts }` 入参与 handlePartUpdated 驱动 store。
-// v2 的消息自带 content，且入参是**原生消息**（store 内部做投影），
-// 因此工厂改为原生形状；「同一条消息内容变化」改用
-// handleMessageContent（权威 content 快照）。
+// store 里存的是**原生** `SessionMessageInfo`（消息自带 content，
+// 没有 `{ info, parts }`），因此工厂与断言都按原生形状写；
+// 「同一条消息内容变化」用 handleMessageContent（权威 content 快照）。
 // ============================================
 
 const { paneLayoutListeners } = vi.hoisted(() => ({
@@ -59,13 +58,13 @@ function textContent(text: string): AssistantMessage['content'] {
 }
 
 function messageText(sessionId: string, messageId: string): string | undefined {
-  const message = messageStore.getSessionState(sessionId)?.messages.find(m => m.info.id === messageId)
-  const part = message?.parts[0]
-  return part && part.type === 'text' ? part.text : undefined
+  const message = messageStore.getSessionState(sessionId)?.messages.find(item => item.id === messageId)
+  const item = message?.type === 'assistant' ? message.content[0] : undefined
+  return item && item.type === 'text' ? item.text : undefined
 }
 
-function sessionsOf(sessionId: string): SessionMessage[] {
-  return messageStore.getSessionState(sessionId)?.messages.map(m => ({ id: m.info.id })) as SessionMessage[]
+function messageIds(sessionId: string): string[] {
+  return messageStore.getSessionState(sessionId)?.messages.map(message => message.id) ?? []
 }
 
 describe('useSessionState', () => {
@@ -86,7 +85,7 @@ describe('useSessionState', () => {
 
     const { result } = renderHook(() => useSessionState('session-1'))
 
-    expect(result.current?.messages.map(message => message.info.id)).toEqual(['message-1'])
+    expect(result.current?.messages.map(message => message.id)).toEqual(['message-1'])
     expect(result.current?.canUndo).toBe(true)
   })
 
@@ -112,13 +111,13 @@ describe('useSessionState', () => {
       renderCount += 1
       return useSessionState('session-1')
     })
-    expect(result.current?.messages.map(message => message.info.id)).toEqual(['message-1'])
+    expect(result.current?.messages.map(message => message.id)).toEqual(['message-1'])
 
     messageStore.handleMessageUpdated(createUserMessage('message-3', 3), 'session-2')
     await new Promise(resolve => requestAnimationFrame(resolve))
 
     expect(renderCount).toBe(1)
-    expect(result.current?.messages.map(message => message.info.id)).toEqual(['message-1'])
+    expect(result.current?.messages.map(message => message.id)).toEqual(['message-1'])
   })
 })
 
@@ -206,7 +205,7 @@ describe('focused snapshot reuse', () => {
     expect(hasMessages.result.current).toBe(true)
   })
 
-  it('applies text deltas to the projected part', () => {
+  it('applies text deltas to the last text item', () => {
     messageStore.setMessages('session-1', [createAssistantMessage('message-1', 'hello', 1)])
 
     messageStore.handleTextDelta({
@@ -217,7 +216,6 @@ describe('focused snapshot reuse', () => {
     })
 
     expect(messageText('session-1', 'message-1')).toBe('hello world')
-    // 仅为避免未使用告警的引用（辅助函数保留给后续断言使用）
-    expect(sessionsOf('session-1')).toHaveLength(1)
+    expect(messageIds('session-1')).toEqual(['message-1'])
   })
 })

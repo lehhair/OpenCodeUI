@@ -144,7 +144,7 @@ vi.mock('../store', () => ({
   messageStore: {
     handleMessageUpdated: vi.fn(),
     handleSessionIdle: vi.fn(),
-    handleSessionError: vi.fn(),
+    handleExecutionFailed: vi.fn(),
     getSessionState: vi.fn(() => null),
     updateSessionMetadata: vi.fn(),
   },

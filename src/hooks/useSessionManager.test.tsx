@@ -2,12 +2,7 @@ import { renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useSessionManager } from './useSessionManager'
 
-const {
-  getSessionMock,
-  getSessionMessagesMock,
-  messageStoreMock,
-  sessionErrorHandlerMock,
-} = vi.hoisted(() => ({
+const { getSessionMock, getSessionMessagesMock, messageStoreMock, sessionErrorHandlerMock } = vi.hoisted(() => ({
   getSessionMock: vi.fn(),
   getSessionMessagesMock: vi.fn(),
   messageStoreMock: {
@@ -77,7 +72,7 @@ describe('useSessionManager', () => {
     expect(messageStoreMock.setLoadState).toHaveBeenCalledWith('missing-session', 'loading')
     expect(messageStoreMock.setLoadError).toHaveBeenCalledWith(
       'missing-session',
-      expect.objectContaining({ name: 'APIError' }),
+      expect.objectContaining({ type: 'APIError' }),
     )
   })
 })

@@ -2,24 +2,11 @@
 // UI Types - UI 层专用类型
 // ============================================
 //
-// 这些类型扩展了 API 类型，添加了 UI 层特有的状态
+// 这些类型扩展了 API 类型，添加了 UI 层特有的状态。
 //
-
-import type { MessageInfo } from './message'
-import type { Part } from './message'
-
-/**
- * UI 层消息类型
- * 扩展 API 消息，添加 UI 状态
- */
-export interface UIMessage {
-  /** 消息元信息（v2 投影后的 UI 形状） */
-  info: MessageInfo
-  /** 消息内容部分（由 v2 的 content 投影而来） */
-  parts: Part[]
-  /** 是否正在流式传输 */
-  isStreaming?: boolean
-}
+// 注意：v1 时代这里还有 `UIMessage = { info, parts, isStreaming }` —— 那套
+// 自造视图模型已随 v2 迁移整体删除（v2 消息自带 content，UI 直接消费原生
+// `SessionMessage`）。如果你在找"UI 消息"，用 `@/types/api` 的 `SessionMessage`。
 
 // ============================================
 // Attachment Types - 从现有组件导出

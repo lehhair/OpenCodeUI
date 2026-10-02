@@ -41,7 +41,16 @@ import {
   type Attachment,
   type ModelInfo,
 } from '../api'
-import { getMessageText, isUserMessage, type AssistantMessageInfo, type Message as UIMessage } from '../types/message'
+import {
+  assistantText,
+  isAssistantMessage,
+  isUserMessage,
+  type PromptAgentAttachment,
+  type PromptFileAttachment,
+  type SessionMessageInfo,
+  type UserMessage,
+} from '../types/api/message'
+import type { APIError } from '../types/api/common'
 import { clipboardErrorHandler, copyTextToClipboard, createErrorHandler } from '../utils'
 import { clearSessionRuntimeState } from '../utils/sessionLifecycle'
 import { serverStorage } from '../utils/perServerStorage'
@@ -64,10 +73,10 @@ const handleError = createErrorHandler('session')
  * of the entire message tree.
  */
 const EMPTY_SESSION_STATE = {
-  messages: [] as import('../types/message').Message[],
+  messages: [] as SessionMessageInfo[],
   isStreaming: false,
   loadState: 'idle' as const,
-  loadError: undefined,
+  loadError: undefined as APIError | undefined,
   revertState: null,
   canUndo: false,
   canRedo: false,
@@ -310,72 +319,48 @@ export function useChatSession({
       agent?: string
       model: { providerID: string; modelID: string; variant?: string }
       createdAt: number
-    }): UIMessage => {
-      const parts: UIMessage['parts'] = [
-        {
-          id: `${input.messageId}:text`,
-          type: 'text',
-          text: input.text,
-          synthetic: false,
-          sessionID: input.sessionId,
-          messageID: input.messageId,
-        },
-      ]
+    }): UserMessage => {
+      // v2 的用户消息自带 text / files / agents（不再有 parts 数组）
+      const files: PromptFileAttachment[] = []
+      const agents: PromptAgentAttachment[] = []
 
       for (const attachment of input.attachments) {
+        const mention = attachment.textRange
+          ? {
+              start: attachment.textRange.start,
+              end: attachment.textRange.end,
+              text: attachment.textRange.value,
+            }
+          : undefined
+
         if (attachment.type === 'agent') {
-          parts.push({
-            id: attachment.id || `${input.messageId}:agent:${parts.length}`,
-            type: 'agent',
+          agents.push({
             name: attachment.agentName || attachment.displayName,
-            source: attachment.textRange
-              ? {
-                  value: attachment.textRange.value,
-                  start: attachment.textRange.start,
-                  end: attachment.textRange.end,
-                }
-              : undefined,
-            sessionID: input.sessionId,
-            messageID: input.messageId,
+            mention,
           })
           continue
         }
 
         if (attachment.type !== 'file' && attachment.type !== 'folder') continue
 
-        parts.push({
-          id: attachment.id || `${input.messageId}:file:${parts.length}`,
-          type: 'file',
+        files.push({
+          // 本地乐观消息只用于展示；真实的 prompt 由 sendMessageAsync 组装，
+          // 因此 data 留空、URL 走 source.uri（与 AttachmentPartViews 的读取一致）
+          data: '',
           mime: attachment.mime || (attachment.type === 'folder' ? 'application/x-directory' : 'text/plain'),
-          filename: attachment.displayName,
-          url: attachment.url || '',
-          source: attachment.textRange
-            ? {
-                type: 'file',
-                path: attachment.relativePath || attachment.displayName,
-                text: {
-                  value: attachment.textRange.value,
-                  start: attachment.textRange.start,
-                  end: attachment.textRange.end,
-                },
-              }
-            : undefined,
-          sessionID: input.sessionId,
-          messageID: input.messageId,
+          source: attachment.url ? { type: 'uri', uri: attachment.url } : { type: 'inline' },
+          name: attachment.displayName,
+          mention,
         })
       }
 
       return {
-        info: {
-          id: input.messageId,
-          sessionID: input.sessionId,
-          role: 'user',
-          time: { created: input.createdAt },
-          agent: input.agent || '',
-          model: input.model,
-        },
-        parts,
-        isStreaming: false,
+        id: input.messageId,
+        type: 'user',
+        time: { created: input.createdAt },
+        text: input.text,
+        ...(files.length > 0 ? { files } : {}),
+        ...(agents.length > 0 ? { agents } : {}),
       }
     },
     [],
@@ -785,6 +770,7 @@ export function useChatSession({
           agent: options?.agent,
         })
         messageStore.upsertLocalMessage(
+          queued.sessionId,
           buildLocalQueuedMessage({
             sessionId: queued.sessionId,
             messageId: queued.id,
@@ -910,52 +896,54 @@ export function useChatSession({
   }, [routeSessionId, paneId, resetPermissions, resetPendingRequests])
 
   const handleForkMessage = useCallback(
-    async (message: UIMessage, forkMessageId?: string) => {
-      const targetMessageId = forkMessageId || message.info.id
+    async (message: SessionMessageInfo, forkMessageId?: string) => {
+      if (!routeSessionId) return
+      const targetMessageId = forkMessageId || message.id
 
       try {
-        if (message.info.role === 'assistant') {
-          const assistantInfo = message.info as AssistantMessageInfo
+        if (isAssistantMessage(message)) {
           // 后端 fork 语义：messageID 指定的消息**不包含**在新 session 里。
           // 要保留这条 assistant 回复，需要传它之后的下一条用户消息 ID；
           // 如果它已经是最末尾，不传 messageID，fork 整个 session。
           const currentMessages = messagesRef.current
-          const idx = currentMessages.findIndex(m => m.info.id === targetMessageId)
+          const idx = currentMessages.findIndex(m => m.id === targetMessageId)
           let forkAtMessageId: string | undefined
           if (idx >= 0) {
             for (let i = idx + 1; i < currentMessages.length; i++) {
-              if (currentMessages[i].info.role === 'user') {
-                forkAtMessageId = currentMessages[i].info.id
+              const candidate = currentMessages[i]
+              if (isUserMessage(candidate)) {
+                forkAtMessageId = candidate.id
                 break
               }
             }
           }
-          const forkedSession = await forkSession(assistantInfo.sessionID, forkAtMessageId, effectiveDirectory, paneServerId)
+          const forkedSession = await forkSession(routeSessionId, forkAtMessageId, effectiveDirectory, paneServerId)
           setRestoredContent(null)
           navigateToSession(forkedSession.id, forkedSession.location?.directory)
           return
         }
 
-        if (message.info.role !== 'user') return
+        if (!isUserMessage(message)) return
 
-        if (!isUserMessage(message.info)) return
-
-        const userInfo = message.info
-        // v2 的消息没有 info/parts（那是 UI 视图模型），
-        // 因此从 UI 消息的 parts 里抽取文本与附件
+        // v2 的用户消息没有 model / agent（那是会话级状态），
+        // 与 store 的 RevertHistoryItem 保持同一口径
+        const sessionState = messageStore.getSessionState(routeSessionId)
+        const sessionModel = sessionState?.model
         const restoredText = messageStore.extractUserText(message)
         const restoredAttachments = messageStore.extractUserAttachments(message)
-        const forkedSession = await forkSession(userInfo.sessionID, targetMessageId, effectiveDirectory, paneServerId)
+        const forkedSession = await forkSession(routeSessionId, targetMessageId, effectiveDirectory, paneServerId)
 
         setRestoredContent({
           sessionId: forkedSession.id,
           content: {
-            messageId: userInfo.id,
+            messageId: message.id,
             text: restoredText,
             attachments: restoredAttachments,
-            model: userInfo.model,
-            variant: userInfo.model.variant,
-            agent: userInfo.agent,
+            model: sessionModel
+              ? { providerID: sessionModel.providerID, modelID: sessionModel.id, variant: sessionModel.variant }
+              : undefined,
+            variant: sessionModel?.variant,
+            agent: sessionState?.agent,
           },
         })
 
@@ -964,7 +952,7 @@ export function useChatSession({
         handleError('fork session', error)
       }
     },
-    [effectiveDirectory, navigateToSession, paneServerId],
+    [effectiveDirectory, navigateToSession, paneServerId, routeSessionId],
   )
 
   // Abort handler
@@ -1063,10 +1051,10 @@ export function useChatSession({
   const handleUndoWithAnimation = useCallback(
     async (userMessageId: string) => {
       const currentMessages = messagesRef.current
-      const messageIndex = currentMessages.findIndex(m => m.info.id === userMessageId)
+      const messageIndex = currentMessages.findIndex(m => m.id === userMessageId)
       if (messageIndex === -1) return
 
-      const messageIdsToRemove = currentMessages.slice(messageIndex).map(m => m.info.id)
+      const messageIdsToRemove = currentMessages.slice(messageIndex).map(m => m.id)
 
       await animateUndo(messageIdsToRemove)
       await handleUndo(userMessageId)
@@ -1141,10 +1129,10 @@ export function useChatSession({
 
   // Copy last AI response to clipboard
   const handleCopyLastResponse = useCallback(async () => {
-    const lastAssistant = [...messages].reverse().find(m => m.info.role === 'assistant')
+    const lastAssistant = [...messages].reverse().find(isAssistantMessage)
     if (!lastAssistant) return
 
-    const text = getMessageText(lastAssistant)
+    const text = assistantText(lastAssistant)
     if (text) {
       try {
         await copyTextToClipboard(text)

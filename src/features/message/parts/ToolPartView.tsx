@@ -2,7 +2,6 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { diffLines } from 'diff'
 import { ChevronDownIcon, ChevronRightIcon } from '../../../components/Icons'
-import type { ToolPart } from '../../../types/message'
 import { useCompositorExpand, useDisclosureScrollLock } from '../../../hooks'
 import { useNow } from '../../../hooks/useNow'
 import { serverStore } from '../../../store/serverStore'
@@ -23,7 +22,10 @@ import {
   getToolConfig,
   DefaultRenderer,
   TaskRenderer,
+  type ToolViewPart,
+  type ToolViewContext,
 } from '../tools'
+import { currentToolFailed, currentToolInput, currentToolMetadata } from '../../../types/api/toolState'
 import { MSG_SPACING } from '../messageSpacing'
 import { MessageExpandPanel, useMessageExpandRender } from '../messageExpand'
 
@@ -32,7 +34,10 @@ import { MessageExpandPanel, useMessageExpandRender } from '../messageExpand'
 // ============================================
 
 interface ToolPartViewProps {
-  part: ToolPart
+  /** v2 原生工具内容 + 所属 messageID */
+  part: ToolViewPart
+  /** 所属助手消息的计时上下文（工具自身没有起止时间，v2 只在消息上有） */
+  context?: ToolViewContext
   isFirst?: boolean
   isLast?: boolean
   /** Compact layout: icon inline with text (14px column), no timeline connectors.
@@ -46,6 +51,7 @@ interface ToolPartViewProps {
 
 export const ToolPartView = memo(function ToolPartView({
   part,
+  context,
   isFirst = false,
   isLast = false,
   compact = false,
@@ -53,34 +59,31 @@ export const ToolPartView = memo(function ToolPartView({
   isStreaming = false,
 }: ToolPartViewProps) {
   const { t } = useTranslation('message')
-  const { state, tool: toolName } = part
-  const title = state.title || getInputDescription(part) || ''
+  const { state, name: toolName } = part
+  const metadata = currentToolMetadata(part)
+  const title = (metadata.title as string) || getInputDescription(part) || ''
 
-  const isActive = state.status === 'running' || state.status === 'pending'
-  const isError = state.status === 'error'
+  const isActive = state.status === 'running' || state.status === 'streaming'
+  // 失败判定含「completed 但进程失败」（shell 非零退出 / 超时）
+  const isError = currentToolFailed(part)
   const now = useNow(250, isActive)
-  const startTime = state.time?.start
+  // v2 的工具状态里没有起止时间：running 用消息创建时间兜底，
+  // 完成后只有消息级 completed（同一消息里多个工具无法各自计时）。
+  const startTime = context?.created
   const calibratedNow = isActive ? serverStore.getActiveCalibratedNow() : undefined
-  const endTime = state.time?.end ?? (isActive ? (calibratedNow ?? now) : undefined)
+  const endTime = isActive ? (calibratedNow ?? now) : context?.completed
   const rawDuration = startTime !== undefined && endTime !== undefined ? endTime - startTime : undefined
   const duration = rawDuration !== undefined && isActive ? Math.max(0, rawDuration) : rawDuration
   const { inlineToolRequests, immersiveMode, compactInlinePermission } = useTheme()
 
-  const {
-    serverId,
-    pendingPermissions,
-    pendingQuestions,
-    onPermissionReply,
-    onFormReply,
-    onFormCancel,
-    isReplying,
-  } = useInlineToolRequests()
+  const { serverId, pendingPermissions, pendingQuestions, onPermissionReply, onFormReply, onFormCancel, isReplying } =
+    useInlineToolRequests()
   const childSession = getTaskChildSessionRef(part, serverId)
   const permissionRequest = inlineToolRequests
-    ? findPermissionRequestForTool(pendingPermissions, part.callID, childSession)
+    ? findPermissionRequestForTool(pendingPermissions, part.id, childSession)
     : undefined
   const questionRequest = inlineToolRequests
-    ? findQuestionRequestForTool(pendingQuestions, part.callID, childSession)
+    ? findQuestionRequestForTool(pendingQuestions, part.id, childSession)
     : undefined
 
   const toolDone = state.status === 'completed' || state.status === 'error'
@@ -136,8 +139,12 @@ export const ToolPartView = memo(function ToolPartView({
   const { rootRef, headerRef, withScrollLock } = useDisclosureScrollLock()
   const effectiveExpanded = expanded || hasPendingInteraction || permissionResolved || isChildFullscreen
   // Android expand: instant layout + max-height fake; collapse: original grid-rows.
-  const { contentRef: expandContentRef, layoutOpen, keepMounted, panelClassName } =
-    useCompositorExpand(effectiveExpanded)
+  const {
+    contentRef: expandContentRef,
+    layoutOpen,
+    keepMounted,
+    panelClassName,
+  } = useCompositorExpand(effectiveExpanded)
   // 展开即挂 body：默认展开的工具 header/body 同帧，不再先 header 后 body
   const shouldRenderBody = useMessageExpandRender(keepMounted)
   const toggleExpanded = useCallback(() => {
@@ -186,7 +193,7 @@ export const ToolPartView = memo(function ToolPartView({
       relative flex items-center justify-center transition-colors duration-200
       ${isActive ? 'text-text-300' : ''}
       ${isError ? 'text-danger-100' : ''}
-      ${state.status === 'completed' ? 'text-text-400 group-hover:text-text-300' : ''}
+      {state.status === 'completed' && !isError ? 'text-text-400 group-hover:text-text-300' : ''}
     `}
     >
       {getToolIcon(toolName)}
@@ -206,7 +213,7 @@ export const ToolPartView = memo(function ToolPartView({
   const bodyContent = (
     <>
       {!hideToolBodyForPermission && (
-        <ToolBody part={part} data={toolData} onFullscreenChange={handleFullscreenChange} />
+        <ToolBody part={part} data={toolData} context={context} onFullscreenChange={handleFullscreenChange} />
       )}
       {displayPermission && (
         <div className={hideToolBodyForPermission && !permissionContentHidden ? '' : MSG_SPACING.inner}>
@@ -309,7 +316,10 @@ export const ToolPartView = memo(function ToolPartView({
   // Grid: [14px icon] [gap 6px] [content] — mirrors ReasoningPartView alignment
   if (compact) {
     return (
-      <div ref={rootRef} className={`group relative grid grid-cols-[14px_minmax(0,1fr)] gap-x-1.5 items-start ${MSG_SPACING.item}`}>
+      <div
+        ref={rootRef}
+        className={`group relative grid grid-cols-[14px_minmax(0,1fr)] gap-x-1.5 items-start ${MSG_SPACING.item}`}
+      >
         {/* Icon column — fixed, outside of interactive area */}
         <span className="inline-flex h-9 w-[14px] items-center justify-center shrink-0">{toolIcon}</span>
 
@@ -523,40 +533,40 @@ function computeDiffPair(before: string, after: string): { additions: number; de
 const ToolBody = memo(function ToolBody({
   part,
   data,
+  context,
   onFullscreenChange,
 }: {
-  part: ToolPart
+  part: ToolViewPart
   data: ReturnType<typeof extractToolData>
+  context?: ToolViewContext
   onFullscreenChange?: (isFullscreen: boolean) => void
 }) {
-  const { tool } = part
-  const lowerTool = tool.toLowerCase()
+  const lowerTool = part.name.toLowerCase()
 
   if (lowerTool === 'task') {
-    return <TaskRenderer part={part} data={data} onFullscreenChange={onFullscreenChange} />
+    return <TaskRenderer part={part} data={data} context={context} onFullscreenChange={onFullscreenChange} />
   }
 
-  const config = getToolConfig(tool)
+  const config = getToolConfig(part.name)
   if (config?.renderer) {
     const CustomRenderer = config.renderer
-    return <CustomRenderer part={part} data={data} onFullscreenChange={onFullscreenChange} />
+    return <CustomRenderer part={part} data={data} context={context} onFullscreenChange={onFullscreenChange} />
   }
 
-  return <DefaultRenderer part={part} data={data} onFullscreenChange={onFullscreenChange} />
+  return <DefaultRenderer part={part} data={data} context={context} onFullscreenChange={onFullscreenChange} />
 })
 
 /** task 工具派出的子 session：metadata 里是原始 id，服务器以 pane 绑定的 serverId 为权威 */
-function getTaskChildSessionRef(part: ToolPart, serverId: string): TaskChildSessionRef | undefined {
-  if (part.tool.toLowerCase() !== 'task') return undefined
-  const metadata = part.state.metadata as Record<string, unknown> | undefined
-  const sessionId = metadata?.sessionId as string | undefined
+function getTaskChildSessionRef(part: ToolViewPart, serverId: string): TaskChildSessionRef | undefined {
+  if (part.name.toLowerCase() !== 'task') return undefined
+  const sessionId = currentToolMetadata(part).sessionId as string | undefined
   return sessionId ? { sessionKey: sessionId, serverId } : undefined
 }
 
 /** Extract description from tool input as title fallback (available while running) */
-function getInputDescription(part: ToolPart): string | undefined {
-  const input = part.state.input as Record<string, unknown> | undefined
-  return (input?.description as string) || undefined
+function getInputDescription(part: ToolViewPart): string | undefined {
+  const input = currentToolInput(part)
+  return (input.description as string) || undefined
 }
 
 // ============================================

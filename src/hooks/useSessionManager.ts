@@ -9,24 +9,28 @@
 
 import { useCallback, useEffect, useRef } from 'react'
 import { logger } from '../utils/logger'
-import { isUserUIMessage } from '../utils/messageConversion'
 import { messageStore, type RevertState } from '../store'
 import { sessionKeyToServerId } from '../utils/sessionKey'
 import { getSessionMessages, getSession, revertMessage, unrevertSession, type SessionMessage } from '../api'
 import { sessionErrorHandler } from '../utils'
 import { isSessionNotFoundError } from '../utils/sessionErrors'
 import { INITIAL_MESSAGE_LIMIT, HISTORY_LOAD_BATCH_SIZE } from '../constants'
-import type { MessageError } from '../types/message'
+import { isUserMessage } from '../types/api/message'
+import type { APIError } from '../types/api/common'
 
-function toLoadMessageError(error: unknown): MessageError {
+/**
+ * 会话加载失败 → v2 的结构化错误（`{ type, message, status?, response? }`）。
+ *
+ * v1 是按 `name` 判别的 `MessageError` 联合；v2 的错误只有一个形状，
+ * 因此这里直接产出原生形状，错误卡片（`MessageErrorView`）按它渲染。
+ */
+function toLoadMessageError(error: unknown): APIError {
   const message = error instanceof Error ? error.message : String(error || 'Failed to load session')
+  const stack = error instanceof Error ? error.stack : undefined
   return {
-    name: 'APIError',
-    data: {
-      message,
-      isRetryable: true,
-      responseBody: error instanceof Error ? error.stack : undefined,
-    },
+    type: 'APIError',
+    message,
+    ...(stack ? { response: { body: stack } } : {}),
   }
 }
 
@@ -42,7 +46,13 @@ interface UseSessionManagerOptions {
 // mergeWithLocalStreamingMessages / messageTimeIncomplete 已删除——流式保长与
 // 「SSE 先到、列表未含」的合并逻辑现在统一在 messageStore.setMessages 内处理。
 
-export function useSessionManager({ sessionId, directory, onLoadComplete, onError, onSessionMissing }: UseSessionManagerOptions) {
+export function useSessionManager({
+  sessionId,
+  directory,
+  onLoadComplete,
+  onError,
+  onSessionMissing,
+}: UseSessionManagerOptions) {
   const loadSequenceRef = useRef<Map<string, number>>(new Map())
   /** 每个 session 当前已请求的消息 limit（cursor），loadMore 时递增 */
   const cursorRef = useRef<Map<string, number>>(new Map())
@@ -202,7 +212,7 @@ export function useSessionManager({ sessionId, directory, onLoadComplete, onErro
       if (!latestState) return
 
       // 去重 + 按时间排序（v2 的原始消息直接有 id / time，没有 info 包装）
-      const existingIds = new Set(latestState.messages.map(m => m.info.id))
+      const existingIds = new Set(latestState.messages.map(m => m.id))
       const prependCandidates = apiMessages
         .filter(m => !existingIds.has(m.id))
         .sort((a, b) => (a.time?.created ?? 0) - (b.time?.created ?? 0))
@@ -233,22 +243,25 @@ export function useSessionManager({ sessionId, directory, onLoadComplete, onErro
         await revertMessage(sessionId, userMessageId, undefined, dir, sessionKeyToServerId(sessionId))
 
         // 找到 revert 点的索引
-        const revertIndex = state.messages.findIndex(m => m.info.id === userMessageId)
+        const revertIndex = state.messages.findIndex(m => m.id === userMessageId)
         if (revertIndex === -1) return
 
         // 收集被撤销的用户消息，构建 redo 历史
-        const revertedUserMessages = state.messages.slice(revertIndex).filter(isUserUIMessage)
+        const revertedUserMessages = state.messages.slice(revertIndex).filter(isUserMessage)
 
+        // v2 的用户消息不带 model / agent（那是会话级状态），与 store 的
+        // `buildRevertHistoryItem` 保持同一口径：取会话当前的 model / agent 回填。
+        const sessionModel = state.model
         const history = revertedUserMessages.map(m => {
-          // v2 的会话消息没有 info/parts（那两项是 UI 视图模型），
-          // 因此从 UI 消息的 parts 里抽取文本与附件。
           return {
-            messageId: m.info.id,
+            messageId: m.id,
             text: messageStore.extractUserText(m),
             attachments: messageStore.extractUserAttachments(m),
-            model: m.info.model,
-            variant: m.info.model?.variant,
-            agent: m.info.agent,
+            model: sessionModel
+              ? { providerID: sessionModel.providerID, modelID: sessionModel.id, variant: sessionModel.variant }
+              : undefined,
+            variant: sessionModel?.variant,
+            agent: state.agent,
           }
         })
 

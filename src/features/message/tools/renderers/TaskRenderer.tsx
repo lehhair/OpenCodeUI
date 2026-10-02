@@ -10,14 +10,21 @@ import { makeSessionKey, splitSessionKey } from '../../../../utils/sessionKey'
 import { serverStore } from '../../../../store/serverStore'
 import { sessionErrorHandler } from '../../../../utils'
 import { formatToolName } from '../../../../utils/formatUtils'
-import { structuredErrorMessage } from '../../../../utils/v2Projection'
 import { useUiDisclosureState } from '../../../../utils/uiDisclosureState'
-import type { ToolRendererProps } from '../types'
+import type { ToolRendererProps, ToolViewPart } from '../types'
 import { MessageExpandPanel, useMessageExpandRender } from '../../messageExpand'
-import type { Message, TextPart, ToolPart } from '../../../../types/message'
-import { isVisibleTextPart } from '../../../../types/message'
+import type { AssistantTool, SessionMessageInfo } from '../../../../types/api/message'
+import { contentEntries, type ContentEntry } from '../../../../types/api/message'
+import {
+  currentToolError,
+  currentToolFailed,
+  currentToolInput,
+  currentToolMetadata,
+  currentToolOutput,
+} from '../../../../types/api/toolState'
 
-const EMPTY_MESSAGES: Message[] = []
+/** 子会话消息就是 v2 原生消息（store 已迁移为 SessionMessageInfo[]） */
+const EMPTY_MESSAGES: SessionMessageInfo[] = []
 
 // ============================================
 // Task Tool Renderer (子 agent)
@@ -35,7 +42,7 @@ export const TaskRenderer = memo(function TaskRenderer({ part, onFullscreenChang
   const { state } = part
   const [expanded, setExpanded] = useUiDisclosureState(
     `message:${part.messageID}:tool:${part.id}:task-body`,
-    state.status === 'running' || state.status === 'pending',
+    state.status === 'running',
   )
   const [isContentFullscreen, setIsContentFullscreen] = useState(false)
   const { rootRef, headerRef, withScrollLock } = useDisclosureScrollLock()
@@ -43,20 +50,21 @@ export const TaskRenderer = memo(function TaskRenderer({ part, onFullscreenChang
   const shouldRenderBody = useMessageExpandRender(effectiveExpanded)
 
   // 从 input 中提取任务信息
-  const input = state.input as Record<string, unknown> | undefined
-  const description = (input?.description as string) || t('task.subtask')
-  const prompt = (input?.prompt as string) || ''
-  const agentType = (input?.subagent_type as string) || 'general'
+  const input = currentToolInput(part)
+  const description = (input.description as string) || t('task.subtask')
+  const prompt = (input.prompt as string) || ''
+  const agentType = (input.subagent_type as string) || 'general'
 
   // 获取子 session ID —— 只信任 metadata.sessionId，它是后端为这个 tool call 精确设置的
   // 不再用 useChildSessions fallback 取"最新子 session"，因为同一父 session 下多个 task
   // 同时运行时，fallback 会导致所有 task 都渲染最新的那个子 session
-  const metadata = state.metadata as Record<string, unknown> | undefined
-  const targetSessionId = metadata?.sessionId as string | undefined
+  const metadata = currentToolMetadata(part)
+  const targetSessionId = metadata.sessionId as string | undefined
 
-  const isRunning = state.status === 'running' || state.status === 'pending'
+  const isRunning = state.status === 'running'
   const isCompleted = state.status === 'completed'
   const isError = state.status === 'error'
+  const resultOutput = currentToolOutput(part)
 
   // 子 session 属于当前消息所属 session（父 session）的服务器
   const taskServerId = currentSessionId ? splitSessionKey(currentSessionId).serverId : undefined
@@ -139,27 +147,27 @@ export const TaskRenderer = memo(function TaskRenderer({ part, onFullscreenChang
               )}
 
               {/* 完成时的输出 */}
-              {isCompleted && state.output !== undefined && state.output !== null && (
+              {isCompleted && resultOutput && (
                 <ContentBlock
                   label={t('task.result')}
                   stateKey={`message:${part.messageID}:tool:${part.id}:task-result`}
-                  content={typeof state.output === 'string' ? state.output : JSON.stringify(state.output, null, 2)}
+                  content={resultOutput}
                   defaultCollapsed={true}
                   onFullscreenChange={handleContentFullscreenChange}
-                  fullscreenId={`task:${part.sessionID}:${part.messageID}:${part.id}:result`}
+                  fullscreenId={`task:${part.messageID}:${part.id}:result`}
                 />
               )}
 
               {/* 错误信息 */}
-              {isError && state.error !== undefined && (
+              {isError && (
                 <ContentBlock
                   label={t('task.error')}
                   stateKey={`message:${part.messageID}:tool:${part.id}:task-error`}
                   // v2 的 error 是结构化对象，直接 JSON.stringify 会让用户看到原始 JSON
-                  content={structuredErrorMessage(state.error) || t('task.error')}
+                  content={currentToolError(part) || t('task.error')}
                   variant="error"
                   onFullscreenChange={handleContentFullscreenChange}
-                  fullscreenId={`task:${part.sessionID}:${part.messageID}:${part.id}:error`}
+                  fullscreenId={`task:${part.messageID}:${part.id}:error`}
                 />
               )}
             </div>
@@ -323,7 +331,8 @@ const SubSessionView = memo(function SubSessionView({ sessionId, serverId }: Sub
     ? sessionId
     : makeSessionKey(serverId ?? serverStore.getActiveServerId(), sessionId)
   const sessionState = useSessionState(sessionKey)
-  const messages = sessionState?.messages ?? EMPTY_MESSAGES
+  // store 已迁移为原生 SessionMessageInfo[]，不再需要强转
+  const messages: SessionMessageInfo[] = sessionState?.messages ?? EMPTY_MESSAGES
   const isStreaming = sessionState?.isStreaming || false
   const isLoading = sessionState?.loadState === 'loading'
 
@@ -372,15 +381,15 @@ const SubSessionView = memo(function SubSessionView({ sessionId, serverId }: Sub
     el.scrollTop = el.scrollHeight
   }, [messages, isStreaming])
 
-  // 过滤有内容的消息
-  const visibleMessages = messages.filter((msg: Message) =>
-    msg.parts.some((part: Message['parts'][0]) => {
-      if (part.type === 'text') return isVisibleTextPart(part)
-      if (part.type === 'tool') return true
-      if (part.type === 'reasoning') return true
-      return false
-    }),
-  )
+  // 子会话消息就是原生消息：消息**自带内容**，按 type/content 过滤
+  const visibleMessages = messages.filter((msg): msg is SessionMessageInfo => {
+    if (msg.type === 'user') return !!msg.text.trim()
+    if (msg.type !== 'assistant') return false
+    return msg.content.some(content => {
+      if (content.type === 'text' || content.type === 'reasoning') return !!content.text.trim()
+      return true
+    })
+  })
 
   if (isLoading && messages.length === 0) {
     return <MessageSkeleton />
@@ -399,8 +408,8 @@ const SubSessionView = memo(function SubSessionView({ sessionId, serverId }: Sub
         className="overflow-y-auto custom-scrollbar px-3 py-2 space-y-2"
         style={{ maxHeight: subSessionMaxHeight }}
       >
-        {visibleMessages.map((msg: Message, idx: number) => (
-          <MessageItem key={msg.info.id} message={msg} isLast={idx === visibleMessages.length - 1} />
+        {visibleMessages.map((msg: SessionMessageInfo, idx: number) => (
+          <MessageItem key={msg.id} message={msg} isLast={idx === visibleMessages.length - 1} />
         ))}
       </div>
     </div>
@@ -412,31 +421,32 @@ const SubSessionView = memo(function SubSessionView({ sessionId, serverId }: Sub
 // ============================================
 
 interface MessageItemProps {
-  message: Message
+  message: SessionMessageInfo
   isLast: boolean
 }
 
 const MessageItem = memo(function MessageItem({ message, isLast }: MessageItemProps) {
-  const { info, parts } = message
-  const isUser = info.role === 'user'
-
-  const textParts = parts.filter((p): p is TextPart => p.type === 'text' && !!p.text?.trim())
-  const toolParts = parts.filter((p): p is ToolPart => p.type === 'tool')
-
-  const textContent = textParts
-    .map(p => p.text)
-    .join('\n')
-    .trim()
+  const isUser = message.type === 'user'
 
   if (isUser) {
+    const text = message.text.trim()
     return (
       <div className="flex justify-end">
         <div className="max-w-[85%] px-2.5 py-1.5 rounded-md bg-bg-300 text-text-100 text-[length:var(--fs-xs)] whitespace-pre-wrap break-words">
-          {textContent}
+          {text}
         </div>
       </div>
     )
   }
+
+  if (message.type !== 'assistant') return null
+
+  const entries = contentEntries(message)
+  const textContent = entries
+    .flatMap(entry => (entry.content.type === 'text' ? [entry.content.text] : []))
+    .join('\n')
+    .trim()
+  const toolEntries = entries.filter((entry): entry is ContentEntry<AssistantTool> => entry.content.type === 'tool')
 
   // Assistant message
   return (
@@ -449,10 +459,10 @@ const MessageItem = memo(function MessageItem({ message, isLast }: MessageItemPr
       )}
 
       {/* Tool calls - compact summary */}
-      {toolParts.length > 0 && (
+      {toolEntries.length > 0 && (
         <div className="flex flex-wrap gap-1">
-          {toolParts.map((tool, idx) => (
-            <ToolBadge key={idx} tool={tool} />
+          {toolEntries.map(entry => (
+            <ToolBadge key={entry.id} tool={toolForRender(entry.content, message.id)} />
           ))}
         </div>
       )}
@@ -460,16 +470,21 @@ const MessageItem = memo(function MessageItem({ message, isLast }: MessageItemPr
   )
 })
 
+/** 把原生工具 content 补上 messageID（渲染层统一的工具条目形状） */
+function toolForRender(tool: AssistantTool, messageID: string): ToolViewPart {
+  return { ...tool, messageID }
+}
+
 // ============================================
 // Tool Badge
 // ============================================
 
-const ToolBadge = memo(function ToolBadge({ tool }: { tool: ToolPart }) {
-  const { state, tool: toolName } = tool
-  const isRunning = state.status === 'running' || state.status === 'pending'
-  const isError = state.status === 'error'
+const ToolBadge = memo(function ToolBadge({ tool }: { tool: ToolViewPart }) {
+  const { state } = tool
+  const isRunning = state.status === 'running' || state.status === 'streaming'
+  const isError = currentToolFailed(tool)
 
-  const title = state.title || formatToolName(toolName)
+  const title = (currentToolMetadata(tool).title as string) || formatToolName(tool.name)
   const displayTitle = title.length > 30 ? title.slice(0, 30) + '...' : title
 
   return (

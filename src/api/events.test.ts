@@ -124,12 +124,16 @@ describe('v2 event dispatch', () => {
 
     await new Promise(resolve => setTimeout(resolve, 0))
 
+    // 第二个参数是信封 facts（id / created / metadata），store 用它派生消息 id 与时间
+    const facts = expect.objectContaining({ id: expect.any(String), created: expect.any(Number) })
+
     expect(onTextDelta).toHaveBeenCalledWith(
       expect.objectContaining({ sessionID: 's1', ordinal: 0, delta: 'hello' }),
+      facts,
     )
-    expect(onToolCalled).toHaveBeenCalledWith(expect.objectContaining({ id: 'tool-1' }))
-    expect(onSessionIdle).toHaveBeenCalledWith({ sessionID: 's1' })
-    expect(onFormCreated).toHaveBeenCalledWith(expect.objectContaining({ id: 'f1' }))
+    expect(onToolCalled).toHaveBeenCalledWith(expect.objectContaining({ id: 'tool-1' }), facts)
+    expect(onSessionIdle).toHaveBeenCalledWith({ sessionID: 's1' }, facts)
+    expect(onFormCreated).toHaveBeenCalledWith(expect.objectContaining({ id: 'f1' }), facts)
 
     unsubscribe()
   })

@@ -1,6 +1,7 @@
 import { useRef, useMemo, useCallback, useEffect } from 'react'
 import { useMessages } from '../../../store/messageStoreHooks'
-import { getMessageText, type FilePart, type AgentPart } from '../../../types/message'
+import { isUserMessage } from '../../../types/api/message'
+import { extractUserMessageContent } from '../../../api'
 import type { Attachment } from '../../attachment'
 
 // ============================================
@@ -42,55 +43,14 @@ export function useInputHistory({ textareaRef }: UseInputHistoryOptions): UseInp
     const entries: HistoryEntry[] = []
     const seen = new Set<string>()
     for (const msg of messages) {
-      if (msg.info.role !== 'user') continue
-      const t = getMessageText(msg).trim()
+      if (!isUserMessage(msg)) continue
+      // v2 的用户消息自带 text / files / agents；与 undo/redo 回填走同一个抽取器，
+      // 保证「↑ 翻历史」与「撤销回填」拿到的附件形状完全一致。
+      const { text, attachments } = extractUserMessageContent(msg)
+      const t = text.trim()
       if (!t || seen.has(t)) continue
       seen.add(t)
-
-      const atts: Attachment[] = []
-      for (const part of msg.parts) {
-        if (part.type === 'file') {
-          const fp = part as FilePart
-          const isFolder = fp.mime === 'application/x-directory'
-          const sourcePath =
-            fp.source && 'path' in fp.source
-              ? fp.source.path
-              : fp.source?.type === 'resource'
-                ? fp.source.uri
-                : undefined
-          atts.push({
-            id: fp.id || crypto.randomUUID(),
-            type: isFolder ? 'folder' : 'file',
-            displayName: fp.filename || sourcePath || 'file',
-            url: fp.url,
-            mime: fp.mime,
-            relativePath: sourcePath,
-            textRange: fp.source?.text
-              ? {
-                  value: fp.source.text.value,
-                  start: fp.source.text.start,
-                  end: fp.source.text.end,
-                }
-              : undefined,
-          })
-        } else if (part.type === 'agent') {
-          const ap = part as AgentPart
-          atts.push({
-            id: ap.id || crypto.randomUUID(),
-            type: 'agent',
-            displayName: ap.name,
-            agentName: ap.name,
-            textRange: ap.source
-              ? {
-                  value: ap.source.value,
-                  start: ap.source.start,
-                  end: ap.source.end,
-                }
-              : undefined,
-          })
-        }
-      }
-      entries.push({ text: t, attachments: atts })
+      entries.push({ text: t, attachments })
     }
     return entries
   }, [messages])

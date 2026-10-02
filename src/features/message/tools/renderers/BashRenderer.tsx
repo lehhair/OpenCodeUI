@@ -25,14 +25,14 @@ import type { ToolRendererProps } from '../types'
 export function BashRenderer({ part, data, onFullscreenChange }: ToolRendererProps) {
   const { t } = useTranslation(['components'])
   const { state } = part
-  const isActive = state.status === 'running' || state.status === 'pending'
+  const isActive = state.status === 'running' || state.status === 'streaming'
   const hasError = !!data.error
   const command = data.input?.trim()
   const output = data.output?.trim()
   const cwd = data.cwd?.trim()
   const exitCode = data.exitCode
   const maxHeight = useResponsiveMaxHeight()
-  const fullscreenId = `bash:${part.sessionID}:${part.messageID}:${part.id}:${part.callID}`
+  const fullscreenId = `bash:${part.messageID}:${part.id}`
   const { activeId, openFullscreen, updateFullscreen, closeFullscreen } = useFullscreen()
   const fullscreenOpen = activeId === fullscreenId
 

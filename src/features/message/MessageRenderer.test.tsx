@@ -7,7 +7,13 @@ import {
   messageHasProcessContent,
   splitProcessRenderItems,
 } from './MessageRenderer'
-import type { Message, Part, StepFinishPart, TextPart, ToolPart } from '../../types/message'
+import type {
+  AssistantContent,
+  AssistantMessage,
+  PromptFileAttachment,
+  SessionMessageInfo,
+  UserMessage,
+} from '../../types/api/message'
 
 let mockRenderUserMarkdown = false
 let mockCollapseUserMessages = false
@@ -33,7 +39,17 @@ vi.mock('../../hooks/useTheme', () => ({
   useTheme: () => ({
     collapseUserMessages: mockCollapseUserMessages,
     renderUserMarkdown: mockRenderUserMarkdown,
-    stepFinishDisplay: { latestOnly: true, turnDuration: false, tokens: true, cache: true, cost: true, duration: true, agent: false, model: false, completedAt: false },
+    stepFinishDisplay: {
+      latestOnly: true,
+      turnDuration: false,
+      tokens: true,
+      cache: true,
+      cost: true,
+      duration: true,
+      agent: false,
+      model: false,
+      completedAt: false,
+    },
     actionsOnLatestAssistantOnly: true,
     descriptiveToolSteps: false,
     inlineToolRequests: false,
@@ -54,77 +70,49 @@ vi.mock('./parts', () => ({
   TextPartView: ({ part }: { part: { text: string } }) => <div>{part.text}</div>,
   ReasoningPartView: () => null,
   ToolPartView: () => null,
-  FilePartView: () => null,
-  AgentPartView: () => null,
-  SyntheticTextPartView: () => null,
+  FilePartView: ({ file }: { file: { name?: string; mime: string } }) => (
+    <div data-testid="file-part">{file.name ?? file.mime}</div>
+  ),
+  AgentPartView: ({ agent }: { agent: { name: string } }) => <div data-testid="agent-part">{agent.name}</div>,
   StepFinishPartView: () => null,
-  SubtaskPartView: () => null,
   RetryPartView: () => null,
-  CompactionPartView: () => <div>History compacted</div>,
+  CompactionPartView: ({ message }: { message: { status?: string } }) =>
+    message.status ? <div>History compacted</div> : null,
   MessageErrorView: () => null,
 }))
 
-function createAssistantMessage(): Message {
+/**
+ * 原生助手消息工厂。
+ *
+ * v2 里时间戳决定「是否仍在流式」（`time.completed == null`），
+ * 不再有 v1 的 `isStreaming` 字段。
+ */
+function createAssistantMessage(content: AssistantContent[] = [], completed?: number): AssistantMessage {
   return {
-    info: {
-      id: 'assistant-1',
-      sessionID: 'session-1',
-      role: 'assistant',
-      parentID: 'user-1',
-      modelID: 'model-1',
-      providerID: 'provider-1',
-      mode: 'chat',
-      agent: 'build',
-      path: { cwd: '/workspace', root: '/workspace' },
-      cost: 0,
-      tokens: {
-        input: 0,
-        output: 0,
-        reasoning: 0,
-        cache: { read: 0, write: 0 },
-      },
-      time: { created: 1 },
-    },
-    parts: [
-      {
-        id: 'text-1',
-        sessionID: 'session-1',
-        messageID: 'assistant-1',
-        type: 'text',
-        text: 'assistant reply',
-      },
-    ],
-    isStreaming: false,
+    type: 'assistant',
+    id: 'assistant-1',
+    agent: 'build',
+    model: { id: 'model-1', providerID: 'provider-1' },
+    content,
+    time: completed == null ? { created: 1 } : { created: 1, completed },
   }
 }
 
-function createUserMessage(): Message {
+function createUserMessage(): UserMessage {
   return {
-    info: {
-      id: 'user-1',
-      sessionID: 'session-1',
-      role: 'user',
-      time: { created: 1 },
-      agent: 'build',
-      model: { modelID: 'model-1', providerID: 'provider-1' },
-    },
-    parts: [],
-    isStreaming: false,
+    type: 'user',
+    id: 'user-1',
+    time: { created: 1 },
+    text: '',
   }
 }
 
-function createUserTextMessage(text: string): Message {
-  const message = createUserMessage()
-  message.parts = [
-    {
-      id: 'text-user-1',
-      sessionID: 'session-1',
-      messageID: 'user-1',
-      type: 'text',
-      text,
-    },
-  ]
-  return message
+function createUserTextMessage(text: string): UserMessage {
+  return { ...createUserMessage(), text }
+}
+
+function textContent(text: string): AssistantContent {
+  return { type: 'text', text }
 }
 
 describe('MessageRenderer assistant fork', () => {
@@ -135,7 +123,7 @@ describe('MessageRenderer assistant fork', () => {
 
   it('passes the explicit fork target id when forking an assistant message', async () => {
     const onFork = vi.fn()
-    const message = createAssistantMessage()
+    const message = createAssistantMessage([textContent('assistant reply')], 2)
 
     render(<MessageRenderer message={message} onFork={onFork} forkMessageId="assistant-2" />)
 
@@ -148,16 +136,7 @@ describe('MessageRenderer assistant fork', () => {
 
   it('hides fork when the assistant message has no copyable text', () => {
     const onFork = vi.fn()
-    const message = createAssistantMessage()
-    message.parts = [
-      {
-        id: 'text-blank',
-        sessionID: 'session-1',
-        messageID: 'assistant-1',
-        type: 'text',
-        text: '   ',
-      },
-    ]
+    const message = createAssistantMessage([textContent('   ')], 2)
 
     render(<MessageRenderer message={message} onFork={onFork} forkMessageId="assistant-2" />)
 
@@ -165,21 +144,42 @@ describe('MessageRenderer assistant fork', () => {
     expect(screen.queryByRole('button', { name: /copy/i })).toBeNull()
   })
 
-  it('renders compaction parts inside user messages', () => {
-    const message = createUserMessage()
-    message.parts = [
-      {
-        id: 'compaction-1',
-        sessionID: 'session-1',
-        messageID: 'user-1',
-        type: 'compaction',
-        auto: true,
-      },
-    ]
+  it('renders compaction messages as a standalone message', () => {
+    const message: SessionMessageInfo = {
+      type: 'compaction',
+      id: 'compaction-1',
+      status: 'completed',
+      reason: 'auto',
+      summary: 'summary',
+      recent: 'recent',
+      time: { created: 1 },
+    }
 
     render(<MessageRenderer message={message} />)
 
     expect(screen.getByText('History compacted')).toBeInTheDocument()
+  })
+
+  it('renders user attachments from the native files array', () => {
+    const file: PromptFileAttachment = {
+      data: 'aGVsbG8=',
+      mime: 'text/plain',
+      source: { type: 'uri', uri: 'file:///workspace/notes.txt' },
+      name: 'notes.txt',
+    }
+    const message: UserMessage = { ...createUserTextMessage('see attachment'), files: [file] }
+
+    render(<MessageRenderer message={message} />)
+
+    expect(screen.getByTestId('file-part')).toHaveTextContent('notes.txt')
+  })
+
+  it('renders agent mentions from the native agents array', () => {
+    const message: UserMessage = { ...createUserTextMessage('ping agent'), agents: [{ name: 'explore' }] }
+
+    render(<MessageRenderer message={message} />)
+
+    expect(screen.getByTestId('agent-part')).toHaveTextContent('explore')
   })
 
   it('keeps user text plain by default', () => {
@@ -226,108 +226,39 @@ describe('MessageRenderer assistant fork', () => {
 })
 
 describe('process content split', () => {
-  function createCompletedAssistant(parts: Part[]): Message {
-    return {
-      info: {
-        id: 'assistant-1',
-        sessionID: 'session-1',
-        role: 'assistant',
-        parentID: 'user-1',
-        modelID: 'model-1',
-        providerID: 'provider-1',
-        mode: 'chat',
-        agent: 'build',
-        path: { cwd: '/workspace', root: '/workspace' },
-        cost: 0,
-        tokens: {
-          input: 0,
-          output: 0,
-          reasoning: 0,
-          cache: { read: 0, write: 0 },
-        },
-        time: { created: 1, completed: 2 },
-      },
-      parts,
-      isStreaming: false,
-    }
-  }
-
   it('keeps streaming assistant as process-only until completed', () => {
-    const streaming: Message = {
-      ...createCompletedAssistant([
-        {
-          id: 'text-1',
-          sessionID: 'session-1',
-          messageID: 'assistant-1',
-          type: 'text',
-          text: 'partial',
-        } satisfies TextPart,
-      ]),
-      isStreaming: true,
-      info: {
-        ...createCompletedAssistant([]).info,
-        time: { created: 1 },
-      },
-    }
+    // time.completed == null → 仍在流式
+    const streaming = createAssistantMessage([textContent('partial')])
 
     expect(messageHasProcessContent(streaming)).toBe(true)
     expect(messageHasFinalContent(streaming)).toBe(false)
   })
 
   it('splits completed tool+text into process and final', () => {
-    const message = createCompletedAssistant([
-      {
-        id: 'tool-1',
-        sessionID: 'session-1',
-        messageID: 'assistant-1',
-        type: 'tool',
-        callID: 'call-1',
-        tool: 'bash',
-        state: {
-          status: 'completed',
-          input: { command: 'pwd' },
-          output: '/workspace',
-          title: 'pwd',
-          metadata: {},
-          time: { start: 1, end: 2 },
+    const message = createAssistantMessage(
+      [
+        {
+          type: 'tool',
+          id: 'tool-1',
+          name: 'bash',
+          state: {
+            status: 'completed',
+            input: { command: 'pwd' },
+            content: [{ type: 'text', text: '/workspace' }],
+            metadata: { title: 'pwd' },
+          },
+          time: { created: 1, completed: 2 },
         },
-      } satisfies ToolPart,
-      {
-        id: 'text-1',
-        sessionID: 'session-1',
-        messageID: 'assistant-1',
-        type: 'text',
-        text: 'done',
-      } satisfies TextPart,
-      {
-        id: 'step-1',
-        sessionID: 'session-1',
-        messageID: 'assistant-1',
-        type: 'step-finish',
-        reason: 'stop',
-        cost: 0,
-        tokens: {
-          input: 0,
-          output: 0,
-          reasoning: 0,
-          cache: { read: 0, write: 0 },
-        },
-      } satisfies StepFinishPart,
-    ])
+        textContent('done'),
+      ],
+      2,
+    )
 
     expect(messageHasProcessContent(message)).toBe(true)
     expect(messageHasFinalContent(message)).toBe(true)
 
     // splitProcessRenderItems is covered via scope rendering; pure text has final only
-    const plain = createCompletedAssistant([
-      {
-        id: 'text-2',
-        sessionID: 'session-1',
-        messageID: 'assistant-1',
-        type: 'text',
-        text: 'hello',
-      } satisfies TextPart,
-    ])
+    const plain = createAssistantMessage([textContent('hello')], 2)
     expect(messageHasProcessContent(plain)).toBe(false)
     expect(messageHasFinalContent(plain)).toBe(true)
     void splitProcessRenderItems

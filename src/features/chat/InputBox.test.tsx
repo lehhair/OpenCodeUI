@@ -3,16 +3,18 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { InputBox } from './InputBox'
 import type { Command } from '../../api/command'
-import type { Message } from '../../types/message'
+import type { UserMessage } from '../../types/api/message'
 
 let slashCommands: Command[] = []
-let messagesMock: Message[] = []
+let messagesMock: UserMessage[] = []
 
-function createHistoryMessage(text: string): Message {
+function createHistoryMessage(text: string): UserMessage {
   return {
-    info: { role: 'user' },
-    parts: [{ type: 'text', text, synthetic: false }],
-  } as unknown as Message
+    id: `user-${text}`,
+    type: 'user',
+    time: { created: 1 },
+    text,
+  }
 }
 
 vi.mock('../attachment', () => ({

@@ -33,7 +33,7 @@ import { restoreModelSelection } from '../../utils/sessionHelpers'
 import { findModelByKey, getModelKey } from '../../utils/modelUtils'
 import { useTheme } from '../../hooks/useTheme'
 import type { Attachment } from '../../api'
-import type { MessageError } from '../../types/message'
+import type { APIError } from '../../types/api/common'
 import { getInternalDragSnapshot, subscribeInternalDrag, subscribeInternalDrop } from '../../lib/internalDragCore'
 import { ErrorBoundary } from '../../components/ErrorBoundary'
 
@@ -346,14 +346,11 @@ export const ChatPane = memo(function ChatPane({
     setVisibleMessageIdsStable([])
   }, [chatAreaMountKey, setVisibleMessageIdsStable])
 
-  const connectionError = useMemo<MessageError | undefined>(() => {
+  const connectionError = useMemo<APIError | undefined>(() => {
     if (!activeServer) {
       return {
-        name: 'APIError',
-        data: {
-          message: 'No active OpenCode server is selected',
-          isRetryable: false,
-        },
+        type: 'APIError',
+        message: 'No active OpenCode server is selected',
       }
     }
 
@@ -379,13 +376,10 @@ export const ChatPane = memo(function ChatPane({
       .join('\n\n')
 
     return {
-      name: 'APIError',
-      data: {
-        message: activeServerHealth.error || `Unable to connect to ${activeServer.name}`,
-        statusCode: activeServerHealth.status === 'unauthorized' ? 401 : undefined,
-        isRetryable: activeServerHealth.status !== 'unauthorized',
-        responseBody,
-      },
+      type: 'APIError',
+      message: activeServerHealth.error || `Unable to connect to ${activeServer.name}`,
+      status: activeServerHealth.status === 'unauthorized' ? 401 : undefined,
+      ...(responseBody ? { response: { body: responseBody } } : {}),
     }
   }, [activeServer, activeServerHealth])
 
@@ -483,7 +477,10 @@ export const ChatPane = memo(function ChatPane({
     }
   }, [inputRestoreContent, visibleModels, restoreFromMessage])
 
-  // session 切换：只在 routeSessionId 变化时，从最后一条 user 消息恢复模型
+  // session 切换：只在 routeSessionId 变化时，恢复该会话当前的模型。
+  // v2 的用户消息**不带** model / agent（那是会话级状态，由
+  // session.model.selected / session.agent.selected 维护在 messageStore 上），
+  // 因此这里改读会话级状态，与 store 的 RevertHistoryItem 同一口径。
   const restoredSessionRef = useRef<string | null>(null)
   useEffect(() => {
     // 没有 session、或者这个 session 已经恢复过了 → 跳过
@@ -493,13 +490,9 @@ export const ChatPane = memo(function ChatPane({
 
     restoredSessionRef.current = routeSessionId
 
-    const lastUserMsg = [...messages].reverse().find(m => m.info.role === 'user')
-    if (lastUserMsg && 'model' in lastUserMsg.info) {
-      const userInfo = lastUserMsg.info as {
-        model?: { providerID: string; modelID: string; variant?: string }
-        variant?: string
-      }
-      restoreFromMessage(userInfo.model, userInfo.variant ?? userInfo.model?.variant)
+    const sessionModel = messageStore.getSessionState(routeSessionId)?.model
+    if (sessionModel) {
+      restoreFromMessage({ providerID: sessionModel.providerID, modelID: sessionModel.id }, sessionModel.variant)
     }
     // 依赖 routeSessionId 和 messages.length（等加载完），不依赖 messages 引用
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -520,10 +513,8 @@ export const ChatPane = memo(function ChatPane({
     if (messages.length === 0) return
 
     restoredAgentSessionRef.current = routeSessionId
-    const lastUserMsg = [...messages].reverse().find(m => m.info.role === 'user')
-    if (lastUserMsg && 'agent' in lastUserMsg.info) {
-      restoreAgentFromMessage((lastUserMsg.info as { agent?: string }).agent)
-    }
+    // 同模型恢复：v2 的 agent 也是会话级状态
+    restoreAgentFromMessage(messageStore.getSessionState(routeSessionId)?.agent)
     // Streaming only changes message content; agent restoration follows session/load boundaries.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [routeSessionId, messages.length, restoreAgentFromMessage])

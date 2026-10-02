@@ -2,6 +2,7 @@ import { useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ContentBlock } from '../../../../components'
 import { AlertCircleIcon } from '../../../../components/Icons'
+import { AttachmentItem } from '../../../attachment'
 import { detectLanguage } from '../../../../utils/languageUtils'
 import { getMaterialIconUrl } from '../../../../utils/materialIcons'
 import { themeStore } from '../../../../store/themeStore'
@@ -14,14 +15,15 @@ import type { ToolRendererProps, ExtractedToolData } from '../types'
 
 export function DefaultRenderer({ part, data, onFullscreenChange }: ToolRendererProps) {
   const { t } = useTranslation('message')
-  const { state, tool } = part
+  const { state } = part
   const { toolCardStyle } = useSyncExternalStore(themeStore.subscribe, themeStore.getSnapshot)
   const isCompact = toolCardStyle === 'compact'
-  const isActive = state.status === 'running' || state.status === 'pending'
+  const isActive = state.status === 'running' || state.status === 'streaming'
+  const hasError = !!data.error || !!data.failed
 
   const hasInput = !!data.input?.trim()
-  const hasError = !!data.error
-  const hasOutput = !!(data.files || data.diff || data.output?.trim() || data.exitCode !== undefined)
+  const hasToolFiles = !!data.toolFiles?.length
+  const hasOutput = !!(data.files || data.diff || data.output?.trim() || data.exitCode !== undefined || hasToolFiles)
   const hasDiagnostics = !!data.diagnostics?.length
 
   const showOutput = hasOutput || hasError || (isActive && !hasOutput)
@@ -44,21 +46,21 @@ export function DefaultRenderer({ part, data, onFullscreenChange }: ToolRenderer
           loadingText=""
           defaultCollapsed={true}
           onFullscreenChange={onFullscreenChange}
-          fullscreenId={`tool:${part.sessionID}:${part.messageID}:${part.id}:input`}
+          fullscreenId={`tool:${part.messageID}:${part.id}:input`}
         />
       )}
 
       {/* Output */}
       {showOutput && (
         <OutputBlock
-          tool={tool}
+          tool={part.name}
           data={data}
           isActive={isActive}
           hasError={hasError}
           hasOutput={hasOutput}
           compact={isCompact}
           onFullscreenChange={onFullscreenChange}
-          fullscreenBaseId={`tool:${part.sessionID}:${part.messageID}:${part.id}:output`}
+          fullscreenBaseId={`tool:${part.messageID}:${part.id}:output`}
           stateBaseKey={`message:${part.messageID}:tool:${part.id}:output`}
         />
       )}
@@ -101,19 +103,22 @@ function OutputBlock({
   // 1. Error 优先
   if (hasError) {
     return (
-      <ContentBlock
-        stateKey={stateBaseKey}
-        label={t('defaultRenderer.error')}
-        content={data.error || ''}
-        variant="error"
-        compact={compact}
-        onFullscreenChange={onFullscreenChange}
-        fullscreenId={`${fullscreenBaseId}:error`}
-      />
+      <div className="flex flex-col gap-2">
+        <ContentBlock
+          stateKey={stateBaseKey}
+          label={t('defaultRenderer.error')}
+          content={data.error || ''}
+          variant="error"
+          compact={compact}
+          onFullscreenChange={onFullscreenChange}
+          fullscreenId={`${fullscreenBaseId}:error`}
+        />
+        {data.toolFiles?.length ? <ToolFilesBlock files={data.toolFiles} /> : null}
+      </div>
     )
   }
 
-  // 2. 工具活跃时（running/pending）统一显示 loading — compact 模式下不显示
+  // 2. 工具活跃时（running/streaming）统一显示 loading — compact 模式下不显示
   if (isActive) {
     if (compact) return null
     return (
@@ -131,10 +136,13 @@ function OutputBlock({
 
   // 3. 完成后显示结果
   if (hasOutput) {
+    const fileMedia = data.toolFiles?.length ? <ToolFilesBlock files={data.toolFiles} /> : null
+
     // Multiple files with diff
     if (data.files) {
       return (
         <div className="flex flex-col gap-2">
+          {fileMedia}
           {data.files.map((file, idx) => (
             <ContentBlock
               key={idx}
@@ -163,35 +171,46 @@ function OutputBlock({
     // Single diff
     if (data.diff) {
       return (
-        <ContentBlock
-          stateKey={stateBaseKey}
-          label={t('defaultRenderer.output')}
-          labelIcon={data.filePath ? <FileResultIcon filePath={data.filePath} /> : undefined}
-          hideLabel={!!data.filePath}
-          filePath={data.filePath}
-          diff={data.diff}
-          diffStats={data.diffStats}
-          language={data.outputLang}
-          compact={compact}
-          onFullscreenChange={onFullscreenChange}
-          fullscreenId={`${fullscreenBaseId}:diff`}
-        />
+        <div className="flex flex-col gap-2">
+          {fileMedia}
+          <ContentBlock
+            stateKey={stateBaseKey}
+            label={t('defaultRenderer.output')}
+            labelIcon={data.filePath ? <FileResultIcon filePath={data.filePath} /> : undefined}
+            hideLabel={!!data.filePath}
+            filePath={data.filePath}
+            diff={data.diff}
+            diffStats={data.diffStats}
+            language={data.outputLang}
+            compact={compact}
+            onFullscreenChange={onFullscreenChange}
+            fullscreenId={`${fullscreenBaseId}:diff`}
+          />
+        </div>
       )
+    }
+
+    // 只有文件类产出（无文本）：直接展示附件
+    if (!data.output?.trim() && fileMedia) {
+      return <div className="flex flex-col gap-2">{fileMedia}</div>
     }
 
     // Regular output
     return (
-      <ContentBlock
-        stateKey={stateBaseKey}
-        label={t('defaultRenderer.output')}
-        content={data.output}
-        language={data.outputLang}
-        filePath={data.filePath}
-        stats={data.exitCode !== undefined ? { exit: data.exitCode } : undefined}
-        compact={compact}
-        onFullscreenChange={onFullscreenChange}
-        fullscreenId={`${fullscreenBaseId}:text`}
-      />
+      <div className="flex flex-col gap-2">
+        {fileMedia}
+        <ContentBlock
+          stateKey={stateBaseKey}
+          label={t('defaultRenderer.output')}
+          content={data.output}
+          language={data.outputLang}
+          filePath={data.filePath}
+          stats={data.exitCode !== undefined ? { exit: data.exitCode } : undefined}
+          compact={compact}
+          onFullscreenChange={onFullscreenChange}
+          fullscreenId={`${fullscreenBaseId}:text`}
+        />
+      </div>
     )
   }
 
@@ -222,6 +241,42 @@ function FileResultIcon({ filePath }: { filePath: string }) {
       }}
     />
   )
+}
+
+// ============================================
+// Tool Files Block — v2 工具产出的文件类 content
+// ============================================
+//
+// 旧层把 `state.output` 压成字符串，文件类产出（图片 / 附件）被整块丢掉。
+// 这里按官方做法把它们当附件展示：`uri` 是 data: 或 file: 形式，
+// name 缺失时回退到 uri 的最后一段。
+
+function ToolFilesBlock({ files }: { files: NonNullable<ExtractedToolData['toolFiles']> }) {
+  return (
+    <div className="flex flex-wrap gap-2">
+      {files.map((file, idx) => (
+        <AttachmentItem
+          key={`${file.uri}:${idx}`}
+          attachment={{
+            id: `tool-file:${idx}:${file.uri}`,
+            type: 'file',
+            displayName: file.name || fileNameFromUri(file.uri),
+            url: file.uri,
+            mime: file.mime,
+            relativePath: file.name ?? undefined,
+            category: 'system',
+          }}
+          size="sm"
+        />
+      ))}
+    </div>
+  )
+}
+
+function fileNameFromUri(uri: string): string {
+  const trimmed = uri.split(/[?#]/)[0]
+  const segments = trimmed.split('/').filter(Boolean)
+  return segments[segments.length - 1] || uri
 }
 
 // ============================================

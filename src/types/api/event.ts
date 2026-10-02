@@ -25,6 +25,7 @@
 //   不参与 `session.log()` 重放。
 // ============================================
 
+import type { AssistantMessage } from './message'
 import type {
   EventSubscribeOutput,
   LocationRef,
@@ -73,6 +74,15 @@ import type {
   SessionToolProgress,
   SessionToolSuccess,
   SessionViewed,
+  SessionModelSelected,
+  SessionCompactionStarted,
+  SessionCompactionDelta,
+  SessionCompactionEnded,
+  SessionCompactionFailed,
+  SessionShellStarted,
+  SessionShellEnded,
+  SessionSkillActivated,
+  SessionInstructionsUpdated,
   V2Event,
   V2EventServerConnected,
   FilesystemChanged,
@@ -238,6 +248,28 @@ export type SessionPermissionsPayload = SessionPermissions['data']
 
 export type SessionAgentSelectedPayload = SessionAgentSelected['data']
 
+export type SessionModelSelectedPayload = SessionModelSelected['data']
+
+// ---- 压缩 ----
+
+export type CompactionStartedPayload = SessionCompactionStarted['data']
+
+export type CompactionDeltaPayload = SessionCompactionDelta['data']
+
+export type CompactionEndedPayload = SessionCompactionEnded['data']
+
+export type CompactionFailedPayload = SessionCompactionFailed['data']
+
+// ---- shell / skill / instructions ----
+
+export type ShellStartedPayload = SessionShellStarted['data']
+
+export type ShellEndedPayload = SessionShellEnded['data']
+
+export type SkillActivatedPayload = SessionSkillActivated['data']
+
+export type InstructionsUpdatedPayload = SessionInstructionsUpdated['data']
+
 export type FilesystemChangedPayload = FilesystemChanged['data']
 
 export type PtyCreatedPayload = PtyCreated['data']
@@ -262,91 +294,132 @@ export type { SessionMessageInfo }
 //   - 移除 onSessionError / onSessionDiff（改为 execution.* 与 session.diff 拉取）
 //   - 新增 text / reasoning / tool 的增量与生命周期回调
 
+/**
+ * 事件信封上、负载之外的信息。
+ *
+ * 官方 data.ts 的处理器拿得到整个事件；本仓的分发层只传 data，
+ * 因此这里把信封里真正需要的三样东西单独传一个 facts 对象。
+ *
+ * **刻意不含 sessionID**：sessionID 必须来自负载（调用方注入已 scoped 的值），
+ * 从原始事件里读会在多服务器下串会话。
+ */
+export interface EventFacts {
+  /** 事件 id —— 官方 messageIDFromEvent 用它派生 idle/synthetic/shell/compaction 的消息 id */
+  id?: string
+  /** 事件创建时间 —— reasoning/compaction/idle 的 time.created / time.completed / time.ran */
+  created?: number
+  /**
+   * 事件信封 metadata —— step.started / shell.started / instructions.updated 会透传。
+   *
+   * 类型刻意与 `AssistantMessage['metadata']` 完全一致：store 的 `EventFacts`
+   * 用的是同一个表达式，两边必须结构相同，否则调用点无法直接转发。
+   */
+  metadata?: AssistantMessage['metadata']
+}
+
 export interface EventCallbacks {
   // ---- 会话生命周期 ----
-  onSessionCreated?: (data: SessionCreatedPayload) => void
-  onSessionRenamed?: (data: SessionRenamedPayload) => void
-  onSessionDeleted?: (data: SessionDeletedPayload) => void
-  onSessionIdle?: (data: SessionIdlePayload) => void
-  onSessionStatus?: (data: SessionStatusPayload) => void
-  onSessionViewed?: (data: SessionViewedPayload) => void
-  onSessionMoved?: (data: SessionMovedPayload) => void
-  onSessionForked?: (data: SessionForkedPayload) => void
-  onSessionPermissions?: (data: SessionPermissionsPayload) => void
+  onSessionCreated?: (data: SessionCreatedPayload, facts?: EventFacts) => void
+  onSessionRenamed?: (data: SessionRenamedPayload, facts?: EventFacts) => void
+  onSessionDeleted?: (data: SessionDeletedPayload, facts?: EventFacts) => void
+  onSessionIdle?: (data: SessionIdlePayload, facts?: EventFacts) => void
+  onSessionStatus?: (data: SessionStatusPayload, facts?: EventFacts) => void
+  onSessionViewed?: (data: SessionViewedPayload, facts?: EventFacts) => void
+  onSessionMoved?: (data: SessionMovedPayload, facts?: EventFacts) => void
+  onSessionForked?: (data: SessionForkedPayload, facts?: EventFacts) => void
+  onSessionPermissions?: (data: SessionPermissionsPayload, facts?: EventFacts) => void
 
   // ---- 消息快照 ----
   /** 完整消息内容替换（含最终 content 数组） */
-  onMessageContentUpdated?: (data: SessionContentUpdatedPayload) => void
+  onMessageContentUpdated?: (data: SessionContentUpdatedPayload, facts?: EventFacts) => void
 
   // ---- 文本流 ----
-  onTextStarted?: (data: TextStartedPayload) => void
-  onTextDelta?: (data: TextDeltaPayload) => void
-  onTextEnded?: (data: TextEndedPayload) => void
+  onTextStarted?: (data: TextStartedPayload, facts?: EventFacts) => void
+  onTextDelta?: (data: TextDeltaPayload, facts?: EventFacts) => void
+  onTextEnded?: (data: TextEndedPayload, facts?: EventFacts) => void
 
   // ---- 推理流 ----
-  onReasoningStarted?: (data: ReasoningStartedPayload) => void
-  onReasoningDelta?: (data: ReasoningDeltaPayload) => void
-  onReasoningEnded?: (data: ReasoningEndedPayload) => void
+  onReasoningStarted?: (data: ReasoningStartedPayload, facts?: EventFacts) => void
+  onReasoningDelta?: (data: ReasoningDeltaPayload, facts?: EventFacts) => void
+  onReasoningEnded?: (data: ReasoningEndedPayload, facts?: EventFacts) => void
 
   // ---- 工具流 ----
-  onToolInputStarted?: (data: ToolInputStartedPayload) => void
-  onToolInputDelta?: (data: ToolInputDeltaPayload) => void
-  onToolInputEnded?: (data: ToolInputEndedPayload) => void
-  onToolCalled?: (data: ToolCalledPayload) => void
-  onToolProgress?: (data: ToolProgressPayload) => void
-  onToolSuccess?: (data: ToolSuccessPayload) => void
-  onToolFailed?: (data: ToolFailedPayload) => void
+  onToolInputStarted?: (data: ToolInputStartedPayload, facts?: EventFacts) => void
+  onToolInputDelta?: (data: ToolInputDeltaPayload, facts?: EventFacts) => void
+  onToolInputEnded?: (data: ToolInputEndedPayload, facts?: EventFacts) => void
+  onToolCalled?: (data: ToolCalledPayload, facts?: EventFacts) => void
+  onToolProgress?: (data: ToolProgressPayload, facts?: EventFacts) => void
+  onToolSuccess?: (data: ToolSuccessPayload, facts?: EventFacts) => void
+  onToolFailed?: (data: ToolFailedPayload, facts?: EventFacts) => void
 
   // ---- 会话内的实时补充信息 ----
   /** 重试已排期：实时补出 RetryPart（否则只在重新加载后才显示） */
-  onRetryScheduled?: (data: RetryScheduledPayload) => void
+  onRetryScheduled?: (data: RetryScheduledPayload, facts?: EventFacts) => void
   /** 注入的系统上下文（合成消息），对应 UI 的 synthetic part */
-  onSynthetic?: (data: SyntheticPayload) => void
+  onSynthetic?: (data: SyntheticPayload, facts?: EventFacts) => void
   /** 会话用量更新：让上下文用量指示在流式期间就准确 */
-  onUsageUpdated?: (data: UsageUpdatedPayload) => void
+  onUsageUpdated?: (data: UsageUpdatedPayload, facts?: EventFacts) => void
+
+  // ---- 会话级切换 / 压缩 / shell / skill / instructions ----
+  /** 会话切换了 agent（v2 的 agent 是会话级状态，不在用户消息上） */
+  onAgentSelected?: (data: SessionAgentSelectedPayload, facts?: EventFacts) => void
+  /** 会话切换了模型（同上；供输入框恢复模型选择） */
+  onModelSelected?: (data: SessionModelSelectedPayload, facts?: EventFacts) => void
+  /** 压缩（v2 是一条独立消息，不再是挂在消息上的 part） */
+  onCompactionStarted?: (data: CompactionStartedPayload, facts?: EventFacts) => void
+  onCompactionDelta?: (data: CompactionDeltaPayload, facts?: EventFacts) => void
+  onCompactionEnded?: (data: CompactionEndedPayload, facts?: EventFacts) => void
+  onCompactionFailed?: (data: CompactionFailedPayload, facts?: EventFacts) => void
+  /** shell 生命周期 */
+  onShellStarted?: (data: ShellStartedPayload, facts?: EventFacts) => void
+  onShellEnded?: (data: ShellEndedPayload, facts?: EventFacts) => void
+  /** 激活 skill */
+  onSkillActivated?: (data: SkillActivatedPayload, facts?: EventFacts) => void
+  /** 指令文件变更（插入 system 消息） */
+  onInstructionsUpdated?: (data: InstructionsUpdatedPayload, facts?: EventFacts) => void
 
   // ---- step ----
-  onStepStarted?: (data: StepStartedPayload) => void
-  onStepStreamed?: (data: StepStreamedPayload) => void
-  onStepEnded?: (data: StepEndedPayload) => void
-  onStepFailed?: (data: StepFailedPayload) => void
+  onStepStarted?: (data: StepStartedPayload, facts?: EventFacts) => void
+  onStepStreamed?: (data: StepStreamedPayload, facts?: EventFacts) => void
+  onStepEnded?: (data: StepEndedPayload, facts?: EventFacts) => void
+  onStepFailed?: (data: StepFailedPayload, facts?: EventFacts) => void
 
   // ---- 执行生命周期 ----
-  onExecutionStarted?: (data: ExecutionStartedPayload) => void
-  onExecutionSucceeded?: (data: ExecutionSucceededPayload) => void
-  onExecutionFailed?: (data: ExecutionFailedPayload) => void
-  onExecutionInterrupted?: (data: ExecutionInterruptedPayload) => void
+  onExecutionStarted?: (data: ExecutionStartedPayload, facts?: EventFacts) => void
+  onExecutionSucceeded?: (data: ExecutionSucceededPayload, facts?: EventFacts) => void
+  onExecutionFailed?: (data: ExecutionFailedPayload, facts?: EventFacts) => void
+  onExecutionInterrupted?: (data: ExecutionInterruptedPayload, facts?: EventFacts) => void
 
   // ---- 权限 ----
-  onPermissionAsked?: (data: PermissionAskedPayload) => void
-  onPermissionReplied?: (data: PermissionRepliedPayload) => void
+  onPermissionAsked?: (data: PermissionAskedPayload, facts?: EventFacts) => void
+  onPermissionReplied?: (data: PermissionRepliedPayload, facts?: EventFacts) => void
 
   // ---- 表单（取代 v1 question） ----
-  onFormCreated?: (data: FormCreatedPayload) => void
-  onFormReplied?: (data: FormRepliedPayload) => void
-  onFormCancelled?: (data: FormCancelledPayload) => void
+  onFormCreated?: (data: FormCreatedPayload, facts?: EventFacts) => void
+  onFormReplied?: (data: FormRepliedPayload, facts?: EventFacts) => void
+  onFormCancelled?: (data: FormCancelledPayload, facts?: EventFacts) => void
 
   // ---- 回退 ----
-  onRevertStaged?: (data: RevertStagedPayload) => void
-  onRevertCleared?: (data: RevertClearedPayload) => void
-  onRevertCommitted?: (data: RevertCommittedPayload) => void
+  onRevertStaged?: (data: RevertStagedPayload, facts?: EventFacts) => void
+  onRevertCleared?: (data: RevertClearedPayload, facts?: EventFacts) => void
+  onRevertCommitted?: (data: RevertCommittedPayload, facts?: EventFacts) => void
 
   // ---- inbox / 队列 ----
-  onInboxEnqueued?: (data: InboxEnqueuedPayload) => void
-  onInboxDelivered?: (data: InboxDeliveredPayload) => void
-  onInboxCancelled?: (data: InboxCancelledPayload) => void
+  onInboxEnqueued?: (data: InboxEnqueuedPayload, facts?: EventFacts) => void
+  onInboxDelivered?: (data: InboxDeliveredPayload, facts?: EventFacts) => void
+  onInboxCancelled?: (data: InboxCancelledPayload, facts?: EventFacts) => void
 
   // ---- 外围 ----
-  onProjectUpdated?: (data: ProjectUpdatedPayload) => void
-  onWorktreeUpdated?: (data: WorktreeUpdatedPayload) => void
-  onWorktreeResolved?: (data: WorktreeResolvedPayload) => void
-  onVcsBranchUpdated?: (data: VcsBranchUpdatedPayload) => void
-  onMcpStatusChanged?: (data: McpStatusChangedPayload) => void
-  onFilesystemChanged?: (data: FilesystemChangedPayload) => void
-  onPtyCreated?: (data: PtyCreatedPayload) => void
-  onPtyUpdated?: (data: PtyUpdatedPayload) => void
-  onPtyExited?: (data: PtyExitedPayload) => void
-  onPtyDeleted?: (data: PtyDeletedPayload) => void
+  onProjectUpdated?: (data: ProjectUpdatedPayload, facts?: EventFacts) => void
+  onWorktreeUpdated?: (data: WorktreeUpdatedPayload, facts?: EventFacts) => void
+  onWorktreeResolved?: (data: WorktreeResolvedPayload, facts?: EventFacts) => void
+  onVcsBranchUpdated?: (data: VcsBranchUpdatedPayload, facts?: EventFacts) => void
+  onMcpStatusChanged?: (data: McpStatusChangedPayload, facts?: EventFacts) => void
+  onFilesystemChanged?: (data: FilesystemChangedPayload, facts?: EventFacts) => void
+  onPtyCreated?: (data: PtyCreatedPayload, facts?: EventFacts) => void
+  onPtyUpdated?: (data: PtyUpdatedPayload, facts?: EventFacts) => void
+  onPtyExited?: (data: PtyExitedPayload, facts?: EventFacts) => void
+  onPtyDeleted?: (data: PtyDeletedPayload, facts?: EventFacts) => void
 
   // ---- 连接 ----
   onServerConnected?: () => void
@@ -393,6 +466,21 @@ export const EventTypes = {
   STEP_STREAMED: 'session.step.streamed',
   STEP_ENDED: 'session.step.ended',
   STEP_FAILED: 'session.step.failed',
+
+  AGENT_SELECTED: 'session.agent.selected',
+  MODEL_SELECTED: 'session.model.selected',
+
+  COMPACTION_STARTED: 'session.compaction.started',
+  COMPACTION_DELTA: 'session.compaction.delta',
+  COMPACTION_ENDED: 'session.compaction.ended',
+  COMPACTION_FAILED: 'session.compaction.failed',
+
+  SHELL_STARTED: 'session.shell.started',
+  SHELL_ENDED: 'session.shell.ended',
+
+  SKILL_ACTIVATED: 'session.skill.activated',
+
+  INSTRUCTIONS_UPDATED: 'session.instructions.updated',
 
   EXECUTION_STARTED: 'session.execution.started',
   EXECUTION_SUCCEEDED: 'session.execution.succeeded',

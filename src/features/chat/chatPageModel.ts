@@ -1,4 +1,5 @@
-import type { Message } from '../../types/message'
+import type { AssistantMessage, SessionMessageInfo, ToolState, UserMessage } from '../../types/api/message'
+import { contentEntries, isAssistantMessage, isUserMessage, userMessageText } from '../../types/api/message'
 
 export const PAGE_MESSAGE_COUNT = 20
 export const PAGE_EXTREME_RENDER_WEIGHT = 700
@@ -7,7 +8,7 @@ export const PAGE_ADJACENT_OVERSCAN = 1
 
 export interface MessageGroupRow {
   key: string
-  messages: Message[]
+  messages: SessionMessageInfo[]
   messageIds: string[]
   estimatedHeight: number
   renderWeight?: number
@@ -47,7 +48,7 @@ export type PageRenderSegment =
 
 export type ExpandedPageSelection = Set<number>
 
-const messageRenderWeightCache = new WeakMap<Message, number>()
+const messageRenderWeightCache = new WeakMap<SessionMessageInfo, number>()
 
 export function computeAnchorRestoreScrollDelta(previousTopOffset: number, nextTopOffset: number): number {
   return nextTopOffset - previousTopOffset
@@ -82,42 +83,48 @@ function estimateTextRenderWeight(text: string): number {
   )
 }
 
-export function estimateMessageRenderWeight(message: Message): number {
+/** v2 工具产出（`state.content`）的文本长度，对应旧视图模型的 `state.output.length` */
+function toolOutputLength(state: ToolState): number {
+  if (state.status === 'completed') {
+    return state.content.reduce((total, entry) => {
+      if (entry.type === 'text') return total + entry.text.length
+      return total + (entry.name ?? entry.uri).length + 8
+    }, 0)
+  }
+  if (state.status === 'error') return state.error?.message?.length ?? 0
+  return 0
+}
+
+export function estimateMessageRenderWeight(message: SessionMessageInfo): number {
   const cached = messageRenderWeightCache.get(message)
   if (cached != null) return cached
 
-  let weight = message.info.role === 'user' ? 1 : 2
+  let weight = isUserMessage(message) ? 1 : 2
 
-  for (const part of message.parts) {
-    switch (part.type) {
-      case 'text':
-        weight += part.synthetic ? 1 : estimateTextRenderWeight(part.text)
-        break
-      case 'reasoning':
-        weight += 1 + estimateTextRenderWeight(part.text)
-        break
-      case 'tool': {
-        const outputLength = part.state.output?.length ?? part.state.error?.length ?? 0
-        weight += 4 + Math.min(8, Math.floor(outputLength / 4000))
-        break
+  if (isAssistantMessage(message)) {
+    for (const { content } of contentEntries(message)) {
+      switch (content.type) {
+        case 'text':
+          weight += estimateTextRenderWeight(content.text)
+          break
+        case 'reasoning':
+          weight += 1 + estimateTextRenderWeight(content.text)
+          break
+        case 'tool':
+          weight += 4 + Math.min(8, Math.floor(toolOutputLength(content.state) / 4000))
+          break
       }
-      case 'file':
-        weight += 2
-        break
-      case 'subtask':
-        weight += 3
-        break
-      case 'step-finish':
-      case 'retry':
-        weight += 2
-        break
-      case 'agent':
-      case 'compaction':
-        weight += 1
-        break
-      default:
-        break
     }
+    // 旧视图模型把 retry 投影成一个 part（+2）
+    if (message.retry) weight += 2
+  } else if (isUserMessage(message)) {
+    // 用户消息的正文与附件在 v2 里是 text / files / agents / skills
+    weight += estimateTextRenderWeight(userMessageText(message))
+    weight += 2 * (message.files?.length ?? 0)
+    weight += (message.agents?.length ?? 0) + (message.skills?.length ?? 0)
+  } else if (message.type === 'compaction') {
+    // 旧视图模型里 compaction 消息带一个 compaction part（+1）
+    weight += 1
   }
 
   const result = Math.max(1, weight)
@@ -125,14 +132,23 @@ export function estimateMessageRenderWeight(message: Message): number {
   return result
 }
 
-function estimateMessageHeight(message: Message): number {
-  if (message.info.role === 'user') {
-    return Math.max(72, message.parts.length * 40)
-  }
-  return Math.max(160, message.parts.length * 80)
+/** 用户消息在旧视图模型里的 part 数（text + files + agents；skills 当时未投影） */
+function countUserMessageParts(message: Extract<SessionMessageInfo, { type: 'user' }>): number {
+  return (userMessageText(message) ? 1 : 0) + (message.files?.length ?? 0) + (message.agents?.length ?? 0)
 }
 
-function estimateGroupHeight(messages: Message[]): number {
+function estimateMessageHeight(message: SessionMessageInfo): number {
+  if (isUserMessage(message)) {
+    return Math.max(72, countUserMessageParts(message) * 40)
+  }
+  if (isAssistantMessage(message)) {
+    return Math.max(160, message.content.length * 80)
+  }
+  // 旧视图模型里其它类型的消息投影成 content 为空的助手消息（compaction 带 1 个 part）
+  return 160
+}
+
+function estimateGroupHeight(messages: SessionMessageInfo[]): number {
   let total = 24
   for (let index = 0; index < messages.length; index++) {
     if (index > 0) total += 8
@@ -142,26 +158,26 @@ function estimateGroupHeight(messages: Message[]): number {
 }
 
 function estimateRowHeight(
-  messages: Message[],
+  messages: SessionMessageInfo[],
   options?: { continuesFromPrevious?: boolean; continuesToNext?: boolean },
 ) {
   const paddingReduction = (options?.continuesFromPrevious ? 4 : 0) + (options?.continuesToNext ? 12 : 0)
   return estimateGroupHeight(messages) - paddingReduction
 }
 
-function estimateGroupRenderWeight(messages: Message[]): number {
+function estimateGroupRenderWeight(messages: SessionMessageInfo[]): number {
   return messages.reduce((total, message) => total + estimateMessageRenderWeight(message), 0)
 }
 
 function buildMessageGroupRow(
-  group: Message[],
+  group: SessionMessageInfo[],
   options?: { continuesFromPrevious?: boolean; continuesToNext?: boolean },
 ): MessageGroupRow {
-  const firstId = group[0]?.info.id ?? 'empty'
+  const firstId = group[0]?.id ?? 'empty'
   return {
     key: `row:${firstId}`,
     messages: group,
-    messageIds: group.map(message => message.info.id),
+    messageIds: group.map(message => message.id),
     estimatedHeight: estimateRowHeight(group, options),
     renderWeight: estimateGroupRenderWeight(group),
     continuesFromPrevious: options?.continuesFromPrevious,
@@ -169,11 +185,11 @@ function buildMessageGroupRow(
   }
 }
 
-function buildMessageGroups(messages: Message[]): MessageGroupRow[] {
-  const groups: Message[][] = []
+function buildMessageGroups(messages: SessionMessageInfo[]): MessageGroupRow[] {
+  const groups: SessionMessageInfo[][] = []
   for (const message of messages) {
     const previous = groups[groups.length - 1]
-    if (previous && message.info.role === 'assistant' && previous[0].info.role === 'assistant') {
+    if (previous && isAssistantMessage(message) && isAssistantMessage(previous[0])) {
       previous.push(message)
     } else {
       groups.push([message])
@@ -191,8 +207,8 @@ function splitOversizedMessageGroups(
   return rows.flatMap(row => {
     if (row.messages.length <= pageMessageCount && (row.renderWeight ?? 0) <= maxRenderWeight) return row
 
-    const chunks: Message[][] = []
-    let currentChunk: Message[] = []
+    const chunks: SessionMessageInfo[][] = []
+    let currentChunk: SessionMessageInfo[] = []
     let currentWeight = 0
     for (const message of row.messages) {
       const messageWeight = estimateMessageRenderWeight(message)
@@ -219,7 +235,7 @@ function splitOversizedMessageGroups(
 }
 
 export function buildChatPages(
-  messages: Message[],
+  messages: SessionMessageInfo[],
   pageMessageCount = PAGE_MESSAGE_COUNT,
   maxRenderWeight = PAGE_EXTREME_RENDER_WEIGHT,
 ): ChatPage[] {
@@ -273,10 +289,10 @@ function connectAssistantPageBoundary(
 ): { olderPage: StableChatPage; newerPage: StableChatPage } | null {
   const olderBoundaryRow = olderPage.rows.at(-1)
   const newerBoundaryRow = newerPage.rows[0]
-  if (
-    olderBoundaryRow?.messages[0]?.info.role !== 'assistant' ||
-    newerBoundaryRow?.messages[0]?.info.role !== 'assistant'
-  ) {
+  const olderBoundaryMessage = olderBoundaryRow?.messages[0]
+  const newerBoundaryMessage = newerBoundaryRow?.messages[0]
+  if (!olderBoundaryMessage || !newerBoundaryMessage) return null
+  if (!isAssistantMessage(olderBoundaryMessage) || !isAssistantMessage(newerBoundaryMessage)) {
     return null
   }
 
@@ -298,7 +314,7 @@ function connectAssistantPageBoundary(
 }
 
 export function buildStableChatPages(
-  messages: Message[],
+  messages: SessionMessageInfo[],
   allocateKey: (page: ChatPage) => string,
   pageMessageCount = PAGE_MESSAGE_COUNT,
   maxRenderWeight = PAGE_EXTREME_RENDER_WEIGHT,
@@ -307,14 +323,14 @@ export function buildStableChatPages(
 }
 
 export function buildContentKeyedChatPages(
-  messages: Message[],
+  messages: SessionMessageInfo[],
   pageMessageCount = PAGE_MESSAGE_COUNT,
   maxRenderWeight = PAGE_EXTREME_RENDER_WEIGHT,
 ): StableChatPage[] {
   return buildChatPages(messages, pageMessageCount, maxRenderWeight)
 }
 
-function flattenPageMessagesChronological(page: ChatPage): Message[] {
+function flattenPageMessagesChronological(page: ChatPage): SessionMessageInfo[] {
   return page.rows.flatMap(row => row.messages)
 }
 
@@ -346,16 +362,16 @@ export function findMessageSequenceOffset(nextIds: string[], previousIds: string
   return -1
 }
 
-function rebuildPageWithFreshMessages(page: StableChatPage, nextById: Map<string, Message>): StableChatPage {
+function rebuildPageWithFreshMessages(page: StableChatPage, nextById: Map<string, SessionMessageInfo>): StableChatPage {
   let pageChanged = false
   const rows = page.rows.map(row => {
-    const messages = row.messages.map(message => nextById.get(message.info.id) ?? message)
+    const messages = row.messages.map(message => nextById.get(message.id) ?? message)
     if (messages.every((message, index) => message === row.messages[index])) return row
     pageChanged = true
     return {
       key: row.key,
       messages,
-      messageIds: messages.map(message => message.info.id),
+      messageIds: messages.map(message => message.id),
       estimatedHeight: estimateRowHeight(messages, row),
       renderWeight: estimateGroupRenderWeight(messages),
       continuesFromPrevious: row.continuesFromPrevious,
@@ -376,7 +392,7 @@ function rebuildPageWithFreshMessages(page: StableChatPage, nextById: Map<string
 
 export function reconcileStableChatPages(options: {
   currentPages: ChatPage[]
-  nextMessages: Message[]
+  nextMessages: SessionMessageInfo[]
   allocateKey: (page: ChatPage) => string
   pageMessageCount?: number
   maxRenderWeight?: number
@@ -390,13 +406,13 @@ export function reconcileStableChatPages(options: {
   }
 
   const previousIds = flattenPagesMessageIdsChronological(currentPages)
-  const nextIds = nextMessages.map(message => message.info.id)
+  const nextIds = nextMessages.map(message => message.id)
   const offset = findMessageSequenceOffset(nextIds, previousIds)
   if (offset === -1) {
     return buildStableChatPages(nextMessages, allocateKey, pageMessageCount, maxRenderWeight)
   }
 
-  const nextById = new Map(nextMessages.map(message => [message.info.id, message]))
+  const nextById = new Map(nextMessages.map(message => [message.id, message]))
   const refreshedPages = currentPages.map(page => rebuildPageWithFreshMessages(page as StableChatPage, nextById))
   const prefixMessages = nextMessages.slice(0, offset)
   const suffixMessages = nextMessages.slice(offset + previousIds.length)
@@ -446,10 +462,7 @@ export function reconcileStableChatPages(options: {
     if (prefixBoundaryPage && currentOldestPage) {
       const olderBoundaryRow = prefixBoundaryPage.rows.at(-1)
       const newerBoundaryRow = currentOldestPage.rows[0]
-      if (
-        olderBoundaryRow?.messages[0]?.info.role === 'assistant' &&
-        newerBoundaryRow?.messages[0]?.info.role === 'assistant'
-      ) {
+      if (olderBoundaryRow?.messages[0]?.type === 'assistant' && newerBoundaryRow?.messages[0]?.type === 'assistant') {
         const olderRows = prefixBoundaryPage.rows.slice()
         olderRows[olderRows.length - 1] = buildMessageGroupRow(olderBoundaryRow.messages, {
           continuesFromPrevious: olderBoundaryRow.continuesFromPrevious,
@@ -662,11 +675,12 @@ export function buildPageRenderSegments(options: {
   return segments
 }
 
-export function buildTurnDurationMap(messages: Message[], visibleMessages: Message[]): Map<string, number> {
+export function buildTurnDurationMap(
+  messages: SessionMessageInfo[],
+  visibleMessages: SessionMessageInfo[],
+): Map<string, number> {
   const map = new Map<string, number>()
-  const visibleAssistantIds = new Set(
-    visibleMessages.filter(message => message.info.role === 'assistant').map(message => message.info.id),
-  )
+  const visibleAssistantIds = new Set(visibleMessages.filter(isAssistantMessage).map(message => message.id))
 
   let currentUserCreated: number | null = null
   let currentVisibleAssistantId: string | null = null
@@ -678,21 +692,21 @@ export function buildTurnDurationMap(messages: Message[], visibleMessages: Messa
   }
 
   for (const message of messages) {
-    if (message.info.role === 'user') {
+    if (isUserMessage(message)) {
       commitTurn()
-      currentUserCreated = message.info.time.created
+      currentUserCreated = message.time.created
       currentVisibleAssistantId = null
       currentLastCompleted = null
       continue
     }
 
-    if (currentUserCreated == null || message.info.role !== 'assistant') continue
+    if (currentUserCreated == null || !isAssistantMessage(message)) continue
 
-    if (visibleAssistantIds.has(message.info.id)) {
-      currentVisibleAssistantId = message.info.id
+    if (visibleAssistantIds.has(message.id)) {
+      currentVisibleAssistantId = message.id
     }
-    if (message.info.time.completed != null) {
-      currentLastCompleted = message.info.time.completed
+    if (message.time.completed != null) {
+      currentLastCompleted = message.time.completed
     }
   }
 
@@ -705,7 +719,7 @@ export function buildTurnDurationMap(messages: Message[], visibleMessages: Messa
  * 每个用户回合里，最后一条可见 assistant 消息的 id 集合。
  * 用于「仅最新 Step」：中间 assistant 消息不显示 step 完成信息。
  */
-export function buildTurnLatestAssistantIdSet(visibleMessages: Message[]): Set<string> {
+export function buildTurnLatestAssistantIdSet(visibleMessages: SessionMessageInfo[]): Set<string> {
   const latestIds = new Set<string>()
   let currentLatestAssistantId: string | null = null
 
@@ -714,13 +728,13 @@ export function buildTurnLatestAssistantIdSet(visibleMessages: Message[]): Set<s
   }
 
   for (const message of visibleMessages) {
-    if (message.info.role === 'user') {
+    if (isUserMessage(message)) {
       commitTurn()
       currentLatestAssistantId = null
       continue
     }
-    if (message.info.role === 'assistant') {
-      currentLatestAssistantId = message.info.id
+    if (isAssistantMessage(message)) {
+      currentLatestAssistantId = message.id
     }
   }
 
@@ -733,7 +747,7 @@ export type ProcessTimelineItem =
   | {
       kind: 'message'
       key: string
-      message: Message
+      message: SessionMessageInfo
       /** 过程壳内消息的内容范围 */
       processContentScope?: 'process' | 'final' | 'inline'
     }
@@ -746,11 +760,11 @@ export type ProcessTimelineItem =
       isActive: boolean
       /** 壳内消息（不含壳外 final） */
       children: Array<{
-        message: Message
+        message: SessionMessageInfo
         processContentScope: 'process' | 'inline'
       }>
       /** 壳外最终回答（结束后才有） */
-      finalMessage?: Message
+      finalMessage?: SessionMessageInfo
     }
 
 /** 两行是否可共享同一对象（VirtualRow 靠 item 引用短路） */
@@ -816,31 +830,32 @@ export function reuseProcessTimelineItems(
   return allSame ? previous : result
 }
 
-function assistantHasLiveWork(message: Message): boolean {
-  if (message.info.role !== 'assistant') return false
-  if (message.info.time.completed == null || message.isStreaming) return true
-  return message.parts.some(
-    p => p.type === 'tool' && (p.state.status === 'running' || p.state.status === 'pending'),
+function assistantHasLiveWork(message: AssistantMessage): boolean {
+  // completed == null 即旧模型的 message.isStreaming
+  if (message.time.completed == null) return true
+  return message.content.some(
+    content => content.type === 'tool' && (content.state.status === 'running' || content.state.status === 'streaming'),
   )
 }
 
 function resolveTurnDurationMs(
-  assistants: Message[],
+  assistants: AssistantMessage[],
   userStart: number | undefined,
   turnDurationMap: Map<string, number>,
 ): number | undefined {
   if (userStart == null) return undefined
   for (const m of [...assistants].reverse()) {
-    const mapped = turnDurationMap.get(m.info.id)
+    const mapped = turnDurationMap.get(m.id)
     if (mapped != null && mapped > 0) return mapped
   }
   let latestEnd: number | undefined
   for (const m of assistants) {
-    const completed = m.info.time.completed
+    const completed = m.time.completed
     if (completed != null && (latestEnd == null || completed > latestEnd)) latestEnd = completed
-    for (const p of m.parts) {
-      if (p.type !== 'tool') continue
-      const toolEnd = p.state.time?.end
+    for (const { content } of contentEntries(m)) {
+      // 旧模型读 part.state.time?.end
+      if (content.type !== 'tool') continue
+      const toolEnd = content.time.completed
       if (toolEnd != null && (latestEnd == null || toolEnd > latestEnd)) latestEnd = toolEnd
     }
   }
@@ -861,12 +876,12 @@ function resolveTurnDurationMs(
  * isUserEntryReady：空壳等用户入场生长完成后再挂。
  */
 export function buildProcessTimeline(
-  visibleMessages: Message[],
+  visibleMessages: SessionMessageInfo[],
   options: {
     turnDurationMap: Map<string, number>
     sessionIsStreaming: boolean
-    messageHasProcess: (message: Message) => boolean
-    messageHasFinal: (message: Message) => boolean
+    messageHasProcess: (message: AssistantMessage) => boolean
+    messageHasFinal: (message: AssistantMessage) => boolean
     /** 用户消息入场生长是否完成；缺省视为已完成（历史消息 / 测试） */
     isUserEntryReady?: (userMessageId: string) => boolean
   },
@@ -881,23 +896,23 @@ export function buildProcessTimeline(
   const items: ProcessTimelineItem[] = []
 
   type TurnBag = {
-    user: Message | null
-    assistants: Message[]
+    user: UserMessage | null
+    assistants: AssistantMessage[]
   }
 
   const turns: TurnBag[] = []
   let current: TurnBag | null = null
 
   for (const message of visibleMessages) {
-    if (message.info.role === 'user') {
+    if (isUserMessage(message)) {
       if (current) turns.push(current)
       current = { user: message, assistants: [] }
       continue
     }
-    if (message.info.role !== 'assistant') continue
+    if (!isAssistantMessage(message)) continue
     if (!current) {
       // 历史续段 / 页首无 user：直接平铺，不挂壳
-      items.push({ kind: 'message', key: message.info.id, message })
+      items.push({ kind: 'message', key: message.id, message })
       continue
     }
     current.assistants.push(message)
@@ -905,7 +920,7 @@ export function buildProcessTimeline(
   if (current) turns.push(current)
 
   // 只关心带 user 的回合（过程壳的锚点）
-  const userTurns = turns.filter((t): t is TurnBag & { user: Message } => t.user != null)
+  const userTurns = turns.filter((t): t is TurnBag & { user: UserMessage } => t.user != null)
 
   const laterHasAssistant = (fromIndex: number) => {
     for (let j = fromIndex + 1; j < userTurns.length; j++) {
@@ -922,7 +937,7 @@ export function buildProcessTimeline(
     return false
   }
 
-  const isTurnSettled = (turn: TurnBag & { user: Message }, index: number): boolean => {
+  const isTurnSettled = (turn: TurnBag & { user: UserMessage }, index: number): boolean => {
     const assistants = turn.assistants
     // 后面 SSE live → 前面 Worked（须最先判断；前轮 completed 常晚到）
     if (laterHasLive(index)) return true
@@ -934,27 +949,27 @@ export function buildProcessTimeline(
     // 全 completed 且无 live → 锁定 Worked。
     // 不要再用 sessionIsStreaming 重开：发送时 busy 常早于新 user 入列，会闪一下。
     // 工具循环间隙若下一助手还没到，会短暂 Worked；下一助手 live 后自然回到 Working。
-    return assistants.every(m => m.info.time.completed != null && !m.isStreaming)
+    return assistants.every(m => m.time.completed != null)
   }
 
-  const isTurnPending = (turn: TurnBag & { user: Message }, index: number): boolean => {
+  const isTurnPending = (turn: TurnBag & { user: UserMessage }, index: number): boolean => {
     if (isTurnSettled(turn, index)) return false
     if (turn.assistants.length > 0) return true
-    return sessionIsStreaming && isUserEntryReady(turn.user.info.id)
+    return sessionIsStreaming && isUserEntryReady(turn.user.id)
   }
 
   // 唯一 Working：最早 pending 的用户回合
   let activeUserId: string | null = null
   for (let i = 0; i < userTurns.length; i++) {
     if (isTurnPending(userTurns[i], i)) {
-      activeUserId = userTurns[i].user.info.id
+      activeUserId = userTurns[i].user.id
       break
     }
   }
 
   for (const turn of turns) {
     if (turn.user) {
-      items.push({ kind: 'message', key: turn.user.info.id, message: turn.user })
+      items.push({ kind: 'message', key: turn.user.id, message: turn.user })
     }
 
     const assistants = turn.assistants
@@ -963,33 +978,31 @@ export function buildProcessTimeline(
     // 无 user 的续段：平铺
     if (!turn.user) {
       for (const m of assistants) {
-        items.push({ kind: 'message', key: m.info.id, message: m })
+        items.push({ kind: 'message', key: m.id, message: m })
       }
       continue
     }
 
-    const userId = turn.user.info.id
+    const userId = turn.user.id
     const turnIsActive = activeUserId != null && userId === activeUserId
 
     const finalAssistant = assistants.length > 0 ? assistants[assistants.length - 1] : null
-    const finalId = finalAssistant?.info.id ?? null
-    const startedAt = turn.user.info.time.created
-    const durationMs = turnIsActive
-      ? undefined
-      : resolveTurnDurationMs(assistants, startedAt, turnDurationMap)
+    const finalId = finalAssistant?.id ?? null
+    const startedAt = turn.user.time.created
+    const durationMs = turnIsActive ? undefined : resolveTurnDurationMs(assistants, startedAt, turnDurationMap)
 
     // 进行中：全部进壳；结束：中间全进 + 末尾仅 process
-    const children: Array<{ message: Message; processContentScope: 'process' | 'inline' }> = []
+    const children: Array<{ message: SessionMessageInfo; processContentScope: 'process' | 'inline' }> = []
     if (turnIsActive) {
       for (const m of assistants) {
         children.push({
           message: m,
-          processContentScope: m.info.id === finalId ? 'process' : 'inline',
+          processContentScope: m.id === finalId ? 'process' : 'inline',
         })
       }
     } else {
       for (const m of assistants) {
-        if (m.info.id === finalId) {
+        if (m.id === finalId) {
           if (messageHasProcess(m)) {
             children.push({ message: m, processContentScope: 'process' })
           }
@@ -999,8 +1012,7 @@ export function buildProcessTimeline(
       }
     }
 
-    const finalOutside =
-      !turnIsActive && finalAssistant && messageHasFinal(finalAssistant) ? finalAssistant : undefined
+    const finalOutside = !turnIsActive && finalAssistant && messageHasFinal(finalAssistant) ? finalAssistant : undefined
 
     // 进行中或有过程内容 → 挂壳
     // 更晚的空 pending 回合：turnIsActive=false 且无 children → 不挂壳（只显示 user）
@@ -1019,12 +1031,12 @@ export function buildProcessTimeline(
     } else if (finalOutside) {
       items.push({
         kind: 'message',
-        key: finalOutside.info.id,
+        key: finalOutside.id,
         message: finalOutside,
       })
     } else {
       for (const m of assistants) {
-        items.push({ kind: 'message', key: m.info.id, message: m })
+        items.push({ kind: 'message', key: m.id, message: m })
       }
     }
   }

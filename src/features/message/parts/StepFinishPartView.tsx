@@ -1,7 +1,6 @@
 import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTheme } from '../../../hooks/useTheme'
-import type { StepFinishPart } from '../../../types/message'
 import {
   formatNumber,
   formatCost,
@@ -10,8 +9,27 @@ import {
   formatDetailedDateTime,
 } from '../../../utils/formatUtils'
 
+/**
+ * v2 的一次「步骤完成」信息。
+ *
+ * v2 没有 step-finish part：tokens / cost / finish 都挂在**助手消息**上
+ * （`message.tokens` / `message.cost` / `message.finish`），
+ * 因此这里直接消费消息级数据，由调用方投影成这个形状。
+ */
+export interface StepFinishInfo {
+  /** tokens 统计（v2 `TokenUsageInfo`） */
+  tokens: {
+    input: number
+    output: number
+    reasoning: number
+    cache: { read: number; write: number }
+  }
+  /** 本步骤花费（美元） */
+  cost: number
+}
+
 interface StepFinishPartViewProps {
-  part: StepFinishPart
+  part: StepFinishInfo
   /** 单条消息耗时（毫秒） */
   duration?: number
   /** 整个回合总耗时（毫秒），从用户发送到最后一条 assistant 完成 */

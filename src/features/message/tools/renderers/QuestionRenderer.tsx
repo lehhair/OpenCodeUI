@@ -7,6 +7,7 @@
 
 import { useMemo } from 'react'
 import { CheckIcon } from '../../../../components/Icons'
+import { currentToolInput, currentToolMetadata } from '../../../../types/api/toolState'
 import type { ToolRendererProps } from '../types'
 
 // ============================================
@@ -39,10 +40,10 @@ interface QAPair {
 
 export function QuestionRenderer({ part, data }: ToolRendererProps) {
   const { state } = part
-  const isActive = state.status === 'running' || state.status === 'pending'
-  const inputObj = state.input as Record<string, unknown> | undefined
+  const isActive = state.status === 'running' || state.status === 'streaming'
+  const inputObj = currentToolInput(part)
   const output = data.output?.trim()
-  const metadata = state.metadata as Record<string, unknown> | undefined
+  const metadata = currentToolMetadata(part)
 
   // 从 input 拿问题结构，从 metadata/output 解析答案
   const qaList = useMemo(() => {

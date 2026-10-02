@@ -3,8 +3,6 @@
 // ============================================
 
 import { useState, useCallback } from 'react'
-import type { Message } from '../types/message'
-import { toUIMessage } from '../utils/messageConversion'
 import {
   getSessionMessages,
   revertMessage,
@@ -12,8 +10,8 @@ import {
   extractUserMessageContent,
   type RevertedMessage,
   type SessionRevert,
-  type UserMessage,
 } from '../api'
+import { isUserMessage, type SessionMessageInfo } from '../types/api/message'
 import { revertErrorHandler } from '../utils'
 import { INITIAL_MESSAGE_LIMIT } from '../constants'
 
@@ -24,8 +22,8 @@ export interface RevertHistoryItem {
 
 export interface UseRevertStateParams {
   routeSessionId: string | null
-  messages: Message[]
-  setMessages: React.Dispatch<React.SetStateAction<Message[]>>
+  messages: SessionMessageInfo[]
+  setMessages: React.Dispatch<React.SetStateAction<SessionMessageInfo[]>>
   agentPhase: string
   animateUndo: (messageIds: string[]) => Promise<void>
   animateRedo: () => Promise<void>
@@ -71,7 +69,7 @@ export function useRevertState({
   // ============================================
   // Computed
   // ============================================
-  const canUndo = messages.length > 0 && messages.some(m => m.info.role === 'user') && agentPhase === 'idle'
+  const canUndo = messages.length > 0 && messages.some(isUserMessage) && agentPhase === 'idle'
   const canRedo = revertHistory.length > 0 && agentPhase === 'idle'
   const revertSteps = revertHistory.length
 
@@ -84,25 +82,22 @@ export function useRevertState({
       if (!routeSessionId) return
 
       try {
-        // 1. 找到 UI 中要删除的消息（从点击的消息开始到最后）
-        const targetUIIndex = messages.findIndex(m => m.info.id === userMessageId)
-        if (targetUIIndex === -1) {
+        // 1. 找到本地列表里要删除的消息（从点击的消息开始到最后）
+        const targetUiIndex = messages.findIndex(m => m.id === userMessageId)
+        if (targetUiIndex === -1) {
           revertErrorHandler('user message not found in UI', new Error(`Message ID: ${userMessageId}`))
           return
         }
 
         // 获取所有要删除的消息 ID（用于动画）
-        const messageIdsToRemove = messages.slice(targetUIIndex).map(m => m.info.id)
+        const messageIdsToRemove = messages.slice(targetUiIndex).map(m => m.id)
 
         // 2. 播放消失动画
         await animateUndo(messageIdsToRemove)
 
-        // 3. 获取 API 消息并投影成 UI 消息
-        // v2 的 message.list 返回原生 SessionMessage（带 type/content，没有 info/parts），
-        // 因此这里先统一投影，后续一律按 UI 形状取 id/role。
+        // 3. 拉取服务端的原生消息，直接按 id / type 处理（v2 没有 info/parts 包装）
         const apiMessages = await getSessionMessages(routeSessionId, Math.max(INITIAL_MESSAGE_LIMIT, 200))
-        const uiMessages = apiMessages.map(m => toUIMessage(m, routeSessionId))
-        const targetIndex = uiMessages.findIndex(m => m.info.id === userMessageId)
+        const targetIndex = apiMessages.findIndex(m => m.id === userMessageId)
 
         if (targetIndex === -1) {
           revertErrorHandler('user message not found in API', new Error(`Message ID: ${userMessageId}`))
@@ -115,16 +110,11 @@ export function useRevertState({
         setSessionRevertState(stagedRevert ?? null)
 
         // 5. 从点击的消息开始，收集所有 user 消息，构建完整的撤销历史
-        // extractUserMessageContent 需要 v2 的 user 消息形状（text/files/agents/skills），
-        // 而 UI 消息没有这些字段，因此按索引与原始数组配对并按 type 收窄。
-        const revertedUserMessages = uiMessages
-          .map((ui, index) => ({ ui, raw: apiMessages[index] }))
-          .slice(targetIndex)
-          .filter((pair): pair is { ui: Message; raw: UserMessage } => pair.raw.type === 'user')
+        const revertedUserMessages = apiMessages.slice(targetIndex).filter(isUserMessage)
 
-        const fullRevertHistory = revertedUserMessages.map(pair => ({
-          messageId: pair.ui.info.id,
-          content: extractUserMessageContent(pair.raw),
+        const fullRevertHistory = revertedUserMessages.map(message => ({
+          messageId: message.id,
+          content: extractUserMessageContent(message),
         }))
 
         // 6. 设置完整的撤销历史（覆盖之前的）
@@ -135,7 +125,7 @@ export function useRevertState({
         setRevertedMessage(firstRevertedContent)
 
         // 8. 过滤掉被撤销的消息及其后的所有消息
-        setMessages(uiMessages.slice(0, targetIndex))
+        setMessages(apiMessages.slice(0, targetIndex))
 
         // 9. 滚动到末尾，让用户看到"断点"
         // 等 React 渲染完成后再滚动
@@ -175,7 +165,7 @@ export function useRevertState({
       setSessionRevertState(stagedRevert)
       setRevertHistory(newHistory)
 
-      // 3. 重新加载消息（先投影成 UI 消息）
+      // 3. 重新加载原生消息
       const apiMessages = await getSessionMessages(routeSessionId, Math.max(INITIAL_MESSAGE_LIMIT, 200))
 
       // 如果还有 revert 状态，需要过滤消息
@@ -184,14 +174,10 @@ export function useRevertState({
         // findIndex 找不到时返回 -1，而 slice(0, -1) 会「只砍掉最后一条」——
         // 静默显示几乎全部消息，看起来像撤销成功后消息又冒出来。
         // 撤销点早于本次拉取窗口（这里最多 200 条）时就会命中这种情况。
-        setMessages(
-          revertedIndex === -1
-            ? apiMessages.map(m => toUIMessage(m, routeSessionId))
-            : apiMessages.slice(0, revertedIndex).map(m => toUIMessage(m, routeSessionId)),
-        )
+        setMessages(revertedIndex === -1 ? apiMessages : apiMessages.slice(0, revertedIndex))
       } else {
         // 没有 revert 状态，显示所有消息
-        setMessages(apiMessages.map(m => toUIMessage(m, routeSessionId)))
+        setMessages(apiMessages)
       }
     } catch (error) {
       revertErrorHandler('redo', error)
@@ -212,7 +198,7 @@ export function useRevertState({
 
       // 重新加载所有消息
       const apiMessages = await getSessionMessages(routeSessionId, Math.max(INITIAL_MESSAGE_LIMIT, 200))
-      setMessages(apiMessages.map(m => toUIMessage(m, routeSessionId)))
+      setMessages(apiMessages)
     } catch (error) {
       revertErrorHandler('redo all', error)
     }

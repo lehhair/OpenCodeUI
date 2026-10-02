@@ -8,7 +8,7 @@
 import { useSyncExternalStore, useRef, useCallback } from 'react'
 import { messageStore } from './messageStore'
 import { paneLayoutStore } from './paneLayoutStore'
-import type { MessageStoreSnapshot, SessionStateSnapshot } from './messageStoreTypes'
+import type { MessageStoreSnapshot, SessionMessageInfo, SessionStateSnapshot } from './messageStoreTypes'
 
 // ============================================
 // Snapshot Cache (避免 useSyncExternalStore 无限循环)
@@ -165,7 +165,7 @@ const selectUndoRedoState = (state: MessageStoreSnapshot) => ({
   canRedo: state.canRedo,
   redoSteps: state.redoSteps,
 })
-const sameMessageArray = (a: Message[], b: Message[]) => a === b
+const sameMessageArray = (a: SessionMessageInfo[], b: SessionMessageInfo[]) => a === b
 
 // 缓存：sessionId -> Snapshot
 const sessionSnapshots = new Map<string, SessionStateSnapshot>()
@@ -238,8 +238,8 @@ export function useIsStreaming(): boolean {
   return useMessageStoreSelector(selectIsStreaming)
 }
 
-/** 只订阅 messages */
-export function useMessages(): Message[] {
+/** 只订阅 messages（原生 v2 消息，按创建时间有序） */
+export function useMessages(): SessionMessageInfo[] {
   return useMessageStoreSelector(selectMessages, sameMessageArray)
 }
 
@@ -264,5 +264,4 @@ export function useUndoRedoState() {
 }
 
 // Re-export types for convenience
-import type { Message } from '../types/message'
-export type { MessageStoreSnapshot, SessionStateSnapshot }
+export type { MessageStoreSnapshot, SessionMessageInfo, SessionStateSnapshot }

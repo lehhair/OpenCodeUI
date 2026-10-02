@@ -5,7 +5,12 @@ import { CodeBlock } from '../../../components/CodeBlock'
 import { ChevronDownIcon, ChevronUpIcon, CpuIcon, DollarSignIcon } from '../../../components/Icons'
 import { useCurrentSessionId, useMessages } from '../../../store'
 import { useSessionStats, formatTokens, formatCost } from '../../../hooks'
-import type { Message, TokenUsage } from '../../../types/message'
+import {
+  isAssistantMessage,
+  isUserMessage,
+  type AssistantMessage,
+  type SessionMessageInfo,
+} from '../../../types/api/message'
 
 interface ContextDetailsDialogProps {
   isOpen: boolean
@@ -13,8 +18,12 @@ interface ContextDetailsDialogProps {
   contextLimit: number
 }
 
-function tokenTotal(tokens: TokenUsage): number {
-  return tokens.input + tokens.output + tokens.reasoning + tokens.cache.read + tokens.cache.write
+/** v2 的 token 用量形状（`AssistantMessage.tokens`） */
+type TokenUsage = NonNullable<AssistantMessage['tokens']>
+
+function tokenTotal(tokens: TokenUsage | undefined): number {
+  if (!tokens) return 0
+  return tokens.input + tokens.output + tokens.reasoning + (tokens.cache?.read ?? 0) + (tokens.cache?.write ?? 0)
 }
 
 function formatTimestamp(timestamp: number | undefined): string {
@@ -57,8 +66,8 @@ function ContextDetailsBody({ contextLimit }: { contextLimit: number }) {
   const lastAssistantWithTokens = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i--) {
       const msg = messages[i]
-      if (msg.info.role !== 'assistant') continue
-      const total = tokenTotal(msg.info.tokens)
+      if (!isAssistantMessage(msg)) continue
+      const total = tokenTotal(msg.tokens)
       if (total <= 0) continue
       return { msg, total }
     }
@@ -69,7 +78,7 @@ function ContextDetailsBody({ contextLimit }: { contextLimit: number }) {
     let user = 0
     let assistant = 0
     for (const m of messages) {
-      if (m.info.role === 'user') user++
+      if (isUserMessage(m)) user++
       else assistant++
     }
     return { all: messages.length, user, assistant }
@@ -81,10 +90,10 @@ function ContextDetailsBody({ contextLimit }: { contextLimit: number }) {
   }, [stats.contextUsed, stats.contextPercent, contextLimit])
 
   const contextMsg = lastAssistantWithTokens?.msg
-  const contextTokens = contextMsg?.info.role === 'assistant' ? contextMsg.info.tokens : undefined
+  const contextTokens = contextMsg?.tokens
 
-  const handleToggleMessage = useCallback((msg: Message) => {
-    const id = msg.info.id
+  const handleToggleMessage = useCallback((msg: SessionMessageInfo) => {
+    const id = msg.id
     setExpandedId(prev => (prev === id ? null : id))
   }, [])
 
@@ -97,16 +106,13 @@ function ContextDetailsBody({ contextLimit }: { contextLimit: number }) {
             label={t('contextDetails.messages')}
             value={`${counts.all} (user ${counts.user}, assistant ${counts.assistant})`}
           />
-          <Stat
-            label={t('contextDetails.provider')}
-            value={contextMsg?.info.role === 'assistant' ? contextMsg.info.providerID : '—'}
-          />
-          <Stat
-            label={t('contextDetails.model')}
-            value={contextMsg?.info.role === 'assistant' ? contextMsg.info.modelID : '—'}
-          />
+          <Stat label={t('contextDetails.provider')} value={contextMsg?.model?.providerID ?? '—'} />
+          <Stat label={t('contextDetails.model')} value={contextMsg?.model?.id ?? '—'} />
           <Stat label={t('contextDetails.contextLimit')} value={formatTokens(contextLimit)} />
-          <Stat label={t('contextDetails.totalTokens')} value={stats.contextUsed ? formatTokens(stats.contextUsed) : '—'} />
+          <Stat
+            label={t('contextDetails.totalTokens')}
+            value={stats.contextUsed ? formatTokens(stats.contextUsed) : '—'}
+          />
           <Stat
             label={t('contextDetails.usage')}
             value={
@@ -136,27 +142,29 @@ function ContextDetailsBody({ contextLimit }: { contextLimit: number }) {
           <div className="flex items-center justify-between text-[length:var(--fs-xs)] text-text-400">
             <div className="flex items-center gap-2">
               <CpuIcon size={14} className="opacity-60" />
-              <span className="font-mono">last: {contextMsg.info.id}</span>
+              <span className="font-mono">last: {contextMsg.id}</span>
             </div>
-            <span className="tabular-nums">{formatTimestamp(contextMsg.info.time?.created)}</span>
+            <span className="tabular-nums">{formatTimestamp(contextMsg.time.created)}</span>
           </div>
         )}
       </div>
 
       <div className="mt-6">
-        <div className="text-[length:var(--fs-xs)] font-medium text-text-400 mb-2">{t('contextDetails.rawMessages')}</div>
+        <div className="text-[length:var(--fs-xs)] font-medium text-text-400 mb-2">
+          {t('contextDetails.rawMessages')}
+        </div>
         <div className="space-y-1">
           {messages.map(msg => {
-            const isExpanded = expandedId === msg.info.id
+            const isExpanded = expandedId === msg.id
 
-            const headerLabel = `${msg.info.role} • ${msg.info.id}`
-            const time = formatTimestamp(msg.info.time?.created)
+            const headerLabel = `${msg.type} • ${msg.id}`
+            const time = formatTimestamp(msg.time.created)
 
-            const assistantTokens = msg.info.role === 'assistant' ? tokenTotal(msg.info.tokens) : null
-            const assistantCost = msg.info.role === 'assistant' ? msg.info.cost : null
+            const assistantTokens = isAssistantMessage(msg) ? tokenTotal(msg.tokens) : null
+            const assistantCost = isAssistantMessage(msg) ? (msg.cost ?? null) : null
 
             return (
-              <div key={msg.info.id} className="rounded-lg border border-border-200/50 overflow-hidden">
+              <div key={msg.id} className="rounded-lg border border-border-200/50 overflow-hidden">
                 <button
                   type="button"
                   onClick={() => handleToggleMessage(msg)}
@@ -197,7 +205,7 @@ function ContextDetailsBody({ contextLimit }: { contextLimit: number }) {
                 {isExpanded && (
                   <div className="p-3 bg-bg-000 border-t border-border-200/50">
                     <CodeBlock
-                      code={JSON.stringify({ message: msg.info, parts: msg.parts }, null, 2)}
+                      code={JSON.stringify(msg, null, 2)}
                       language="json"
                       maxHeight={420}
                       className="select-text"

@@ -1,7 +1,7 @@
 import { act, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ToolPartView } from './ToolPartView'
-import type { ToolPart } from '../../../types/message'
+import type { ToolViewPart } from '../tools'
 
 const { getActiveCalibratedNowMock } = vi.hoisted(() => ({
   getActiveCalibratedNowMock: vi.fn<() => number | undefined>(() => undefined),
@@ -77,21 +77,23 @@ vi.mock('../tools', () => ({
   TaskRenderer: () => null,
 }))
 
-function createRunningToolPart(): ToolPart {
+/** v2 原生工具条目：state 里没有起止时间，计时靠所属消息的 context */
+function createRunningToolPart(): ToolViewPart {
   return {
-    id: 'tool-1',
-    sessionID: 'session-1',
-    messageID: 'message-1',
     type: 'tool',
-    callID: 'call-1',
-    tool: 'bash',
+    id: 'tool-1',
+    name: 'bash',
+    messageID: 'message-1',
     state: {
       status: 'running',
-      title: 'npm run build',
-      time: { start: 7_500 },
+      input: { command: 'npm run build' },
+      metadata: { title: 'npm run build' },
     },
+    time: { created: 7_500 },
   }
 }
+
+const MESSAGE_CONTEXT = { messageID: 'message-1', created: 7_500 }
 
 describe('ToolPartView running duration', () => {
   beforeEach(() => {
@@ -107,7 +109,7 @@ describe('ToolPartView running duration', () => {
   })
 
   it('falls back to local wall clock when calibration is unavailable', () => {
-    render(<ToolPartView part={createRunningToolPart()} />)
+    render(<ToolPartView part={createRunningToolPart()} context={MESSAGE_CONTEXT} />)
 
     expect(screen.getByText('Running')).toBeInTheDocument()
     expect(screen.getByText('2.5s')).toBeInTheDocument()
@@ -122,7 +124,7 @@ describe('ToolPartView running duration', () => {
   it('uses calibrated server time for running tools when available', () => {
     getActiveCalibratedNowMock.mockReturnValue(11_000)
 
-    render(<ToolPartView part={createRunningToolPart()} />)
+    render(<ToolPartView part={createRunningToolPart()} context={MESSAGE_CONTEXT} />)
 
     expect(screen.getByText('3.5s')).toBeInTheDocument()
   })
@@ -130,7 +132,7 @@ describe('ToolPartView running duration', () => {
   it('clamps running duration to zero when calibrated time is earlier than start', () => {
     getActiveCalibratedNowMock.mockReturnValue(7_000)
 
-    render(<ToolPartView part={createRunningToolPart()} />)
+    render(<ToolPartView part={createRunningToolPart()} context={MESSAGE_CONTEXT} />)
 
     expect(screen.getByText('0ms')).toBeInTheDocument()
   })
@@ -138,17 +140,17 @@ describe('ToolPartView running duration', () => {
   it('rounds calibrated sub-second durations before rendering', () => {
     getActiveCalibratedNowMock.mockReturnValue(7_623.456)
 
-    render(<ToolPartView part={createRunningToolPart()} />)
+    render(<ToolPartView part={createRunningToolPart()} context={MESSAGE_CONTEXT} />)
 
     expect(screen.getByText('123ms')).toBeInTheDocument()
   })
 
   it('uses shared item spacing on compact and descriptive roots', () => {
     const part = createRunningToolPart()
-    const { container, rerender } = render(<ToolPartView part={part} compact />)
+    const { container, rerender } = render(<ToolPartView part={part} context={MESSAGE_CONTEXT} compact />)
     expect(container.firstElementChild?.className).toContain('pt-1')
 
-    rerender(<ToolPartView part={part} descriptive />)
+    rerender(<ToolPartView part={part} context={MESSAGE_CONTEXT} descriptive />)
     expect(container.firstElementChild?.className).toContain('pt-1')
   })
 })

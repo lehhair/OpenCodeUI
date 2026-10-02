@@ -18,83 +18,72 @@ import {
 import { getStreamingHotIndexes, getTimelineRowYClass, mergeVirtualRangeIndexes } from './chatAreaUtils'
 import { buildVisibleMessageEntries, getVisibleMessageForkTargetId } from './chatAreaVisibility'
 import { buildChatPageViewModel } from './useChatPageViewModel'
-import type { Message, MessageError, Part, ToolPart, ReasoningPart } from '../../types/message'
+import type { AssistantContent, AssistantMessage, SessionMessageInfo, UserMessage } from '../../types/api/message'
+import { isAssistantMessage } from '../../types/api/message'
 
-function createUserMessage(id: string, created: number): Message {
+/** 助手消息的 content（非助手返回空数组，测试断言里方便用） */
+function contentOf(message: SessionMessageInfo): AssistantContent[] {
+  return isAssistantMessage(message) ? message.content : []
+}
+
+/** 断言辅助：把联合收窄成助手消息（不是助手则直接抛） */
+function assistantOf(message: SessionMessageInfo): AssistantMessage {
+  if (!isAssistantMessage(message)) throw new Error('expected assistant message')
+  return message
+}
+
+/** 旧视图模型的 `markStreaming(message)`：清掉 completed 即「仍在流式」 */
+function markStreaming(message: SessionMessageInfo): void {
+  if (isAssistantMessage(message)) message.time.completed = undefined
+}
+
+function createUserMessage(id: string, created: number, text = ''): UserMessage {
   return {
-    info: {
-      id,
-      sessionID: 'session-1',
-      role: 'user',
-      agent: 'build',
-      model: { providerID: 'openai', modelID: 'gpt-4.1' },
-      time: { created },
-    },
-    parts: [],
-    isStreaming: false,
+    id,
+    type: 'user',
+    time: { created },
+    text,
   }
 }
 
 function createAssistantMessage(
   id: string,
-  parts: Part[],
+  content: AssistantContent[],
   created = 1,
   completed?: number,
-  error?: MessageError,
-): Message {
+  error?: AssistantMessage['error'],
+): AssistantMessage {
   return {
-    info: {
-      id,
-      sessionID: 'session-1',
-      role: 'assistant',
-      parentID: 'user-1',
-      modelID: 'model-1',
-      providerID: 'provider-1',
-      mode: 'chat',
-      agent: 'build',
-      path: { cwd: '/workspace', root: '/workspace' },
-      cost: 0,
-      tokens: {
-        input: 0,
-        output: 0,
-        reasoning: 0,
-        cache: { read: 0, write: 0 },
-      },
-      time: completed == null ? { created } : { created, completed },
-      error,
-    },
-    parts,
-    isStreaming: false,
+    id,
+    type: 'assistant',
+    agent: 'build',
+    model: { id: 'model-1', providerID: 'provider-1' },
+    content,
+    cost: 0,
+    tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
+    time: completed == null ? { created } : { created, completed },
+    error,
   }
 }
 
-function createToolPart(id: string, messageID: string): ToolPart {
+/** 参数沿用旧的 part 工厂签名，返回值改成原生 content 片段 */
+function createToolPart(id: string, _messageID: string): AssistantContent {
   return {
-    id,
-    sessionID: 'session-1',
-    messageID,
     type: 'tool',
-    callID: `call-${id}`,
-    tool: 'bash',
+    id,
+    name: 'bash',
     state: {
       status: 'completed',
       input: { command: 'pwd' },
-      output: '/workspace',
-      title: 'pwd',
+      content: [{ type: 'text', text: '/workspace' }],
       metadata: {},
-      time: { start: 1, end: 2 },
     },
+    time: { created: 1, ran: 1, completed: 2 },
   }
 }
 
-function createTextPart(id: string, messageID: string, text: string): Part {
-  return {
-    id,
-    sessionID: 'session-1',
-    messageID,
-    type: 'text',
-    text,
-  }
+function createTextPart(_id: string, _messageID: string, text: string): AssistantContent {
+  return { type: 'text', text }
 }
 
 describe('buildVisibleMessageEntries', () => {
@@ -106,18 +95,11 @@ describe('buildVisibleMessageEntries', () => {
 
     expect(entries).toHaveLength(1)
     expect(entries[0].sourceIds).toEqual(['assistant-1', 'assistant-2'])
-    expect(entries[0].message.parts).toHaveLength(2)
+    expect(contentOf(entries[0].message)).toHaveLength(2)
   })
 
   it('merges when first message ends with tool followed by empty reasoning', () => {
-    const emptyReasoning: ReasoningPart = {
-      id: 'reasoning-empty',
-      sessionID: 'session-1',
-      messageID: 'assistant-1',
-      type: 'reasoning',
-      text: '',
-      time: { start: 1, end: 2 },
-    }
+    const emptyReasoning: AssistantContent = { type: 'reasoning', text: '' }
     const first = createAssistantMessage('assistant-1', [createToolPart('tool-1', 'assistant-1'), emptyReasoning])
     const second = createAssistantMessage('assistant-2', [createToolPart('tool-2', 'assistant-2')])
 
@@ -144,8 +126,8 @@ describe('buildVisibleMessageEntries', () => {
     const older = createAssistantMessage('assistant-older', [createToolPart('tool-older', 'assistant-older')])
     const nextEntry = buildVisibleMessageEntries([older, first, second])[0]
 
-    expect(previousEntry.message.info.id).toBe('assistant-1')
-    expect(nextEntry.message.info.id).toBe('assistant-older')
+    expect(previousEntry.message.id).toBe('assistant-1')
+    expect(nextEntry.message.id).toBe('assistant-older')
     expect(getVisibleMessageForkTargetId(previousEntry)).toBe('assistant-2')
     expect(getVisibleMessageForkTargetId(nextEntry)).toBe('assistant-2')
   })
@@ -157,10 +139,10 @@ describe('buildVisibleMessageEntries', () => {
     const older = createAssistantMessage('assistant-older', [createToolPart('tool-older', 'assistant-older')])
     const next = buildChatPageViewModel([older, first, second], previous)
 
-    expect(previous.visibleMessages[0].info.id).toBe('assistant-1')
-    expect(next.visibleMessages[0].info.id).toBe('assistant-1')
+    expect(previous.visibleMessages[0].id).toBe('assistant-1')
+    expect(next.visibleMessages[0].id).toBe('assistant-1')
     expect(next.visibleMessageEntries[0].sourceIds).toEqual(['assistant-older', 'assistant-1', 'assistant-2'])
-    expect(next.visibleMessages[0].parts).toHaveLength(3)
+    expect(contentOf(next.visibleMessages[0])).toHaveLength(3)
     expect(next.pageRecords.map(page => page.key)).toEqual(previous.pageRecords.map(page => page.key))
   })
 
@@ -170,27 +152,20 @@ describe('buildVisibleMessageEntries', () => {
       [createToolPart('tool-1', 'assistant-aborted-with-tool')],
       1,
       2,
-      { name: 'MessageAbortedError', data: { message: 'Aborted' } },
+      { type: 'MessageAbortedError', message: 'Aborted' },
     )
 
     const entries = buildVisibleMessageEntries([message])
 
     expect(entries).toHaveLength(1)
-    expect(entries[0].message.info.id).toBe('assistant-aborted-with-tool')
+    expect(entries[0].message.id).toBe('assistant-aborted-with-tool')
   })
 
   it('hides aborted assistant messages without renderable parts', () => {
-    const emptyReasoning: ReasoningPart = {
-      id: 'reasoning-empty',
-      sessionID: 'session-1',
-      messageID: 'assistant-empty-abort',
-      type: 'reasoning',
-      text: '',
-      time: { start: 1, end: 2 },
-    }
+    const emptyReasoning: AssistantContent = { type: 'reasoning', text: '' }
     const message = createAssistantMessage('assistant-empty-abort', [emptyReasoning], 1, 2, {
-      name: 'MessageAbortedError',
-      data: { message: 'Aborted' },
+      type: 'MessageAbortedError',
+      message: 'Aborted',
     })
 
     const entries = buildVisibleMessageEntries([message])
@@ -204,7 +179,7 @@ describe('buildChatPageViewModel', () => {
     const messages = Array.from({ length: 12 }, (_unused, index) => [
       {
         ...createUserMessage(`user-${index}`, index * 2 + 1),
-        parts: [createTextPart(`user-text-${index}`, `user-${index}`, `prompt ${index}`)],
+        text: `prompt ${index}`,
       },
       createAssistantMessage(
         `assistant-${index}`,
@@ -215,11 +190,11 @@ describe('buildChatPageViewModel', () => {
     ]).flat()
     const first = buildChatPageViewModel(messages)
     const streamingMessage = messages[messages.length - 1]
-    const nextMessages = [
+    const nextMessages: SessionMessageInfo[] = [
       ...messages.slice(0, -1),
       {
-        ...streamingMessage,
-        parts: [{ ...streamingMessage.parts[0], text: 'hello world' }],
+        ...assistantOf(streamingMessage),
+        content: [{ type: 'text', text: 'hello world' }],
       },
     ]
 
@@ -238,7 +213,7 @@ describe('buildChatPageViewModel', () => {
     const messages = Array.from({ length: 8 }, (_unused, index) => [
       {
         ...createUserMessage(`user-${index}`, index * 2 + 1),
-        parts: [createTextPart(`user-text-${index}`, `user-${index}`, `prompt ${index}`)],
+        text: `prompt ${index}`,
       },
       createAssistantMessage(
         `assistant-${index}`,
@@ -252,7 +227,7 @@ describe('buildChatPageViewModel', () => {
       ...messages,
       {
         ...createUserMessage('user-next', 100),
-        parts: [createTextPart('user-text-next', 'user-next', '# large markdown prompt')],
+        text: '# large markdown prompt',
       },
     ]
 
@@ -268,7 +243,7 @@ describe('buildChatPageViewModel', () => {
     const messages = Array.from({ length: 12 }, (_unused, index) => [
       {
         ...createUserMessage(`user-${index}`, index * 2 + 1),
-        parts: [createTextPart(`user-text-${index}`, `user-${index}`, `prompt ${index}`)],
+        text: `prompt ${index}`,
       },
       createAssistantMessage(
         `assistant-${index}`,
@@ -281,7 +256,7 @@ describe('buildChatPageViewModel', () => {
     const olderMessages = Array.from({ length: 12 }, (_unused, index) => [
       {
         ...createUserMessage(`older-user-${index}`, index * 2 + 1),
-        parts: [createTextPart(`older-user-text-${index}`, `older-user-${index}`, `older prompt ${index}`)],
+        text: `older prompt ${index}`,
       },
       createAssistantMessage(
         `older-assistant-${index}`,
@@ -300,7 +275,7 @@ describe('buildChatPageViewModel', () => {
   it('reuses page objects without preserving a stale page order', () => {
     const messages = Array.from({ length: 40 }, (_unused, index) => ({
       ...createUserMessage(`user-${index}`, index),
-      parts: [createTextPart(`text-${index}`, `user-${index}`, `prompt ${index}`)],
+      text: `prompt ${index}`,
     }))
     const first = buildChatPageViewModel(messages)
     const reordered = buildChatPageViewModel([...messages.slice(20), ...messages.slice(0, 20)], first)
@@ -313,13 +288,13 @@ describe('buildChatPageViewModel', () => {
   it('starts a new stable page after twenty visible messages', () => {
     const messages = Array.from({ length: 20 }, (_unused, index) => ({
       ...createUserMessage(`user-${index}`, index),
-      parts: [createTextPart(`text-${index}`, `user-${index}`, `prompt ${index}`)],
+      text: `prompt ${index}`,
     }))
     const first = buildChatPageViewModel(messages)
 
     const nextMessage = {
       ...createUserMessage('user-20', 20),
-      parts: [createTextPart('text-20', 'user-20', 'prompt 20')],
+      text: 'prompt 20',
     }
     const next = buildChatPageViewModel([...messages, nextMessage], first)
 
@@ -344,12 +319,7 @@ describe('buildChatPageViewModel', () => {
     const appended = buildChatPageViewModel(
       [
         ...messages,
-        createAssistantMessage(
-          'assistant-26',
-          [createTextPart('text-26', 'assistant-26', longText)],
-          26,
-          27,
-        ),
+        createAssistantMessage('assistant-26', [createTextPart('text-26', 'assistant-26', longText)], 26, 27),
       ],
       viewModel,
     )
@@ -364,12 +334,11 @@ describe('buildChatPageViewModel', () => {
   it('keeps a growing streaming assistant in the current stable page', () => {
     const user = {
       ...createUserMessage('user-1', 1),
-      parts: [createTextPart('user-text', 'user-1', 'prompt')],
+      text: 'prompt',
     }
     const first = buildChatPageViewModel([user])
     const streaming = {
       ...createAssistantMessage('assistant-1', [createTextPart('assistant-text', 'assistant-1', 'hello')]),
-      isStreaming: true,
     }
 
     const next = buildChatPageViewModel([user, streaming], first)
@@ -379,7 +348,7 @@ describe('buildChatPageViewModel', () => {
         user,
         {
           ...streaming,
-          parts: [createTextPart('assistant-text', 'assistant-1', 'hello '.repeat(10000))],
+          content: [{ type: 'text', text: 'hello '.repeat(10000) }],
         },
       ],
       next,
@@ -401,12 +370,7 @@ describe('buildChatPageViewModel', () => {
     )
     const first = buildChatPageViewModel([firstAssistant])
     const secondAssistant = {
-      ...createAssistantMessage(
-        'assistant-2',
-        [createTextPart('assistant-text-2', 'assistant-2', 'second answer')],
-        3,
-      ),
-      isStreaming: true,
+      ...createAssistantMessage('assistant-2', [createTextPart('assistant-text-2', 'assistant-2', 'second answer')], 3),
     }
 
     const next = buildChatPageViewModel([firstAssistant, secondAssistant], first)
@@ -509,32 +473,22 @@ describe('getTimelineRowYClass', () => {
 })
 
 describe('reuseProcessTimelineItems', () => {
-  const hasProcess = (message: Message) =>
-    message.parts.some(p => p.type === 'tool' || p.type === 'reasoning')
-  const hasFinal = (message: Message) => message.parts.some(p => p.type === 'text')
+  const hasProcess = (message: SessionMessageInfo) =>
+    contentOf(message).some(p => p.type === 'tool' || p.type === 'reasoning')
+  const hasFinal = (message: SessionMessageInfo) => contentOf(message).some(p => p.type === 'text')
 
   it('keeps historical timeline item identity when only the last message streams', () => {
     const messages = [
       {
         ...createUserMessage('user-1', 1),
-        parts: [createTextPart('user-text-1', 'user-1', 'prompt')],
+        text: 'prompt',
       },
-      createAssistantMessage(
-        'assistant-1',
-        [createTextPart('text-1', 'assistant-1', 'old')],
-        2,
-        3,
-      ),
+      createAssistantMessage('assistant-1', [createTextPart('text-1', 'assistant-1', 'old')], 2, 3),
       {
         ...createUserMessage('user-2', 4),
-        parts: [createTextPart('user-text-2', 'user-2', 'next')],
+        text: 'next',
       },
-      createAssistantMessage(
-        'assistant-2',
-        [createTextPart('text-2', 'assistant-2', 'hello')],
-        5,
-        undefined,
-      ),
+      createAssistantMessage('assistant-2', [createTextPart('text-2', 'assistant-2', 'hello')], 5, undefined),
     ]
 
     const first = buildProcessTimeline(messages, {
@@ -545,11 +499,11 @@ describe('reuseProcessTimelineItems', () => {
     })
 
     const streaming = messages[messages.length - 1]
-    const nextMessages = [
+    const nextMessages: SessionMessageInfo[] = [
       ...messages.slice(0, -1),
       {
-        ...streaming,
-        parts: [{ ...streaming.parts[0], text: 'hello world' }],
+        ...assistantOf(streaming),
+        content: [{ type: 'text', text: 'hello world' }],
       },
     ]
     const rebuilt = buildProcessTimeline(nextMessages, {
@@ -572,14 +526,9 @@ describe('reuseProcessTimelineItems', () => {
     const messages = [
       {
         ...createUserMessage('user-1', 1),
-        parts: [createTextPart('user-text-1', 'user-1', 'prompt')],
+        text: 'prompt',
       },
-      createAssistantMessage(
-        'assistant-1',
-        [createTextPart('text-1', 'assistant-1', 'done')],
-        2,
-        3,
-      ),
+      createAssistantMessage('assistant-1', [createTextPart('text-1', 'assistant-1', 'done')], 2, 3),
     ]
     const first = buildProcessTimeline(messages, {
       turnDurationMap: new Map([['assistant-1', 500]]),
@@ -598,10 +547,9 @@ describe('reuseProcessTimelineItems', () => {
 })
 
 describe('buildProcessTimeline', () => {
-  const hasProcess = (message: Message) =>
-    message.parts.some(p => p.type === 'tool' || p.type === 'reasoning')
-  const hasFinal = (message: Message) =>
-    message.parts.some(p => p.type === 'text')
+  const hasProcess = (message: SessionMessageInfo) =>
+    contentOf(message).some(p => p.type === 'tool' || p.type === 'reasoning')
+  const hasFinal = (message: SessionMessageInfo) => contentOf(message).some(p => p.type === 'text')
 
   it('delays empty Working shell until entry-ready gate opens', () => {
     const messages = [createUserMessage('user-1', 1000)]
@@ -636,7 +584,7 @@ describe('buildProcessTimeline', () => {
 
   it('shows Working shell immediately once any assistant content exists', () => {
     const mid = createAssistantMessage('assistant-1', [createToolPart('tool-1', 'assistant-1')], 1001)
-    mid.isStreaming = true
+    markStreaming(mid)
     const messages = [createUserMessage('user-1', 1000), mid]
     const timeline = buildProcessTimeline(messages, {
       turnDurationMap: new Map(),
@@ -649,7 +597,7 @@ describe('buildProcessTimeline', () => {
     const shell = timeline.find(item => item.kind === 'process-shell')
     expect(shell).toBeTruthy()
     if (shell?.kind === 'process-shell') {
-      expect(shell.children.map(c => c.message.info.id)).toEqual(['assistant-1'])
+      expect(shell.children.map(c => c.message.id)).toEqual(['assistant-1'])
     }
   })
 
@@ -669,12 +617,8 @@ describe('buildProcessTimeline', () => {
   it('keeps only the earliest pending Working shell when a later user is queued', () => {
     // 第一轮仍 live，第二轮 user 已发出 → 只挂 user-1 的 Working，user-2 暂不挂空壳
     const mid = createAssistantMessage('assistant-1', [createToolPart('tool-1', 'assistant-1')], 1001)
-    mid.isStreaming = true
-    const messages = [
-      createUserMessage('user-1', 1000),
-      mid,
-      createUserMessage('user-2', 2000),
-    ]
+    markStreaming(mid)
+    const messages = [createUserMessage('user-1', 1000), mid, createUserMessage('user-2', 2000)]
     const timeline = buildProcessTimeline(messages, {
       turnDurationMap: new Map(),
       sessionIsStreaming: true,
@@ -691,7 +635,7 @@ describe('buildProcessTimeline', () => {
       userMessageId: 'user-1',
     })
     if (shells[0].kind === 'process-shell') {
-      expect(shells[0].children.map(c => c.message.info.id)).toEqual(['assistant-1'])
+      expect(shells[0].children.map(c => c.message.id)).toEqual(['assistant-1'])
     }
     // user-2 只作为消息出现，不挂 Working
     expect(timeline.some(i => i.kind === 'message' && i.key === 'user-2')).toBe(true)
@@ -699,10 +643,7 @@ describe('buildProcessTimeline', () => {
 
   it('only arms the earliest empty turn when multiple users are pending', () => {
     // 快速连发：两轮都还没 assistant → 只在最早 user 下挂 Working
-    const messages = [
-      createUserMessage('user-1', 1000),
-      createUserMessage('user-2', 1500),
-    ]
+    const messages = [createUserMessage('user-1', 1000), createUserMessage('user-2', 1500)]
     const ready = new Set(['user-1', 'user-2'])
     const timeline = buildProcessTimeline(messages, {
       turnDurationMap: new Map(),
@@ -730,13 +671,9 @@ describe('buildProcessTimeline', () => {
       [createToolPart('tool-1', 'assistant-1')],
       1001,
     )
-    earlierStillFlaggedLive.isStreaming = true
-    const laterLive = createAssistantMessage(
-      'assistant-2',
-      [createToolPart('tool-2', 'assistant-2')],
-      2001,
-    )
-    laterLive.isStreaming = true
+    markStreaming(earlierStillFlaggedLive)
+    const laterLive = createAssistantMessage('assistant-2', [createToolPart('tool-2', 'assistant-2')], 2001)
+    markStreaming(laterLive)
     const messages = [
       createUserMessage('user-1', 1000),
       earlierStillFlaggedLive,
@@ -760,16 +697,7 @@ describe('buildProcessTimeline', () => {
     // 发送瞬间：streaming 已 true，新 user 还没进列表 → 已 Worked 的回合不能闪回 Working
     const settled = createAssistantMessage(
       'assistant-1',
-      [
-        createToolPart('tool-1', 'assistant-1'),
-        {
-          id: 'text-1',
-          sessionID: 'session-1',
-          messageID: 'assistant-1',
-          type: 'text',
-          text: 'done',
-        },
-      ],
+      [createToolPart('tool-1', 'assistant-1'), { type: 'text', text: 'done' }],
       1001,
       1500,
     )
@@ -787,24 +715,10 @@ describe('buildProcessTimeline', () => {
   })
 
   it('settles shell with process inside and final answer outside', () => {
-    const processOnly = createAssistantMessage(
-      'assistant-1',
-      [createToolPart('tool-1', 'assistant-1')],
-      1001,
-      1200,
-    )
+    const processOnly = createAssistantMessage('assistant-1', [createToolPart('tool-1', 'assistant-1')], 1001, 1200)
     const finalAnswer = createAssistantMessage(
       'assistant-2',
-      [
-        createToolPart('tool-2', 'assistant-2'),
-        {
-          id: 'text-1',
-          sessionID: 'session-1',
-          messageID: 'assistant-2',
-          type: 'text',
-          text: 'done',
-        },
-      ],
+      [createToolPart('tool-2', 'assistant-2'), { type: 'text', text: 'done' }],
       1201,
       1500,
     )
@@ -822,11 +736,11 @@ describe('buildProcessTimeline', () => {
     if (shell?.kind !== 'process-shell') return
     expect(shell.isActive).toBe(false)
     expect(shell.durationMs).toBe(500)
-    expect(shell.children.map(c => [c.message.info.id, c.processContentScope])).toEqual([
+    expect(shell.children.map(c => [c.message.id, c.processContentScope])).toEqual([
       ['assistant-1', 'inline'],
       ['assistant-2', 'process'],
     ])
-    expect(shell.finalMessage?.info.id).toBe('assistant-2')
+    expect(shell.finalMessage?.id).toBe('assistant-2')
   })
 
   it('does not reopen an aborted empty turn when streaming starts before the next user lands', () => {
@@ -860,20 +774,7 @@ describe('buildProcessTimeline', () => {
   })
 
   it('does not wrap pure final answer turns in an empty process shell', () => {
-    const plain = createAssistantMessage(
-      'assistant-1',
-      [
-        {
-          id: 'text-1',
-          sessionID: 'session-1',
-          messageID: 'assistant-1',
-          type: 'text',
-          text: 'hello',
-        },
-      ],
-      1001,
-      1100,
-    )
+    const plain = createAssistantMessage('assistant-1', [{ type: 'text', text: 'hello' }], 1001, 1100)
     const messages = [createUserMessage('user-1', 1000), plain]
     const timeline = buildProcessTimeline(messages, {
       turnDurationMap: new Map([['assistant-1', 100]]),
@@ -936,14 +837,12 @@ describe('buildChatPages', () => {
 
   it('counts blank lines before fenced code independently of indentation', () => {
     const suffix = '```ts\nconst value = 1\n```'
-    const withoutIndent = createAssistantMessage(
-      'assistant-plain-lines',
-      [createTextPart('text-plain-lines', 'assistant-plain-lines', `${'\n'.repeat(100)}${suffix}`)],
-    )
-    const withIndent = createAssistantMessage(
-      'assistant-indented-lines',
-      [createTextPart('text-indented-lines', 'assistant-indented-lines', `${' \n'.repeat(100)}${suffix}`)],
-    )
+    const withoutIndent = createAssistantMessage('assistant-plain-lines', [
+      createTextPart('text-plain-lines', 'assistant-plain-lines', `${'\n'.repeat(100)}${suffix}`),
+    ])
+    const withIndent = createAssistantMessage('assistant-indented-lines', [
+      createTextPart('text-indented-lines', 'assistant-indented-lines', `${' \n'.repeat(100)}${suffix}`),
+    ])
 
     expect(estimateMessageRenderWeight(withIndent)).toBe(estimateMessageRenderWeight(withoutIndent))
   })
@@ -957,7 +856,7 @@ describe('buildChatPages', () => {
 
     expect(pages).toHaveLength(2)
     expect(pages[0].messageIds).toEqual(['assistant-6', 'assistant-7'])
-    expect(pages[1].messageIds).toEqual(messages.slice(0, 6).map(message => message.info.id))
+    expect(pages[1].messageIds).toEqual(messages.slice(0, 6).map(message => message.id))
     expect(pages[0].rows[0].continuesFromPrevious).toBe(true)
     expect(pages[1].rows[0].continuesToNext).toBe(true)
     const unsplitHeight = buildChatPages(messages.slice(0, 6), 6)[0].rows[0].estimatedHeight
@@ -1355,7 +1254,7 @@ describe('reconcileStableChatPages', () => {
     const currentMessages = Array.from({ length: 8 }, (_unused, index) => [
       {
         ...createUserMessage(`user-${index + 2}`, (index + 2) * 2),
-        parts: [createTextPart(`user-text-${index + 2}`, `user-${index + 2}`, `prompt ${index + 2}`)],
+        text: `prompt ${index + 2}`,
       },
       createAssistantMessage(
         `assistant-${index + 2}`,
@@ -1368,12 +1267,12 @@ describe('reconcileStableChatPages', () => {
     const olderMessages = [
       {
         ...createUserMessage('user-0', 0),
-        parts: [createTextPart('user-text-0', 'user-0', 'older prompt 0')],
+        text: 'older prompt 0',
       },
       createAssistantMessage('assistant-0', [createTextPart('text-0', 'assistant-0', 'older answer 0')], 1, 2),
       {
         ...createUserMessage('user-1', 3),
-        parts: [createTextPart('user-text-1', 'user-1', 'older prompt 1')],
+        text: 'older prompt 1',
       },
       createAssistantMessage('assistant-1', [createTextPart('text-1', 'assistant-1', 'older answer 1')], 4, 5),
     ]
@@ -1386,7 +1285,7 @@ describe('reconcileStableChatPages', () => {
     }
     // 旧消息对象引用保持，避免下游整页 refresh
     for (const message of previous.visibleMessages) {
-      expect(next.visibleMessages.find(candidate => candidate.info.id === message.info.id)).toBe(message)
+      expect(next.visibleMessages.find(candidate => candidate.id === message.id)).toBe(message)
     }
   })
 })

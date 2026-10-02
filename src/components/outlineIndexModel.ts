@@ -1,5 +1,11 @@
-import type { Message } from '../types/message'
-import { getMessageText, hasRenderableParts, isAbortedMessage, isUserMessage } from '../types/message'
+import {
+  hasVisibleText,
+  isAssistantMessage,
+  isUserMessage,
+  userMessageText,
+  type SessionMessageInfo,
+} from '../types/api/message'
+import { isInterruptedError } from '../utils/errorMessage'
 
 const FULL_TITLE_MAX = 80
 
@@ -16,12 +22,33 @@ function normalizeWhitespace(s: string): string {
   return s.replace(/\s+/g, ' ').trim()
 }
 
-function messageHasContent(msg: Message): boolean {
-  const hasRenderable = hasRenderableParts(msg)
-  if (msg.info.role === 'assistant' && 'error' in msg.info && msg.info.error) {
-    return isAbortedMessage(msg.info) ? hasRenderable : true
+/** 对应旧视图模型的 `hasRenderableParts(msg)` */
+function hasRenderableMessageContent(msg: SessionMessageInfo): boolean {
+  if (isUserMessage(msg)) {
+    return userMessageText(msg).trim().length > 0 || (msg.files?.length ?? 0) > 0 || (msg.agents?.length ?? 0) > 0
   }
-  if (msg.parts.length === 0) return true
+  if (isAssistantMessage(msg)) {
+    if (msg.retry) return true
+    return msg.content.some(content => content.type === 'tool' || hasVisibleText(content))
+  }
+  return msg.type === 'compaction'
+}
+
+/** 对应旧视图模型的 `msg.parts.length !== 0` */
+function hasAnyMessageContent(msg: SessionMessageInfo): boolean {
+  if (isUserMessage(msg)) {
+    return userMessageText(msg).length > 0 || (msg.files?.length ?? 0) > 0 || (msg.agents?.length ?? 0) > 0
+  }
+  if (isAssistantMessage(msg)) return msg.content.length > 0 || msg.retry != null
+  return msg.type === 'compaction'
+}
+
+function messageHasContent(msg: SessionMessageInfo): boolean {
+  const hasRenderable = hasRenderableMessageContent(msg)
+  if (isAssistantMessage(msg) && msg.error) {
+    return isInterruptedError(msg.error) ? hasRenderable : true
+  }
+  if (!hasAnyMessageContent(msg)) return true
   return hasRenderable
 }
 
@@ -29,21 +56,20 @@ export function truncateOutlineLabel(s: string, max: number): string {
   return truncate(s, max)
 }
 
-export function buildOutlineSourceEntries(messages: Message[]): OutlineSourceEntry[] {
+export function buildOutlineSourceEntries(messages: SessionMessageInfo[]): OutlineSourceEntry[] {
   const entries: OutlineSourceEntry[] = []
   for (const msg of messages.filter(messageHasContent)) {
-    if (!isUserMessage(msg.info)) continue
-    const raw =
-      msg.info.summary?.title?.trim() ||
-      getMessageText(msg)
-        .trim()
-        .split(/\r?\n/)
-        .map(l => l.trim())
-        .find(Boolean)
+    if (!isUserMessage(msg)) continue
+    // v2 的用户消息没有 summary（旧视图模型优先用 summary.title），正文就是 message.text
+    const raw = userMessageText(msg)
+      .trim()
+      .split(/\r?\n/)
+      .map(l => l.trim())
+      .find(Boolean)
     if (!raw) continue
     const n = normalizeWhitespace(raw)
     entries.push({
-      messageId: msg.info.id,
+      messageId: msg.id,
       title: truncate(n, FULL_TITLE_MAX),
     })
   }

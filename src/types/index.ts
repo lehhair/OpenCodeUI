@@ -3,9 +3,15 @@
 // ============================================
 //
 // 推荐使用方式:
-// - API 类型: import type { Session, Message } from '@/types/api'
-// - UI 类型: import type { UIMessage, Attachment } from '@/types'
+// - API 类型: import type { Session, SessionMessage } from '@/types/api'
+// - UI 类型: import type { Attachment } from '@/types'
 //
+// 说明：v1 时代这里还导出一套自造的 `{ info, parts }` 视图模型与它的守卫
+//（`isUserMessage` / `hasVisibleContent` / `getMessageText`）。v2 的消息自带
+// content，UI 直接消费原生 `SessionMessage`，那套模型已整体删除；
+// 原生等价的辅助函数在 `@/types/api/message`（contentEntries / resolveContent /
+// isUserMessage / userMessageText / hasVisibleText …）。
+// ============================================
 
 // Re-export all API types
 export * from './api'
@@ -31,55 +37,8 @@ export type {
 } from './chat'
 
 // ============================================
-// Type Guards
+// 类型别名
 // ============================================
 
-import type { Message, UserMessageInfo, AssistantMessageInfo, Part } from './message'
-import type { UIMessage } from './ui'
-
-/** 检查消息是否为用户消息 */
-export function isUserMessage(msg: Message): msg is Message & { info: UserMessageInfo } {
-  return msg.info.role === 'user'
-}
-
-/** 检查消息是否为助手消息 */
-export function isAssistantMessage(msg: Message): msg is Message & { info: AssistantMessageInfo } {
-  return msg.info.role === 'assistant'
-}
-
-/** 检查 UI 消息是否有可见内容 */
-export function hasVisibleContent(message: UIMessage): boolean {
-  return message.parts.some(part => {
-    switch (part.type) {
-      case 'text':
-        return part.text.trim().length > 0
-      case 'reasoning':
-        return part.text.trim().length > 0
-      case 'tool':
-      case 'file':
-      case 'agent':
-      case 'step-finish':
-      case 'subtask':
-        return true
-      default:
-        return false
-    }
-  })
-}
-
-/** 获取消息的纯文本内容 */
-export function getMessageText(message: UIMessage): string {
-  return message.parts
-    .filter((p): p is Part & { type: 'text' } => p.type === 'text' && !p.synthetic)
-    .map(p => p.text)
-    .join('')
-}
-
-// ============================================
-// 类型别名（向后兼容）
-// ============================================
-
-// 为了向后兼容，保留一些旧的类型别名
 export type { SessionMessage as ApiMessage } from './api'
-export type { AssistantContent as ApiPart } from './api'
 export type { Session as ApiSession } from './api'

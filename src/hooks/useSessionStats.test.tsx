@@ -15,10 +15,9 @@ vi.mock('../store/paneLayoutStore', () => ({
 // v2 变更说明
 //
 // 本文件原先用 v1 的 `{ info, parts }` 夹具。v2 中：
-//   - 消息自带 content，store.setMessages 接收**原生消息**并自行投影
+//   - 消息自带 content，store.setMessages 接收**原生消息**
 //   - 「压缩」从 v1 的 part 提升为**独立消息类型** `type: 'compaction'`
-//     （v2Projection 会把它投影成 UI 的 compaction part，供上下文估算判断
-//     是否需要放弃服务端 tokens、改用重新估算）
+//     （sessionStatsCompute 见到它之后放弃服务端 tokens，改用本地重新估算）
 // ============================================
 
 function createUserMessage(id: string, created: number, text: string): UserMessage {

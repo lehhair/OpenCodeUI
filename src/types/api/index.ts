@@ -40,6 +40,7 @@ export type {
   ToolStateError,
   ToolContent,
   MessagesResponse,
+  ContentEntry,
 } from './message'
 export {
   isUserMessage,
@@ -49,7 +50,27 @@ export {
   isAssistantTool,
   assistantText,
   hasRenderableContent,
+  // 原生 content 的 id 派生 / 反查（与官方 contentEntries/resolveContent 同算法）
+  contentEntries,
+  resolveContent,
+  hasVisibleText,
+  userMessageText,
 } from './message'
+
+// 工具状态读取（移植自官方 message/current-tool-state.ts）
+export {
+  currentToolInput,
+  currentToolMetadata,
+  currentToolOutput,
+  currentToolFiles,
+  currentToolError,
+  currentToolErrorStatus,
+  currentToolFailed,
+  currentToolHasLoadedFiles,
+  currentContentDefaultOpen,
+  shellResultFailed,
+  executeToolFailed,
+} from './toolState'
 
 // ---- Model / Provider ----
 export type {
@@ -252,4 +273,3 @@ export type {
   WorktreeRemoveInput,
   WorktreeRefreshInput,
 } from './worktree'
-

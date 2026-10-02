@@ -1,5 +1,5 @@
 import { useMemo, useRef } from 'react'
-import { getMessageText, type Message } from '../../types/message'
+import { isAssistantMessage, isUserMessage, userMessageText, type SessionMessageInfo } from '../../types/api/message'
 import { buildOutlineSourceEntries, type OutlineSourceEntry } from '../../components/outlineIndexModel'
 import {
   buildVisibleMessageEntries,
@@ -16,7 +16,7 @@ import {
 
 export interface ChatPageViewModel {
   visibleMessageEntries: VisibleMessageEntry[]
-  visibleMessages: Message[]
+  visibleMessages: SessionMessageInfo[]
   /** Legacy page snapshots are lazy; ChatArea uses the timeline directly. */
   pageRecords: StableChatPage[]
   outlineSourceEntries: OutlineSourceEntry[]
@@ -35,30 +35,31 @@ interface StableOutlineModel {
 const OUTLINE_MODEL_CACHE_LIMIT = 16
 const outlineModelCache = new Map<string, StableOutlineModel>()
 
-function buildOutlineSignature(messages: Message[]): string {
+function buildOutlineSignature(messages: SessionMessageInfo[]): string {
   let signature = ''
   for (const message of messages) {
-    signature += `${message.info.id}:${message.info.role}|`
-    if (message.info.role === 'user') {
-      signature += `${message.info.summary?.title ?? getMessageText(message)}|`
+    signature += `${message.id}:${message.type}|`
+    if (isUserMessage(message)) {
+      // v2 的用户消息没有 summary，正文就是 message.text
+      signature += `${userMessageText(message)}|`
     }
   }
   return signature
 }
 
-function buildOutlineOwnerByMessageId(messages: Message[]): Map<string, string> {
+function buildOutlineOwnerByMessageId(messages: SessionMessageInfo[]): Map<string, string> {
   const ownerByMessageId = new Map<string, string>()
   let lastUserMessageId: string | null = null
 
   for (const message of messages) {
-    if (message.info.role === 'user') lastUserMessageId = message.info.id
-    if (lastUserMessageId) ownerByMessageId.set(message.info.id, lastUserMessageId)
+    if (isUserMessage(message)) lastUserMessageId = message.id
+    if (lastUserMessageId) ownerByMessageId.set(message.id, lastUserMessageId)
   }
 
   return ownerByMessageId
 }
 
-function getStableOutlineModel(messages: Message[]): StableOutlineModel {
+function getStableOutlineModel(messages: SessionMessageInfo[]): StableOutlineModel {
   const signature = buildOutlineSignature(messages)
   const cached = outlineModelCache.get(signature)
   if (cached) {
@@ -84,17 +85,25 @@ function sameStringList(a: readonly string[], b: readonly string[]) {
   return a.length === b.length && a.every((value, index) => value === b[index])
 }
 
-function sameParts(a: Message['parts'], b: Message['parts']) {
-  return a.length === b.length && a.every((part, index) => part === b[index])
+/**
+ * 旧视图模型比较 `info` 引用 + `isStreaming` + `parts` 引用。
+ * v2 没有 envelope，等价比较：id/type/time/error/retry 与 content 元素引用。
+ */
+function sameMessageShape(a: SessionMessageInfo, b: SessionMessageInfo): boolean {
+  if (a === b) return true
+  if (a.id !== b.id || a.type !== b.type || a.time.created !== b.time.created) return false
+  if (!isAssistantMessage(a) || !isAssistantMessage(b)) return false
+  return (
+    a.time.completed === b.time.completed &&
+    a.error === b.error &&
+    a.retry === b.retry &&
+    a.content.length === b.content.length &&
+    a.content.every((content, index) => content === b.content[index])
+  )
 }
 
 function sameVisibleEntry(a: VisibleMessageEntry, b: VisibleMessageEntry) {
-  return (
-    sameStringList(a.sourceIds, b.sourceIds) &&
-    a.message.info === b.message.info &&
-    a.message.isStreaming === b.message.isStreaming &&
-    sameParts(a.message.parts, b.message.parts)
-  )
+  return sameStringList(a.sourceIds, b.sourceIds) && sameMessageShape(a.message, b.message)
 }
 
 function sourceIdsOverlap(a: readonly string[], b: readonly string[]) {
@@ -120,19 +129,21 @@ function stabilizeMergedVisibleEntries(
     const previousEntry = previous.find(
       candidate =>
         candidate.sourceIds.length > 1 &&
-        (candidate.message.info.id === entry.message.info.id || sourceIdsOverlap(candidate.sourceIds, entry.sourceIds)),
+        (candidate.message.id === entry.message.id || sourceIdsOverlap(candidate.sourceIds, entry.sourceIds)),
     )
     if (!previousEntry) return entry
-    if (previousEntry.message.info.id === entry.message.info.id) return entry
+    if (previousEntry.message.id === entry.message.id) return entry
+    // 旧视图模型沿用旧链的 info、取新链的 parts / isStreaming；
+    // v2 等价做法：沿用旧消息本体（id 等），取新消息的 content 与 time
+    if (!isAssistantMessage(previousEntry.message) || !isAssistantMessage(entry.message)) return entry
 
     changed = true
     return {
       sourceIds: entry.sourceIds,
       message: {
-        ...entry.message,
-        info: previousEntry.message.info,
-        parts: entry.message.parts,
-        isStreaming: entry.message.isStreaming,
+        ...previousEntry.message,
+        content: entry.message.content,
+        time: entry.message.time,
       },
     }
   })
@@ -148,11 +159,11 @@ function reuseVisibleMessageEntries(
   if (!previous?.length) return stabilized
 
   // 按 message id 复用，prepend/append 后旧条目仍可保住引用，避免整表页重建
-  const previousById = new Map(previous.map(entry => [entry.message.info.id, entry]))
+  const previousById = new Map(previous.map(entry => [entry.message.id, entry]))
   let contentChanged = previous.length !== stabilized.length
   const entries = stabilized.map((entry, index) => {
-    if (previous[index]?.message.info.id !== entry.message.info.id) contentChanged = true
-    const previousEntry = previousById.get(entry.message.info.id)
+    if (previous[index]?.message.id !== entry.message.id) contentChanged = true
+    const previousEntry = previousById.get(entry.message.id)
     if (previousEntry && sameVisibleEntry(previousEntry, entry)) return previousEntry
     contentChanged = true
     return entry
@@ -161,7 +172,7 @@ function reuseVisibleMessageEntries(
   return !contentChanged ? previous : entries
 }
 
-function visibleMessagesFromEntries(previous: Message[] | undefined, entries: VisibleMessageEntry[]) {
+function visibleMessagesFromEntries(previous: SessionMessageInfo[] | undefined, entries: VisibleMessageEntry[]) {
   const messages = entries.map(entry => entry.message)
   if (
     previous &&
@@ -208,7 +219,7 @@ function reusePageRecords(previous: StableChatPage[] | undefined, next: StableCh
 }
 
 function buildForkTargetIdMap(entries: VisibleMessageEntry[]) {
-  return new Map(entries.map(entry => [entry.message.info.id, getVisibleMessageForkTargetId(entry)]))
+  return new Map(entries.map(entry => [entry.message.id, getVisibleMessageForkTargetId(entry)]))
 }
 
 function reuseMap<K, V>(previous: Map<K, V> | undefined, next: Map<K, V>) {
@@ -227,7 +238,10 @@ function reuseSet<T>(previous: Set<T> | undefined, next: Set<T>) {
   return previous
 }
 
-export function buildChatPageViewModel(messages: Message[], previous?: ChatPageViewModel): ChatPageViewModel {
+export function buildChatPageViewModel(
+  messages: SessionMessageInfo[],
+  previous?: ChatPageViewModel,
+): ChatPageViewModel {
   const visibleMessageEntries = reuseVisibleMessageEntries(
     previous?.visibleMessageEntries,
     buildVisibleMessageEntries(messages),
@@ -265,7 +279,7 @@ export function buildChatPageViewModel(messages: Message[], previous?: ChatPageV
   }
 }
 
-export function useChatPageViewModel(messages: Message[]): ChatPageViewModel {
+export function useChatPageViewModel(messages: SessionMessageInfo[]): ChatPageViewModel {
   const previousRef = useRef<ChatPageViewModel | undefined>(undefined)
   return useMemo(() => {
     const viewModel = buildChatPageViewModel(messages, previousRef.current)

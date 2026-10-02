@@ -24,7 +24,9 @@ import { useVirtualizer, elementScroll, defaultRangeExtractor, type VirtualItem 
 import { useTranslation } from 'react-i18next'
 import { MessageRenderer, ProcessCollapseBlock, messageHasFinalContent, messageHasProcessContent } from '../message'
 import { MessageErrorView } from '../message/parts'
-import type { Message, MessageError } from '../../types/message'
+import type { SessionMessageInfo } from '../../types/api/message'
+import { isAssistantMessage, isUserMessage } from '../../types/api/message'
+import type { APIError } from '../../types/api/common'
 import { RetryStatusInline, type RetryStatusInlineData } from './RetryStatusInline'
 import {
   buildVisibleMessageEntries,
@@ -45,7 +47,11 @@ import { getStreamingHotIndexes, getTimelineRowYClass, mergeVirtualRangeIndexes 
 import { useAutoScroll } from './virtual/useAutoScroll'
 import { useEmptyWorkingShellGate } from './virtual/useEmptyWorkingShellGate'
 
-const NOOP = () => {}
+/** 旧视图模型的 `message.isStreaming`：助手消息还没定稿 */
+function isAssistantStreaming(message: SessionMessageInfo): boolean {
+  return isAssistantMessage(message) && message.time.completed == null
+}
+
 const ROW_ESTIMATE = 60
 /** 过程壳 header 行高（Working / Worked 一行） */
 const PROCESS_SHELL_HEADER = 36
@@ -75,9 +81,9 @@ function sessionCacheKey(sessionId: string, processCollapseEnabled: boolean): st
 // ─── 接口定义（保持不变） ───────────────────────────────────────
 
 interface ChatAreaProps {
-  messages: Message[]
+  messages: SessionMessageInfo[]
   visibleMessageEntries?: VisibleMessageEntry[]
-  visibleMessages?: Message[]
+  visibleMessages?: SessionMessageInfo[]
   forkTargetIdMap?: Map<string, string | undefined>
   turnDurationMap?: Map<string, number>
   turnLatestAssistantIds?: Set<string>
@@ -85,13 +91,13 @@ interface ChatAreaProps {
   isStreaming?: boolean
   allowStreamingLayoutAnimation?: boolean
   loadState?: 'idle' | 'loading' | 'loaded' | 'error'
-  loadError?: MessageError
-  connectionError?: MessageError
+  loadError?: APIError
+  connectionError?: APIError
   onOpenSettings?: () => void
   hasMoreHistory?: boolean
   onLoadMore?: () => void | Promise<void>
   onUndo?: (userMessageId: string) => void
-  onFork?: (message: Message, forkMessageId?: string) => void | Promise<void>
+  onFork?: (message: SessionMessageInfo, forkMessageId?: string) => void | Promise<void>
   canUndo?: boolean
   registerMessage?: (id: string, element: HTMLElement | null) => void
   retryStatus?: RetryStatusInlineData | null
@@ -111,10 +117,10 @@ export type ChatAreaHandle = {
 // ─── 虚拟行 ──────────────────────────────────────────────────
 
 interface MessageBodyProps {
-  message: Message
+  message: SessionMessageInfo
   registerMessage?: (id: string, element: HTMLElement | null) => void
   onUndo?: (userMessageId: string) => void
-  onFork?: (message: Message, forkMessageId?: string) => void | Promise<void>
+  onFork?: (message: SessionMessageInfo, forkMessageId?: string) => void | Promise<void>
   canUndo?: boolean
   forkMessageId?: string
   turnDuration?: number
@@ -137,8 +143,8 @@ const MessageBody = memo(function MessageBody({
   processContentScope = 'all',
   onEntryGrowComplete,
 }: MessageBodyProps) {
-  const messageId = message.info.id
-  const isUser = message.info.role === 'user'
+  const messageId = message.id
+  const isUser = isUserMessage(message)
   return (
     <div
       ref={node => registerMessage?.(messageId, node as HTMLDivElement | null)}
@@ -149,7 +155,7 @@ const MessageBody = memo(function MessageBody({
         <div className={`message-renderer-shell min-w-0 group ${!isUser ? 'w-full' : ''}`}>
           <MessageRenderer
             message={message}
-            allowStreamingLayoutAnimation={message.isStreaming ? allowStreamingLayoutAnimation : false}
+            allowStreamingLayoutAnimation={isAssistantStreaming(message) ? allowStreamingLayoutAnimation : false}
             turnDuration={turnDuration}
             isTurnLatestAssistant={isTurnLatestAssistant}
             processContentScope={processContentScope}
@@ -157,7 +163,6 @@ const MessageBody = memo(function MessageBody({
             onFork={onFork}
             forkMessageId={forkMessageId}
             canUndo={isUser ? canUndo : undefined}
-            onEnsureParts={NOOP}
             onEntryGrowComplete={isUser ? onEntryGrowComplete : undefined}
           />
         </div>
@@ -174,7 +179,7 @@ interface RowProps {
   rowYClass: string
   registerMessage?: (id: string, element: HTMLElement | null) => void
   onUndo?: (userMessageId: string) => void
-  onFork?: (message: Message, forkMessageId?: string) => void | Promise<void>
+  onFork?: (message: SessionMessageInfo, forkMessageId?: string) => void | Promise<void>
   canUndo?: boolean
   forkMap: Map<string, string | undefined>
   turnDurationMap: Map<string, number>
@@ -233,10 +238,10 @@ const VirtualRow = memo(
               onUndo={onUndo}
               onFork={onFork}
               canUndo={canUndo}
-              forkMessageId={forkMap.get(item.message.info.id)}
-              turnDuration={turnDurationMap.get(item.message.info.id)}
+              forkMessageId={forkMap.get(item.message.id)}
+              turnDuration={turnDurationMap.get(item.message.id)}
               isTurnLatestAssistant={
-                item.message.info.role === 'assistant' ? turnLatestAssistantIds.has(item.message.info.id) : undefined
+                isAssistantMessage(item.message) ? turnLatestAssistantIds.has(item.message.id) : undefined
               }
               allowStreamingLayoutAnimation={allowStreamingLayoutAnimation}
               processContentScope={item.processContentScope ?? 'all'}
@@ -253,15 +258,15 @@ const VirtualRow = memo(
                 >
                   {item.children.map(child => (
                     <MessageBody
-                      key={`${child.message.info.id}:${child.processContentScope}`}
+                      key={`${child.message.id}:${child.processContentScope}`}
                       message={child.message}
                       registerMessage={registerMessage}
                       onUndo={onUndo}
                       onFork={onFork}
                       canUndo={canUndo}
-                      forkMessageId={forkMap.get(child.message.info.id)}
-                      turnDuration={turnDurationMap.get(child.message.info.id)}
-                      isTurnLatestAssistant={turnLatestAssistantIds.has(child.message.info.id)}
+                      forkMessageId={forkMap.get(child.message.id)}
+                      turnDuration={turnDurationMap.get(child.message.id)}
+                      isTurnLatestAssistant={turnLatestAssistantIds.has(child.message.id)}
                       allowStreamingLayoutAnimation={allowStreamingLayoutAnimation}
                       processContentScope={child.processContentScope}
                     />
@@ -275,8 +280,8 @@ const VirtualRow = memo(
                     onUndo={onUndo}
                     onFork={onFork}
                     canUndo={canUndo}
-                    forkMessageId={forkMap.get(item.finalMessage.info.id)}
-                    turnDuration={turnDurationMap.get(item.finalMessage.info.id)}
+                    forkMessageId={forkMap.get(item.finalMessage.id)}
+                    turnDuration={turnDurationMap.get(item.finalMessage.id)}
                     isTurnLatestAssistant
                     allowStreamingLayoutAnimation={allowStreamingLayoutAnimation}
                     processContentScope="final"
@@ -362,7 +367,7 @@ export const ChatArea = memo(
         [entries, visibleMessagesProp],
       )
       const forkMap = useMemo(
-        () => forkTargetIdMapProp ?? new Map(entries.map(e => [e.message.info.id, getVisibleMessageForkTargetId(e)])),
+        () => forkTargetIdMapProp ?? new Map(entries.map(e => [e.message.id, getVisibleMessageForkTargetId(e)])),
         [forkTargetIdMapProp, entries],
       )
       const turnDurationMap = useMemo(
@@ -388,7 +393,7 @@ export const ChatArea = memo(
         const next = !processCollapseEnabled
           ? visibleMessages.map(message => ({
               kind: 'message' as const,
-              key: message.info.id,
+              key: message.id,
               message,
             }))
           : buildProcessTimeline(visibleMessages, {
@@ -420,12 +425,12 @@ export const ChatArea = memo(
         const map = new Map<string, number>()
         timeline.forEach((item, index) => {
           if (item.kind === 'message') {
-            map.set(item.message.info.id, index)
+            map.set(item.message.id, index)
             return
           }
           if (item.userMessageId) map.set(item.userMessageId, index)
-          for (const child of item.children) map.set(child.message.info.id, index)
-          if (item.finalMessage) map.set(item.finalMessage.info.id, index)
+          for (const child of item.children) map.set(child.message.id, index)
+          if (item.finalMessage) map.set(item.finalMessage.id, index)
         })
         return map
       }, [timeline])
@@ -914,7 +919,7 @@ export const ChatArea = memo(
           scrollToMessageIndex: (index: number) => {
             // index 仍按 visibleMessages 语义；过程折叠时映射到 timeline 行
             if (index < 0 || index >= visibleMessages.length) return
-            const messageId = visibleMessages[index]?.info.id
+            const messageId = visibleMessages[index]?.id
             const timelineIndex = messageId != null ? (messageIdToTimelineIndex.get(messageId) ?? index) : index
             if (timelineIndex < 0 || timelineIndex >= timeline.length) return
             autoPause()

@@ -22,8 +22,8 @@ import {
   getSessionStatus,
   getPendingPermissions,
   getPendingForms,
+  getSessionMessages,
 } from '../api'
-import { structuredErrorMessage, toolContentToText } from '../utils/v2Projection'
 import { createSessionPlaceholder } from '../utils/sessionPlaceholder'
 import type { EventCallbacks } from '../types/api/event'
 import { replyPermission } from '../api/permission'
@@ -31,6 +31,7 @@ import { autoApproveStore } from '../store/autoApproveStore'
 import { multiServerStore } from '../store/multiServerStore'
 import type { ApiFormInfo, ApiPermissionRequest } from '../api/types'
 import type { SessionStatusMap } from '../types/api/session'
+import { INITIAL_MESSAGE_LIMIT } from '../constants'
 
 // ============================================
 // Session-level pub/sub 消费者注册
@@ -509,6 +510,55 @@ export function useGlobalEvents(directories?: string[]) {
     // 每个活跃服务器一条 SSE 订阅（事件回调按 server 作用域复合 sessionId）
     // ============================================
 
+    // ============================================
+    // 执行结束后仍有工具停在 streaming/running → 重拉消息列表
+    // ============================================
+    //
+    // 官方 data.ts 的行为：`session.execution.succeeded|failed|interrupted` 之后，
+    // 若该会话里还有工具没收到收尾事件（SSE 丢包 / 断线），说明本地增量已经不完整，
+    // 此时失效并重拉消息列表，让 UI 回到服务端权威状态。
+    // store 不做任何 I/O，因此这一步必须在事件层完成。
+
+    const hasLiveTool = (sessionId: string): boolean => {
+      const state = messageStore.getSessionState(sessionId)
+      if (!state) return false
+      return state.messages.some(
+        message =>
+          message.type === 'assistant' &&
+          message.content.some(
+            content =>
+              content.type === 'tool' && (content.state.status === 'streaming' || content.state.status === 'running'),
+          ),
+      )
+    }
+
+    const refreshIfToolStillLive = (sessionId: string) => {
+      const state = messageStore.getSessionState(sessionId)
+      if (!state || !hasLiveTool(sessionId)) return
+
+      void getSessionMessages(
+        sessionId,
+        Math.max(INITIAL_MESSAGE_LIMIT, state.messages.length),
+        state.directory,
+        sessionKeyToServerId(sessionId),
+      )
+        .then(messages => {
+          if (disposed) return
+          const current = messageStore.getSessionState(sessionId)
+          if (!current) return
+          messageStore.setMessages(sessionId, messages, {
+            directory: current.directory,
+            title: current.title,
+            hasMoreHistory: current.hasMoreHistory,
+            // 撤销点原样保留（store 会按 messageID 重建 history）
+            revertState: current.revertState ? { messageID: current.revertState.messageId } : null,
+          })
+        })
+        .catch(() => {
+          // best effort：下一次 idle / 重连还会再拉
+        })
+    }
+
     const buildServerCallbacks = (serverId: string): EventCallbacks => {
       const scope = (sid: string) => makeSessionKey(serverId, sid)
 
@@ -529,19 +579,78 @@ export function useGlobalEvents(directories?: string[]) {
         // ============================================
 
         /**
-         * 工具开始接收输入。
+         * 工具事件。
          *
-         * **只有这个事件带工具名**（`data.name`）：called / progress / success /
-         * failed 都不带。因此必须在这里就把 tool part 建出来（带上 toolName），
-         * 否则后续事件会因为「part 不存在且没有 toolName」而被 store 丢弃——
-         * 那样工具调用在整个实时会话里都不会显示，只有重新加载后才出现。
+         * v2 把工具生命周期拆成 7 个事件；store 用**一个**入口按 `type` 分发
+         * （对齐官方 data.ts:919-981），因此这里把事件类型与负载一起传进去。
+         * 只有 `input.started` 带工具名（`data.name`）：called / progress /
+         * success / failed 都不带，靠 store 里已建好的 tool 定位。
          */
-        onToolInputStarted: data => {
+        onToolInputStarted: (data, facts) => {
           const scopedId = scope(data.sessionID)
-          messageStore.handleToolEvent(scopedId, data.assistantMessageID, data.id, {
-            status: 'running',
-            toolName: data.name,
+          messageStore.handleToolEvent({
+            type: 'session.tool.input.started',
+            data: { ...data, sessionID: scopedId },
+            facts,
           })
+          scheduleScroll(scopedId)
+        },
+
+        onToolInputDelta: (data, facts) => {
+          const scopedId = scope(data.sessionID)
+          messageStore.handleToolEvent({
+            type: 'session.tool.input.delta',
+            data: { ...data, sessionID: scopedId },
+            facts,
+          })
+        },
+
+        onToolInputEnded: (data, facts) => {
+          const scopedId = scope(data.sessionID)
+          messageStore.handleToolEvent({
+            type: 'session.tool.input.ended',
+            data: { ...data, sessionID: scopedId },
+            facts,
+          })
+        },
+
+        onToolCalled: (data, facts) => {
+          const scopedId = scope(data.sessionID)
+          messageStore.handleToolEvent({
+            type: 'session.tool.called',
+            data: { ...data, sessionID: scopedId },
+            facts,
+          })
+          scheduleScroll(scopedId)
+        },
+
+        onToolProgress: (data, facts) => {
+          const scopedId = scope(data.sessionID)
+          messageStore.handleToolEvent({
+            type: 'session.tool.progress',
+            data: { ...data, sessionID: scopedId },
+            facts,
+          })
+        },
+
+        onToolSuccess: (data, facts) => {
+          const scopedId = scope(data.sessionID)
+          messageStore.handleToolEvent({
+            type: 'session.tool.success',
+            data: { ...data, sessionID: scopedId },
+            facts,
+          })
+          scheduleScroll(scopedId)
+        },
+
+        onToolFailed: (data, facts) => {
+          const scopedId = scope(data.sessionID)
+          messageStore.handleToolEvent({
+            type: 'session.tool.failed',
+            data: { ...data, sessionID: scopedId },
+            facts,
+          })
+          scheduleScroll(scopedId)
         },
 
         onTextStarted: data => {
@@ -562,9 +671,9 @@ export function useGlobalEvents(directories?: string[]) {
           scheduleScroll(scopedId)
         },
 
-        onReasoningStarted: data => {
+        onReasoningStarted: (data, facts) => {
           const scopedId = scope(data.sessionID)
-          messageStore.handleReasoningStarted({ ...data, sessionID: scopedId })
+          messageStore.handleReasoningStarted({ ...data, sessionID: scopedId }, facts)
           scheduleScroll(scopedId)
         },
 
@@ -574,80 +683,136 @@ export function useGlobalEvents(directories?: string[]) {
           scheduleScroll(scopedId)
         },
 
-        onReasoningEnded: data => {
+        onReasoningEnded: (data, facts) => {
           const scopedId = scope(data.sessionID)
-          messageStore.handleReasoningEnded({ ...data, sessionID: scopedId })
-          scheduleScroll(scopedId)
-        },
-
-        onToolCalled: data => {
-          const scopedId = scope(data.sessionID)
-          messageStore.handleToolEvent(scopedId, data.assistantMessageID, data.id, {
-            status: 'running',
-            input: data.input as Record<string, unknown>,
-          })
-          scheduleScroll(scopedId)
-        },
-
-        onToolProgress: data => {
-          const scopedId = scope(data.sessionID)
-          messageStore.handleToolEvent(scopedId, data.assistantMessageID, data.id, {
-            status: 'running',
-            metadata: data.metadata as Record<string, unknown>,
-          })
-        },
-
-        onToolSuccess: data => {
-          const scopedId = scope(data.sessionID)
-          messageStore.handleToolEvent(scopedId, data.assistantMessageID, data.id, {
-            status: 'completed',
-            // 用投影层同一个助手，避免流式路径与「重新加载」路径出现两种文本
-            output: toolContentToText(data.content),
-            metadata: data.metadata as Record<string, unknown> | undefined,
-          })
-          scheduleScroll(scopedId)
-        },
-
-        onToolFailed: data => {
-          const scopedId = scope(data.sessionID)
-          messageStore.handleToolEvent(scopedId, data.assistantMessageID, data.id, {
-            status: 'error',
-            // v2 的 error 是结构化对象；之前这里 JSON.stringify，导致**实时**失败
-            // 的工具显示原始 JSON，而重新加载后的同一条消息却显示可读文案
-            //（投影层另有一份实现）——同一份数据两条路径表现不一致。
-            error: structuredErrorMessage(data.error) || 'Tool failed',
-          })
+          messageStore.handleReasoningEnded({ ...data, sessionID: scopedId }, facts)
           scheduleScroll(scopedId)
         },
 
         /**
          * 重试已排期。
          *
-         * 负载是 `{ assistantMessageID, attempt, at, error }`，正好是 RetryPart
-         * 需要的字段。不接的话，重试提示只能在重新加载后（走消息级 retry 字段
-         * 的投影）出现，实时会话中看不到"正在重试"。
+         * 负载是 `{ assistantMessageID, attempt, at, error }`：不接的话，
+         * 重试提示只能重新加载后才出现，实时会话中看不到「正在重试」。
          */
         onRetryScheduled: data => {
           const scopedId = scope(data.sessionID)
-          messageStore.handleRetryScheduled({
-            sessionID: scopedId,
-            assistantMessageID: data.assistantMessageID,
-            attempt: data.attempt,
-            at: data.at,
-            error: data.error,
-          })
+          messageStore.handleRetryScheduled({ ...data, sessionID: scopedId })
         },
 
-        // `session.synthetic` 与 `session.usage.updated` 已在分发层接好
-        // （类型安全、事件不会再无声丢失），但**这里刻意还没消费**，
-        // 因为两者的 UI 归属不明确，猜测实现反而会引入缺陷：
-        //   - synthetic: { sessionID, text, description? } 没有 messageID，
-        //     而 UI 的 synthetic part 挂在**用户消息**上（UserMessageView 的
-        //     syntheticParts）。要接就得决定"挂到哪条消息"，且要防重复注入
-        //   - usage.updated: { cost, tokens } 是会话级数据，而目前的用量指示
-        //     由 sessionStatsCompute 从消息 tokens 本地推算，需要先定下
-        //     "服务端值优先还是本地估算优先"，否则会出现两套数字打架
-        // 保留为已知缺口，等有真实服务端可对照时再决定语义。
+        // ---- step / 压缩 / shell / skill / instructions ----
+        //
+        // 这些事件都带信封 facts（`id` / `created`）：store 用 `id` 派生
+        // idle/synthetic/shell/compaction/skill 这些「没有服务端消息 id」的
+        // 消息 id（重放时才能保持稳定），用 `created` 填 time.created。
+
+        onStepStarted: (data, facts) => {
+          const scopedId = scope(data.sessionID)
+          messageStore.handleStepStarted({ ...data, sessionID: scopedId }, facts)
+        },
+
+        onStepStreamed: (data, facts) => {
+          const scopedId = scope(data.sessionID)
+          messageStore.handleStepStreamed({ ...data, sessionID: scopedId }, facts)
+        },
+
+        onStepEnded: (data, facts) => {
+          const scopedId = scope(data.sessionID)
+          messageStore.handleStepEnded({ ...data, sessionID: scopedId }, facts)
+        },
+
+        onStepFailed: (data, facts) => {
+          const scopedId = scope(data.sessionID)
+          messageStore.handleStepFailed({ ...data, sessionID: scopedId }, facts)
+        },
+
+        onCompactionStarted: (data, facts) => {
+          const scopedId = scope(data.sessionID)
+          messageStore.handleCompactionStarted({ ...data, sessionID: scopedId }, facts)
+        },
+
+        onCompactionDelta: data => {
+          const scopedId = scope(data.sessionID)
+          messageStore.handleCompactionDelta({ ...data, sessionID: scopedId })
+        },
+
+        onCompactionEnded: (data, facts) => {
+          const scopedId = scope(data.sessionID)
+          messageStore.handleCompactionEnded({ ...data, sessionID: scopedId }, facts)
+        },
+
+        onCompactionFailed: (data, facts) => {
+          const scopedId = scope(data.sessionID)
+          messageStore.handleCompactionFailed({ ...data, sessionID: scopedId }, facts)
+        },
+
+        onSynthetic: (data, facts) => {
+          const scopedId = scope(data.sessionID)
+          messageStore.handleSynthetic({ ...data, sessionID: scopedId }, facts)
+        },
+
+        onShellStarted: (data, facts) => {
+          const scopedId = scope(data.sessionID)
+          messageStore.handleShellStarted({ ...data, sessionID: scopedId }, facts)
+        },
+
+        onShellEnded: (data, facts) => {
+          const scopedId = scope(data.sessionID)
+          messageStore.handleShellEnded({ ...data, sessionID: scopedId }, facts)
+        },
+
+        onSkillActivated: (data, facts) => {
+          const scopedId = scope(data.sessionID)
+          messageStore.handleSkillActivated({ ...data, sessionID: scopedId }, facts)
+        },
+
+        onInstructionsUpdated: (data, facts) => {
+          const scopedId = scope(data.sessionID)
+          messageStore.handleInstructionsUpdated({ ...data, sessionID: scopedId }, facts)
+        },
+
+        // ---- 会话级 agent / 模型切换（v2 把它们放在会话状态，不在消息上）----
+
+        onAgentSelected: (data, facts) => {
+          const scopedId = scope(data.sessionID)
+          messageStore.handleAgentSelected({ ...data, sessionID: scopedId }, facts)
+        },
+
+        onModelSelected: (data, facts) => {
+          const scopedId = scope(data.sessionID)
+          messageStore.handleModelSelected({ ...data, sessionID: scopedId }, facts)
+        },
+
+        // ---- 会话用量（成本 / token）----
+        //
+        // 只更新会话级状态；消息级用量指示仍由 sessionStatsCompute 从消息 tokens 推算。
+        onUsageUpdated: data => {
+          const scopedId = scope(data.sessionID)
+          messageStore.handleUsageUpdated({ ...data, sessionID: scopedId })
+        },
+
+        // ---- 执行生命周期 ----
+
+        onExecutionStarted: data => {
+          const scopedId = scope(data.sessionID)
+          messageStore.handleExecutionStarted({ ...data, sessionID: scopedId })
+        },
+
+        onExecutionSucceeded: (data, facts) => {
+          const scopedId = scope(data.sessionID)
+          messageStore.handleExecutionSucceeded({ ...data, sessionID: scopedId }, facts)
+          refreshIfToolStillLive(scopedId)
+        },
+
+        onExecutionInterrupted: (data, facts) => {
+          const scopedId = scope(data.sessionID)
+          messageStore.handleExecutionInterrupted({ ...data, sessionID: scopedId }, facts)
+          refreshIfToolStillLive(scopedId)
+        },
+
+        // 注：`session.usage.updated` 只写进 store 的会话级 cost/tokens；
+        // 消息级用量指示仍由 sessionStatsCompute 从消息 tokens 推算，
+        // 「服务端值优先还是本地估算优先」留给用量 UI 自己定，这里不做取舍。
 
         // ============================================
         // Session Events → childSessionStore
@@ -698,10 +863,10 @@ export function useGlobalEvents(directories?: string[]) {
           dispatchToConsumers(scopedId, cb => cb.onSessionIdle?.(scopedId))
         },
 
-        onExecutionFailed: data => {
+        onExecutionFailed: (data, facts) => {
           // v2 用 execution.failed 表达会话级失败（取代 v1 的 session.error）
           const scopedId = scope(data.sessionID)
-          messageStore.handleSessionError(scopedId)
+          messageStore.handleExecutionFailed({ ...data, sessionID: scopedId }, facts)
           childSessionStore.markError(scopedId)
           activeSessionStore.updateStatus(scopedId, { type: 'idle' })
 
@@ -713,6 +878,7 @@ export function useGlobalEvents(directories?: string[]) {
             playNotificationSoundDeduped('error')
           }
           dispatchToConsumers(scopedId, cb => cb.onExecutionFailed?.(scopedId))
+          refreshIfToolStillLive(scopedId)
         },
 
         onSessionRenamed: data => {

@@ -1,7 +1,7 @@
 import { act, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ReasoningPartView } from './ReasoningPartView'
-import type { ReasoningPart } from '../../../types/message'
+import type { AssistantReasoning } from '../../../types/api/message'
 
 let mockReasoningDisplayMode: 'italic' | 'markdown' | 'capsule' = 'italic'
 
@@ -22,6 +22,13 @@ vi.mock('../../../components/MarkdownRenderer', () => ({
   MarkdownRenderer: ({ content }: { content: string }) => <div data-testid="markdown-content">{content}</div>,
 }))
 
+function createReasoning(
+  text: string,
+  time: { created: number; completed?: number } = { created: 1 },
+): AssistantReasoning {
+  return { type: 'reasoning', text, time }
+}
+
 describe('ReasoningPartView', () => {
   beforeEach(() => {
     mockReasoningDisplayMode = 'italic'
@@ -40,16 +47,10 @@ describe('ReasoningPartView', () => {
   })
 
   it('auto-expands while streaming in italic mode', () => {
-    const part = {
-      id: 'reason-1',
-      sessionID: 'session-1',
-      messageID: 'message-1',
-      type: 'reasoning',
-      text: 'thinking through steps...',
-      time: { start: 1 },
-    } as unknown as ReasoningPart
+    // completed 缺失 = 该段推理仍在生成
+    const part = createReasoning('thinking through steps...', { created: 1 })
 
-    render(<ReasoningPartView part={part} isStreaming={true} />)
+    render(<ReasoningPartView part={part} partID="message-1:reasoning:0" isStreaming={true} />)
 
     act(() => {
       vi.advanceTimersByTime(32)
@@ -69,16 +70,9 @@ describe('ReasoningPartView', () => {
   it('renders markdown content in markdown reasoning mode', () => {
     mockReasoningDisplayMode = 'markdown'
 
-    const part = {
-      id: 'reason-2',
-      sessionID: 'session-1',
-      messageID: 'message-1',
-      type: 'reasoning',
-      text: 'Use **bold** and `code` here',
-      time: { start: 1, end: 100 },
-    } as unknown as ReasoningPart
+    const part = createReasoning('Use **bold** and `code` here', { created: 1, completed: 100 })
 
-    render(<ReasoningPartView part={part} isStreaming={false} />)
+    render(<ReasoningPartView part={part} partID="message-1:reasoning:0" isStreaming={false} />)
 
     expect(screen.getByTestId('markdown-content')).toHaveTextContent('Use **bold** and `code` here')
   })
@@ -86,38 +80,25 @@ describe('ReasoningPartView', () => {
   it('renders collapsed markdown preview for multiline content', () => {
     mockReasoningDisplayMode = 'markdown'
 
-    const part = {
-      id: 'reason-2b',
-      sessionID: 'session-1',
-      messageID: 'message-1',
-      type: 'reasoning',
-      text: 'First line with **bold**\nSecond line with `code`',
-      time: { start: 1, end: 100 },
-    } as unknown as ReasoningPart
+    const part = createReasoning('First line with **bold**\nSecond line with `code`', { created: 1, completed: 100 })
 
-    render(<ReasoningPartView part={part} isStreaming={false} />)
+    render(<ReasoningPartView part={part} partID="message-1:reasoning:0" isStreaming={false} />)
 
     act(() => {
       vi.advanceTimersByTime(32)
     })
 
     expect(screen.getByRole('button', { expanded: false })).toBeInTheDocument()
-    // 折叠时只渲染第一行 markdown，并走 Markdown 渲染
-    expect(screen.getByTestId('markdown-content')).toHaveTextContent('First line with **bold**')
-    expect(screen.getByTestId('markdown-content')).not.toHaveTextContent('Second line')
+    // 折叠时只渲染第一行 markdown（展开体未挂载），因此只有一个 markdown 节点
+    const markdown = screen.getAllByTestId('markdown-content')[0]
+    expect(markdown).toHaveTextContent('First line with **bold**')
+    expect(markdown).not.toHaveTextContent('Second line')
   })
 
   it('renders single-line content without toggle button', () => {
-    const part = {
-      id: 'reason-3',
-      sessionID: 'session-1',
-      messageID: 'message-1',
-      type: 'reasoning',
-      text: 'short',
-      time: { start: 1, end: 100 },
-    } as unknown as ReasoningPart
+    const part = createReasoning('short', { created: 1, completed: 100 })
 
-    render(<ReasoningPartView part={part} isStreaming={false} />)
+    render(<ReasoningPartView part={part} partID="message-1:reasoning:0" isStreaming={false} />)
 
     expect(screen.queryByRole('button')).not.toBeInTheDocument()
     expect(screen.getAllByText('short').length).toBeGreaterThan(0)

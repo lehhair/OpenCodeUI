@@ -137,34 +137,44 @@ function getReconnectDelay(attempt: number): number {
 // v2 的事件是扁平对象，直接读 `event.type` 与 `event.data`。
 
 function dispatchEvent(callbacks: EventCallbacks, event: GlobalEvent): void {
+  // 信封里负载之外的字段（id/created/metadata），官方处理器能直接拿到，这里显式转发。
+  // 注意 `created`：`server.connected` 是唯一**没有** created 的事件类型
+  //（V2EventServerConnected = { id, metadata?, location?, type, data: {} }，
+  //  它的负载也是空的、只用来标记连接建立）。这里用 `in` 收窄，避免整体强转。
+  const facts = {
+    id: event.id,
+    created: 'created' in event ? event.created : undefined,
+    metadata: 'metadata' in event ? event.metadata : undefined,
+  }
+
   switch (event.type) {
     // ---- 会话生命周期 ----
     case 'session.created':
-      callbacks.onSessionCreated?.(event.data)
+      callbacks.onSessionCreated?.(event.data, facts)
       break
     case 'session.renamed':
-      callbacks.onSessionRenamed?.(event.data)
+      callbacks.onSessionRenamed?.(event.data, facts)
       break
     case 'session.deleted':
-      callbacks.onSessionDeleted?.(event.data)
+      callbacks.onSessionDeleted?.(event.data, facts)
       break
     case 'session.idle':
-      callbacks.onSessionIdle?.(event.data)
+      callbacks.onSessionIdle?.(event.data, facts)
       break
     case 'session.status':
-      callbacks.onSessionStatus?.(event.data)
+      callbacks.onSessionStatus?.(event.data, facts)
       break
     case 'session.viewed':
-      callbacks.onSessionViewed?.(event.data)
+      callbacks.onSessionViewed?.(event.data, facts)
       break
     case 'session.moved':
-      callbacks.onSessionMoved?.(event.data)
+      callbacks.onSessionMoved?.(event.data, facts)
       break
     case 'session.forked':
-      callbacks.onSessionForked?.(event.data)
+      callbacks.onSessionForked?.(event.data, facts)
       break
     case 'session.permissions':
-      callbacks.onSessionPermissions?.(event.data)
+      callbacks.onSessionPermissions?.(event.data, facts)
       break
 
     // 注意：**不要**在这里加 `session.message.content.updated`。
@@ -181,47 +191,47 @@ function dispatchEvent(callbacks: EventCallbacks, event: GlobalEvent): void {
 
     // ---- 文本流 ----
     case 'session.text.started':
-      callbacks.onTextStarted?.(event.data)
+      callbacks.onTextStarted?.(event.data, facts)
       break
     case 'session.text.delta':
-      callbacks.onTextDelta?.(event.data)
+      callbacks.onTextDelta?.(event.data, facts)
       break
     case 'session.text.ended':
-      callbacks.onTextEnded?.(event.data)
+      callbacks.onTextEnded?.(event.data, facts)
       break
 
     // ---- 推理流 ----
     case 'session.reasoning.started':
-      callbacks.onReasoningStarted?.(event.data)
+      callbacks.onReasoningStarted?.(event.data, facts)
       break
     case 'session.reasoning.delta':
-      callbacks.onReasoningDelta?.(event.data)
+      callbacks.onReasoningDelta?.(event.data, facts)
       break
     case 'session.reasoning.ended':
-      callbacks.onReasoningEnded?.(event.data)
+      callbacks.onReasoningEnded?.(event.data, facts)
       break
 
     // ---- 工具流 ----
     case 'session.tool.input.started':
-      callbacks.onToolInputStarted?.(event.data)
+      callbacks.onToolInputStarted?.(event.data, facts)
       break
     case 'session.tool.input.delta':
-      callbacks.onToolInputDelta?.(event.data)
+      callbacks.onToolInputDelta?.(event.data, facts)
       break
     case 'session.tool.input.ended':
-      callbacks.onToolInputEnded?.(event.data)
+      callbacks.onToolInputEnded?.(event.data, facts)
       break
     case 'session.tool.called':
-      callbacks.onToolCalled?.(event.data)
+      callbacks.onToolCalled?.(event.data, facts)
       break
     case 'session.tool.progress':
-      callbacks.onToolProgress?.(event.data)
+      callbacks.onToolProgress?.(event.data, facts)
       break
     case 'session.tool.success':
-      callbacks.onToolSuccess?.(event.data)
+      callbacks.onToolSuccess?.(event.data, facts)
       break
     case 'session.tool.failed':
-      callbacks.onToolFailed?.(event.data)
+      callbacks.onToolFailed?.(event.data, facts)
       break
 
     // ---- 会话内的实时补充信息 ----
@@ -232,116 +242,152 @@ function dispatchEvent(callbacks: EventCallbacks, event: GlobalEvent): void {
     //   - synthetic：注入的系统上下文，对应 UI 已有的 synthetic part
     //   - usage.updated：成本/token，让用量指示在流式期间即准确
     case 'session.retry.scheduled':
-      callbacks.onRetryScheduled?.(event.data)
+      callbacks.onRetryScheduled?.(event.data, facts)
       break
     case 'session.synthetic':
-      callbacks.onSynthetic?.(event.data)
+      callbacks.onSynthetic?.(event.data, facts)
       break
     case 'session.usage.updated':
-      callbacks.onUsageUpdated?.(event.data)
+      callbacks.onUsageUpdated?.(event.data, facts)
+      break
+
+    // ---- 会话级切换 / 压缩 / shell / skill / instructions ----
+    //
+    // 这些事件都在 V2Event 联合里（SSE 会送达），store 也都有对应处理器。
+    // 不接的话：压缩进度行、会话级模型/agent、shell 与 skill 消息
+    // 都只能在重新加载后（走消息列表）才出现。
+    case 'session.agent.selected':
+      callbacks.onAgentSelected?.(event.data, facts)
+      break
+    case 'session.model.selected':
+      callbacks.onModelSelected?.(event.data, facts)
+      break
+    case 'session.compaction.started':
+      callbacks.onCompactionStarted?.(event.data, facts)
+      break
+    case 'session.compaction.delta':
+      callbacks.onCompactionDelta?.(event.data, facts)
+      break
+    case 'session.compaction.ended':
+      callbacks.onCompactionEnded?.(event.data, facts)
+      break
+    case 'session.compaction.failed':
+      callbacks.onCompactionFailed?.(event.data, facts)
+      break
+    case 'session.shell.started':
+      callbacks.onShellStarted?.(event.data, facts)
+      break
+    case 'session.shell.ended':
+      callbacks.onShellEnded?.(event.data, facts)
+      break
+    case 'session.skill.activated':
+      callbacks.onSkillActivated?.(event.data, facts)
+      break
+    case 'session.instructions.updated':
+      callbacks.onInstructionsUpdated?.(event.data, facts)
       break
 
     // ---- step ----
     case 'session.step.started':
-      callbacks.onStepStarted?.(event.data)
+      callbacks.onStepStarted?.(event.data, facts)
       break
     case 'session.step.streamed':
-      callbacks.onStepStreamed?.(event.data)
+      callbacks.onStepStreamed?.(event.data, facts)
       break
     case 'session.step.ended':
-      callbacks.onStepEnded?.(event.data)
+      callbacks.onStepEnded?.(event.data, facts)
       break
     case 'session.step.failed':
-      callbacks.onStepFailed?.(event.data)
+      callbacks.onStepFailed?.(event.data, facts)
       break
 
     // ---- 执行生命周期 ----
     case 'session.execution.started':
-      callbacks.onExecutionStarted?.(event.data)
+      callbacks.onExecutionStarted?.(event.data, facts)
       break
     case 'session.execution.succeeded':
-      callbacks.onExecutionSucceeded?.(event.data)
+      callbacks.onExecutionSucceeded?.(event.data, facts)
       break
     case 'session.execution.failed':
-      callbacks.onExecutionFailed?.(event.data)
+      callbacks.onExecutionFailed?.(event.data, facts)
       break
     case 'session.execution.interrupted':
-      callbacks.onExecutionInterrupted?.(event.data)
+      callbacks.onExecutionInterrupted?.(event.data, facts)
       break
 
     // ---- 权限 ----
     case 'permission.asked':
-      callbacks.onPermissionAsked?.(event.data)
+      callbacks.onPermissionAsked?.(event.data, facts)
       break
     case 'permission.replied':
-      callbacks.onPermissionReplied?.(event.data)
+      callbacks.onPermissionReplied?.(event.data, facts)
       break
 
     // ---- 表单（取代 v1 question） ----
     case 'form.created':
-      callbacks.onFormCreated?.(event.data)
+      callbacks.onFormCreated?.(event.data, facts)
       break
     case 'form.replied':
-      callbacks.onFormReplied?.(event.data)
+      callbacks.onFormReplied?.(event.data, facts)
       break
     case 'form.cancelled':
-      callbacks.onFormCancelled?.(event.data)
+      callbacks.onFormCancelled?.(event.data, facts)
       break
 
     // ---- 回退 ----
     case 'session.revert.staged':
-      callbacks.onRevertStaged?.(event.data)
+      callbacks.onRevertStaged?.(event.data, facts)
       break
     case 'session.revert.cleared':
-      callbacks.onRevertCleared?.(event.data)
+      callbacks.onRevertCleared?.(event.data, facts)
       break
     case 'session.revert.committed':
-      callbacks.onRevertCommitted?.(event.data)
+      callbacks.onRevertCommitted?.(event.data, facts)
       break
 
     // ---- inbox ----
     case 'session.inbox.enqueued':
-      callbacks.onInboxEnqueued?.(event.data)
+      callbacks.onInboxEnqueued?.(event.data, facts)
       break
     case 'session.inbox.delivered':
-      callbacks.onInboxDelivered?.(event.data)
+      callbacks.onInboxDelivered?.(event.data, facts)
       break
     case 'session.inbox.cancelled':
-      callbacks.onInboxCancelled?.(event.data)
+      callbacks.onInboxCancelled?.(event.data, facts)
       break
 
     // ---- 外围 ----
     case 'project.updated':
-      callbacks.onProjectUpdated?.(event.data)
+      callbacks.onProjectUpdated?.(event.data, facts)
       break
     case 'worktree.updated':
-      callbacks.onWorktreeUpdated?.(event.data)
+      callbacks.onWorktreeUpdated?.(event.data, facts)
       break
     case 'worktree.resolved':
-      callbacks.onWorktreeResolved?.(event.data)
+      callbacks.onWorktreeResolved?.(event.data, facts)
       break
     case 'vcs.branch.updated':
-      callbacks.onVcsBranchUpdated?.(event.data)
+      callbacks.onVcsBranchUpdated?.(event.data, facts)
       break
     case 'mcp.status.changed':
-      callbacks.onMcpStatusChanged?.(event.data)
+      callbacks.onMcpStatusChanged?.(event.data, facts)
       break
     case 'filesystem.changed':
-      callbacks.onFilesystemChanged?.(event.data)
+      callbacks.onFilesystemChanged?.(event.data, facts)
       break
 
     // ---- PTY ----
     case 'pty.created':
-      callbacks.onPtyCreated?.(event.data)
+      callbacks.onPtyCreated?.(event.data, facts)
       break
     case 'pty.updated':
-      callbacks.onPtyUpdated?.(event.data)
+      callbacks.onPtyUpdated?.(event.data, facts)
       break
     case 'pty.exited':
-      callbacks.onPtyExited?.(event.data)
+      callbacks.onPtyExited?.(event.data, facts)
       break
     case 'pty.deleted':
-      callbacks.onPtyDeleted?.(event.data)
+      callbacks.onPtyDeleted?.(event.data, facts)
       break
 
     default:
