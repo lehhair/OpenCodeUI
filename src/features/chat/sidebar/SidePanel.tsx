@@ -701,11 +701,12 @@ export function SidePanel({
     const baseLabel = currentProject?.name || t('sidebar.global')
     if (!currentDirectory || currentProject?.id === 'global') return baseLabel
 
-    const branchLabel = currentDirectoryVcsInfo?.branch ?? (isCurrentDirectoryVcsLoading ? '...' : undefined)
+    // v2 的 branch 是 { current?, default? }，不是字符串（v1 才是）
+    const branchLabel = currentDirectoryVcsInfo?.branch?.current ?? (isCurrentDirectoryVcsLoading ? '...' : undefined)
     return branchLabel ? `${baseLabel} · ${branchLabel}` : baseLabel
   }, [
     currentDirectory,
-    currentDirectoryVcsInfo?.branch,
+    currentDirectoryVcsInfo?.branch?.current,
     currentProject?.id,
     currentProject?.name,
     isCurrentDirectoryVcsLoading,
