@@ -9,10 +9,15 @@
 //     `config.providers()` 拿 provider 列表。
 //
 // v2：
-//   - `config.get({ location })` → **`ConfigEntry[]`**（配置来源清单）：
+//   - `config.get({ location })` → **`ConfigEntry[]`**（配置来源清单，
+//     按优先级从低到高排列）：
 //       { type: 'document', path?, info }  真实配置文档，`info` 是内容
 //       { type: 'directory', path }        目录来源标记
-//     生效值 = 按数组顺序深合并各 document 的 info。
+//     生效值 = **逐字段**取最后一个定义了该字段的 document
+//     （官方 core 的 Config.latest 语义，不是整体深合并）。
+//     第一个 `type: 'directory'` 条目是全局/项目配置的分界线：
+//     它之前的是全局来源，之后（含）的是项目/目录级来源
+//     （官方 app: settings/general/controllers.ts）。
 //   - `config.update(input)` **只接受 `{ shell }`** —— 没有整份配置写回，
 //     也没有 global 配置写入。
 //   - `config.providers()` 被 `model.list()` / `provider.list()` 取代。
@@ -36,7 +41,7 @@ export async function getConfigSources(directory?: string, serverId?: string): P
 /**
  * 获取合并后的生效配置。
  *
- * v2 返回来源数组；这里按顺序深合并每个 document 的 info，
+ * v2 返回来源数组；这里按官方 `Config.latest` 语义逐字段取最后定义者，
  * 让调用点仍能拿到一份可读的配置对象。
  */
 export async function getConfig(directory?: string, serverId?: string): Promise<ConfigInfo> {
@@ -46,44 +51,34 @@ export async function getConfig(directory?: string, serverId?: string): Promise<
 
 /**
  * 获取全局（无 location）配置。
+ *
+ * 不带 location 的 `config.get()` 也会返回默认 location 的项目级来源，
+ * 「全局配置」只是第一个 `type: 'directory'` 标记**之前**的条目
+ * （与官方 app 的 general settings 控制器一致），否则项目级配置会
+ * 混进全局视图，保存时还可能写错文件。
  */
 export async function getGlobalConfig(serverId?: string): Promise<ConfigInfo> {
   const sdk = getSDKClient(serverId)
   const sources = await sdk.config.get()
-  return mergeConfigInfo(sources)
+  const boundary = sources.findIndex(source => source.type === 'directory')
+  return mergeConfigInfo(boundary === -1 ? sources : sources.slice(0, boundary))
 }
 
-/** 深合并若干配置文档（后者覆盖前者） */
+/**
+ * 合并若干配置文档为生效配置。
+ *
+ * 对齐官方 core 的 `Config.latest`：逐字段取最后一个定义了该字段的
+ * document（嵌套对象**整体取代**，不做跨文档深并集）。
+ */
 export function mergeConfigInfo(sources: ConfigSource[]): ConfigInfo {
-  const documents = sources.filter(
-    (source): source is Extract<ConfigSource, { type: 'document' }> => source.type === 'document',
-  )
-
-  let merged: Record<string, unknown> = {}
-  for (const doc of documents) {
-    merged = deepMerge(merged, doc.info as Record<string, unknown>)
-  }
-  return merged as ConfigInfo
-}
-
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value)
-}
-
-function deepMerge(
-  base: Record<string, unknown>,
-  patch: Record<string, unknown>,
-): Record<string, unknown> {
-  const result: Record<string, unknown> = { ...base }
-  for (const [key, value] of Object.entries(patch)) {
-    const existing = result[key]
-    if (isPlainObject(existing) && isPlainObject(value)) {
-      result[key] = deepMerge(existing, value)
-    } else {
-      result[key] = value
+  const merged: Record<string, unknown> = {}
+  for (const source of sources) {
+    if (source.type !== 'document') continue
+    for (const [key, value] of Object.entries(source.info as Record<string, unknown>)) {
+      if (value !== undefined) merged[key] = value
     }
   }
-  return result
+  return merged as ConfigInfo
 }
 
 /**

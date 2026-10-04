@@ -179,8 +179,8 @@ function ConfigEditorDialog({ isOpen, onClose }: { isOpen: boolean; onClose: () 
       ])
 
       const modelChoices: Choice[] = providerModels.map(model => ({
-        value: `${model.providerId}/${model.id}`,
-        label: `${model.providerId}/${model.id}`,
+        value: `${model.providerID}/${model.id}`,
+        label: `${model.providerID}/${model.id}`,
       }))
 
       if (request !== loadRequestRef.current) return
