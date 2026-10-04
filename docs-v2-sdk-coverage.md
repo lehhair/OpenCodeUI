@@ -59,7 +59,9 @@
 - [x] **`session.background`** — 阻塞回合的 shell/task 转后台（官方 requests/model.ts:90）✅
   - 实现：`backgroundSession`（api/session.ts）+ `findBlockingBackgroundTasks`（官方 requests/background.ts 的 blocking 逻辑：最新未完成 assistant 里 running 的 shell/task）；InputBox 上方「移到后台（N 个任务）」按钮
   - 验证：live 按钮在模型跑 60s sleep shell 时正确出现；⚠️ 测试服务器（opencode 1.18.15）对 background 返回 204 但不实际解除阻塞（jobs.block/backgroundAll 疑似未接线），端点/路径与官方一致，待新 server 复验
-- [ ] **`websearch.providers`** — 第三方搜索 provider 选择 dock（官方 session-websearch-dock.tsx；表单 `metadata.kind === 'websearch.provider'`）
+- [x] **`websearch.providers`** — 第三方搜索 provider 选择 dock（官方 session-websearch-dock.tsx；表单 `metadata.kind === 'websearch.provider'`）✅
+  - 实现：`getWebsearchProviders`（api/websearch.ts）；表单按 kind 分流（websearch 不再落通用 QuestionDialog）；WebsearchDock：非 specific 加「任意」+ providers 列表，disable/allow/choose 三答案与官方一致；choose 两段式跨挂载用 sessionID 暂存自动回 {provider}
+  - 验证：⚠️ 测试服务器 1.18.15 无此端点（404），dock 有失败/重试/空态；逻辑与官方逐行对齐
 - [ ] **`plugin.list/check/update`** — 扩展管理面板（官方 extensions.tsx / server-panel.tsx）
 
 ### P3
