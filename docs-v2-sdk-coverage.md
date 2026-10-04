@@ -53,7 +53,9 @@
 - [x] **`vcs.branch.list`** — 分支选择器（官方 controller.ts:154，支持 search/limit）✅
   - 实现：`getBranchList(directory, search, limit=50)`（api/vcs.ts）；WorktreePanel 新建 Worktree 表单加「基于分支（可选）」：focus 列出、输入即搜索，选中作为 `worktree.create` 的 `from` 传入
   - 验证：live 下拉列出 dev/main，`search=ma` 收敛为 main 且可选中填入
-- [ ] **`session.move`** — 会话移动到其他目录/worktree（官方 session-workspace-menu.tsx:77；事件 `session.moved` 已接）
+- [x] **`session.move`** — 会话移动到其他目录/worktree（官方 session-workspace-menu.tsx:77）✅
+  - 实现：`moveSession`（api/session.ts）+ Header 标题旁 SessionMoveMenu：项目根（在根时隐藏）+ 现有 worktree + 内联新建 worktree 并移入；运行中禁止；`session.moved` 由 useSessions 消费（回读后按目录匹配增删）
+  - 验证：live 菜单列出 worktree，点击后服务端 location 实变并移回
 - [ ] **`session.background`** — 挂起会话转后台（官方 requests/model.ts:90）
 - [ ] **`websearch.providers`** — 第三方搜索 provider 选择 dock（官方 session-websearch-dock.tsx；表单 `metadata.kind === 'websearch.provider'`）
 - [ ] **`plugin.list/check/update`** — 扩展管理面板（官方 extensions.tsx / server-panel.tsx）
