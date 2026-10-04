@@ -31,6 +31,7 @@ import { extractToolData, type ToolViewPart } from './tools'
 import { MSG_SPACING } from './messageSpacing'
 import { MessageExpandPanel, useMessageExpandRender } from './messageExpand'
 import type { AssistantContent, AssistantMessage, SessionMessageInfo, UserMessage } from '../../types/api/message'
+import type { JsonValue } from '@opencode/client/promise'
 import { contentEntries, hasVisibleText, userMessageText, type ContentEntry } from '../../types/api/message'
 import { currentToolFailed, currentToolMetadata } from '../../types/api/toolState'
 import {
@@ -310,6 +311,11 @@ export const MessageRenderer = memo(function MessageRenderer({
     )
   }
 
+  // `!` shell 命令消息（官方 SessionShellMessage：投影成 shell 工具调用）
+  if (message.type === 'shell') {
+    return <ShellMessageView message={message} />
+  }
+
   if (message.type !== 'assistant') return null
 
   return (
@@ -322,6 +328,71 @@ export const MessageRenderer = memo(function MessageRenderer({
       onFork={onFork}
       forkMessageId={forkMessageId}
     />
+  )
+})
+
+// ============================================
+// ShellMessageView — `!` shell 命令消息
+//
+// 官方 SessionShellMessage 直接复用 shell 工具渲染器
+//（session-ui/tool-renderer.tsx:1837-1875）：把消息投影成一次 shell
+// 工具调用（input=command、output=输出文本、metadata 带 exit）。
+// 这里做同样的投影，交给我们既有的 bash/shell 工具管线。
+// ============================================
+
+const ShellMessageView = memo(function ShellMessageView({ message }: { message: SessionMessageInfo & { type: 'shell' } }) {
+  const { t } = useTranslation('chat')
+  const outputText = message.output?.output ?? ''
+  const exit = typeof message.exit === 'number' ? message.exit : undefined
+  const part = useMemo<ToolViewPart>(() => {
+    const input = { command: message.command }
+    const metadata: Record<string, JsonValue> = { shellID: message.shellID }
+    let state: ToolViewPart['state']
+    if (message.status === 'running') {
+      state = {
+        status: 'running',
+        input,
+        metadata: outputText ? { ...metadata, output: outputText } : metadata,
+      }
+    } else if (message.status === 'timeout' || message.status === 'killed') {
+      state = {
+        status: 'error',
+        input,
+        error: {
+          type: 'ShellError',
+          message: t(message.status === 'timeout' ? 'shellMessage.timeout' : 'shellMessage.killed'),
+        },
+        ...(outputText ? { content: [{ type: 'text' as const, text: outputText }] } : {}),
+        metadata,
+      }
+    } else {
+      if (exit !== undefined) metadata.exit = exit
+      state = {
+        status: 'completed',
+        input,
+        content: [{ type: 'text' as const, text: outputText }],
+        metadata,
+      }
+    }
+    return {
+      type: 'tool',
+      id: message.shellID,
+      name: 'shell',
+      messageID: message.id,
+      state,
+      time: { created: message.time.created, completed: message.time.completed },
+    }
+  }, [message.id, message.shellID, message.command, message.status, exit, outputText, message.time.created, message.time.completed, t])
+
+  return (
+    <div className="flex flex-col w-full">
+      <ToolPartView
+        part={part}
+        context={{ messageID: message.id, created: message.time.created, completed: message.time.completed }}
+        isFirst
+        isLast
+      />
+    </div>
   )
 })
 

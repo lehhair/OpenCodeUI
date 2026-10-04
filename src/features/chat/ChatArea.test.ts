@@ -1299,3 +1299,54 @@ describe('computeAnchorRestoreScrollDelta', () => {
     expect(computeAnchorRestoreScrollDelta(180, 24)).toBe(-156)
   })
 })
+
+describe('shell 消息（`!` 命令）', () => {
+  function createShellMessage(id: string, created: number): SessionMessageInfo {
+    return {
+      id,
+      type: 'shell',
+      shellID: `sh_${id}`,
+      command: 'echo hi',
+      status: 'exited',
+      exit: 0,
+      time: { created },
+    } as SessionMessageInfo
+  }
+
+  it('可见性：shell 消息不被过滤', () => {
+    const entries = buildVisibleMessageEntries([createShellMessage('shell-1', 1000)])
+    expect(entries.map(e => e.message.id)).toEqual(['shell-1'])
+  })
+
+  it('过程时间线：shell 消息独立成行并结束当前回合分组', () => {
+    const hasProcess = (message: SessionMessageInfo) =>
+      contentOf(message).some(p => p.type === 'tool' || p.type === 'reasoning')
+    const hasFinal = (message: SessionMessageInfo) => contentOf(message).some(p => p.type === 'text')
+    const opts = {
+      turnDurationMap: new Map<string, number>(),
+      sessionIsStreaming: false,
+      messageHasProcess: hasProcess,
+      messageHasFinal: hasFinal,
+    }
+
+    const messages = [
+      createUserMessage('user-1', 1000),
+      createAssistantMessage('assistant-1', [createTextPart('text-1', 'assistant-1', 'answer')], 1001, 1002),
+      createShellMessage('shell-1', 1003),
+      createUserMessage('user-2', 1004),
+      createAssistantMessage('assistant-2', [createTextPart('text-2', 'assistant-2', 'answer2')], 1005, 1006),
+    ]
+    const timeline = buildProcessTimeline(messages, opts)
+
+    const shellRow = timeline.find(item => item.kind === 'message' && item.message.id === 'shell-1')
+    expect(shellRow).toBeTruthy()
+    // shell 行夹在两个回合之间，不进任何过程壳
+    const shellIndex = timeline.indexOf(shellRow!)
+    expect(shellIndex).toBeGreaterThan(0)
+    expect(shellIndex).toBeLessThan(timeline.length - 1)
+    for (const item of timeline) {
+      if (item.kind !== 'process-shell') continue
+      expect(item.children.some(c => c.message.id === 'shell-1')).toBe(false)
+    }
+  })
+})

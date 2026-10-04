@@ -371,3 +371,18 @@ export async function steerInboxItem(sessionId: string, inboxID: string, serverI
   const sdk = getSDKClient(target.serverId)
   await sdk.session.inbox.update({ sessionID: target.sessionId, inboxID, delivery: 'steer' })
 }
+
+// ============================================
+// Session Shell（`!` 命令）
+//
+// 官方 composer 的 shell mode：输入框 `!` 进入，提交即调 session.shell，
+// shell 消息经 session.shell.started/ended 事件流入转写
+//（packages/app/src/composer/submit.ts:147-149）。
+// ============================================
+
+/** 在会话 shell 里执行命令（输出以 shell 消息形式进入转写） */
+export async function executeSessionShell(sessionId: string, command: string, serverId?: string): Promise<void> {
+  const target = resolveSessionTarget(sessionId, serverId)
+  const sdk = getSDKClient(target.serverId)
+  await sdk.session.shell({ sessionID: target.sessionId, command })
+}

@@ -124,6 +124,7 @@ export interface InputBoxProps {
   ) => Promise<boolean> | boolean
   onAbort?: () => void
   onCommand?: (command: string) => Promise<boolean> | boolean // 斜杠命令回调，接收完整命令字符串如 "/help"
+  onShell?: (command: string) => Promise<boolean> | boolean // `!` shell 命令回调（官方 composer shell mode）
   onNewChat?: () => void // 新建对话回调
   disabled?: boolean
   isStreaming?: boolean
@@ -171,6 +172,7 @@ function InputBoxComponent({
   onSend,
   onAbort,
   onCommand,
+  onShell,
   onNewChat,
   disabled,
   isStreaming,
@@ -223,6 +225,9 @@ function InputBoxComponent({
 
   // 文本状态
   const [text, setText] = useState('')
+  // shell mode（官方 composer `!` 模式）：text 即命令本身（不含前导 `!`），
+  // 提交走 onShell → session.shell，esc / 空文本退格退出
+  const [shellMode, setShellMode] = useState(false)
   // 附件状态（图片、文件、文件夹、agent）
   const [attachments, setAttachments] = useState<Attachment[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -507,6 +512,17 @@ function InputBoxComponent({
   const handleSend = useCallback(() => {
     if (!canSend || isSubmitting) return
 
+    // shell mode：原样提交命令给 session.shell，保持 shell mode（类终端连续输入）
+    if (shellMode) {
+      const command = text.trim()
+      if (!command || !onShell) return
+      void runSubmit(
+        () => onShell(command),
+        () => setText(''),
+      )
+      return
+    }
+
     // 检测 command attachment
     const commandAttachment = attachments.find(a => a.type === 'command')
     if (commandAttachment && commandAttachment.commandName) {
@@ -549,10 +565,12 @@ function InputBoxComponent({
     onCommand,
     onClearRevert,
     onSend,
+    onShell,
     resetDraft,
     runSubmit,
     selectedAgent,
     selectedVariant,
+    shellMode,
     submitCommandOptimistically,
     text,
   ])
@@ -586,6 +604,27 @@ function InputBoxComponent({
       const isImeComposing = isComposingRef.current || nativeEvent.isComposing || nativeEvent.keyCode === 229
 
       if (isImeComposing && (e.key === 'Enter' || e.key === 'Tab')) return
+
+      // shell mode（官方 machine.ts:203 + submit.ts:147）：Enter 直接执行，
+      // esc / 空文本退格退回普通模式
+      if (shellMode) {
+        if (e.key === 'Escape') {
+          e.preventDefault()
+          setShellMode(false)
+          setText('')
+          return
+        }
+        if (e.key === 'Backspace' && text.length === 0) {
+          e.preventDefault()
+          setShellMode(false)
+          return
+        }
+        if (e.key === 'Enter' && !e.shiftKey && !isImeComposing) {
+          e.preventDefault()
+          handleSend()
+          return
+        }
+      }
 
       // Slash Command 菜单打开时，拦截导航键
       if (slashOpen && slashMenuRef.current) {
@@ -687,12 +726,22 @@ function InputBoxComponent({
         handleSend()
       }
     },
-    [mentionOpen, slashOpen, mentionQuery, updateMentionQuery, handleSend, text, attachments, handleHistoryKeyDown],
+    [mentionOpen, slashOpen, mentionQuery, updateMentionQuery, handleSend, text, attachments, handleHistoryKeyDown, shellMode],
   )
 
   const handleChange = useCallback(
     (e: React.ChangeEvent<HTMLTextAreaElement>) => {
       const newText = e.target.value
+
+      // `!` 进入 shell mode（官方 machine.ts:203 同款：`!` 被消费，不进文本）
+      if (!shellMode && newText === '!' && onShell) {
+        setShellMode(true)
+        setText('')
+        setMentionOpen(false)
+        setSlashOpen(false)
+        return
+      }
+
       setText(newText)
 
       // 移动端 IME 兜底：全选删除时 compositionend 可能不触发（已知的
@@ -723,9 +772,9 @@ function InputBoxComponent({
         return surviving.length === prev.length ? prev : surviving
       })
 
-      // 检测 @ 触发
+      // 检测 @ 触发（shell mode 下不做提及/斜杠检测，命令原样发送）
       const cursorPos = e.target.selectionStart || 0
-      const trigger = detectMentionTrigger(newText, cursorPos, '@')
+      const trigger = shellMode ? null : detectMentionTrigger(newText, cursorPos, '@')
 
       if (trigger) {
         setMentionQuery(trigger.query)
@@ -735,8 +784,8 @@ function InputBoxComponent({
       } else {
         setMentionOpen(false)
 
-        // 检测 / 触发（只在行首或空白后）
-        const slashTrigger = detectSlashTrigger(newText, cursorPos)
+        // 检测 / 触发（只在行首或空白后；shell mode 跳过）
+        const slashTrigger = shellMode ? null : detectSlashTrigger(newText, cursorPos)
         if (slashTrigger) {
           setSlashQuery(slashTrigger.query)
           setSlashStartIndex(slashTrigger.startIndex)
@@ -746,7 +795,7 @@ function InputBoxComponent({
         }
       }
     },
-    [handleHistoryChange],
+    [handleHistoryChange, shellMode, onShell],
   )
 
   const handleCompositionStart = useCallback(() => {
@@ -1376,6 +1425,13 @@ function InputBoxComponent({
 
                   {/* Text Input - 简单的 textarea，直接显示文本 */}
                   <div className="pt-4 pb-2">
+                    {shellMode && (
+                      <div className={`mb-1 flex items-center ${isCompact ? 'px-3' : 'px-4'}`}>
+                        <span className="px-1.5 py-0.5 rounded bg-bg-200 text-[length:var(--fs-xs)] font-medium text-text-300 font-mono">
+                          {t('inputBox.shellMode')}
+                        </span>
+                      </div>
+                    )}
                     <textarea
                       ref={textareaRef}
                       value={text}
@@ -1388,8 +1444,15 @@ function InputBoxComponent({
                       onFocus={handleFocus}
                       onBlur={handleBlur}
                       disabled={inputDisabled}
-                      placeholder={isCompact ? t('inputBox.replyToAgentMobile') : t('inputBox.replyToAgent')}
-                      className={`w-full resize-none focus:outline-none focus:ring-0 bg-transparent text-text-100 placeholder:text-text-400 custom-scrollbar ${isCompact ? 'px-3' : 'px-4'}`}
+                      data-shell-mode={shellMode ? '' : undefined}
+                      placeholder={
+                        shellMode
+                          ? t('inputBox.shellPlaceholder')
+                          : isCompact
+                            ? t('inputBox.replyToAgentMobile')
+                            : t('inputBox.replyToAgent')
+                      }
+                      className={`w-full resize-none focus:outline-none focus:ring-0 bg-transparent text-text-100 placeholder:text-text-400 custom-scrollbar ${isCompact ? 'px-3' : 'px-4'} ${shellMode ? 'font-mono' : ''}`}
                       style={{
                         ...TEXT_STYLE,
                         minHeight: '24px',

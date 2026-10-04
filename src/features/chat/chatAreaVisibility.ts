@@ -32,6 +32,8 @@ function hasAnyContent(message: SessionMessageInfo): boolean {
   if (isUserMessage(message)) return userMessageHasAnyContent(message)
   if (isAssistantMessage(message)) return message.content.length > 0 || message.retry != null
   if (message.type === 'compaction') return true
+  // `!` shell 命令消息：command + 状态即内容（官方 timeline 里独立成行）
+  if (message.type === 'shell') return true
   return false
 }
 
@@ -46,6 +48,7 @@ function hasRenderableContent(message: SessionMessageInfo): boolean {
     })
   }
   if (message.type === 'compaction') return true
+  if (message.type === 'shell') return true
   return false
 }
 

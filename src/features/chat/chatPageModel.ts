@@ -898,6 +898,8 @@ export function buildProcessTimeline(
   type TurnBag = {
     user: UserMessage | null
     assistants: AssistantMessage[]
+    /** 独立成行的消息（shell 命令等）：不进任何回合壳，按原位平铺 */
+    standalone?: SessionMessageInfo
   }
 
   const turns: TurnBag[] = []
@@ -907,6 +909,16 @@ export function buildProcessTimeline(
     if (isUserMessage(message)) {
       if (current) turns.push(current)
       current = { user: message, assistants: [] }
+      continue
+    }
+    // shell 命令消息独立成行（官方 projection.ts:188：shell 是独立 timeline 行），
+    // 并结束当前回合的分组
+    if (message.type === 'shell') {
+      if (current) {
+        turns.push(current)
+        current = null
+      }
+      turns.push({ user: null, assistants: [], standalone: message })
       continue
     }
     if (!isAssistantMessage(message)) continue
@@ -968,6 +980,10 @@ export function buildProcessTimeline(
   }
 
   for (const turn of turns) {
+    if (turn.standalone) {
+      items.push({ kind: 'message', key: turn.standalone.id, message: turn.standalone })
+      continue
+    }
     if (turn.user) {
       items.push({ kind: 'message', key: turn.user.id, message: turn.user })
     }

@@ -84,6 +84,10 @@ export function useGlobalKeybindings(handlers: KeybindingHandlers, enabled = tru
         document.querySelector('.fixed.inset-0') !== null
       const hasOpenDropdown = document.querySelector('[data-dropdown-open]') !== null
 
+      // shell mode 的输入框自己处理 Escape（退出 shell mode，官方 machine.ts:203），
+      // 不能落到全局 cancelMessage 上
+      const inShellMode = target.closest('[data-shell-mode]') !== null
+
       // 遍历所有配置的快捷键
       const keybindings = keybindingStore.getAll()
 
@@ -111,6 +115,11 @@ export function useGlobalKeybindings(handlers: KeybindingHandlers, enabled = tru
 
           // 如果有下拉菜单打开且是 Escape，跳过让下拉菜单处理
           if (hasOpenDropdown && blockWhenDropdownOpen) {
+            continue
+          }
+
+          // shell mode 输入框内的 Escape 由输入框自己消费
+          if (inShellMode && kb.action === 'cancelMessage') {
             continue
           }
 

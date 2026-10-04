@@ -37,6 +37,7 @@ import {
   getSessionInbox,
   cancelInboxItem,
   steerInboxItem,
+  executeSessionShell,
   type ApiFormInfo,
   type ApiPermissionRequest,
   type ApiSession,
@@ -864,6 +865,46 @@ export function useChatSession({
     [routeSessionId, paneServerId],
   )
 
+  // `!` shell 命令（官方 composer shell mode）：无会话时先建会话再执行，
+  // shell 消息经 session.shell.started/ended 事件流入转写，无需本地乐观插入
+  const handleShellCommand = useCallback(
+    async (command: string) => {
+      let sessionId = routeSessionId
+      try {
+        const isNewSession = !sessionId
+        if (!sessionId) {
+          const newSession = await createSession()
+          sessionId = newSession.id
+          navigateToSession(sessionId, newSession.location?.directory)
+        }
+        await executeSessionShell(sessionId, command, paneServerId)
+
+        if (isNewSession) {
+          // 新会话竞态：navigate 触发的 loadSession 快照可能取在 shell 消息
+          // 落库之前，随后的 setMessages 会把事件插入的 shell 消息抹掉。
+          // 延迟补拉一次兜底（与 sendMessageNow 的 fallback 同款）。
+          const pullSessionId = sessionId
+          setTimeout(() => {
+            getSessionMessages(pullSessionId, 5, undefined, paneServerId)
+              .then(msgs => {
+                for (const msg of msgs) {
+                  messageStore.handleMessageUpdated(msg, pullSessionId)
+                }
+              })
+              .catch(() => {
+                // 拉取失败不影响主流程，SSE 重连后仍可补齐
+              })
+          }, 1500)
+        }
+        return true
+      } catch (error) {
+        handleError('run shell command', error)
+        return false
+      }
+    },
+    [routeSessionId, createSession, navigateToSession, paneServerId],
+  )
+
   const handleForkMessage = useCallback(
     async (message: SessionMessageInfo, forkMessageId?: string) => {
       if (!routeSessionId) return
@@ -1153,6 +1194,7 @@ export function useChatSession({
     queuedPrompts,
     handleCancelQueuedPrompt,
     handleSteerQueuedPrompt,
+    handleShellCommand,
     handlePermissionReply,
     handleFormReply,
     handleFormCancel,

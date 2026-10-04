@@ -31,7 +31,13 @@
   "inputBox": {
     "dropFilesHere": "Drop files here",
     "replyToAgentMobile": "Reply to Agent...",
-    "replyToAgent": "Reply to Agent (type @ to mention, / for commands)"
+    "replyToAgent": "Reply to Agent (type @ to mention, / for commands)",
+    "shellPlaceholder": "Shell command (esc to exit)",
+    "shellMode": "Shell"
+  },
+  "shellMessage": {
+    "timeout": "Command timed out",
+    "killed": "Command terminated"
   },
   "modelSelector": {
     "selectModel": "Select model",

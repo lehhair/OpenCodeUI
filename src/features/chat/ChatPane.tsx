@@ -293,6 +293,7 @@ export const ChatPane = memo(function ChatPane({
     queuedPrompts,
     handleCancelQueuedPrompt,
     handleSteerQueuedPrompt,
+    handleShellCommand,
     handlePermissionReply,
     handleFormReply,
     handleFormCancel,
@@ -926,6 +927,7 @@ export const ChatPane = memo(function ChatPane({
           onSend={handleSend}
           onAbort={handleAbort}
           onCommand={handleCommand}
+          onShell={handleShellCommand}
           onNewChat={handleNewSession}
           disabled={inputDisabled}
           isStreaming={isStreaming}

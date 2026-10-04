@@ -31,7 +31,13 @@
   "inputBox": {
     "dropFilesHere": "拖放文件到此处",
     "replyToAgentMobile": "回复 Agent...",
-    "replyToAgent": "回复 Agent（输入 @ 提及，/ 执行命令）"
+    "replyToAgent": "回复 Agent（输入 @ 提及，/ 执行命令）",
+    "shellPlaceholder": "Shell 命令（esc 退出）",
+    "shellMode": "Shell"
+  },
+  "shellMessage": {
+    "timeout": "命令超时",
+    "killed": "命令已终止"
   },
   "modelSelector": {
     "selectModel": "选择模型",
