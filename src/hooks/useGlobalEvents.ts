@@ -781,31 +781,26 @@ export function useGlobalEvents(directories?: string[]) {
         // 用户消息整条撤下（retractLocal）。compaction / move 各有专属事件。
         onInboxEnqueued: (data, facts) => {
           const scopedId = scope(data.sessionID)
-          inboxStore.upsertItem(scopedId, {
+          const item = {
             id: data.inboxID,
             sessionID: data.sessionID,
             time: { created: facts?.created ?? Date.now() },
             ...data.item,
-          } as Parameters<typeof inboxStore.upsertItem>[1])
-          if (data.item.type !== 'user') return
-          const payload = data.item.payload
-          messageStore.handleMessageUpdated(
-            {
-              id: data.inboxID,
-              type: 'user',
-              time: { created: facts?.created ?? Date.now() },
-              text: payload.text,
-              ...(payload.files?.length ? { files: payload.files } : {}),
-              ...(payload.agents?.length ? { agents: payload.agents } : {}),
-              ...(payload.skills?.length ? { skills: payload.skills } : {}),
-            },
-            scopedId,
-          )
+          } as Parameters<typeof inboxStore.upsertItem>[1]
+          // 官方 admitLocal：入队条目进队列视图 + 物化进转写（同 id 对账，
+          // durable payload/time 覆盖本地猜测）
+          inboxStore.upsertItem(scopedId, item)
+          messageStore.materializeInboxMessage(scopedId, item)
         },
 
-        onInboxDelivered: data => {
-          // 服务端开始处理该条目：出队列视图，转写里的用户消息保留（同 id）
-          inboxStore.removeItem(scope(data.sessionID), data.inboxID)
+        onInboxDelivered: (data, facts) => {
+          // 服务端开始处理该条目（官方 data.ts:749-763 同款）：
+          // 出队列视图 + 把转写里那条改写为投递事件时间并挪到末尾。
+          // 队列期间的位置由入队顺序决定，投递后才成为当前回合的输入；
+          // 只删队列条目而不挪位置，上屏顺序就不是真实服务器事件的顺序。
+          const scopedId = scope(data.sessionID)
+          inboxStore.removeItem(scopedId, data.inboxID)
+          messageStore.handleInboxDelivered(scopedId, data.inboxID, facts?.created ?? Date.now())
         },
 
         onInboxCancelled: data => {

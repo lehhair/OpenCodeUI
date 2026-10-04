@@ -926,12 +926,17 @@ export function useChatSession({
     resetPendingRequests()
   }, [routeSessionId, paneId, resetPermissions, resetPendingRequests])
 
-  // inbox 快照打底（官方 pending.sync）：进入会话时拉一次，之后靠 SSE 增量维护
+  // inbox 快照打底（官方 pending.sync）：进入会话时拉一次，之后靠 SSE 增量维护。
+  // 快照里的排队条目也要物化进转写（官方 data.ts:1427-1430）——服务端转写里
+  // 投递前并没有这些行，不物化的话刷新后它们只在队列气泡里、投递时无处可落。
   useEffect(() => {
     if (!routeSessionId) return
     const sessionId = routeSessionId
     getSessionInbox(sessionId, paneServerId)
-      .then(items => inboxStore.setItems(sessionId, items))
+      .then(items => {
+        inboxStore.setItems(sessionId, items)
+        for (const item of items) messageStore.materializeInboxMessage(sessionId, item)
+      })
       .catch(() => {
         // 拉取失败不影响主流程，SSE 事件仍会增量维护
       })

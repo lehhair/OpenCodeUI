@@ -903,3 +903,80 @@ describe('messageStore（原生 v2 消息）', () => {
     unsubscribeAll()
   })
 })
+
+describe('inbox 物化与投递（官方 materializeInboxMessage / inbox.delivered 同款）', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks()
+    rafQueue.length = 0
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation(cb => {
+      rafQueue.push(cb as (time: number) => void)
+      return rafQueue.length
+    })
+    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => undefined)
+    messageStore.clearAll()
+  })
+
+  function inboxUser(id: string, created: number, text: string) {
+    return {
+      id,
+      sessionID: 'raw-session',
+      time: { created },
+      type: 'user',
+      delivery: 'queue',
+      payload: { text },
+    } as unknown as Parameters<typeof messageStore.materializeInboxMessage>[1]
+  }
+
+  it('materializeInboxMessage 把排队条目物化进转写（投递前服务端没有这行）', () => {
+    messageStore.materializeInboxMessage(SESSION, inboxUser('msg-q1', 100, '排队这条'))
+
+    const messages = messageStore.getSessionState(SESSION)?.messages ?? []
+    expect(messages).toHaveLength(1)
+    expect(messages[0].id).toBe('msg-q1')
+    expect(messages[0].type).toBe('user')
+    expect(messages[0].time.created).toBe(100)
+    expect((messages[0] as { text?: string }).text).toBe('排队这条')
+  })
+
+  it('materializeInboxMessage 同 id 已存在时整条替换（durable 回声补齐字段）', () => {
+    messageStore.materializeInboxMessage(SESSION, inboxUser('msg-q1', 100, '本地猜测'))
+    messageStore.materializeInboxMessage(SESSION, inboxUser('msg-q1', 100, '服务端真实文本'))
+
+    const messages = messageStore.getSessionState(SESSION)?.messages ?? []
+    expect(messages).toHaveLength(1)
+    expect((messages[0] as { text?: string }).text).toBe('服务端真实文本')
+  })
+
+  it('materializeInboxMessage 忽略非 user 条目', () => {
+    messageStore.materializeInboxMessage(SESSION, {
+      id: 'msg-c1',
+      sessionID: 'raw-session',
+      time: { created: 1 },
+      type: 'compaction',
+      delivery: 'steer',
+      payload: {},
+    } as unknown as Parameters<typeof messageStore.materializeInboxMessage>[1])
+
+    expect(messageStore.getSessionState(SESSION)?.messages ?? []).toHaveLength(0)
+  })
+
+  it('handleInboxDelivered 改写为投递事件时间并挪到末尾（上屏顺序 = 服务端顺序）', () => {
+    // Q1 先入队，模型回合（assistant）随后插入，Q2 再入队
+    messageStore.materializeInboxMessage(SESSION, inboxUser('msg-q1', 100, 'Q1'))
+    messageStore.handleMessageUpdated(createAssistantMessage('msg-a1', textContent('回复一'), 150), SESSION)
+    messageStore.materializeInboxMessage(SESSION, inboxUser('msg-q2', 120, 'Q2'))
+    expect(messageStore.getSessionState(SESSION)?.messages.map(m => m.id)).toEqual(['msg-q1', 'msg-a1', 'msg-q2'])
+
+    // Q1 投递（服务端时间 200）→ 排到末尾；Q1 原位置让出
+    messageStore.handleInboxDelivered(SESSION, 'msg-q1', 200)
+    const after = messageStore.getSessionState(SESSION)?.messages ?? []
+    expect(after.map(m => m.id)).toEqual(['msg-a1', 'msg-q2', 'msg-q1'])
+    expect(after[2].time.created).toBe(200)
+  })
+
+  it('handleInboxDelivered 对不存在的 id 静默返回', () => {
+    messageStore.handleMessageUpdated(createAssistantMessage('msg-a1', textContent('x'), 10), SESSION)
+    expect(() => messageStore.handleInboxDelivered(SESSION, 'msg-missing', 99)).not.toThrow()
+    expect(messageStore.getSessionState(SESSION)?.messages.map(m => m.id)).toEqual(['msg-a1'])
+  })
+})

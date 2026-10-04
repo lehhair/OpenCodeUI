@@ -33,6 +33,7 @@ import type {
   UserMessage,
 } from '../types/api/message'
 import type { GlobalEvent, SessionMessageInfo } from '../types/api/event'
+import type { SessionInboxInfo } from '@opencode/client/promise'
 import type { SessionRevert } from '../types/api/session'
 import { contentEntries, isUserMessage, userMessageText } from '../types/api/message'
 import type { Attachment } from '../types/ui'
@@ -516,6 +517,64 @@ class MessageStore {
     if (options.loadState !== undefined) state.loadState = options.loadState
     if (options.loadError !== undefined) state.loadError = options.loadError
 
+    this.notify([sessionId])
+  }
+
+  /**
+   * inbox 条目物化进转写（官方 data.ts:390-401 的 materializeInboxMessage）。
+   *
+   * 队列条目在**投递前**服务端转写里并没有这条消息（只有 inbox 条目），
+   * 所以本地必须自己顶上去：id 用 inboxID（服务端投递后用同一 id 落库），
+   * 内容/时间取 inbox 条目的 payload/time。同 id 已存在则整条替换
+   * （durable 回声、快照同步都会走到这里补齐字段）。
+   *
+   * 新增时**追加到末尾**而不是按 time.created 插入（官方 data.ts:398
+   * 的 message.append 同款）：排队条目的入队时间早于它前面那轮的助手回复，
+   * 按时间插入会让它跑到正在跑的那轮上面去。投递时由 handleInboxDelivered
+   * 改写为投递事件时间并挪位，才是真实的服务端顺序。
+   */
+  materializeInboxMessage(sessionId: string, item: SessionInboxInfo) {
+    if (item.type !== 'user') return
+    const state = this.ensureSession(sessionId)
+    const existingIndex = state.messages.findIndex(message => message.id === item.id)
+    const row = {
+      id: item.id,
+      type: 'user',
+      time: { created: item.time.created },
+      ...item.payload,
+    } as SessionMessageInfo
+
+    if (existingIndex >= 0) {
+      const messages = state.messages.slice()
+      messages[existingIndex] = row
+      state.messages = messages
+    } else {
+      state.messages = [...state.messages, row]
+    }
+    // 服务端列表尚未包含它，setMessages 不能冲掉
+    state.localMessageIds.add(item.id)
+    this.notify([sessionId])
+  }
+
+  /**
+   * `session.inbox.delivered`（官方 data.ts:749-763 同款）。
+   *
+   * 投递 = 服务端开始处理这条排队 prompt：出队，并把转写里那条
+   * **改写为投递事件的时间戳、挪到末尾** —— 队列期间它排在哪由入队顺序决定，
+   * 投递后它才真正成为"当前回合的输入"。只用入队时间排序会让上屏顺序
+   * 与真实服务器事件不符。
+   */
+  handleInboxDelivered(sessionId: string, inboxID: string, deliveredAt: number) {
+    const state = this.sessions.get(sessionId)
+    if (!state) return
+    const index = state.messages.findIndex(message => message.id === inboxID)
+    if (index < 0) return
+    const message = state.messages[index]
+    const messages = state.messages.slice()
+    messages[index] = { ...message, time: { ...message.time, created: deliveredAt } }
+    const [admitted] = messages.splice(index, 1)
+    messages.push(admitted)
+    state.messages = messages
     this.notify([sessionId])
   }
 
