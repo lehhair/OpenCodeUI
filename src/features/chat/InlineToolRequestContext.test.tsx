@@ -86,3 +86,32 @@ describe('task 工具按 pane 服务器匹配子 session 请求', () => {
     expect(matched).toBe(question)
   })
 })
+
+describe('question 工具的 metadata.tool 来源匹配', () => {
+  it('按 metadata.tool.id 精确匹配工具调用（v2 question 工具实际写入的形状）', () => {
+    // packages/core/src/tool/plugin/question.ts:78-81：
+    // metadata = { kind: "question", tool: { messageID, id } }
+    const question: ApiFormInfo = {
+      id: 'frm-1',
+      sessionID: 'ses_parent',
+      title: 'Questions',
+      metadata: { kind: 'question', tool: { messageID: 'msg_1', id: 'call_abc' } },
+      fields: [{ key: 'q0', type: 'string' }],
+    }
+
+    expect(findQuestionRequestForTool([question], 'call_abc')).toBe(question)
+    expect(findQuestionRequestForTool([question], 'call_other')).toBeUndefined()
+  })
+
+  it('扁平键名探测仍然兼容', () => {
+    const question: ApiFormInfo = {
+      id: 'frm-2',
+      sessionID: 'ses_parent',
+      title: 'Questions',
+      metadata: { callID: 'call_flat' },
+      fields: [{ key: 'q0', type: 'string' }],
+    }
+
+    expect(findQuestionRequestForTool([question], 'call_flat')).toBe(question)
+  })
+})

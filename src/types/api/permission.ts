@@ -14,9 +14,9 @@
 //
 // ### 2. Question → Form
 // v1 的 `question.*`（list/reply/reject）在 v2 完全由 `form.*` 取代：
-//   - `form.list()`           全局表单（**裸数组**，非 {location,data}）
-//   - `session.form.list()`   会话内表单（**裸数组**）
-//   - `session.form.get()`    → FormDetail（含 state）
+//   - `form.list()`           全局表单（返回 `{ location, data }`，取 .data）
+//   - `session.form.list()`   会话内表单（返回 `{ location, data }`，取 .data）
+//   - `session.form.get()`    → FormDetail（含 state，已解包）
 //   - `session.form.reply()`  → 提交答案
 //   - `session.form.cancel()` → 取消
 //

@@ -56,7 +56,12 @@ export const InlineQuestion = memo(function InlineQuestion({
 
   return (
     <div className="space-y-2" onKeyDown={handleKeyDown}>
-      {form.title && <div className="text-[length:var(--fs-md)] text-text-100">{form.title}</div>}
+      {/* question 表单的 title 是服务端硬编码的 "Questions"
+          （packages/core/src/tool/plugin/question.ts:77），与工具头/步骤文案
+          重复——官方 SessionQuestionDock 也不渲染它；其它类型表单保留标题 */}
+      {form.title && (form.metadata as Record<string, unknown> | undefined)?.kind !== 'question' && (
+        <div className="text-[length:var(--fs-md)] text-text-100">{form.title}</div>
+      )}
 
       <div className="space-y-3">
         {state.visibleFields.map(field => (

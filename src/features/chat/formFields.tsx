@@ -191,15 +191,20 @@ const EMPTY_SET: Set<string> = new Set()
 export function FormFieldLabel({ field }: { field: ApiFormField }) {
   const required = isFieldRequired(field)
   if (!field.title && !field.description && !required) return null
+  // header 与问题文本相同时只显示一次（官方 question = description ?? title 同款）
+  const mainText = field.description ?? field.title
+  const showHeader = !!field.title && !!field.description && field.title !== field.description
   return (
     <div>
-      {field.title && (
-        <div className="text-[length:var(--fs-xs)] text-text-400 font-medium mb-0.5">
-          {field.title}
+      {showHeader && (
+        <div className="text-[length:var(--fs-xs)] text-text-400 font-medium mb-0.5">{field.title}</div>
+      )}
+      {mainText && (
+        <div className="text-[length:var(--fs-md)] text-text-100">
+          {mainText}
           {required && <span className="text-danger-100 ml-0.5">*</span>}
         </div>
       )}
-      {field.description && <div className="text-[length:var(--fs-md)] text-text-100">{field.description}</div>}
     </div>
   )
 }

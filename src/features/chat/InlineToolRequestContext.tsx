@@ -66,8 +66,10 @@ export function useInlineToolRequests() {
 /**
  * 从表单 metadata 里取工具调用 id。
  *
- * v2 的 FormInfo 没有类型化的来源字段，metadata 是开放的键值袋，
- * 这里按几个常见键名探测；取不到就返回 undefined，由调用方回退到
+ * v2 的 FormInfo 没有类型化的来源字段，但 question 工具会把来源放在
+ * `metadata.tool = { messageID, id }`
+ *（packages/core/src/tool/plugin/question.ts:78-81）；
+ * 其余渠道按几个常见扁平键名探测；取不到就返回 undefined，由调用方回退到
  * session 归属匹配。
  */
 const FORM_TOOL_ID_KEYS = ['callID', 'toolCallID', 'toolCallId', 'toolID', 'toolId', 'id'] as const
@@ -75,6 +77,9 @@ const FORM_TOOL_ID_KEYS = ['callID', 'toolCallID', 'toolCallId', 'toolID', 'tool
 function formToolCallId(form: ApiFormInfo): string | undefined {
   const metadata = form.metadata as Record<string, unknown> | undefined
   if (!metadata) return undefined
+  // question 工具的来源对象（v2 服务端实际写入的形状）
+  const tool = metadata.tool as Record<string, unknown> | undefined
+  if (tool && typeof tool.id === 'string' && tool.id) return tool.id
   for (const key of FORM_TOOL_ID_KEYS) {
     const value = metadata[key]
     if (typeof value === 'string' && value) return value
