@@ -26,7 +26,11 @@ import type { Attachment, RevertedMessage, SendMessageParams } from './types'
 /**
  * 获取会话消息列表。
  *
- * v2 返回 `{ data, cursor }`；这里返回 `data`，调用点保持不变。
+ * v2 的 `message.list` 默认 **新的在前**（倒序分页，cursor 往历史深处翻），
+ * 而本应用的 messageStore / 渲染层一律按时间正序（旧→新）组织。
+ * 官方做法相同：`order: "desc"` 拉回来后 `toReversed()`
+ *（packages/client/src/solid/data.ts:1625-1630）。
+ * 因此这里统一在出口反转，所有调用点拿到的都是正序。
  */
 export async function getSessionMessages(
   sessionId: string,
@@ -36,8 +40,8 @@ export async function getSessionMessages(
 ): Promise<SessionMessage[]> {
   const target = resolveSessionTarget(sessionId, serverId)
   const sdk = getSDKClient(target.serverId)
-  const result = await sdk.message.list({ sessionID: target.sessionId, limit })
-  return result.data
+  const result = await sdk.message.list({ sessionID: target.sessionId, limit, order: 'desc' })
+  return [...result.data].reverse()
 }
 
 // ============================================
@@ -102,6 +106,7 @@ function buildPromptInput(
   sessionID: string,
 ): {
   sessionID: string
+  id?: string
   text: string
   files?: Array<{ uri: string; name?: string; description?: string }>
   agents?: Array<{ name: string }>
@@ -129,6 +134,8 @@ function buildPromptInput(
 
   return {
     sessionID,
+    // 客户端铸造的 id：服务端原样采用，乐观行与 durable 行同 id 对账
+    ...(params.id ? { id: params.id } : {}),
     text: params.text,
     ...(files.length > 0 ? { files } : {}),
     ...(agents.length > 0 ? { agents } : {}),

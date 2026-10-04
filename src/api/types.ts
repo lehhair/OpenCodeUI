@@ -10,7 +10,7 @@ export type * from '../types/api'
 /** 运行时辅助：判断表单字段是否属于「有选项可点」的类型 */
 export { isChoiceField } from '../types/api'
 
-export type { ModelInfo, FileCapabilities, Attachment, AttachmentType } from '../types/ui'
+export type { FileCapabilities, Attachment, AttachmentType } from '../types/ui'
 
 export type { Model as ApiModel, Provider as ApiProvider, ProvidersResponse } from '../types/api/model'
 export type { Project as ApiProject, PathResponse as ApiPath } from '../types/api/project'
@@ -55,6 +55,8 @@ export interface RevertedMessage {
 
 export interface SendMessageParams {
   sessionId: string
+  /** 客户端铸造的消息 id（`msg_` 前缀）：乐观插入与服务端 durable 行同 id 对账 */
+  id?: string
   text: string
   attachments: Attachment[]
   model?: {

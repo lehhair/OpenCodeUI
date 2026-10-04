@@ -772,6 +772,34 @@ export function useGlobalEvents(directories?: string[]) {
           messageStore.handleInstructionsUpdated({ ...data, sessionID: scopedId }, facts)
         },
 
+        // ---- inbox（prompt 入队 / 取消）----
+        //
+        // 官方 data.ts:773-790 同款：durable 回声用同一 inboxID upsert 用户消息
+        // （与发送侧的乐观插入同 id 对账，files/skills 等 durable 字段在此补齐）；
+        // 取消则整条撤下。compaction / move 不走这里（各有专属事件）。
+        onInboxEnqueued: (data, facts) => {
+          if (data.item.type !== 'user') return
+          const scopedId = scope(data.sessionID)
+          const payload = data.item.payload
+          messageStore.handleMessageUpdated(
+            {
+              id: data.inboxID,
+              type: 'user',
+              time: { created: facts?.created ?? Date.now() },
+              text: payload.text,
+              ...(payload.files?.length ? { files: payload.files } : {}),
+              ...(payload.agents?.length ? { agents: payload.agents } : {}),
+              ...(payload.skills?.length ? { skills: payload.skills } : {}),
+            },
+            scopedId,
+          )
+        },
+
+        onInboxCancelled: data => {
+          const scopedId = scope(data.sessionID)
+          messageStore.removeMessage(scopedId, data.inboxID)
+        },
+
         // ---- 会话级 agent / 模型切换（v2 把它们放在会话状态，不在消息上）----
 
         onAgentSelected: (data, facts) => {
@@ -807,21 +835,28 @@ export function useGlobalEvents(directories?: string[]) {
         },
 
         // ---- 执行生命周期 ----
+        //
+        // busy/idle 以 execution.* 为准兜底写 statusMap：官方 Web App
+        // 就是从 session.execution.* 派生会话状态的（session.idle 在
+        // schema 已标 deprecated，服务端不一定推 session.status）。
 
         onExecutionStarted: data => {
           const scopedId = scope(data.sessionID)
           messageStore.handleExecutionStarted({ ...data, sessionID: scopedId })
+          activeSessionStore.updateStatus(scopedId, { type: 'busy' })
         },
 
         onExecutionSucceeded: (data, facts) => {
           const scopedId = scope(data.sessionID)
           messageStore.handleExecutionSucceeded({ ...data, sessionID: scopedId }, facts)
+          activeSessionStore.updateStatus(scopedId, { type: 'idle' })
           refreshIfToolStillLive(scopedId)
         },
 
         onExecutionInterrupted: (data, facts) => {
           const scopedId = scope(data.sessionID)
           messageStore.handleExecutionInterrupted({ ...data, sessionID: scopedId }, facts)
+          activeSessionStore.updateStatus(scopedId, { type: 'idle' })
           refreshIfToolStillLive(scopedId)
         },
 
