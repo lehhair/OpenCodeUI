@@ -50,7 +50,9 @@
 - [x] **`reference.list`** — `@` 提及的引用目录（官方 model.ts:148）✅
   - 实现：`getReferences`（api/reference.ts）；MentionMenu 根目录与搜索态列出非 hidden 引用（label `@name`），选中按 folder 附件插入（mime `application/x-directory`，官方 model.ts:162）
   - 验证：REST 实测 `data:[]`（测试项目无引用），空态不报错；渲染路径有单测
-- [ ] **`vcs.branch.list`** — 分支选择器（官方 controller.ts:154，支持 search/limit）
+- [x] **`vcs.branch.list`** — 分支选择器（官方 controller.ts:154，支持 search/limit）✅
+  - 实现：`getBranchList(directory, search, limit=50)`（api/vcs.ts）；WorktreePanel 新建 Worktree 表单加「基于分支（可选）」：focus 列出、输入即搜索，选中作为 `worktree.create` 的 `from` 传入
+  - 验证：live 下拉列出 dev/main，`search=ma` 收敛为 main 且可选中填入
 - [ ] **`session.move`** — 会话移动到其他目录/worktree（官方 session-workspace-menu.tsx:77；事件 `session.moved` 已接）
 - [ ] **`session.background`** — 挂起会话转后台（官方 requests/model.ts:90）
 - [ ] **`websearch.providers`** — 第三方搜索 provider 选择 dock（官方 session-websearch-dock.tsx；表单 `metadata.kind === 'websearch.provider'`）
