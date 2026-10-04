@@ -47,6 +47,7 @@
     "mcp": "MCP",
     "skills": "Skills",
     "worktrees": "Worktrees",
+    "plugins": "插件",
     "tab": "标签",
     "addTab": "添加标签",
     "renameTerminal": "重命名终端",
@@ -116,6 +117,20 @@
     "loadingSkills": "加载 Skills...",
     "failedToLoad": "加载 Skills 失败",
     "noSkills": "暂无 Skills"
+  },
+  "pluginsPanel": {
+    "title": "插件",
+    "empty": "暂无插件",
+    "failedToLoad": "加载插件失败",
+    "failedToUpdate": "更新插件失败",
+    "failed": "加载失败",
+    "update": "更新",
+    "outdatedTitle": "有新版本可用",
+    "source": {
+      "package": "npm 包",
+      "local": "本地",
+      "sdk": "SDK"
+    }
   },
   "worktreePanel": {
     "selectProject": "选择项目以管理 Worktrees",

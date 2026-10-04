@@ -47,6 +47,7 @@
     "mcp": "MCP",
     "skills": "Skills",
     "worktrees": "Worktrees",
+    "plugins": "Plugins",
     "tab": "Tab",
     "addTab": "Add Tab",
     "renameTerminal": "Rename Terminal",
@@ -118,6 +119,20 @@
     "loadingSkills": "Loading skills...",
     "failedToLoad": "Failed to load skills",
     "noSkills": "No skills found"
+  },
+  "pluginsPanel": {
+    "title": "Plugins",
+    "empty": "No plugins",
+    "failedToLoad": "Failed to load plugins",
+    "failedToUpdate": "Failed to update plugin",
+    "failed": "Failed",
+    "update": "Update",
+    "outdatedTitle": "New version available",
+    "source": {
+      "package": "npm package",
+      "local": "Local",
+      "sdk": "SDK"
+    }
   },
   "worktreePanel": {
     "selectProject": "Select a project to manage worktrees",

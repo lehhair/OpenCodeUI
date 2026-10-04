@@ -195,6 +195,7 @@ export type {
   InboxCancelledPayload,
   ProjectUpdatedPayload,
   WorktreeUpdatedPayload,
+  PluginUpdatedPayload,
   WorktreeResolvedPayload,
   VcsBranchUpdatedPayload,
   McpStatusChangedPayload,

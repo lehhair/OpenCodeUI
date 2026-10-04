@@ -6,7 +6,7 @@
 export type PanelPosition = 'bottom' | 'right'
 
 // 面板内容类型
-export type PanelTabType = 'terminal' | 'files' | 'changes' | 'mcp' | 'skill' | 'worktree'
+export type PanelTabType = 'terminal' | 'files' | 'changes' | 'mcp' | 'skill' | 'worktree' | 'plugins'
 type PersistedPanelTabType = Exclude<PanelTabType, 'terminal'>
 
 // 统一的面板标签
@@ -171,7 +171,7 @@ export interface PersistedTerminalLayoutMap {
 }
 
 const PANEL_POSITIONS: PanelPosition[] = ['bottom', 'right']
-const PERSISTED_PANEL_TAB_TYPES: PersistedPanelTabType[] = ['files', 'changes', 'mcp', 'skill', 'worktree']
+const PERSISTED_PANEL_TAB_TYPES: PersistedPanelTabType[] = ['files', 'changes', 'mcp', 'skill', 'worktree', 'plugins']
 
 function isPanelPosition(value: unknown): value is PanelPosition {
   return typeof value === 'string' && PANEL_POSITIONS.includes(value as PanelPosition)
@@ -655,6 +655,11 @@ export class LayoutStore {
   // 添加 Worktree 标签
   addWorktreeTab(position: PanelPosition) {
     return this.addSingletonTab('worktree', position, 'worktree')
+  }
+
+  // 添加 Plugins 标签
+  addPluginsTab(position: PanelPosition) {
+    return this.addSingletonTab('plugins', position, 'plugins')
   }
 
   // 移除 tab

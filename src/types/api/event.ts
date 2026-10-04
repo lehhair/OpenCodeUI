@@ -98,6 +98,7 @@ import type {
   PtyDeleted,
   PtyExited,
   PtyUpdated,
+  PluginUpdated,
   VcsBranchUpdated,
   WorktreeResolved,
   WorktreeUpdated,
@@ -142,6 +143,7 @@ export type FormCancelledPayload = FormCancelled['data']
 export type ProjectUpdatedPayload = ProjectUpdated['data']
 
 export type WorktreeUpdatedPayload = WorktreeUpdated['data']
+export type PluginUpdatedPayload = PluginUpdated['data']
 
 export type WorktreeResolvedPayload = WorktreeResolved['data']
 
@@ -429,6 +431,7 @@ export interface EventCallbacks {
   // ---- 外围 ----
   onProjectUpdated?: (data: ProjectUpdatedPayload, facts?: EventFacts) => void
   onWorktreeUpdated?: (data: WorktreeUpdatedPayload, facts?: EventFacts) => void
+  onPluginUpdated?: (data: PluginUpdatedPayload, facts?: EventFacts) => void
   onWorktreeResolved?: (data: WorktreeResolvedPayload, facts?: EventFacts) => void
   onVcsBranchUpdated?: (data: VcsBranchUpdatedPayload, facts?: EventFacts) => void
   onMcpStatusChanged?: (data: McpStatusChangedPayload, facts?: EventFacts) => void
