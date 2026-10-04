@@ -47,7 +47,9 @@
 
 ### P2
 
-- [ ] **`reference.list`** — `@` 提及的引用目录（官方 model.ts:148）
+- [x] **`reference.list`** — `@` 提及的引用目录（官方 model.ts:148）✅
+  - 实现：`getReferences`（api/reference.ts）；MentionMenu 根目录与搜索态列出非 hidden 引用（label `@name`），选中按 folder 附件插入（mime `application/x-directory`，官方 model.ts:162）
+  - 验证：REST 实测 `data:[]`（测试项目无引用），空态不报错；渲染路径有单测
 - [ ] **`vcs.branch.list`** — 分支选择器（官方 controller.ts:154，支持 search/limit）
 - [ ] **`session.move`** — 会话移动到其他目录/worktree（官方 session-workspace-menu.tsx:77；事件 `session.moved` 已接）
 - [ ] **`session.background`** — 挂起会话转后台（官方 requests/model.ts:90）
