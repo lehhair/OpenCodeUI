@@ -38,8 +38,10 @@
 
 - [x] **服务端 inbox 队列**（`session.inbox.list/cancel/update`）✅
   - 官方：排队消息在服务端管理，可取消/重排（packages/app/src/session/composer/queue.ts）
-  - 实现：busy 发送带 `delivery=queue/steer`（sendMessageNow）；`inboxStore` 镜像官方 pending（inbox.list 快照 + 四事件增量）；队列条在输入区上方（取消/插队）；删除本地 followupQueueStore
-  - 未做：官方的重排/编辑（reorder 靠重发 suffix 实现，复杂度高，需求低）
+  - 实现：busy 发送带 `delivery=queue/steer`（sendMessageNow）；`inboxStore` 镜像官方 pending（inbox.list 快照 + 四事件增量）；气泡式队列 UI（`QueueBubbles`，PiUI 形态）融在消息流尾部，操作行含复制 / 插入当前回合 / 撤回编辑 / 删除；输入栏 busy 投递 chip 切换 插队↔排队
+  - 转写回声投影 `projectQueueEchoes`（官方 controller-projection.ts 的 `visibleTimelineMessages` 同款）：queue 回声隐藏（气泡是唯一展示位）、steer 回声挪到转写末尾
+  - 发送时同步 `admitLocalInboxItem`（官方 admitLocal）：消除「先乐观实心气泡、再跳回队列」的闪烁
+  - 未做：官方 queue.edit 的 stash + 重发替换（我们用更轻的「撤回编辑→回填输入框→用户重发」）；拖拽重排（官方靠重发 suffix，复杂度高、需求低）
 - [x] **`!` shell 命令 + 后台 shell 输出**（`session.shell`、`shell.list/output`）✅
   - 官方：composer 输入 `!` 进入 shell mode（composer/suggestions/machine.ts:203），提交走 `session.shell`（submit.ts:147）；shell 消息独立成行、用 shell 工具渲染器（session-ui/tool-renderer.tsx:1837）
   - 实现：`!` 进 shell mode（mono + Shell 徽标，Enter 执行、esc/空退格退出）→ `executeSessionShell`；`ShellMessageView` 投影成 shell 工具调用走 bash 管线；可见性 + 过程时间线补 shell 类型；全局 Escape 快捷键在 shell mode 内让路（data-shell-mode）
