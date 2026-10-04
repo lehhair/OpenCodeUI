@@ -1,7 +1,7 @@
 import { act, renderHook } from '@testing-library/react'
 import { waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { ModelInfo } from '../api'
+import type { Model } from '../api'
 import { STORAGE_KEY_SELECTED_MODEL } from '../constants'
 import { useModelSelection } from './useModelSelection'
 
@@ -22,8 +22,8 @@ vi.mock('../utils/perServerStorage', () => ({
 }))
 
 vi.mock('../utils/modelUtils', () => ({
-  getModelKey: (model: ModelInfo) => `${model.providerId}:${model.id}`,
-  findModelByKey: (models: ModelInfo[], key: string) => models.find(m => `${m.providerId}:${m.id}` === key),
+  getModelKey: (model: Model) => `${model.providerID}:${model.id}`,
+  findModelByKey: (models: Model[], key: string) => models.find(m => `${m.providerID}:${m.id}` === key),
   saveModelVariantPref: (key: string, value: string | undefined) => {
     variantPrefs.set(key, value)
   },
@@ -34,40 +34,30 @@ vi.mock('../utils/modelUtils', () => ({
   },
 }))
 
-const MODELS: ModelInfo[] = [
+const MODELS: Model[] = [
   {
     id: 'gpt-4.1',
     name: 'GPT-4.1',
-    providerId: 'openai',
-    providerName: 'OpenAI',
+    providerID: 'openai',
     family: 'gpt',
-    contextLimit: 128000,
-    outputLimit: 32000,
-    supportsReasoning: true,
-    supportsImages: true,
-    supportsPdf: true,
-    supportsAudio: false,
-    supportsVideo: false,
-    supportsToolcall: true,
-    variants: ['fast'],
+    enabled: true,
+    status: 'active',
+    limit: { context: 128000, output: 32000 },
+    capabilities: { input: ['text', 'image', 'pdf'], output: ['text'], tools: true },
+    variants: [{ id: 'fast' }],
   },
   {
     id: 'gpt-4o-mini',
     name: 'GPT-4o Mini',
-    providerId: 'openai',
-    providerName: 'OpenAI',
+    providerID: 'openai',
     family: 'gpt',
-    contextLimit: 128000,
-    outputLimit: 16000,
-    supportsReasoning: false,
-    supportsImages: true,
-    supportsPdf: true,
-    supportsAudio: false,
-    supportsVideo: false,
-    supportsToolcall: true,
-    variants: ['balanced'],
+    enabled: true,
+    status: 'active',
+    limit: { context: 128000, output: 16000 },
+    capabilities: { input: ['text', 'image', 'pdf'], output: ['text'], tools: true },
+    variants: [{ id: 'balanced' }],
   },
-]
+] as unknown as Model[]
 
 describe('useModelSelection', () => {
   beforeEach(() => {
@@ -184,7 +174,7 @@ describe('useModelSelection', () => {
     sessionSelections.set('session-1', { modelKey: 'openai:gpt-4o-mini' })
 
     const { result, rerender } = renderHook(({ models }) => useModelSelection({ models, sessionId: 'session-1' }), {
-      initialProps: { models: [] as ModelInfo[] },
+      initialProps: { models: [] as Model[] },
     })
 
     expect(result.current.selectedModelKey).toBeNull()

@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react'
-import type { ModelInfo } from '../types/ui'
+import type { Model } from '../types/api'
 import { serverStorage } from '../utils/perServerStorage'
 import { getModelKey } from '../utils/modelUtils'
 import { affectsBoundServer } from './serverChangeScope'
@@ -57,12 +57,12 @@ class ModelVisibilityStore {
 
   getSnapshot = (): string[] => this.snapshot
 
-  isVisible(model: ModelInfo | string): boolean {
+  isVisible(model: Model | string): boolean {
     const key = typeof model === 'string' ? model : getModelKey(model)
     return !this.hiddenModelKeys.has(key)
   }
 
-  setVisible(model: ModelInfo | string, visible: boolean) {
+  setVisible(model: Model | string, visible: boolean) {
     const key = typeof model === 'string' ? model : getModelKey(model)
     let changed = false
     if (visible) {
@@ -75,7 +75,7 @@ class ModelVisibilityStore {
     this.commit()
   }
 
-  setManyVisible(models: ModelInfo[], visible: boolean) {
+  setManyVisible(models: Model[], visible: boolean) {
     let changed = false
     for (const model of models) {
       const key = getModelKey(model)

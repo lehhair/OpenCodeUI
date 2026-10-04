@@ -3,7 +3,7 @@
 // ============================================
 
 import { useState, useCallback, useMemo, useEffect, useLayoutEffect, useRef } from 'react'
-import type { ModelInfo } from '../api'
+import type { Model } from '../api'
 import {
   getModelKey,
   findModelByKey,
@@ -16,15 +16,15 @@ import { serverStorage } from '../utils/perServerStorage'
 import { STORAGE_KEY_SELECTED_MODEL } from '../constants'
 
 interface UseModelSelectionOptions {
-  models: ModelInfo[]
+  models: Model[]
   sessionId?: string | null
 }
 
 interface UseModelSelectionReturn {
   selectedModelKey: string | null
   selectedVariant: string | undefined
-  currentModel: ModelInfo | undefined
-  handleModelChange: (modelKey: string, model: ModelInfo) => void
+  currentModel: Model | undefined
+  handleModelChange: (modelKey: string, model: Model) => void
   handleVariantChange: (variant: string | undefined) => void
   restoreFromMessage: (
     model: { providerID: string; modelID: string } | null | undefined,
@@ -120,7 +120,7 @@ export function useModelSelection({ models, sessionId = null }: UseModelSelectio
 
   // 切换模型
   const handleModelChange = useCallback(
-    (modelKey: string, _model: ModelInfo) => {
+    (modelKey: string, _model: Model) => {
       // 先保存当前模型的 variant 偏好
       if (resolvedModelKey && resolvedSelectedVariant) {
         saveModelVariantPref(resolvedModelKey, resolvedSelectedVariant)

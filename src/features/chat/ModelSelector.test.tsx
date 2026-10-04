@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { useRef } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { ModelSelector } from './ModelSelector'
-import type { ModelInfo } from '../../api'
+import type { Model } from '../../api'
 
 vi.mock('../../components/ui', () => ({
   DropdownMenu: ({ isOpen, children }: { isOpen: boolean; children: React.ReactNode }) =>
@@ -14,8 +14,9 @@ vi.mock('../../hooks/useInputCapabilities', () => ({
 }))
 
 vi.mock('../../utils/modelUtils', () => ({
-  getModelKey: (model: ModelInfo) => `${model.providerId}:${model.id}`,
-  groupModelsByProvider: (models: ModelInfo[]) => [
+  getModelKey: (model: Model) => `${model.providerID}:${model.id}`,
+  providerDisplayName: (_providers: unknown, providerID: string) => (providerID === 'openai' ? 'OpenAI' : providerID),
+  groupModelsByProvider: (models: Model[]) => [
     {
       providerId: 'openai',
       providerName: 'OpenAI',
@@ -29,40 +30,30 @@ vi.mock('../../utils/modelUtils', () => ({
   toggleModelPin: vi.fn(),
 }))
 
-const MODELS: ModelInfo[] = [
+const MODELS: Model[] = [
   {
     id: 'gpt-4.1',
     name: 'GPT-4.1',
-    providerId: 'openai',
-    providerName: 'OpenAI',
+    providerID: 'openai',
     family: 'gpt',
-    contextLimit: 128000,
-    outputLimit: 32000,
-    supportsReasoning: true,
-    supportsImages: true,
-    supportsPdf: true,
-    supportsAudio: false,
-    supportsVideo: false,
-    supportsToolcall: true,
+    enabled: true,
+    status: 'active',
+    limit: { context: 128000, output: 32000 },
+    capabilities: { input: ['text', 'image', 'pdf'], output: ['text'], tools: true },
     variants: [],
   },
   {
     id: 'gpt-4o-mini',
     name: 'GPT-4o Mini',
-    providerId: 'openai',
-    providerName: 'OpenAI',
+    providerID: 'openai',
     family: 'gpt',
-    contextLimit: 128000,
-    outputLimit: 16000,
-    supportsReasoning: false,
-    supportsImages: true,
-    supportsPdf: true,
-    supportsAudio: false,
-    supportsVideo: false,
-    supportsToolcall: true,
+    enabled: true,
+    status: 'active',
+    limit: { context: 128000, output: 16000 },
+    capabilities: { input: ['text', 'image', 'pdf'], output: ['text'], tools: true },
     variants: [],
   },
-]
+] as unknown as Model[]
 
 describe('ModelSelector', () => {
   it('opens menu and selects a model', () => {

@@ -39,7 +39,7 @@ import {
   type ApiSession,
   type ApiAgent,
   type Attachment,
-  type ModelInfo,
+  type Model,
 } from '../api'
 import {
   assistantText,
@@ -55,6 +55,7 @@ import { clipboardErrorHandler, copyTextToClipboard, createErrorHandler } from '
 import { clearSessionRuntimeState } from '../utils/sessionLifecycle'
 import { serverStorage } from '../utils/perServerStorage'
 import { sessionKeyToServerId, splitSessionKey } from '../utils/sessionKey'
+import { createMessageId } from '../utils/identifier'
 import { serverStore } from '../store/serverStore'
 import { STORAGE_KEY_SELECTED_AGENT } from '../constants'
 import type { ChatAreaHandle } from '../features/chat'
@@ -90,7 +91,7 @@ const EMPTY_SESSION_STATE = {
 interface UseChatSessionOptions {
   paneId: string
   chatAreaRef: React.RefObject<ChatAreaHandle | null>
-  currentModel: ModelInfo | undefined
+  currentModel: Model | undefined
   refetchModels: () => Promise<void>
   sessionId: string | null
   navigateToSession: (sessionId: string, directory?: string) => void
@@ -202,7 +203,12 @@ export function useChatSession({
     }
   }, [routeSessionId, routeStatus])
 
-  const isSessionBusy = useMemo(() => Boolean(routeStatus) || isStreaming, [routeStatus, isStreaming])
+  // 注意：不能用 Boolean(routeStatus) 判断忙——{type:'idle'} 也是真值，
+  // 会让会话在出现任何状态条目后永久"忙"，所有消息进队列且永不发出。
+  const isSessionBusy = useMemo(
+    () => routeStatus?.type === 'busy' || routeStatus?.type === 'retry' || isStreaming,
+    [routeStatus, isStreaming],
+  )
 
   const getSessionTitle = useCallback(
     (sessionId?: string) => {
@@ -543,17 +549,26 @@ export function useChatSession({
   }, [routeSessionId, effectiveDirectory, paneServerId])
 
   // agents 列表加载后，校验当前选中的 agent 是否存在于列表中
+  // 选择值统一为 agent **id**（v2 API 用 id）；历史存储的显示名会被归一化成 id
   useEffect(() => {
     if (agents.length === 0) return
     const primaryAgents = agents.filter(a => a.mode !== 'subagent' && !a.hidden)
     if (primaryAgents.length === 0) return
 
-    // 当前选中的 agent 在列表中存在就不动
-    if (selectedAgent && primaryAgents.some(a => a.name === selectedAgent)) return
+    const matched = selectedAgent
+      ? primaryAgents.find(a => a.id === selectedAgent || a.name === selectedAgent)
+      : undefined
+    if (matched) {
+      if (matched.id !== selectedAgent) {
+        const frameId = requestAnimationFrame(() => setSelectedAgent(matched.id))
+        return () => cancelAnimationFrame(frameId)
+      }
+      return
+    }
 
     // 否则选第一个 primary agent
     const frameId = requestAnimationFrame(() => {
-      setSelectedAgent(primaryAgents[0].name)
+      setSelectedAgent(primaryAgents[0].id)
     })
 
     return () => cancelAnimationFrame(frameId)
@@ -668,6 +683,7 @@ export function useChatSession({
       try {
         if (!sessionId) {
           if (!input.allowCreateSession) return false
+          // context 的 createSession 会带上当前目录（normalizeToForwardSlash(currentDirectory)）
           const newSession = await createSession()
           sessionId = newSession.id
           navigateToSession(sessionId, newSession.location?.directory)
@@ -677,24 +693,49 @@ export function useChatSession({
           messageStore.truncateAfterRevert(sessionId)
         }
 
+        // 乐观上屏（官方 data.ts:1539-1575 同款）：客户端铸造消息 id 并立即
+        // 插入本地用户消息，POST 时把同一 id 交给服务端 —— durable 行与乐观行
+        // 同 id 对账，inbox.enqueued 回声 upsert 补齐 files/skills。
+        // 不等 POST、不等 SSE，用户消息即时可见。
+        const messageId = createMessageId()
+        messageStore.upsertLocalMessage(
+          sessionId,
+          buildLocalQueuedMessage({
+            sessionId,
+            messageId,
+            text: input.content,
+            attachments: input.attachments,
+            agent: input.options?.agent,
+            model: { ...input.model, variant: input.options?.variant },
+            createdAt: Date.now(),
+          }),
+        )
+
         // 记录发送前的消息数量，作为判断 SSE 是否推送新消息的基线
         const msgCountBeforeSend = messageStore.getSessionState(sessionId)?.messages.length ?? 0
 
         // 不要在 send 前 setStreaming：新 user 往往还没入列，过程折叠会把
         // 「上一轮已收工」误判成最新 Working 再展开，造成一闪。
         // streaming 在 send 成功后、或 SSE 推到 assistant 时再打开。
-        await sendMessageAsync(
-          {
-            sessionId,
-            text: input.content,
-            attachments: input.attachments,
-            model: input.model,
-            agent: input.options?.agent,
-            variant: input.options?.variant,
-            directory: input.directory,
-          },
-          paneServerId,
-        )
+        try {
+          await sendMessageAsync(
+            {
+              sessionId,
+              id: messageId,
+              text: input.content,
+              attachments: input.attachments,
+              model: input.model,
+              agent: input.options?.agent,
+              variant: input.options?.variant,
+              directory: input.directory,
+            },
+            paneServerId,
+          )
+        } catch (error) {
+          // 官方同款回滚：POST 失败只撤掉本次乐观插入、服务端未确认的行
+          messageStore.removeMessage(sessionId, messageId)
+          throw error
+        }
 
         messageStore.setStreaming(sessionId, true)
 
@@ -736,7 +777,7 @@ export function useChatSession({
         return false
       }
     },
-    [routeSessionId, navigateToSession, createSession, paneServerId],
+    [routeSessionId, navigateToSession, createSession, paneServerId, buildLocalQueuedMessage],
   )
 
   // Send message handler
@@ -762,7 +803,7 @@ export function useChatSession({
           text: content,
           attachments,
           model: {
-            providerID: currentModel.providerId,
+            providerID: currentModel.providerID,
             modelID: currentModel.id,
             variant: options?.variant,
           },
@@ -789,7 +830,7 @@ export function useChatSession({
         content,
         attachments,
         model: {
-          providerID: currentModel.providerId,
+          providerID: currentModel.providerID,
           modelID: currentModel.id,
         },
         options,
@@ -1013,7 +1054,7 @@ export function useChatSession({
           // Do not keep the draft alive until the long-running compaction finishes.
           void summarizeSession(
             sessionId,
-            { providerID: currentModel.providerId, modelID: currentModel.id },
+            { providerID: currentModel.providerID, modelID: currentModel.id },
             effectiveDirectory,
             paneServerId,
           ).catch(err => {
@@ -1109,19 +1150,21 @@ export function useChatSession({
   const handleToggleAgent = useCallback(() => {
     const primaryAgents = agents.filter(a => a.mode !== 'subagent' && !a.hidden)
     if (primaryAgents.length <= 1) return
-    const currentIndex = primaryAgents.findIndex(a => a.name === selectedAgent)
+    const currentIndex = primaryAgents.findIndex(a => a.id === selectedAgent || a.name === selectedAgent)
     const nextIndex = (currentIndex + 1) % primaryAgents.length
-    setSelectedAgent(primaryAgents[nextIndex].name)
+    setSelectedAgent(primaryAgents[nextIndex].id)
   }, [agents, selectedAgent, setSelectedAgent])
 
   // 从消息中恢复 agent 选择（用于切换 session 时）
   const restoreAgentFromMessage = useCallback(
     (agentName: string | null | undefined) => {
       if (!agentName) return
-      // 只有当 agent 存在于列表中时才恢复
-      const exists = agents.some(a => a.name === agentName && a.mode !== 'subagent' && !a.hidden)
-      if (exists) {
-        setSelectedAgent(agentName)
+      // 消息里的 agent 可能是 id 也可能是显示名，归一化为 id 再恢复
+      const matched = agents.find(
+        a => (a.id === agentName || a.name === agentName) && a.mode !== 'subagent' && !a.hidden,
+      )
+      if (matched) {
+        setSelectedAgent(matched.id)
       }
     },
     [agents, setSelectedAgent],

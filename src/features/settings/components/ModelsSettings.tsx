@@ -10,8 +10,8 @@ import {
 } from '../../../components/Icons'
 import { useModels } from '../../../hooks'
 import { modelVisibilityStore, useHiddenModelKeys } from '../../../store'
-import { groupModelsByProvider, getModelKey } from '../../../utils/modelUtils'
-import type { ModelInfo } from '../../../types/ui'
+import { groupModelsByProvider, getModelKey, providerDisplayName } from '../../../utils/modelUtils'
+import type { Model } from '../../../api'
 import { SettingsSection } from './SettingsUI'
 
 function formatContext(limit: number): string {
@@ -68,7 +68,7 @@ function ModelVisibilityButton({
 
 export function ModelsSettings() {
   const { t } = useTranslation('settings')
-  const { models, isLoading } = useModels()
+  const { models, providers, isLoading } = useModels()
   const hiddenModelKeys = useHiddenModelKeys()
   const [query, setQuery] = useState('')
   const deferredQuery = useDeferredValue(query)
@@ -92,15 +92,15 @@ export function ModelsSettings() {
         normalize(model.name).includes(normalizedQuery) ||
         normalize(model.id).includes(normalizedQuery) ||
         normalize(model.family).includes(normalizedQuery) ||
-        normalize(model.providerName).includes(normalizedQuery),
+        normalize(providerDisplayName(providers, model.providerID)).includes(normalizedQuery),
     )
-  }, [models, deferredQuery])
+  }, [models, providers, deferredQuery])
 
-  const groups = useMemo(() => groupModelsByProvider(filteredModels), [filteredModels])
+  const groups = useMemo(() => groupModelsByProvider(filteredModels, providers), [filteredModels, providers])
 
   // 当前可见列表的扁平顺序（折叠的 provider 不参与 shift 范围）
   const flatVisibleModels = useMemo(() => {
-    const list: ModelInfo[] = []
+    const list: Model[] = []
     for (const group of groups) {
       const isCollapsed = collapsed.has(group.providerName) && !deferredQuery
       if (isCollapsed) continue
@@ -133,7 +133,7 @@ export function ModelsSettings() {
    * - Ctrl/Cmd+点击：只切换当前项（不打断锚点，方便接着 Shift 扩选）
    */
   const handleModelActivate = useCallback(
-    (model: ModelInfo, e: React.MouseEvent | React.KeyboardEvent) => {
+    (model: Model, e: React.MouseEvent | React.KeyboardEvent) => {
       const key = getModelKey(model)
       const currentlyEnabled = !hiddenModelKeySet.has(key)
       const nextVisible = !currentlyEnabled
@@ -225,7 +225,9 @@ export function ModelsSettings() {
       ) : (
         <div>
           {groups.map((group, groupIndex) => {
-            const providerModels = models.filter(model => model.providerName === group.providerName)
+            const providerModels = models.filter(
+              model => providerDisplayName(providers, model.providerID) === group.providerName,
+            )
             const providerVisibleCount = providerModels.filter(
               model => !hiddenModelKeySet.has(getModelKey(model)),
             ).length
@@ -280,7 +282,7 @@ export function ModelsSettings() {
                     {group.models.map(model => {
                       const key = getModelKey(model)
                       const enabled = !hiddenModelKeySet.has(key)
-                      const context = formatContext(model.contextLimit)
+                      const context = formatContext(model.limit?.context ?? 0)
                       const disabled = enabled && visibleCount <= 1
 
                       return (

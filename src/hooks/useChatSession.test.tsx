@@ -225,7 +225,7 @@ describe('useChatSession handleCommand', () => {
       useChatSession({
         paneId: 'pane-1',
         chatAreaRef: { current: null },
-        currentModel: { id: 'model-1', providerId: 'provider-1', variants: [] } as never,
+        currentModel: { id: 'model-1', providerID: 'provider-1', variants: [] } as never,
         refetchModels: vi.fn(async () => {}),
         sessionId: 'session-1',
         navigateToSession: vi.fn(),
@@ -262,7 +262,7 @@ describe('useChatSession handleCommand', () => {
       useChatSession({
         paneId: 'pane-1',
         chatAreaRef: { current: null },
-        currentModel: { id: 'model-1', providerId: 'provider-1', variants: [] } as never,
+        currentModel: { id: 'model-1', providerID: 'provider-1', variants: [] } as never,
         refetchModels: vi.fn(async () => {}),
         sessionId: 'session-1',
         navigateToSession: vi.fn(),
@@ -296,7 +296,7 @@ describe('useChatSession handleCommand', () => {
       useChatSession({
         paneId: 'pane-1',
         chatAreaRef: { current: null },
-        currentModel: { id: 'model-1', providerId: 'provider-1', variants: [] } as never,
+        currentModel: { id: 'model-1', providerID: 'provider-1', variants: [] } as never,
         refetchModels: vi.fn(async () => {}),
         sessionId: 'session-1',
         navigateToSession: vi.fn(),
@@ -323,7 +323,7 @@ describe('useChatSession handleCommand', () => {
       useChatSession({
         paneId: 'pane-1',
         chatAreaRef: { current: null },
-        currentModel: { id: 'model-1', providerId: 'provider-1', variants: [] } as never,
+        currentModel: { id: 'model-1', providerID: 'provider-1', variants: [] } as never,
         refetchModels: vi.fn(async () => {}),
         sessionId: 'session-1',
         navigateToSession: vi.fn(),
@@ -376,7 +376,7 @@ describe('useChatSession handleCommand', () => {
         useChatSession({
           paneId: 'pane-1',
           chatAreaRef: { current: null },
-          currentModel: { id: 'model-1', providerId: 'provider-1', variants: [] } as never,
+          currentModel: { id: 'model-1', providerID: 'provider-1', variants: [] } as never,
           refetchModels: vi.fn(async () => {}),
           sessionId: 'session-1',
           navigateToSession: vi.fn(),
@@ -446,7 +446,7 @@ describe('useChatSession busy UI signal', () => {
       useChatSession({
         paneId: 'pane-1',
         chatAreaRef: { current: null },
-        currentModel: { id: 'model-1', providerId: 'provider-1', variants: [] } as never,
+        currentModel: { id: 'model-1', providerID: 'provider-1', variants: [] } as never,
         refetchModels: vi.fn(async () => {}),
         sessionId: 'session-1',
         navigateToSession: vi.fn(),
@@ -471,7 +471,7 @@ describe('useChatSession busy UI signal', () => {
       useChatSession({
         paneId: 'pane-1',
         chatAreaRef: { current: null },
-        currentModel: { id: 'model-1', providerId: 'provider-1', variants: [] } as never,
+        currentModel: { id: 'model-1', providerID: 'provider-1', variants: [] } as never,
         refetchModels: vi.fn(async () => {}),
         sessionId: 'session-1',
         navigateToSession: vi.fn(),
@@ -491,7 +491,7 @@ describe('useChatSession busy UI signal', () => {
       useChatSession({
         paneId: 'pane-1',
         chatAreaRef: { current: null },
-        currentModel: { id: 'model-1', providerId: 'provider-1', variants: [] } as never,
+        currentModel: { id: 'model-1', providerID: 'provider-1', variants: [] } as never,
         refetchModels: vi.fn(async () => {}),
         sessionId: 'session-1',
         navigateToSession: vi.fn(),

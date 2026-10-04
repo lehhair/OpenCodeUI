@@ -20,7 +20,7 @@
 
 import { getSDKClient } from './sdk'
 import { locationParam } from './location'
-import type { ModelInfo, ApiProject, ApiPath } from './types'
+import type { ApiProject, ApiPath } from './types'
 import type { Model, Provider } from '../types/api/model'
 
 // Re-export all types
@@ -46,51 +46,26 @@ export * from './command'
 export * from './global'
 
 // ============================================
-// Model API — v2 model.list + provider.list
+// Model / Provider API — v2 model.list + provider.list
 // ============================================
 
-/** 把 v2 的 ModelInfo 投影成 UI 的 ModelInfo */
-function toUIModel(model: Model, provider: Provider | undefined): ModelInfo {
-  const input = model.capabilities?.input ?? ({} as Record<string, unknown>)
-  const tools = model.capabilities?.tools
-
-  return {
-    id: model.id,
-    name: model.name || model.id,
-    providerId: model.providerID,
-    providerName: provider?.name || model.providerID,
-    family: model.family ?? '',
-    contextLimit: model.limit?.context ?? 0,
-    outputLimit: model.limit?.output ?? 0,
-    supportsReasoning: (input as { reasoning?: boolean }).reasoning === true,
-    supportsImages: (input as { image?: boolean }).image === true,
-    supportsPdf: (input as { pdf?: boolean }).pdf === true,
-    supportsAudio: (input as { audio?: boolean }).audio === true,
-    supportsVideo: (input as { video?: boolean }).video === true,
-    supportsToolcall: tools === true,
-    variants: model.variants?.map(variant => variant.id) ?? [],
-  }
+/**
+ * 获取启用的模型列表（原生 `Model[]`，无投影）。
+ *
+ * 与官方 app 一致：只排除 deprecated（alpha/beta 照常展示）。
+ * provider 显示名由消费方用 `getProviders()` 的原生列表按 providerID 解析。
+ */
+export async function getActiveModels(directory?: string, serverId?: string): Promise<Model[]> {
+  const sdk = getSDKClient(serverId)
+  const result = await sdk.model.list({ location: locationParam(directory, serverId) })
+  return result.data.filter(model => model.enabled && model.status !== 'deprecated')
 }
 
-/**
- * 获取启用的模型列表。
- *
- * v2 的模型自带 providerID，provider 只需用来补显示名。
- */
-export async function getActiveModels(directory?: string, serverId?: string): Promise<ModelInfo[]> {
+/** 获取 provider 列表（原生 `Provider[]`，用于显示名等元信息） */
+export async function getProviders(directory?: string, serverId?: string): Promise<Provider[]> {
   const sdk = getSDKClient(serverId)
-  const location = locationParam(directory, serverId)
-
-  const [modelsResult, providersResult] = await Promise.all([
-    sdk.model.list({ location }),
-    sdk.provider.list({ location }),
-  ])
-
-  const providers = new Map(providersResult.data.map(provider => [provider.id, provider]))
-
-  return modelsResult.data
-    .filter(model => model.enabled && model.status === 'active')
-    .map(model => toUIModel(model, providers.get(model.providerID)))
+  const result = await sdk.provider.list({ location: locationParam(directory, serverId) })
+  return result.data
 }
 
 /**

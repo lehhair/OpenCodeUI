@@ -18,29 +18,13 @@ export type { Attachment, AttachmentType } from '../features/attachment/types'
 // ============================================
 // Model Types
 // ============================================
-
-/**
- * 模型信息（UI 层简化版本）
- */
-export interface ModelInfo {
-  id: string
-  name: string
-  providerId: string
-  providerName: string
-  family: string
-  contextLimit: number
-  outputLimit: number
-  supportsReasoning: boolean
-  supportsImages: boolean
-  supportsPdf: boolean
-  supportsAudio: boolean
-  supportsVideo: boolean
-  supportsToolcall: boolean
-  variants: string[]
-}
+//
+// 模型实体直接用 SDK 原生 `Model`（`@/types/api/model`），没有 UI 投影层；
+// provider 显示名由原生 `Provider[]` 在消费侧按 providerID 解析。
 
 /**
  * 模型文件输入能力 — 决定可以附加哪些文件类型
+ *（由原生 `Model.capabilities.input` 在消费侧派生）
  */
 export interface FileCapabilities {
   image: boolean

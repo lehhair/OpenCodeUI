@@ -7,13 +7,14 @@
 
 import { useState, useRef, useEffect, useMemo, useCallback, memo, forwardRef, useImperativeHandle } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ChevronDownIcon, SearchIcon, ThinkingIcon, EyeIcon, CheckIcon, PinIcon } from '../../components/Icons'
+import { ChevronDownIcon, SearchIcon, EyeIcon, CheckIcon, PinIcon } from '../../components/Icons'
 import { DropdownMenu } from '../../components/ui'
-import type { ModelInfo } from '../../api'
+import type { Model, Provider } from '../../api'
 import { useInputCapabilities } from '../../hooks/useInputCapabilities'
 import {
   getModelKey,
   groupModelsByProvider,
+  providerDisplayName,
   getRecentModels,
   recordModelUsage,
   getPinnedModels,
@@ -30,9 +31,11 @@ export interface ModelSelectorHandle {
 }
 
 interface ModelSelectorProps {
-  models: ModelInfo[]
+  models: Model[]
+  /** 原生 provider 目录（显示名按 providerID 解析） */
+  providers?: Provider[]
   selectedModelKey: string | null
-  onSelect: (modelKey: string, model: ModelInfo) => void
+  onSelect: (modelKey: string, model: Model) => void
   isLoading?: boolean
   disabled?: boolean
   /** 弹出方向 */
@@ -49,15 +52,16 @@ interface ModelSelectorProps {
 
 type FlatListItem =
   | { type: 'header'; data: { name: string }; key: string }
-  | { type: 'item'; data: ModelInfo; key: string }
+  | { type: 'item'; data: Model; key: string }
 
 // ============================================
 // Flat list hook（分组 + 置顶 + 最近）
 // ============================================
 
 function useFlatList(
-  models: ModelInfo[],
-  filteredModels: ModelInfo[],
+  models: Model[],
+  filteredModels: Model[],
+  providers: Provider[] | undefined,
   searchQuery: string,
   refreshTrigger: number,
   t: (key: string) => string,
@@ -65,7 +69,7 @@ function useFlatList(
   return useMemo(() => {
     void refreshTrigger
 
-    const groups = groupModelsByProvider(filteredModels)
+    const groups = groupModelsByProvider(filteredModels, providers)
     const recent = searchQuery ? [] : getRecentModels(models, 5)
     const pinned = searchQuery ? [] : getPinnedModels(models)
 
@@ -102,7 +106,7 @@ function useFlatList(
     })
 
     return flat
-  }, [filteredModels, models, searchQuery, refreshTrigger, t])
+  }, [filteredModels, models, providers, searchQuery, refreshTrigger, t])
 }
 
 // ============================================
@@ -117,14 +121,15 @@ interface ModelListPanelProps {
   setSearchQuery: (q: string) => void
   setHighlightedIndex: React.Dispatch<React.SetStateAction<number>>
   handleSearchKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void
-  handleItemKeyDown: (e: React.KeyboardEvent<HTMLButtonElement>, interactiveIndex: number, model: ModelInfo) => void
+  handleItemKeyDown: (e: React.KeyboardEvent<HTMLButtonElement>, interactiveIndex: number, model: Model) => void
   flatList: FlatListItem[]
   itemIndices: number[]
   highlightedIndex: number
   selectedModelKey: string | null
-  onItemClick: (model: ModelInfo) => void
-  onTogglePin: (e: React.MouseEvent<HTMLButtonElement>, model: ModelInfo) => void
-  onTouchStart?: (model: ModelInfo) => void
+  providers?: Provider[]
+  onItemClick: (model: Model) => void
+  onTogglePin: (e: React.MouseEvent<HTMLButtonElement>, model: Model) => void
+  onTouchStart?: (model: Model) => void
   onTouchEnd?: () => void
   handlePinKeyDown: (e: React.KeyboardEvent<HTMLButtonElement>, interactiveIndex: number) => void
   ignoreMouseRef: React.RefObject<boolean>
@@ -153,6 +158,7 @@ const ModelListPanel = memo(function ModelListPanel({
   itemIndices,
   highlightedIndex,
   selectedModelKey,
+  providers,
   onItemClick,
   onTogglePin,
   onTouchStart,
@@ -222,8 +228,11 @@ const ModelListPanel = memo(function ModelListPanel({
                 )
               }
 
-              const model = item.data as ModelInfo
+              const model = item.data as Model
               const itemKey = getModelKey(model)
+              const providerName = providerDisplayName(providers, model.providerID)
+              const contextLimit = model.limit?.context ?? 0
+              const supportsImages = model.capabilities?.input?.includes('image') ?? false
               const isSelected = selectedModelKey === itemKey
               const isHL = itemIndices[highlightedIndex] === index
               const interactiveIndex = itemIndices.indexOf(index)
@@ -260,7 +269,7 @@ const ModelListPanel = memo(function ModelListPanel({
                     onTouchStart={onTouchStart ? () => onTouchStart(model) : undefined}
                     onTouchEnd={onTouchEnd}
                     onTouchMove={onTouchEnd}
-                    title={`${model.name} · ${model.providerName}${model.contextLimit ? ` · ${formatContext(model.contextLimit)}` : ''}`}
+                    title={`${model.name} · ${providerName}${contextLimit ? ` · ${formatContext(contextLimit)}` : ''}`}
                     className="flex min-w-0 flex-1 items-center justify-between gap-2 rounded-md bg-transparent border-none p-0 text-left text-[length:var(--fs-base)] outline-none focus-visible:outline-none"
                   >
                     {/* Left: name + capability icons */}
@@ -272,15 +281,14 @@ const ModelListPanel = memo(function ModelListPanel({
                         aria-hidden="true"
                         className={`flex items-center gap-1 flex-shrink-0 transition-opacity ${isHL || isSelected ? 'opacity-60' : 'opacity-25'}`}
                       >
-                        {model.supportsReasoning && <ThinkingIcon size={12} />}
-                        {model.supportsImages && <EyeIcon size={13} />}
+                        {supportsImages && <EyeIcon size={13} />}
                       </div>
                     </div>
 
                     <div className="flex items-center gap-2 text-[length:var(--fs-sm)] font-mono flex-shrink-0">
-                      <span className="text-text-500 max-w-[100px] truncate text-right">{model.providerName}</span>
-                      {model.contextLimit > 0 && (
-                        <span className="text-text-500 w-[4ch] text-right hidden sm:inline">{formatContext(model.contextLimit)}</span>
+                      <span className="text-text-500 max-w-[100px] truncate text-right">{providerName}</span>
+                      {contextLimit > 0 && (
+                        <span className="text-text-500 w-[4ch] text-right hidden sm:inline">{formatContext(contextLimit)}</span>
                       )}
                       {isSelected && (
                         <span className="w-5 flex items-center justify-center flex-shrink-0 text-accent-secondary-100">
@@ -344,6 +352,7 @@ export const ModelSelector = memo(
   forwardRef<ModelSelectorHandle, ModelSelectorProps>(function ModelSelector(
     {
       models,
+      providers,
       selectedModelKey,
       onSelect,
       isLoading = false,
@@ -386,11 +395,11 @@ export const ModelSelector = memo(
           normalize(m.name).includes(query) ||
           normalize(m.id).includes(query) ||
           normalize(m.family).includes(query) ||
-          normalize(m.providerName).includes(query),
+          normalize(providerDisplayName(providers, m.providerID)).includes(query),
       )
-    }, [models, searchQuery])
+    }, [models, providers, searchQuery])
 
-    const flatList = useFlatList(models, filteredModels, searchQuery, refreshTrigger, t)
+    const flatList = useFlatList(models, filteredModels, providers, searchQuery, refreshTrigger, t)
 
     const itemIndices = useMemo(() => {
       return flatList.map((item, index) => (item.type === 'item' ? index : -1)).filter(i => i !== -1)
@@ -481,7 +490,7 @@ export const ModelSelector = memo(
     // ---- Select / Pin ----
 
     const handleSelect = useCallback(
-      (model: ModelInfo) => {
+      (model: Model) => {
         const key = getModelKey(model)
         recordModelUsage(model)
         onSelect(key, model)
@@ -496,7 +505,7 @@ export const ModelSelector = memo(
       [onSelect, closeMenu, focusToolbarInput, trigger],
     )
 
-    const handleTogglePin = useCallback((e: React.MouseEvent<HTMLButtonElement>, model: ModelInfo) => {
+    const handleTogglePin = useCallback((e: React.MouseEvent<HTMLButtonElement>, model: Model) => {
       e.stopPropagation()
       if (e.detail === 0) {
         pendingFocusRestoreRef.current = { modelKey: getModelKey(model), target: 'pin' }
@@ -513,7 +522,7 @@ export const ModelSelector = memo(
     const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const longPressFiredRef = useRef(false)
 
-    const handleTouchStart = useCallback((model: ModelInfo) => {
+    const handleTouchStart = useCallback((model: Model) => {
       longPressFiredRef.current = false
       longPressTimerRef.current = setTimeout(() => {
         longPressFiredRef.current = true
@@ -531,7 +540,7 @@ export const ModelSelector = memo(
     }, [])
 
     const handleItemClick = useCallback(
-      (model: ModelInfo) => {
+      (model: Model) => {
         if (longPressFiredRef.current) {
           longPressFiredRef.current = false
           return
@@ -689,7 +698,7 @@ export const ModelSelector = memo(
     )
 
     const handleItemKeyDown = useCallback(
-      (e: React.KeyboardEvent<HTMLButtonElement>, interactiveIndex: number, model: ModelInfo) => {
+      (e: React.KeyboardEvent<HTMLButtonElement>, interactiveIndex: number, model: Model) => {
         e.stopPropagation()
 
         switch (e.key) {
@@ -869,6 +878,7 @@ export const ModelSelector = memo(
             itemIndices={itemIndices}
             highlightedIndex={highlightedIndex}
             selectedModelKey={selectedModelKey}
+            providers={providers}
             onItemClick={handleItemClick}
             onTogglePin={handleTogglePin}
             onTouchStart={handleTouchStart}

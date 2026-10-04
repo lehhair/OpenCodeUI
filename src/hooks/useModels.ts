@@ -1,5 +1,5 @@
 import { useSyncExternalStore, useCallback, useEffect } from 'react'
-import { getActiveModels, type ModelInfo } from '../api'
+import { getActiveModels, getProviders, type Model, type Provider } from '../api'
 import { getSDKClientAsync } from '../api/sdk'
 import { serverStore } from '../store/serverStore'
 
@@ -12,7 +12,8 @@ import { serverStore } from '../store/serverStore'
 // ============================================
 
 interface ModelsState {
-  models: ModelInfo[]
+  models: Model[]
+  providers: Provider[]
   isLoading: boolean
   error: Error | null
 }
@@ -25,7 +26,7 @@ const _fetchGenerations = new Map<string, number>()
 const _listeners = new Set<Listener>()
 
 function _getState(serverId: string): ModelsState {
-  return _states.get(serverId) ?? { models: [], isLoading: true, error: null }
+  return _states.get(serverId) ?? { models: [], providers: [], isLoading: true, error: null }
 }
 
 function _notify() {
@@ -49,9 +50,13 @@ async function _fetchModels(serverId: string, force = false) {
     _setState(serverId, { isLoading: true, error: null })
     try {
       await getSDKClientAsync(serverId)
-      const data = await getActiveModels(undefined, serverId)
+      // 模型与 provider 目录是两个独立原生资源（官方同样分开 sync）
+      const [models, providers] = await Promise.all([
+        getActiveModels(undefined, serverId),
+        getProviders(undefined, serverId).catch(() => [] as Provider[]),
+      ])
       if (generation === _fetchGenerations.get(serverId)) {
-        _setState(serverId, { models: data, isLoading: false })
+        _setState(serverId, { models, providers, isLoading: false })
       }
     } catch (e) {
       if (generation === _fetchGenerations.get(serverId)) {
@@ -96,7 +101,8 @@ function _subscribe(listener: Listener) {
 // ============================================
 
 interface UseModelsResult {
-  models: ModelInfo[]
+  models: Model[]
+  providers: Provider[]
   isLoading: boolean
   error: Error | null
   refetch: () => Promise<void>
@@ -125,6 +131,7 @@ export function useModels(serverId?: string): UseModelsResult {
 
   return {
     models: state.models,
+    providers: state.providers,
     isLoading: state.isLoading,
     error: state.error,
     refetch,

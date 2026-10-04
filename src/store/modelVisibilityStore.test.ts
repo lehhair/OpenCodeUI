@@ -1,13 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { ModelInfo } from '../types/ui'
+import type { Model } from '../types/api'
 
-function model(providerId: string, id: string): ModelInfo {
+function model(providerID: string, id: string): Model {
   return {
     id,
     name: id,
-    providerId,
-    providerName: providerId,
-  } as ModelInfo
+    providerID,
+  } as Model
 }
 
 function readHiddenKeys(): string[] {

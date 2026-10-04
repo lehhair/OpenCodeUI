@@ -10,8 +10,8 @@ const isTauriMobileMock = vi.fn()
 const openMock = vi.fn()
 const readFileMock = vi.fn()
 const agents: ApiAgent[] = [
-  { id: 'build', name: 'build', description: 'Build things', mode: 'primary', permissions: [], request: { settings: {}, headers: {}, body: {} }, hidden: false },
-  { id: 'plan', name: 'plan', description: 'Plan work', mode: 'primary', permissions: [], request: { settings: {}, headers: {}, body: {} }, hidden: false },
+  { id: 'build', name: 'Build', description: 'Build things', mode: 'primary', permissions: [], request: { settings: {}, headers: {}, body: {} }, hidden: false },
+  { id: 'plan', name: 'Plan', description: 'Plan work', mode: 'primary', permissions: [], request: { settings: {}, headers: {}, body: {} }, hidden: false },
 ]
 
 vi.mock('../../../hooks', () => ({
@@ -173,7 +173,7 @@ describe('InputToolbar file selection', () => {
       />,
     )
 
-    const trigger = screen.getByTitle('build: Build things')
+    const trigger = screen.getByTitle('Build: Build things')
 
     fireEvent.click(trigger)
 
@@ -197,7 +197,7 @@ describe('InputToolbar file selection', () => {
       />,
     )
 
-    const trigger = screen.getByTitle('build: Build things')
+    const trigger = screen.getByTitle('Build: Build things')
     fireEvent.click(trigger)
 
     const selectedItem = await screen.findByRole('menuitemradio', { name: 'Build' })
@@ -232,7 +232,7 @@ describe('InputToolbar file selection', () => {
 
     render(<ToolbarHarness />)
 
-    fireEvent.click(screen.getByTitle('build: Build things'))
+    fireEvent.click(screen.getByTitle('Build: Build things'))
     fireEvent.click(screen.getByRole('menuitemradio', { name: 'Plan' }))
 
     await waitFor(() => expect(screen.getByRole('textbox', { name: 'Chat input' })).toHaveFocus())

@@ -31,7 +31,7 @@ import { keybindingStore, matchesKeybinding } from '../../store/keybindingStore'
 import { themeStore } from '../../store/themeStore'
 import { useChatViewport } from './chatViewport'
 import type { ApiAgent } from '../../api/client'
-import type { ModelInfo, FileCapabilities } from '../../api'
+import type { Model, Provider, FileCapabilities } from '../../api'
 import type { Command } from '../../api/command'
 import {
   getDroppedPathsInfo,
@@ -136,9 +136,10 @@ export interface InputBoxProps {
   supportsImages?: boolean // 保留向后兼容（deprecated，优先用 fileCapabilities）
   fileCapabilities?: FileCapabilities
   // Model（移动端 InputToolbar 用）
-  models?: ModelInfo[]
+  models?: Model[]
+  providers?: Provider[]
   selectedModelKey?: string | null
-  onModelChange?: (modelKey: string, model: ModelInfo) => void
+  onModelChange?: (modelKey: string, model: Model) => void
   modelsLoading?: boolean
   modelSelectorRef?: React.RefObject<ModelSelectorHandle | null>
   rootPath?: string
@@ -182,6 +183,7 @@ function InputBoxComponent({
   supportsImages = false,
   fileCapabilities: fileCapabilitiesProp,
   models = [],
+  providers,
   selectedModelKey = null,
   onModelChange,
   modelsLoading = false,
@@ -522,10 +524,16 @@ function InputBoxComponent({
     const agentAttachment = attachments.find(a => a.type === 'agent')
     const mentionedAgent = agentAttachment?.agentName
 
+    // v2 的 switchAgent 需要 agent **id**（'build'），而界面选择/mention 存的
+    // 可能是显示名（'Build'）——服务端不校验、收下后执行直接失败且静默。
+    // 发送边界统一把 name 解析回 id。
+    const agentRef = mentionedAgent || selectedAgent
+    const agentObj = agentRef ? agents.find(a => a.id === agentRef || a.name === agentRef) : undefined
+
     void runSubmit(
       () =>
         onSend(text, attachments, {
-          agent: mentionedAgent || selectedAgent,
+          agent: agentObj?.id ?? agentRef,
           variant: selectedVariant,
         }),
       () => {
@@ -534,6 +542,7 @@ function InputBoxComponent({
       },
     )
   }, [
+    agents,
     attachments,
     canSend,
     isSubmitting,
@@ -1407,6 +1416,7 @@ function InputBoxComponent({
                       canSend={canSend || false}
                       onSend={handleSend}
                       models={models}
+                      providers={providers}
                       selectedModelKey={selectedModelKey}
                       onModelChange={onModelChange}
                       modelsLoading={modelsLoading}

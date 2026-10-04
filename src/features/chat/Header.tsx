@@ -19,13 +19,14 @@ import { updateSession } from '../../api'
 import { useDirectory } from '../../contexts/useDirectory'
 import { uiErrorHandler } from '../../utils'
 import { useChatViewport } from './chatViewport'
-import type { ModelInfo } from '../../api'
+import type { Model, Provider } from '../../api'
 
 interface HeaderProps {
-  models: ModelInfo[]
+  models: Model[]
+  providers?: Provider[]
   modelsLoading: boolean
   selectedModelKey: string | null
-  onModelChange: (modelKey: string, model: ModelInfo) => void
+  onModelChange: (modelKey: string, model: Model) => void
   onOpenSidebar?: () => void
   onToggleRightPanel?: () => void
   onSplitPane?: () => void
@@ -113,6 +114,7 @@ function SessionTitleControl({
 
 export function Header({
   models,
+  providers,
   modelsLoading,
   selectedModelKey,
   onModelChange,
@@ -214,6 +216,7 @@ export function Header({
           <ModelSelector
             ref={modelSelectorRef}
             models={models}
+            providers={providers}
             selectedModelKey={selectedModelKey}
             onSelect={onModelChange}
             isLoading={modelsLoading}

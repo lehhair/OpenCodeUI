@@ -2,7 +2,7 @@
 // Session 加载相关的辅助函数
 // ============================================
 
-import type { ModelInfo } from '../api'
+import type { Model } from '../api'
 import { getModelKey } from './modelUtils'
 
 // ============================================
@@ -11,7 +11,7 @@ import { getModelKey } from './modelUtils'
 
 export interface ModelSelectionResult {
   modelKey: string // providerId:modelId 格式
-  model: ModelInfo
+  model: Model
   variant: string | undefined
 }
 
@@ -21,7 +21,7 @@ export interface ModelSelectionResult {
 export function restoreModelSelection(
   lastModel: { providerID: string; modelID: string } | null,
   lastVariant: string | null,
-  models: ModelInfo[],
+  models: Model[],
 ): ModelSelectionResult | null {
   if (!lastModel || models.length === 0) {
     return null
@@ -29,14 +29,14 @@ export function restoreModelSelection(
 
   // 精确匹配 providerId + modelId（不做 modelID-only fallback，
   // 避免多 provider 同 modelId 时选错渠道）
-  const model = models.find(m => m.providerId === lastModel.providerID && m.id === lastModel.modelID)
+  const model = models.find(m => m.providerID === lastModel.providerID && m.id === lastModel.modelID)
 
   if (!model) {
     return null
   }
 
   let variant: string | undefined = undefined
-  if (lastVariant && model.variants.includes(lastVariant)) {
+  if (lastVariant && model.variants?.some(variant => variant.id === lastVariant)) {
     variant = lastVariant
   }
 

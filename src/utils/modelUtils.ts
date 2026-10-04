@@ -4,7 +4,7 @@
  * - 使用频率记录和排序
  */
 
-import type { ModelInfo } from '../api'
+import type { Model, Provider } from '../api'
 import { serverStorage } from './perServerStorage'
 
 // ============================================
@@ -15,18 +15,18 @@ import { serverStorage } from './perServerStorage'
  * 生成模型的唯一标识符
  * 格式: providerId:modelId
  */
-export function getModelKey(model: ModelInfo): string {
-  return `${model.providerId}:${model.id}`
+export function getModelKey(model: Model): string {
+  return `${model.providerID}:${model.id}`
 }
 
 /**
  * 从唯一标识符解析 providerId 和 modelId
  */
-export function parseModelKey(key: string): { providerId: string; modelId: string } | null {
+export function parseModelKey(key: string): { providerID: string; modelId: string } | null {
   const idx = key.indexOf(':')
   if (idx === -1) return null
   return {
-    providerId: key.slice(0, idx),
+    providerID: key.slice(0, idx),
     modelId: key.slice(idx + 1),
   }
 }
@@ -34,10 +34,10 @@ export function parseModelKey(key: string): { providerId: string; modelId: strin
 /**
  * 根据 key 找到对应的模型
  */
-export function findModelByKey(models: ModelInfo[], key: string): ModelInfo | undefined {
+export function findModelByKey(models: Model[], key: string): Model | undefined {
   const parsed = parseModelKey(key)
   if (!parsed) return undefined
-  return models.find(m => m.providerId === parsed.providerId && m.id === parsed.modelId)
+  return models.find(m => m.providerID === parsed.providerID && m.id === parsed.modelId)
 }
 
 // ============================================
@@ -82,7 +82,7 @@ export function getModelUsageStats(): ModelUsageStats {
 /**
  * 记录模型使用
  */
-export function recordModelUsage(model: ModelInfo): void {
+export function recordModelUsage(model: Model): void {
   const key = getModelKey(model)
   const stats = getModelUsageStats()
 
@@ -103,7 +103,7 @@ export function recordModelUsage(model: ModelInfo): void {
 /**
  * 获取模型的使用次数
  */
-export function getModelUsageCount(model: ModelInfo): number {
+export function getModelUsageCount(model: Model): number {
   const key = getModelKey(model)
   const stats = getModelUsageStats()
   return stats[key]?.count ?? 0
@@ -193,7 +193,7 @@ export type ModelSortMode = 'frequency' | 'alphabetical' | 'provider'
  * - 使用次数多的优先
  * - 未使用过的按原始顺序
  */
-export function sortModelsByFrequency(models: ModelInfo[]): ModelInfo[] {
+export function sortModelsByFrequency(models: Model[]): Model[] {
   const stats = getModelUsageStats()
 
   return [...models].sort((a, b) => {
@@ -220,14 +220,14 @@ export function sortModelsByFrequency(models: ModelInfo[]): ModelInfo[] {
 /**
  * 按字母顺序排序模型
  */
-export function sortModelsAlphabetically(models: ModelInfo[]): ModelInfo[] {
+export function sortModelsAlphabetically(models: Model[]): Model[] {
   return [...models].sort((a, b) => a.name.localeCompare(b.name))
 }
 
 /**
  * 按 provider 分组（返回分组后的扁平数组，常用的 provider 在前）
  */
-export function sortModelsByProvider(models: ModelInfo[]): ModelInfo[] {
+export function sortModelsByProvider(models: Model[]): Model[] {
   const stats = getModelUsageStats()
 
   // 计算每个 provider 的总使用次数
@@ -235,19 +235,19 @@ export function sortModelsByProvider(models: ModelInfo[]): ModelInfo[] {
   for (const model of models) {
     const key = getModelKey(model)
     const count = stats[key]?.count ?? 0
-    providerUsage[model.providerId] = (providerUsage[model.providerId] ?? 0) + count
+    providerUsage[model.providerID] = (providerUsage[model.providerID] ?? 0) + count
   }
 
   // 按 provider 使用频率分组
   const groups = models.reduce(
     (acc, model) => {
-      if (!acc[model.providerId]) {
-        acc[model.providerId] = []
+      if (!acc[model.providerID]) {
+        acc[model.providerID] = []
       }
-      acc[model.providerId].push(model)
+      acc[model.providerID].push(model)
       return acc
     },
-    {} as Record<string, ModelInfo[]>,
+    {} as Record<string, Model[]>,
   )
 
   // 按 provider 使用频率排序
@@ -266,23 +266,29 @@ export function sortModelsByProvider(models: ModelInfo[]): ModelInfo[] {
 export interface ModelGroup {
   providerId: string
   providerName: string
-  models: ModelInfo[]
+  models: Model[]
+}
+
+/** 从原生 Provider 列表解析显示名（缺省回退 providerID） */
+export function providerDisplayName(providers: Provider[] | undefined, providerID: string): string {
+  return providers?.find(provider => provider.id === providerID)?.name || providerID
 }
 
 /**
- * 将模型按 provider 分组，常用的 provider 在前
+ * 将模型按 provider 分组，常用的 provider 在前。
+ * 显示名从原生 `Provider[]` 解析（官方同款：provider 目录是独立资源）。
  */
-export function groupModelsByProvider(models: ModelInfo[]): ModelGroup[] {
+export function groupModelsByProvider(models: Model[], providers?: Provider[]): ModelGroup[] {
   const stats = getModelUsageStats()
 
   // 按 providerName 分组 (合并同名 Provider)
   const groupMap = models.reduce(
     (acc, model) => {
-      const key = model.providerName // 使用 Name 作为分组键
+      const key = providerDisplayName(providers, model.providerID) // 使用 Name 作为分组键
       if (!acc[key]) {
         acc[key] = {
-          providerId: model.providerId, // 这里的 ID 仅作参考，可能不唯一
-          providerName: model.providerName,
+          providerId: model.providerID, // 这里的 ID 仅作参考，可能不唯一
+          providerName: key,
           models: [],
         }
       }
@@ -313,7 +319,7 @@ export function groupModelsByProvider(models: ModelInfo[]): ModelGroup[] {
 /**
  * 获取最近使用的模型列表（用于快速访问）
  */
-export function getRecentModels(models: ModelInfo[], limit = 5): ModelInfo[] {
+export function getRecentModels(models: Model[], limit = 5): Model[] {
   const stats = getModelUsageStats()
 
   // 过滤出使用过的模型并按最近使用时间排序
@@ -352,7 +358,7 @@ export function getPinnedModelKeys(): string[] {
 /**
  * 判断模型是否已置顶
  */
-export function isModelPinned(model: ModelInfo): boolean {
+export function isModelPinned(model: Model): boolean {
   const key = getModelKey(model)
   return getPinnedModelKeys().includes(key)
 }
@@ -360,7 +366,7 @@ export function isModelPinned(model: ModelInfo): boolean {
 /**
  * 切换模型置顶状态
  */
-export function toggleModelPin(model: ModelInfo): boolean {
+export function toggleModelPin(model: Model): boolean {
   const key = getModelKey(model)
   const pinned = getPinnedModelKeys()
   const index = pinned.indexOf(key)
@@ -385,17 +391,17 @@ export function toggleModelPin(model: ModelInfo): boolean {
 /**
  * 获取置顶模型列表（保持置顶顺序）
  */
-export function getPinnedModels(models: ModelInfo[]): ModelInfo[] {
+export function getPinnedModels(models: Model[]): Model[] {
   const pinnedKeys = getPinnedModelKeys()
   if (pinnedKeys.length === 0) return []
 
   const keySet = new Set(pinnedKeys)
-  const modelMap = new Map<string, ModelInfo>()
+  const modelMap = new Map<string, Model>()
   for (const m of models) {
     const k = getModelKey(m)
     if (keySet.has(k)) modelMap.set(k, m)
   }
 
   // 保持置顶顺序
-  return pinnedKeys.map(k => modelMap.get(k)).filter((m): m is ModelInfo => !!m)
+  return pinnedKeys.map(k => modelMap.get(k)).filter((m): m is Model => !!m)
 }

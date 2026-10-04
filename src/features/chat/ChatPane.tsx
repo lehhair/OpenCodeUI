@@ -171,7 +171,7 @@ export const ChatPane = memo(function ChatPane({
   // ============================================
   // Models（per-server：模型列表跟随当前 pane 绑定的服务器）
   // ============================================
-  const { models, isLoading: modelsLoading, refetch: refetchModels } = useModels(paneServerId)
+  const { models, providers, isLoading: modelsLoading, refetch: refetchModels } = useModels(paneServerId)
   const { activeServer, getHealth } = useServerStore()
   const activeServerHealth = activeServer ? getHealth(activeServer.id) : null
   const hiddenModelKeys = useHiddenModelKeys()
@@ -427,8 +427,9 @@ export const ChatPane = memo(function ChatPane({
   // Agent Change with Model Sync
   // ============================================
   const syncModelForAgent = useCallback(
-    (agentName: string) => {
-      const agent = agents.find(a => a.name === agentName)
+    (agentRef: string) => {
+      // 选择值是 agent id；兼容显示名
+      const agent = agents.find(a => a.id === agentRef || a.name === agentRef)
       if (agent?.model) {
         const modelKey = `${agent.model.providerID}:${agent.model.id}`
         const model = findModelByKey(visibleModels, modelKey)
@@ -451,9 +452,9 @@ export const ChatPane = memo(function ChatPane({
   const handleToggleAgentWithSync = useCallback(() => {
     const primaryAgents = agents.filter(a => a.mode !== 'subagent' && !a.hidden)
     if (primaryAgents.length <= 1) return
-    const currentIndex = primaryAgents.findIndex(a => a.name === selectedAgent)
+    const currentIndex = primaryAgents.findIndex(a => a.id === selectedAgent || a.name === selectedAgent)
     const nextIndex = (currentIndex + 1) % primaryAgents.length
-    handleAgentChange(primaryAgents[nextIndex].name)
+    handleAgentChange(primaryAgents[nextIndex].id)
   }, [agents, selectedAgent, handleAgentChange])
 
   // ============================================
@@ -685,7 +686,7 @@ export const ChatPane = memo(function ChatPane({
     modelSelectorRef.current?.openMenu()
   }, [])
 
-  const contextLimit = currentModel?.contextLimit
+  const contextLimit = currentModel?.limit?.context
 
   const controllerActionsRef = useRef({
     newSession: handleNewSession,
@@ -811,10 +812,10 @@ export const ChatPane = memo(function ChatPane({
     () =>
       currentModel
         ? {
-            image: currentModel.supportsImages,
-            pdf: currentModel.supportsPdf,
-            audio: currentModel.supportsAudio,
-            video: currentModel.supportsVideo,
+            image: currentModel.capabilities?.input?.includes('image') ?? false,
+            pdf: currentModel.capabilities?.input?.includes('pdf') ?? false,
+            audio: currentModel.capabilities?.input?.includes('audio') ?? false,
+            video: currentModel.capabilities?.input?.includes('video') ?? false,
           }
         : undefined,
     [currentModel],
@@ -833,6 +834,7 @@ export const ChatPane = memo(function ChatPane({
           <div className="pointer-events-auto">
             <Header
               models={visibleModels}
+              providers={providers}
               modelsLoading={modelsLoading}
               selectedModelKey={selectedModelKey}
               onModelChange={handleModelChange}
@@ -927,11 +929,12 @@ export const ChatPane = memo(function ChatPane({
           agents={agents}
           selectedAgent={selectedAgent}
           onAgentChange={handleAgentChange}
-          variants={currentModel?.variants ?? []}
+          variants={currentModel?.variants?.map(variant => variant.id) ?? []}
           selectedVariant={selectedVariant}
           onVariantChange={handleVariantChange}
           fileCapabilities={fileCapabilities}
           models={visibleModels}
+          providers={providers}
           selectedModelKey={selectedModelKey}
           onModelChange={handleModelChange}
           modelsLoading={modelsLoading}

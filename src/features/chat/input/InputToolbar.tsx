@@ -6,7 +6,7 @@ import { ModelSelector, type ModelSelectorHandle } from '../ModelSelector'
 import { useChatViewport } from '../chatViewport'
 import { isTauri, isTauriMobile, extToMime } from '../../../utils/tauri'
 import type { ApiAgent } from '../../../api/client'
-import type { ModelInfo, FileCapabilities } from '../../../api'
+import type { Model, Provider, FileCapabilities } from '../../../api'
 
 interface InputToolbarProps {
   agents: ApiAgent[]
@@ -28,9 +28,10 @@ interface InputToolbarProps {
   onSend: () => void
 
   // Model selection（移动端显示在工具栏）
-  models?: ModelInfo[]
+  models?: Model[]
+  providers?: Provider[]
   selectedModelKey?: string | null
-  onModelChange?: (modelKey: string, model: ModelInfo) => void
+  onModelChange?: (modelKey: string, model: Model) => void
   modelsLoading?: boolean
   // 输入框容器 ref，用于约束菜单边界
   inputContainerRef?: React.RefObject<HTMLDivElement | null>
@@ -52,6 +53,7 @@ export function InputToolbar({
   canSend,
   onSend,
   models = [],
+  providers,
   selectedModelKey = null,
   onModelChange,
   modelsLoading = false,
@@ -303,7 +305,8 @@ export function InputToolbar({
   }, [variantMenuOpen, focusMenuItem])
 
   const selectableAgents = agents.filter(a => a.mode !== 'subagent' && !a.hidden)
-  const currentAgent = agents.find(a => a.name === selectedAgent)
+  // 选择值是 agent id（v2 的 API 用 id）；兼容历史存储的显示名
+  const currentAgent = agents.find(a => a.id === selectedAgent || a.name === selectedAgent)
 
   return (
     <div className="flex items-center justify-between px-3 pb-3 relative">
@@ -314,6 +317,7 @@ export function InputToolbar({
           <ModelSelector
             ref={modelSelectorRef}
             models={models}
+            providers={providers}
             selectedModelKey={selectedModelKey}
             onSelect={onModelChange}
             isLoading={modelsLoading}
@@ -358,7 +362,7 @@ export function InputToolbar({
               >
                 <AgentIcon />
               </span>
-              <span className="text-[length:var(--fs-sm)] text-text-300 capitalize truncate">{selectedAgent || 'build'}</span>
+              <span className="text-[length:var(--fs-sm)] text-text-300 truncate">{currentAgent?.name ?? selectedAgent ?? 'build'}</span>
               <span className={`text-text-400 shrink-0 ${isCompact ? 'hidden' : ''}`}>
                 <ChevronDownIcon />
               </span>
@@ -382,18 +386,18 @@ export function InputToolbar({
               >
                 {selectableAgents.map(agent => (
                   <MenuItem
-                    key={agent.name}
-                    label={agent.name.charAt(0).toUpperCase() + agent.name.slice(1)}
+                    key={agent.id}
+                    label={agent.name}
                     description={agent.description}
                     icon={
                       <span style={agent.color ? { color: agent.color } : undefined}>
                         <AgentIcon />
                       </span>
                     }
-                    selected={selectedAgent === agent.name}
+                    selected={selectedAgent === agent.id}
                     selectionRole="menuitemradio"
                     onClick={() => {
-                      onAgentChange?.(agent.name)
+                      onAgentChange?.(agent.id)
                       closeMenuToComposer(() => setAgentMenuOpen(false))
                     }}
                   />

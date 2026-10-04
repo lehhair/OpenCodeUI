@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { ModelsSettings } from './ModelsSettings'
-import type { ModelInfo } from '../../../api'
+import type { Model } from '../../../api'
 
 const { useModelsMock, useHiddenModelKeysMock, setVisibleMock, setManyVisibleMock } = vi.hoisted(() => ({
   useModelsMock: vi.fn(),
@@ -23,8 +23,9 @@ vi.mock('../../../store', () => ({
 }))
 
 vi.mock('../../../utils/modelUtils', () => ({
-  getModelKey: (model: ModelInfo) => `${model.providerId}:${model.id}`,
-  groupModelsByProvider: (models: ModelInfo[]) => [
+  getModelKey: (model: Model) => `${model.providerID}:${model.id}`,
+  providerDisplayName: (_providers: unknown, providerID: string) => (providerID === 'openai' ? 'OpenAI' : providerID),
+  groupModelsByProvider: (models: Model[]) => [
     {
       providerName: 'OpenAI',
       models,
@@ -32,44 +33,34 @@ vi.mock('../../../utils/modelUtils', () => ({
   ],
 }))
 
-const MODELS: ModelInfo[] = [
+const MODELS: Model[] = [
   {
     id: 'gpt-4.1',
     name: 'GPT-4.1',
-    providerId: 'openai',
-    providerName: 'OpenAI',
+    providerID: 'openai',
     family: 'gpt',
-    contextLimit: 128000,
-    outputLimit: 32000,
-    supportsReasoning: true,
-    supportsImages: true,
-    supportsPdf: true,
-    supportsAudio: false,
-    supportsVideo: false,
-    supportsToolcall: true,
+    enabled: true,
+    status: 'active',
+    limit: { context: 128000, output: 32000 },
+    capabilities: { input: ['text', 'image', 'pdf'], output: ['text'], tools: true },
     variants: [],
   },
   {
     id: 'gpt-4o-mini',
     name: 'GPT-4o Mini',
-    providerId: 'openai',
-    providerName: 'OpenAI',
+    providerID: 'openai',
     family: 'gpt',
-    contextLimit: 128000,
-    outputLimit: 16000,
-    supportsReasoning: false,
-    supportsImages: true,
-    supportsPdf: true,
-    supportsAudio: false,
-    supportsVideo: false,
-    supportsToolcall: true,
+    enabled: true,
+    status: 'active',
+    limit: { context: 128000, output: 16000 },
+    capabilities: { input: ['text', 'image', 'pdf'], output: ['text'], tools: true },
     variants: [],
   },
-]
+] as unknown as Model[]
 
 describe('ModelsSettings', () => {
   beforeEach(() => {
-    useModelsMock.mockReturnValue({ models: MODELS, isLoading: false })
+    useModelsMock.mockReturnValue({ models: MODELS, providers: [], isLoading: false })
     useHiddenModelKeysMock.mockReturnValue([])
     setVisibleMock.mockReset()
     setManyVisibleMock.mockReset()
