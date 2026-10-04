@@ -190,6 +190,18 @@ export async function deleteSession(sessionId: string, _directory?: string, serv
   return true
 }
 
+/**
+ * 把会话移动到其他目录 / worktree（v2 `session.move`）。
+ *
+ * 官方入口是会话上的 workspace 菜单（session-workspace-menu.tsx:77）；
+ * 移动后服务端发 `session.moved`，各列表据此增删。
+ */
+export async function moveSession(sessionId: string, directory: string, serverId?: string): Promise<void> {
+  const target = resolveSessionTarget(sessionId, serverId)
+  const sdk = getSDKClient(target.serverId)
+  await sdk.session.move({ sessionID: target.sessionId, directory })
+}
+
 // ============================================
 // 会话动作
 // ============================================

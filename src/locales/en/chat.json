@@ -10,6 +10,14 @@
     "closePanel": "Close panel",
     "openPanel": "Open panel"
   },
+  "sessionMove": {
+    "title": "Move to directory / worktree",
+    "local": "Local (project root)",
+    "empty": "No directories to move to",
+    "newWorktree": "Create & move",
+    "newWorktreePlaceholder": "New worktree name",
+    "runningTitle": "Session is running, cannot move"
+  },
   "chatArea": {
     "loadingSession": "Loading session...",
     "loadingHistory": "Loading history...",

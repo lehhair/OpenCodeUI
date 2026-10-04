@@ -11,6 +11,7 @@ import {
 } from '../../components/Icons'
 import { IconButton } from '../../components/ui'
 import { ModelSelector, type ModelSelectorHandle } from './ModelSelector'
+import { SessionMoveMenu } from './SessionMoveMenu'
 import { ShareDialog } from './ShareDialog'
 import { messageStore, useHeaderSessionMeta } from '../../store'
 import { useLayoutStore, layoutStore } from '../../store/layoutStore'
@@ -181,20 +182,26 @@ export function Header({
   }
 
   const titleControl = (
-    <SessionTitleControl
-      compact={isCompact}
-      isEditingTitle={isEditingTitle}
-      editTitle={editTitle}
-      sessionTitle={sessionTitle}
-      titleInputRef={titleInputRef}
-      setEditTitle={setEditTitle}
-      setIsEditingTitle={setIsEditingTitle}
-      handleRename={handleRename}
-      handleStartEdit={handleStartEdit}
-      onShare={() => setShareDialogOpen(true)}
-      clickToRenameTitle={t('header.clickToRename')}
-      shareTitle={t('header.shareSession')}
-    />
+    <>
+      <SessionTitleControl
+        compact={isCompact}
+        isEditingTitle={isEditingTitle}
+        editTitle={editTitle}
+        sessionTitle={sessionTitle}
+        titleInputRef={titleInputRef}
+        setEditTitle={setEditTitle}
+        setIsEditingTitle={setIsEditingTitle}
+        handleRename={handleRename}
+        handleStartEdit={handleStartEdit}
+        onShare={() => setShareDialogOpen(true)}
+        clickToRenameTitle={t('header.clickToRename')}
+        shareTitle={t('header.shareSession')}
+      />
+      {/* 会话移动到其他目录 / worktree（v2 session.move，官方 session-workspace-menu） */}
+      {sessionId && !isEditingTitle && (
+        <SessionMoveMenu sessionId={sessionId} directory={sessionDirectory || currentDirectory || ''} />
+      )}
+    </>
   )
 
   return (
@@ -223,10 +230,10 @@ export function Header({
           />
         )}
 
-        {isCompact && <div className="min-w-0">{titleControl}</div>}
+        {isCompact && <div className="min-w-0 flex items-center">{titleControl}</div>}
       </div>
 
-      {!isCompact && <div className="absolute left-1/2 -translate-x-1/2 flex z-20">{titleControl}</div>}
+      {!isCompact && <div className="absolute left-1/2 -translate-x-1/2 flex items-center z-20">{titleControl}</div>}
 
       <div className="flex items-center gap-1 pointer-events-auto shrink-0 z-20">
         <div className="flex items-center gap-0.5">

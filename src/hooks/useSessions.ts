@@ -281,6 +281,27 @@ export function useSessions(options: UseSessionsOptions = {}): UseSessionsResult
         // v2 的 session.deleted 负载是 { sessionID }
         setSessions(prev => prev.filter(item => item.id !== data.sessionID))
       },
+      onSessionMoved: data => {
+        // v2 session.move 后目录归属变化：回读一次，匹配本列表目录则加入/更新，否则移除
+        void getSession(data.sessionID, undefined, serverId)
+          .then(session => {
+            if (!session) return
+            setSessions(prev => {
+              const index = prev.findIndex(item => item.id === data.sessionID)
+              if (matchesDirectory(session)) {
+                if (index === -1) return [session, ...prev]
+                const next = [...prev]
+                next[index] = session
+                return next
+              }
+              return index === -1 ? prev : prev.filter(item => item.id !== data.sessionID)
+            })
+          })
+          .catch(() => {
+            // 回读失败退回整表刷新
+            void fetchSessionsRef.current({ search: searchRef.current || undefined })
+          })
+      },
       onReconnected: reason => {
         if (reason === 'server-switch') return
         if (isFetchingRef.current) {

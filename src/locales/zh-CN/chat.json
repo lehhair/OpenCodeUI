@@ -10,6 +10,14 @@
     "closePanel": "关闭面板",
     "openPanel": "打开面板"
   },
+  "sessionMove": {
+    "title": "移动到其他目录 / Worktree",
+    "local": "本地（项目根）",
+    "empty": "没有可移动的目录",
+    "newWorktree": "新建并移入",
+    "newWorktreePlaceholder": "新 Worktree 名称",
+    "runningTitle": "会话运行中，暂不能移动"
+  },
   "chatArea": {
     "loadingSession": "加载会话中...",
     "loadingHistory": "加载历史记录...",
