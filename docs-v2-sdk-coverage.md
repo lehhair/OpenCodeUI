@@ -36,14 +36,14 @@
 
 ### P1
 
-- [ ] **服务端 inbox 队列**（`session.inbox.list/cancel/update`）
+- [x] **服务端 inbox 队列**（`session.inbox.list/cancel/update`）✅
   - 官方：排队消息在服务端管理，可取消/重排（packages/app/src/session/composer/queue.ts）
-  - 我们：本地 `followupQueueStore`，刷新/换端后队列丢失
-  - 计划：排队改走服务端 inbox（prompt 在 busy 时自然入队），队列 UI 改读 `inbox.list`，取消走 `inbox.cancel`；重排走 `inbox.update`
-  - 注意：我们发送侧已接 `session.inbox.enqueued/cancelled` 事件做乐观对账，数据链路是通的
-- [ ] **`!` shell 命令 + 后台 shell 输出**（`session.shell`、`shell.list/output`）
-  - 官方：输入框 `!` 前缀直接跑 shell（composer-adapter.ts:147）；`shell.list` 列后台 shell（solid/data.ts:1325）；`shell.output` 拉输出（session-ui-provider.tsx:65）
-  - 事件侧 `session.shell.started/ended` 已接入 messageStore
+  - 实现：busy 发送带 `delivery=queue/steer`（sendMessageNow）；`inboxStore` 镜像官方 pending（inbox.list 快照 + 四事件增量）；队列条在输入区上方（取消/插队）；删除本地 followupQueueStore
+  - 未做：官方的重排/编辑（reorder 靠重发 suffix 实现，复杂度高，需求低）
+- [x] **`!` shell 命令 + 后台 shell 输出**（`session.shell`、`shell.list/output`）✅
+  - 官方：composer 输入 `!` 进入 shell mode（composer/suggestions/machine.ts:203），提交走 `session.shell`（submit.ts:147）；shell 消息独立成行、用 shell 工具渲染器（session-ui/tool-renderer.tsx:1837）
+  - 实现：`!` 进 shell mode（mono + Shell 徽标，Enter 执行、esc/空退格退出）→ `executeSessionShell`；`ShellMessageView` 投影成 shell 工具调用走 bash 管线；可见性 + 过程时间线补 shell 类型；全局 Escape 快捷键在 shell mode 内让路（data-shell-mode）
+  - 未做：`shell.list/output` 的后台任务面板——后台 shell 输出已由工具事件流渲染进转写，官方那个独立面板依赖 session-ui 包，无对应消费场景
 
 ### P2
 
