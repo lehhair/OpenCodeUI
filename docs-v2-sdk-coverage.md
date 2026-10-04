@@ -68,9 +68,9 @@
 
 ### P3
 
-- [ ] **`experimental.persistentPty.*`** — 终端跨重连持久化 / 桌面 handoff（官方 solid/pty.ts、pty-handoff.ts；实验性）
-- [ ] **`server.pair/connect`** — 设备配对（官方 desktop.tsx 命令）
+- [x] **`experimental.persistentPty.*`** — ✅ 结论：官方 **web 应用不消费**（packages/app 无任何引用），只有 TUI（terminal-pane/session-terminals）与 CLI（pty-handoff、server-connection）用；且需要独立的 persistent-pty 端点。归入「官方不用的边缘 API」清单，不实现
+- [x] **`server.pair/connect`** — ✅ 结论：官方 web 应用不调用这两个 SDK 端点——其「连接服务器」流程是扫码/解析配对 URL 后填入普通 URL+密码表单（servers/connect/pairing.ts）；`server.pair`/`connect` 只有 CLI（`opencode pair`）与桌面平台原生通道用。归入「官方不用的边缘 API」清单，不实现
 
 ## 官方也不用的边缘 API ⚪（不接）
 
-`session.stats/context/generate/log/environment/view`、`session.instructions.entry.*`、`vcs.base`、`debug.location`、`migration.v1.status`、`permission.create/get`、`agent.get`、`provider.get`、`form.create`、`websearch.query`、`generate.text`、`session.skill/synthetic`（官方 app 无调用点，技能走 prompt 的 `skills` 字段）、`rpc.call`（低层逃生舱）
+`session.stats/context/generate/log/environment/view`、`session.instructions.entry.*`、`vcs.base`、`debug.location`、`migration.v1.status`、`permission.create/get`、`agent.get`、`provider.get`、`form.create`、`websearch.query`、`generate.text`、`session.skill/synthetic`（官方 app 无调用点，技能走 prompt 的 `skills` 字段）、`rpc.call`（低层逃生舱）、`experimental.persistentPty.*`（仅 TUI/CLI 用，需独立 persistent-pty 端点）、`server.pair/connect`（仅 CLI/桌面原生配对通道用，web 端扫码只是解析配对 URL 填表单）
