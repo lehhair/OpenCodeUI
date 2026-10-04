@@ -21,6 +21,18 @@
   "sessionBackground": {
     "move": "移到后台（{{count}} 个任务）"
   },
+  "websearch": {
+    "title": "第三方网页搜索",
+    "description": "选择 Agent 搜索网页时使用的搜索源",
+    "provider": "搜索源",
+    "any": "任意",
+    "disable": "不使用搜索",
+    "enable": "启用",
+    "loadFailed": "搜索源加载失败。",
+    "empty": "没有可用的搜索源。",
+    "failed": "保存选择失败，请重试。",
+    "retry": "重试"
+  },
   "chatArea": {
     "loadingSession": "加载会话中...",
     "loadingHistory": "加载历史记录...",

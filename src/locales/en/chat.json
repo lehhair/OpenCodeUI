@@ -21,6 +21,18 @@
   "sessionBackground": {
     "move": "Move to background ({{count}})"
   },
+  "websearch": {
+    "title": "Third-party web search",
+    "description": "Select the search provider agents use to search the web",
+    "provider": "Search provider",
+    "any": "Any",
+    "disable": "Don't use search",
+    "enable": "Enable",
+    "loadFailed": "Could not load search providers.",
+    "empty": "No search providers available.",
+    "failed": "Could not save your choice. Please try again.",
+    "retry": "Retry"
+  },
   "chatArea": {
     "loadingSession": "Loading session...",
     "loadingHistory": "Loading history...",

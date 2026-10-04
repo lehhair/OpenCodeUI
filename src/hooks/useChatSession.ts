@@ -242,7 +242,7 @@ export function useChatSession({
   // Permission handling
   const {
     pendingPermissionRequests,
-    pendingQuestionRequests,
+    pendingQuestionRequests: pendingFormRequests,
     setPendingPermissionRequests,
     setPendingQuestionRequests,
     handlePermissionReply,
@@ -252,6 +252,17 @@ export function useChatSession({
     resetPendingRequests,
     isReplying,
   } = usePermissionHandler(paneServerId)
+
+  // v2 的表单按 metadata.kind 分流（官方 requests/model.ts:44-58）：
+  // websearch.provider → 专用 dock；其余 → 通用 QuestionDialog
+  const pendingWebsearchRequest = useMemo(
+    () => pendingFormRequests.find(form => (form.metadata as Record<string, unknown> | undefined)?.kind === 'websearch.provider'),
+    [pendingFormRequests],
+  )
+  const pendingQuestionRequests = useMemo(
+    () => pendingFormRequests.filter(form => (form.metadata as Record<string, unknown> | undefined)?.kind !== 'websearch.provider'),
+    [pendingFormRequests],
+  )
 
   // Prevent infinite retry loops when auto-approve API calls fail
   // but the server may have already processed the request (lost response).
@@ -1191,6 +1202,7 @@ export function useChatSession({
     // Permissions
     pendingPermissionRequests,
     pendingQuestionRequests,
+    pendingWebsearchRequest,
     queuedPrompts,
     handleCancelQueuedPrompt,
     handleSteerQueuedPrompt,

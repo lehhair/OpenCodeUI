@@ -26,6 +26,7 @@ import { ChatViewportProvider, canUseSplitPane, useChatViewportMaybe, type ChatV
 import { useChatPageViewModel } from './useChatPageViewModel'
 import { findBlockingBackgroundTasks } from './backgroundTasks'
 import { backgroundSession } from '../../api/client'
+import { WebsearchDock } from './WebsearchDock'
 import { SessionNavigationContext } from '../../contexts/SessionNavigationContext'
 import { useDirectory } from '../../contexts/useDirectory'
 import { paneLayoutStore } from '../../store/paneLayoutStore'
@@ -293,6 +294,7 @@ export const ChatPane = memo(function ChatPane({
 
     pendingPermissionRequests,
     pendingQuestionRequests,
+    pendingWebsearchRequest,
     queuedPrompts,
     handleCancelQueuedPrompt,
     handleSteerQueuedPrompt,
@@ -1086,6 +1088,19 @@ export const ChatPane = memo(function ChatPane({
           collapsed={questionCollapsed}
           onCollapsedChange={setQuestionCollapsed}
         />
+      )}
+
+      {/* websearch.provider 表单 → 专用 dock（官方 session-websearch-dock） */}
+      {!inlineToolRequests && pendingPermissionRequests.length === 0 && pendingWebsearchRequest && (
+        <div className="absolute bottom-0 left-0 right-0 z-[9] pointer-events-none">
+          <div className="mx-auto max-w-3xl px-3.5 pb-2">
+            <WebsearchDock
+              form={pendingWebsearchRequest}
+              directory={effectiveDirectory}
+              onReply={handleFormReply}
+            />
+          </div>
+        </div>
       )}
     </div>
   )
