@@ -62,7 +62,9 @@
 - [x] **`websearch.providers`** — 第三方搜索 provider 选择 dock（官方 session-websearch-dock.tsx；表单 `metadata.kind === 'websearch.provider'`）✅
   - 实现：`getWebsearchProviders`（api/websearch.ts）；表单按 kind 分流（websearch 不再落通用 QuestionDialog）；WebsearchDock：非 specific 加「任意」+ providers 列表，disable/allow/choose 三答案与官方一致；choose 两段式跨挂载用 sessionID 暂存自动回 {provider}
   - 验证：⚠️ 测试服务器 1.18.15 无此端点（404），dock 有失败/重试/空态；逻辑与官方逐行对齐
-- [ ] **`plugin.list/check/update`** — 扩展管理面板（官方 extensions.tsx / server-panel.tsx）
+- [x] **`plugin.list/check/update`** — 扩展管理面板（官方 extensions.tsx / server-panel.tsx:285）✅
+  - 实现：api/plugin.ts（list/check/update + 官方同款 pluginLabel）；新 plugins 面板 tab；非 builtin 过滤、failed 红标+错误、package outdated → 「更新」（plugin.update targets）；`plugin.updated` 事件接入并驱动刷新（check/update 官方 web 不用，仅 CLI，已封装备用）
+  - 验证：live 渲染本机 failed 态本地插件（红标+错误信息）
 
 ### P3
 
