@@ -202,6 +202,18 @@ export async function moveSession(sessionId: string, directory: string, serverId
   await sdk.session.move({ sessionID: target.sessionId, directory })
 }
 
+/**
+ * 把阻塞当前回合的 shell / subagent 任务转为后台运行（v2 `session.background`）。
+ *
+ * 官方 requests/model.ts:90：主会话（非子会话）在 shell/subagent 工具阻塞回合时
+ * 显示「Move to background」，按下后回合不再等待这些任务。
+ */
+export async function backgroundSession(sessionId: string, serverId?: string): Promise<void> {
+  const target = resolveSessionTarget(sessionId, serverId)
+  const sdk = getSDKClient(target.serverId)
+  await sdk.session.background({ sessionID: target.sessionId })
+}
+
 // ============================================
 // 会话动作
 // ============================================

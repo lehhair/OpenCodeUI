@@ -18,6 +18,9 @@
     "newWorktreePlaceholder": "新 Worktree 名称",
     "runningTitle": "会话运行中，暂不能移动"
   },
+  "sessionBackground": {
+    "move": "移到后台（{{count}} 个任务）"
+  },
   "chatArea": {
     "loadingSession": "加载会话中...",
     "loadingHistory": "加载历史记录...",

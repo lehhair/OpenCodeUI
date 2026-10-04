@@ -18,6 +18,9 @@
     "newWorktreePlaceholder": "New worktree name",
     "runningTitle": "Session is running, cannot move"
   },
+  "sessionBackground": {
+    "move": "Move to background ({{count}})"
+  },
   "chatArea": {
     "loadingSession": "Loading session...",
     "loadingHistory": "Loading history...",

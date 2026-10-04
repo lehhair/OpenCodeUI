@@ -24,12 +24,15 @@ import { serverStore } from '../../store/serverStore'
 import { InlineToolRequestContext, type InlineToolRequestContextValue } from './InlineToolRequestContext'
 import { ChatViewportProvider, canUseSplitPane, useChatViewportMaybe, type ChatViewportValue } from './chatViewport'
 import { useChatPageViewModel } from './useChatPageViewModel'
+import { findBlockingBackgroundTasks } from './backgroundTasks'
+import { backgroundSession } from '../../api/client'
 import { SessionNavigationContext } from '../../contexts/SessionNavigationContext'
 import { useDirectory } from '../../contexts/useDirectory'
 import { paneLayoutStore } from '../../store/paneLayoutStore'
 import { autoApproveStore } from '../../store/autoApproveStore'
 import { messageStore, paneControllerStore, useHiddenModelKeys } from '../../store'
 import { restoreModelSelection } from '../../utils/sessionHelpers'
+import { uiErrorHandler } from '../../utils'
 import { findModelByKey, getModelKey } from '../../utils/modelUtils'
 import { useTheme } from '../../hooks/useTheme'
 import type { Attachment } from '../../api'
@@ -329,6 +332,27 @@ export const ChatPane = memo(function ChatPane({
   })
 
   const shouldDeferMessages = displayMode === 'split' && !isStreaming && messages.length > 20
+
+  // ============================================
+  // 后台化阻塞任务（v2 session.background，官方 requests/model.ts:90）
+  // 最新未完成 assistant 回合里有 running 的 shell/task 工具 → 允许转后台
+  // ============================================
+  const blockingBackgroundTasks = useMemo(
+    () => (isStreaming && routeSessionId ? findBlockingBackgroundTasks(messages) : []),
+    [isStreaming, routeSessionId, messages],
+  )
+  const [backgroundMoving, setBackgroundMoving] = useState(false)
+  const handleMoveToBackground = useCallback(async () => {
+    if (!routeSessionId || backgroundMoving) return
+    setBackgroundMoving(true)
+    try {
+      await backgroundSession(routeSessionId, paneServerId)
+    } catch (e) {
+      uiErrorHandler('background session', e)
+    } finally {
+      setBackgroundMoving(false)
+    }
+  }, [routeSessionId, paneServerId, backgroundMoving])
   const messageView = useMemo(() => ({ sessionId: routeSessionId, messages }), [routeSessionId, messages])
   // Streaming never consumes the deferred value, so do not feed every token into a
   // second low-priority render lane.
@@ -904,6 +928,20 @@ export const ChatPane = memo(function ChatPane({
       />
 
       <div ref={inputBoxWrapperRef} className="absolute bottom-0 left-0 right-0 z-10 pointer-events-none">
+        {/* 移到后台：shell/task 工具阻塞回合时出现（官方 BackgroundMoveHint） */}
+        {blockingBackgroundTasks.length > 0 && (
+          <div className="absolute bottom-full inset-x-0 flex justify-center pb-2 z-20">
+            <button
+              type="button"
+              disabled={backgroundMoving}
+              onClick={() => void handleMoveToBackground()}
+              className="pointer-events-auto px-3 py-1.5 glass border border-border-200/60 rounded-lg shadow-lg text-[length:var(--fs-sm)] text-text-200 hover:text-text-100 hover:border-accent-main-100/40 transition-colors animate-in fade-in slide-in-from-bottom-2 duration-150 disabled:opacity-50"
+              title={blockingBackgroundTasks.map(task => task.label).join('、')}
+            >
+              {t('chat:sessionBackground.move', { count: blockingBackgroundTasks.length })}
+            </button>
+          </div>
+        )}
         {(showCancelHint || (fullAutoHint && !showCancelHint)) && (
           <div className="absolute bottom-full inset-x-0 flex justify-center pb-2 pointer-events-none z-20">
             <div className="px-3 py-1.5 glass border border-border-200/60 rounded-lg shadow-lg text-[length:var(--fs-sm)] text-text-300 animate-in fade-in slide-in-from-bottom-2 duration-150">
