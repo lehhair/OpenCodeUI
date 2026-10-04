@@ -2,8 +2,8 @@
 // Mention System Types
 // ============================================
 
-/** Mention 类型 */
-export type MentionType = 'agent' | 'file' | 'folder'
+/** Mention 类型（reference 是 v2 的命名引用目录，选中后按 folder 附件插入） */
+export type MentionType = 'agent' | 'file' | 'folder' | 'reference'
 
 /** Mention 项目 */
 export interface MentionItem {

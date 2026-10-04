@@ -98,7 +98,8 @@
     "goBack": "返回",
     "agent": "Agent",
     "file": "文件",
-    "folder": "文件夹"
+    "folder": "文件夹",
+    "reference": "引用"
   },
   "attachment": {
     "removeAttachment": "移除附件",

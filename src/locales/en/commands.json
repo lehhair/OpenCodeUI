@@ -98,7 +98,8 @@
     "goBack": "Go back",
     "agent": "Agent",
     "file": "File",
-    "folder": "Folder"
+    "folder": "Folder",
+    "reference": "Ref"
   },
   "attachment": {
     "removeAttachment": "Remove attachment",

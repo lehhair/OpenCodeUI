@@ -830,22 +830,26 @@ function InputBoxComponent({
         return
       }
 
-      // 构建 @ 文本
-      const mentionText = item.type === 'agent' ? `@${item.displayName}` : `@${item.relativePath || item.displayName}`
+      // 构建 @ 文本（reference 用挂载名，官方 model.ts:159 content 即 `@name`）
+      const mentionText =
+        item.type === 'agent' || item.type === 'reference'
+          ? `@${item.displayName}`
+          : `@${item.relativePath || item.displayName}`
 
       // 计算新文本
       const beforeAt = text.slice(0, mentionStartIndex)
       const afterQuery = text.slice(mentionStartIndex + 1 + mentionQuery.length)
       const newText = beforeAt + mentionText + ' ' + afterQuery
 
-      // 创建附件
+      // 创建附件（reference 按目录附件插入，值为引用目录的绝对路径——官方 mime 是 application/x-directory）
+      const attachType = item.type === 'reference' ? 'folder' : item.type
       const attachment: Attachment = {
         id: crypto.randomUUID(),
-        type: item.type,
+        type: attachType,
         displayName: item.displayName,
-        relativePath: item.relativePath,
+        relativePath: item.type === 'reference' ? item.value : item.relativePath,
         url: item.type !== 'agent' ? item.value : undefined,
-        mime: item.type !== 'agent' ? 'text/plain' : undefined,
+        mime: item.type === 'reference' ? 'application/x-directory' : item.type !== 'agent' ? 'text/plain' : undefined,
         agentName: item.type === 'agent' ? item.displayName : undefined,
         textRange: {
           value: mentionText,

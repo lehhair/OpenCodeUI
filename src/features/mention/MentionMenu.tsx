@@ -14,7 +14,7 @@ import {
   useMemo,
 } from 'react'
 import { useTranslation } from 'react-i18next'
-import { searchFiles, listDirectory, type ApiAgent } from '../../api/client'
+import { searchFiles, listDirectory, getReferences, type ApiAgent, type ReferenceInfo } from '../../api/client'
 import { fileBaseName } from '../../utils/pathUtils'
 import { fileErrorHandler } from '../../utils'
 import { scrollItemIntoView } from '../../utils/scrollUtils'
@@ -65,6 +65,22 @@ export const MentionMenu = forwardRef<MentionMenuHandle, MentionMenuProps>(funct
   const requestIdRef = useRef(0)
   // 记住返回上级时应该定位到哪个文件夹
   const restoreFolderRef = useRef<string | null>(null)
+  // v2 引用目录（reference.list，官方 composer/model.ts:147）：打开菜单时拉一次
+  const [references, setReferences] = useState<ReferenceInfo[]>([])
+  useEffect(() => {
+    if (!isOpen) return
+    let cancelled = false
+    getReferences(rootPath || undefined)
+      .then(list => {
+        if (!cancelled) setReferences(list)
+      })
+      .catch(() => {
+        // 引用目录是可选增强，失败不影响文件/agent 提及
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [isOpen, rootPath])
   const [dynamicMaxHeight, setDynamicMaxHeight] = useState<number | undefined>(undefined)
   const currentPath = useMemo(() => {
     const lastSlashIndex = query.lastIndexOf('/')
@@ -200,7 +216,24 @@ export const MentionMenu = forwardRef<MentionMenuHandle, MentionMenuProps>(funct
                   .map(a => createItem('agent', a.name, a.name, a.description))
               : []
 
-          const allItems = [...agentItems, ...folders, ...files].filter(item => !excludeValuesRef.current?.has(item.value))
+          // 引用目录（只在根目录显示；官方 composer/model.ts:147 同款：
+          // label `@name`，选中插入目录附件）
+          const referenceItems: MentionItem[] =
+            path === '.'
+              ? references
+                  .filter(r => !r.hidden)
+                  .filter(r => !lowerFilter || r.name.toLowerCase().includes(lowerFilter))
+                  .map(r => ({
+                    type: 'reference' as const,
+                    value: r.path,
+                    displayName: r.name,
+                    relativePath: r.description ?? r.path,
+                  }))
+              : []
+
+          const allItems = [...agentItems, ...referenceItems, ...folders, ...files].filter(
+            item => !excludeValuesRef.current?.has(item.value),
+          )
 
           setItems(allItems)
 
@@ -225,7 +258,7 @@ export const MentionMenu = forwardRef<MentionMenuHandle, MentionMenuProps>(funct
           }
         })
     },
-    [createItem, rootPath],
+    [createItem, rootPath, references],
   )
 
   // 搜索逻辑 - 基于 query prop
@@ -282,7 +315,20 @@ export const MentionMenu = forwardRef<MentionMenuHandle, MentionMenuProps>(funct
             .filter(a => a.name.toLowerCase().includes(lowerQuery))
             .map(a => createItem('agent', a.name, a.name, a.description))
 
-          const allItems = [...agentItems, ...folders, ...fileItems].filter(item => !excludeValuesRef.current?.has(item.value))
+          // 搜索态同样带出匹配的引用目录
+          const referenceItems = references
+            .filter(r => !r.hidden)
+            .filter(r => r.name.toLowerCase().includes(lowerQuery))
+            .map(r => ({
+              type: 'reference' as const,
+              value: r.path,
+              displayName: r.name,
+              relativePath: r.description ?? r.path,
+            }))
+
+          const allItems = [...agentItems, ...referenceItems, ...folders, ...fileItems].filter(
+            item => !excludeValuesRef.current?.has(item.value),
+          )
 
           setItems(allItems)
           setSelectedIndex(0)
@@ -300,7 +346,7 @@ export const MentionMenu = forwardRef<MentionMenuHandle, MentionMenuProps>(funct
     })
 
     return () => cancelAnimationFrame(frameId)
-  }, [isOpen, query, loadDirectory, createItem, rootPath])
+  }, [isOpen, query, loadDirectory, createItem, rootPath, references])
 
   // 暴露方法给父组件
   useImperativeHandle(
@@ -451,12 +497,14 @@ function TypeBadge({ type }: { type: MentionType }) {
     agent: 'text-accent-main-100',
     file: 'text-info-100',
     folder: 'text-success-100',
+    reference: 'text-warning-100',
   }
 
   const labels = {
     agent: t('mention.agent'),
     file: t('mention.file'),
     folder: t('mention.folder'),
+    reference: t('mention.reference'),
   }
 
   return <span className={`text-[length:var(--fs-sm)] font-medium ${colors[type]}`}>{labels[type]}:</span>

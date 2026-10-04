@@ -212,4 +212,11 @@ export const MENTION_COLORS: Record<
     border: 'border-success-100/20',
     darkText: '',
   },
+  // reference 选中后即按 folder 附件插入，文本里不会出现此类型；仅为 Record 完备性
+  reference: {
+    bg: 'bg-success-bg',
+    text: 'text-success-100',
+    border: 'border-success-100/20',
+    darkText: '',
+  },
 }
