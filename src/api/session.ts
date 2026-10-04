@@ -391,9 +391,19 @@ export async function cancelInboxItem(sessionId: string, inboxID: string, server
 
 /** 把排队条目改为 steer（插队注入当前回合） */
 export async function steerInboxItem(sessionId: string, inboxID: string, serverId?: string): Promise<void> {
+  return updateInboxDelivery(sessionId, inboxID, 'steer', serverId)
+}
+
+/** 切换 inbox 条目的投递方式（steer ↔ queue，官方 queue.steer 同款 inbox.update） */
+export async function updateInboxDelivery(
+  sessionId: string,
+  inboxID: string,
+  delivery: 'steer' | 'queue',
+  serverId?: string,
+): Promise<void> {
   const target = resolveSessionTarget(sessionId, serverId)
   const sdk = getSDKClient(target.serverId)
-  await sdk.session.inbox.update({ sessionID: target.sessionId, inboxID, delivery: 'steer' })
+  await sdk.session.inbox.update({ sessionID: target.sessionId, inboxID, delivery })
 }
 
 // ============================================

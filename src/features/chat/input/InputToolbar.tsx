@@ -23,6 +23,9 @@ interface InputToolbarProps {
   isStreaming?: boolean
   isSending?: boolean
   onAbort?: () => void
+  /** busy 时新消息的投递方式（steer=插队本轮 / queue=排队下轮），流式期间显示切换 chip */
+  busyDelivery?: 'queue' | 'steer'
+  onBusyDeliveryChange?: (delivery: 'queue' | 'steer') => void
 
   canSend: boolean
   onSend: () => void
@@ -50,6 +53,8 @@ export function InputToolbar({
   isStreaming,
   isSending = false,
   onAbort,
+  busyDelivery,
+  onBusyDeliveryChange,
   canSend,
   onSend,
   models = [],
@@ -497,6 +502,22 @@ export function InputToolbar({
 
       {/* Action Buttons */}
       <div className="flex items-center gap-1">
+        {/* busy 投递方式切换（PiUI InputToolbar steer/follow-up chip 同款） */}
+        <AnimatedPresence show={Boolean(isStreaming && onBusyDeliveryChange)} className="shrink-0">
+          <button
+            type="button"
+            aria-pressed={busyDelivery === 'steer'}
+            title={busyDelivery === 'steer' ? t('inputToolbar.steerHint') : t('inputToolbar.followUpHint')}
+            onClick={() => onBusyDeliveryChange?.(busyDelivery === 'steer' ? 'queue' : 'steer')}
+            className={`px-2 py-1 text-[length:var(--fs-xs)] rounded-md border transition-colors cursor-pointer ${
+              busyDelivery === 'steer'
+                ? 'border-accent-main-100/50 text-accent-main-100 bg-accent-main-100/10 hover:bg-accent-main-100/20'
+                : 'border-border-200 text-text-400 hover:text-text-200 hover:bg-bg-200/60'
+            }`}
+          >
+            {busyDelivery === 'steer' ? t('inputToolbar.steer') : t('inputToolbar.followUp')}
+          </button>
+        </AnimatedPresence>
         <AnimatedPresence show={supportsAnyFile}>
           <>
             {/* 浏览器模式下的隐藏文件输入 */}

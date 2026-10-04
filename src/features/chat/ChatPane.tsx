@@ -25,6 +25,7 @@ import { InlineToolRequestContext, type InlineToolRequestContextValue } from './
 import { ChatViewportProvider, canUseSplitPane, useChatViewportMaybe, type ChatViewportValue } from './chatViewport'
 import { useChatPageViewModel } from './useChatPageViewModel'
 import { findBlockingBackgroundTasks } from './backgroundTasks'
+import { projectQueueEchoes } from './chatAreaVisibility'
 import { backgroundSession } from '../../api/client'
 import { WebsearchDock } from './WebsearchDock'
 import { SessionNavigationContext } from '../../contexts/SessionNavigationContext'
@@ -296,8 +297,13 @@ export const ChatPane = memo(function ChatPane({
     pendingQuestionRequests,
     pendingWebsearchRequest,
     queuedPrompts,
+    inboxUserPrompts,
+    busyDelivery,
+    setBusyDelivery,
+    queueEditDraft,
     handleCancelQueuedPrompt,
     handleSteerQueuedPrompt,
+    handleEditQueuedPrompt,
     handleShellCommand,
     handlePermissionReply,
     handleFormReply,
@@ -362,12 +368,18 @@ export const ChatPane = memo(function ChatPane({
   const renderedMessagesView = shouldDeferMessages && deferredMessageView ? deferredMessageView : messageView
   const renderedMessages = renderedMessagesView.sessionId === routeSessionId ? renderedMessagesView.messages : []
   const isRenderingDeferredMessages = renderedMessages !== messages
+  // 队列回声投影（官方 visibleTimelineMessages 同款）：
+  // queue 回声隐藏（由队列气泡呈现），steer 回声挪到转写末尾
+  const projectedMessages = useMemo(
+    () => projectQueueEchoes(renderedMessages, inboxUserPrompts),
+    [renderedMessages, inboxUserPrompts],
+  )
   const renderedLoadState = loadState === 'loaded' && isRenderingDeferredMessages ? 'loading' : loadState
   // 对齐 oc：session 消息 ready 后再 mount ChatArea，避免空 virtualizer 先建再跳
   const messagesReady = !routeSessionId || loadState === 'loaded' || loadState === 'error'
   const chatAreaMountKey = messagesReady ? (routeSessionId ?? 'home') : null
   const inputDisabled = !!routeSessionId && loadState === 'error' && messages.length === 0
-  const chatPageViewModel = useChatPageViewModel(renderedMessages)
+  const chatPageViewModel = useChatPageViewModel(projectedMessages)
 
   // 切 session remount 时默认视为贴底，避免回底按钮闪一下
   useEffect(() => {
@@ -892,7 +904,7 @@ export const ChatPane = memo(function ChatPane({
               <ChatArea
                 key={chatAreaMountKey}
                 ref={chatAreaRef}
-                messages={renderedMessages}
+                messages={projectedMessages}
                 visibleMessageEntries={chatPageViewModel.visibleMessageEntries}
                 visibleMessages={chatPageViewModel.visibleMessages}
                 forkTargetIdMap={chatPageViewModel.forkTargetIdMap}
@@ -912,6 +924,10 @@ export const ChatPane = memo(function ChatPane({
                 canUndo={canUndo}
                 registerMessage={registerMessage}
                 retryStatus={retryStatus}
+                queuedFollowUps={queuedPrompts}
+                onQueueSteer={handleSteerQueuedPrompt}
+                onQueueEdit={handleEditQueuedPrompt}
+                onQueueRemove={item => handleCancelQueuedPrompt(item.id)}
                 bottomPadding={inputBoxHeight}
                 onVisibleMessageIdsChange={handleVisibleIdsChange}
                 onAtBottomChange={setIsAtBottom}
@@ -988,6 +1004,9 @@ export const ChatPane = memo(function ChatPane({
           sessionId={routeSessionId}
           revertedText={revertedMessage?.text}
           revertedAttachments={revertedMessage?.attachments}
+          injectedText={queueEditDraft}
+          busyDelivery={busyDelivery}
+          onBusyDeliveryChange={setBusyDelivery}
           canRedo={canRedo}
           revertSteps={redoSteps}
           onRedo={handleRedoWithAnimation}
@@ -1040,42 +1059,6 @@ export const ChatPane = memo(function ChatPane({
           collapsed={permissionCollapsed}
           onCollapsedChange={setPermissionCollapsed}
         />
-      )}
-
-      {/* 服务端 inbox 队列（官方 queue 面板的精简版：文本 + 插队/取消） */}
-      {queuedPrompts.length > 0 && (
-        <div className="absolute bottom-0 left-0 right-0 z-[9] pointer-events-none">
-          <div className="mx-auto max-w-3xl pointer-events-auto px-3.5 pb-2">
-            <div className="border border-border-300/40 rounded-[10px] bg-bg-100/95 shadow-float px-3 py-2 space-y-1">
-              <div className="text-[length:var(--fs-xs)] text-text-400 font-medium">
-                {t('queue.title', { count: queuedPrompts.length })}
-              </div>
-              {queuedPrompts.map(item => (
-                <div key={item.id} className="flex items-center gap-2 group">
-                  <span className="flex-1 min-w-0 truncate text-[length:var(--fs-sm)] text-text-200">
-                    {item.payload.text}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => handleSteerQueuedPrompt(item.id)}
-                    title={t('queue.steerTitle')}
-                    className="shrink-0 px-1.5 py-0.5 rounded text-[length:var(--fs-xs)] text-text-400 hover:text-text-100 hover:bg-bg-200 transition-colors"
-                  >
-                    {t('queue.steer')}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleCancelQueuedPrompt(item.id)}
-                    title={t('queue.cancelTitle')}
-                    className="shrink-0 px-1.5 py-0.5 rounded text-[length:var(--fs-xs)] text-text-400 hover:text-danger-100 hover:bg-bg-200 transition-colors"
-                  >
-                    {t('queue.cancel')}
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
       )}
 
       {!inlineToolRequests && pendingPermissionRequests.length === 0 && pendingQuestionRequests.length > 0 && (

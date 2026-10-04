@@ -86,7 +86,8 @@ export type {
   NotificationEventSettingsBackup,
 } from './notificationEventSettingsStore'
 
-export { inboxStore, useInboxQueue } from './inboxStore'
+export { inboxStore, useInboxQueue, useInboxUserPrompts } from './inboxStore'
+export type { QueuedUserPrompt } from './inboxStore'
 
 export {
   updateStore,

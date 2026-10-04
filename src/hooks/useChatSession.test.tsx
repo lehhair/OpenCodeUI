@@ -1,6 +1,10 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useChatSession } from './useChatSession'
+import { inboxStore } from '../store/inboxStore'
+import { sendMessageAsync } from '../api'
+
+const sendMessageAsyncMock = vi.mocked(sendMessageAsync)
 
 const {
   createSessionMock,
@@ -64,6 +68,8 @@ vi.mock('../store', () => ({
     restoreSendRollback: vi.fn(),
     handleMessageUpdated: vi.fn(),
     handlePartUpdated: vi.fn(),
+    upsertLocalMessage: vi.fn(),
+    removeMessage: vi.fn(),
   },
   useSessionFamily: (sessionId: string | null) => useSessionFamilyMock(sessionId),
   useSessionState: (sessionId: string | null) => useSessionStateMock(sessionId),
@@ -504,5 +510,76 @@ describe('useChatSession busy UI signal', () => {
 
     expect(result.current.isStreaming).toBe(true)
     expect(result.current.messageIsStreaming).toBe(true)
+  })
+
+  it('admits a local inbox item on busy send so the queue bubble shows immediately', async () => {
+    useSessionStateMock.mockReturnValue({ isStreaming: false, messages: [] })
+    activeSessionStatusMap['session-1'] = { type: 'busy' }
+    inboxStore.reset()
+    const upsertSpy = vi.spyOn(inboxStore, 'upsertItem')
+    sendMessageAsyncMock.mockResolvedValue(undefined)
+
+    const { result } = renderHook(() =>
+      useChatSession({
+        paneId: 'pane-1',
+        chatAreaRef: { current: null },
+        currentModel: { id: 'model-1', providerID: 'provider-1', variants: [] } as never,
+        refetchModels: vi.fn(async () => {}),
+        sessionId: 'session-1',
+        navigateToSession: vi.fn(),
+        navigateHome: vi.fn(),
+      }),
+    )
+
+    await act(async () => {
+      await result.current.handleSend('queued prompt', [])
+    })
+
+    // busy 发送时同步 admit 本地 inbox 条目（官方 admitLocal）：
+    // 转写投影立刻隐藏回声 → 队列气泡一步到位，不会先闪实心气泡
+    expect(upsertSpy).toHaveBeenCalledTimes(1)
+    const [sessionArg, itemArg] = upsertSpy.mock.calls[0] as [
+      string,
+      { id: string; type: string; delivery: string; payload: { text: string } },
+    ]
+    expect(sessionArg).toBe('session-1')
+    expect(itemArg.type).toBe('user')
+    // busyDelivery 默认 steer（queueFollowupMessages 默认关）
+    expect(itemArg.delivery).toBe('steer')
+    expect(itemArg.payload.text).toBe('queued prompt')
+    // inboxID 与乐观消息 id 同值，转写投影靠它对账
+    const sendArgs = sendMessageAsyncMock.mock.calls.at(-1)?.[0] as { id: string; delivery?: string }
+    expect(sendArgs.delivery).toBe('steer')
+    expect(itemArg.id).toBe(sendArgs.id)
+    upsertSpy.mockRestore()
+    inboxStore.reset()
+  })
+
+  it('does not admit an inbox item when idle（idle 发送不入队）', async () => {
+    useSessionStateMock.mockReturnValue({ isStreaming: false, messages: [] })
+    inboxStore.reset()
+    const upsertSpy = vi.spyOn(inboxStore, 'upsertItem')
+    sendMessageAsyncMock.mockResolvedValue(undefined)
+
+    const { result } = renderHook(() =>
+      useChatSession({
+        paneId: 'pane-1',
+        chatAreaRef: { current: null },
+        currentModel: { id: 'model-1', providerID: 'provider-1', variants: [] } as never,
+        refetchModels: vi.fn(async () => {}),
+        sessionId: 'session-1',
+        navigateToSession: vi.fn(),
+        navigateHome: vi.fn(),
+      }),
+    )
+
+    await act(async () => {
+      await result.current.handleSend('idle prompt', [])
+    })
+
+    expect(upsertSpy).not.toHaveBeenCalled()
+    const sendArgs = sendMessageAsyncMock.mock.calls.at(-1)?.[0] as { delivery?: string }
+    expect(sendArgs.delivery).toBeUndefined()
+    upsertSpy.mockRestore()
   })
 })

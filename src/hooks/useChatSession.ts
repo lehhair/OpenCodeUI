@@ -36,7 +36,7 @@ import {
   forkSession,
   getSessionInbox,
   cancelInboxItem,
-  steerInboxItem,
+  updateInboxDelivery,
   executeSessionShell,
   type ApiFormInfo,
   type ApiPermissionRequest,
@@ -63,7 +63,8 @@ import { createMessageId } from '../utils/identifier'
 import { serverStore } from '../store/serverStore'
 import { STORAGE_KEY_SELECTED_AGENT } from '../constants'
 import type { ChatAreaHandle } from '../features/chat'
-import { inboxStore, useInboxQueue } from '../store/inboxStore'
+import { inboxStore, useInboxUserPrompts, queuedPromptText } from '../store/inboxStore'
+import type { QueuedUserPrompt } from '../store/inboxStore'
 import { themeStore } from '../store/themeStore'
 
 const handleError = createErrorHandler('session')
@@ -121,6 +122,16 @@ export function useChatSession({
   const { statusMap } = useActiveSessionStore()
   const { queueFollowupMessages } = useSyncExternalStore(themeStore.subscribe, themeStore.getSnapshot)
 
+  // busy 时的投递方式（PiUI 输入栏 steer/follow-up 切换同款）：默认跟随全局
+  // queueFollowupMessages 设置，流式期间可在输入栏即时切换
+  const [busyDelivery, setBusyDelivery] = useState<'queue' | 'steer'>(queueFollowupMessages ? 'queue' : 'steer')
+  useEffect(() => {
+    setBusyDelivery(queueFollowupMessages ? 'queue' : 'steer')
+  }, [queueFollowupMessages])
+
+  // 队列编辑回填：{text, nonce}，nonce 变化触发 InputBox 注入
+  const [queueEditDraft, setQueueEditDraft] = useState<{ text: string; nonce: number } | null>(null)
+
   // Agents
   const [agents, setAgents] = useState<ApiAgent[]>([])
   const [selectedAgent, setSelectedAgentRaw] = useState<string>(
@@ -175,7 +186,10 @@ export function useChatSession({
   )
 
   // 服务端 inbox 队列（官方 session.pending 的对应物）：排队中的用户 prompt
-  const queuedPrompts = useInboxQueue(routeSessionId)
+  const inboxUserPrompts = useInboxUserPrompts(routeSessionId)
+  // 队列视图只列 queue 条目（官方 queue.ts:83 同款过滤）；steer 条目是瞬态的，
+  // 其回声由转写投影（projectQueueEchoes）挪到末尾展示
+  const queuedPrompts = useMemo(() => inboxUserPrompts.filter(item => item.delivery === 'queue'), [inboxUserPrompts])
 
   const perSessionStateRaw = useSessionState(routeSessionId)
   const perSessionState = perSessionStateRaw ?? EMPTY_SESSION_STATE
@@ -380,6 +394,62 @@ export function useChatSession({
         ...(files.length > 0 ? { files } : {}),
         ...(agents.length > 0 ? { agents } : {}),
       }
+    },
+    [],
+  )
+
+  /**
+   * 本地 inbox 条目（官方 queue.ts 的 admitLocal 同款）：busy 时发送的那一刻
+   * 就把条目塞进 inboxStore，转写投影立刻隐藏回声 → 队列气泡一步到位，
+   * 不会先闪一下实心用户气泡再跳回队列。
+   * 服务端 session.inbox.enqueued 到达时以同一 inboxID upsert，字段补齐。
+   */
+  const admitLocalInboxItem = useCallback(
+    (
+      sessionId: string,
+      item: {
+        inboxId: string
+        text: string
+        delivery: 'queue' | 'steer'
+        attachments: Attachment[]
+        agent?: string
+      },
+    ) => {
+      const files: PromptFileAttachment[] = []
+      const agents: PromptAgentAttachment[] = []
+      for (const attachment of item.attachments) {
+        const mention = attachment.textRange
+          ? {
+              start: attachment.textRange.start,
+              end: attachment.textRange.end,
+              text: attachment.textRange.value,
+            }
+          : undefined
+        if (attachment.type === 'agent') {
+          agents.push({ name: attachment.agentName || attachment.displayName, mention })
+          continue
+        }
+        if (attachment.type !== 'file' && attachment.type !== 'folder') continue
+        files.push({
+          data: '',
+          mime: attachment.mime || (attachment.type === 'folder' ? 'application/x-directory' : 'text/plain'),
+          source: attachment.url ? { type: 'uri', uri: attachment.url } : { type: 'inline' },
+          name: attachment.displayName,
+          mention,
+        })
+      }
+      inboxStore.upsertItem(sessionId, {
+        id: item.inboxId,
+        sessionID: sessionId,
+        time: { created: Date.now() },
+        type: 'user',
+        delivery: item.delivery,
+        payload: {
+          text: item.text,
+          ...(files.length > 0 ? { files } : {}),
+          ...(agents.length > 0 ? { agents } : {}),
+        },
+      } as Parameters<typeof inboxStore.upsertItem>[1])
     },
     [],
   )
@@ -711,6 +781,18 @@ export function useChatSession({
         // 同 id 对账，inbox.enqueued 回声 upsert 补齐 files/skills。
         // 不等 POST、不等 SSE，用户消息即时可见。
         const messageId = createMessageId()
+        // 先 admit 本地 inbox 条目（官方 admitLocal）：队列气泡一步到位，
+        // 不会先闪一下实心用户气泡。inboxID 与乐观消息 id 同值——服务端
+        // 回声、durable 行、投影三者靠它对齐。
+        if (input.delivery) {
+          admitLocalInboxItem(sessionId, {
+            inboxId: messageId,
+            text: input.content,
+            delivery: input.delivery,
+            attachments: input.attachments,
+            agent: input.options?.agent,
+          })
+        }
         messageStore.upsertLocalMessage(
           sessionId,
           buildLocalQueuedMessage({
@@ -748,6 +830,7 @@ export function useChatSession({
         } catch (error) {
           // 官方同款回滚：POST 失败只撤掉本次乐观插入、服务端未确认的行
           messageStore.removeMessage(sessionId, messageId)
+          if (input.delivery) inboxStore.removeItem(sessionId, messageId)
           throw error
         }
 
@@ -791,7 +874,7 @@ export function useChatSession({
         return false
       }
     },
-    [routeSessionId, navigateToSession, createSession, paneServerId, buildLocalQueuedMessage],
+    [routeSessionId, navigateToSession, createSession, paneServerId, buildLocalQueuedMessage, admitLocalInboxItem],
   )
 
   // Send message handler
@@ -802,10 +885,10 @@ export function useChatSession({
         return false
       }
 
-      // 投递方式（官方 queue.ts:217 同款）：busy 时按用户偏好排队或插队，
+      // 投递方式（官方 queue.ts:217 同款）：busy 时按输入栏当前选择排队或插队，
       // idle 时不传走服务端默认（steer 立即处理）。排队条目由服务端在当前
       // 回合排空后自动投递，无需客户端排空逻辑。
-      const delivery = routeSessionId && isSessionBusy ? (queueFollowupMessages ? 'queue' : 'steer') : undefined
+      const delivery = routeSessionId && isSessionBusy ? busyDelivery : undefined
 
       return sendMessageNow({
         sessionId: routeSessionId,
@@ -824,7 +907,7 @@ export function useChatSession({
     [
       currentModel,
       routeSessionId,
-      queueFollowupMessages,
+      busyDelivery,
       isSessionBusy,
       effectiveDirectory,
       sendMessageNow,
@@ -865,13 +948,27 @@ export function useChatSession({
     [routeSessionId, paneServerId],
   )
 
-  // 排队条目改插队（官方 queue.steer：inbox.update delivery=steer）
+  // 排队条目插队（官方 queue.steer：inbox.update delivery=steer）
   const handleSteerQueuedPrompt = useCallback(
-    (inboxID: string) => {
+    (item: QueuedUserPrompt) => {
       if (!routeSessionId) return
-      steerInboxItem(routeSessionId, inboxID, paneServerId).catch(error =>
+      updateInboxDelivery(routeSessionId, item.id, 'steer', paneServerId).catch(error =>
         handleError('steer queued prompt', error),
       )
+    },
+    [routeSessionId, paneServerId],
+  )
+
+  // 编辑排队条目：从队列撤回并把文本回填输入框（PiUI backToInput 同款；
+  // 官方 queue.edit 是 stash+替换提交，这里用更轻量的「取消+回填，用户重发」）
+  const handleEditQueuedPrompt = useCallback(
+    (item: QueuedUserPrompt) => {
+      if (!routeSessionId) return
+      cancelInboxItem(routeSessionId, item.id, paneServerId)
+        .then(() => {
+          setQueueEditDraft({ text: queuedPromptText(item), nonce: Date.now() })
+        })
+        .catch(error => handleError('edit queued prompt', error))
     },
     [routeSessionId, paneServerId],
   )
@@ -1204,8 +1301,13 @@ export function useChatSession({
     pendingQuestionRequests,
     pendingWebsearchRequest,
     queuedPrompts,
+    inboxUserPrompts,
+    busyDelivery,
+    setBusyDelivery,
+    queueEditDraft,
     handleCancelQueuedPrompt,
     handleSteerQueuedPrompt,
+    handleEditQueuedPrompt,
     handleShellCommand,
     handlePermissionReply,
     handleFormReply,

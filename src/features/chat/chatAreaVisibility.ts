@@ -197,3 +197,34 @@ export function buildVisibleMessageEntries(messages: SessionMessageInfo[]): Visi
 
   return result
 }
+
+// ============================================
+// 队列回声投影（官方 session/timeline/controller-projection.ts
+// 的 visibleTimelineMessages 同款）：
+//   - delivery='queue'  的回声用户消息从转写隐藏：队列气泡是它唯一的展示位
+//     （否则同一条消息实心 + 虚线出现两次）
+//   - delivery='steer'  的回声不隐藏，但挪到转写末尾：插队条目投递前
+//     不占位 assistant 工作（服务端一投递，inbox 条目消失，它就自然落回原位）
+// inbox 条目 id == 回声消息 id（官方 queue.ts 的 admit/rewrite 同款对应关系）
+// ============================================
+
+/** @param inboxItems 会话 inbox 里的用户条目（queue + steer） */
+export function projectQueueEchoes(
+  messages: SessionMessageInfo[],
+  inboxItems: readonly { id: string; type: string; delivery: string }[],
+): SessionMessageInfo[] {
+  const queued = new Set(
+    inboxItems.flatMap(item => (item.type === 'user' && item.delivery === 'queue' ? [item.id] : [])),
+  )
+  const steers = new Set(
+    inboxItems.flatMap(item => (item.type === 'user' && item.delivery === 'steer' ? [item.id] : [])),
+  )
+  if (queued.size === 0 && steers.size === 0) return messages
+  const visible = messages.filter(message => !queued.has(message.id))
+  if (steers.size === 0) return visible
+  // 插队条目投递前不占位 assistant 工作：挪到可见消息末尾
+  return [
+    ...visible.filter(message => !steers.has(message.id)),
+    ...visible.filter(message => steers.has(message.id)),
+  ]
+}

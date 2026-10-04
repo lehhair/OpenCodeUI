@@ -148,6 +148,11 @@ export interface InputBoxProps {
   // Undo/Redo
   revertedText?: string
   revertedAttachments?: Attachment[]
+  /** 队列编辑回填：nonce 变化时把 text 注入输入框并聚焦（PiUI backToInput） */
+  injectedText?: { text: string; nonce: number } | null
+  /** busy 时的投递方式：steer=插队本轮 / queue=排队下轮（流式期间输入栏可切换） */
+  busyDelivery?: 'queue' | 'steer'
+  onBusyDeliveryChange?: (delivery: 'queue' | 'steer') => void
   canRedo?: boolean
   revertSteps?: number
   onRedo?: () => void
@@ -194,6 +199,9 @@ function InputBoxComponent({
   sessionId,
   revertedText,
   revertedAttachments,
+  injectedText,
+  busyDelivery,
+  onBusyDeliveryChange,
   canRedo = false,
   revertSteps = 0,
   onRedo,
@@ -334,6 +342,21 @@ function InputBoxComponent({
       }
     }
   }, [revertedText, revertedAttachments, isSubmitting])
+
+  // 队列编辑回填：nonce 变化 → 注入文本并聚焦到末尾
+  useEffect(() => {
+    if (!injectedText) return
+    setText(injectedText.text)
+    const frameId = requestAnimationFrame(() => {
+      if (textareaRef.current) {
+        textareaRef.current.focus()
+        textareaRef.current.setSelectionRange(injectedText.text.length, injectedText.text.length)
+      }
+    })
+    return () => cancelAnimationFrame(frameId)
+    // 以 nonce 为触发键，允许重复注入同文本
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [injectedText?.nonce])
 
   useEffect(
     () => () => {
@@ -1479,6 +1502,8 @@ function InputBoxComponent({
                       onFilesSelected={handleFilesSelected}
                       isStreaming={isStreaming}
                       isSending={isSubmitting}
+                      busyDelivery={busyDelivery}
+                      onBusyDeliveryChange={onBusyDeliveryChange}
                       onAbort={onAbort}
                       canSend={canSend || false}
                       onSend={handleSend}

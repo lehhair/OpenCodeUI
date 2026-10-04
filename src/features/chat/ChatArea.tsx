@@ -28,6 +28,8 @@ import type { SessionMessageInfo } from '../../types/api/message'
 import { isAssistantMessage, isUserMessage } from '../../types/api/message'
 import type { APIError } from '../../types/api/common'
 import { RetryStatusInline, type RetryStatusInlineData } from './RetryStatusInline'
+import { QueueBubbles } from './QueueBubbles'
+import type { QueuedUserPrompt } from '../../store/inboxStore'
 import {
   buildVisibleMessageEntries,
   getVisibleMessageForkTargetId,
@@ -59,6 +61,7 @@ const PROCESS_SHELL_HEADER = 36
 const EMPTY_WORKING_SHELL_EXTRA_DELAY_MS = 500
 const DEFAULT_BOTTOM_SPACER = 256
 const SESSION_CACHE_LIMIT = 16
+const EMPTY_QUEUE: QueuedUserPrompt[] = []
 
 const bottomSpacerHeight = (bottomPadding: number) => (bottomPadding > 0 ? bottomPadding + 48 : DEFAULT_BOTTOM_SPACER)
 
@@ -101,6 +104,11 @@ interface ChatAreaProps {
   canUndo?: boolean
   registerMessage?: (id: string, element: HTMLElement | null) => void
   retryStatus?: RetryStatusInlineData | null
+  /** 下轮队列气泡（PiUI 同款：融在消息流尾部，虚拟行之后、重试提示之前） */
+  queuedFollowUps?: QueuedUserPrompt[]
+  onQueueSteer?: (item: QueuedUserPrompt) => void
+  onQueueEdit?: (item: QueuedUserPrompt) => void
+  onQueueRemove?: (item: QueuedUserPrompt) => void
   bottomPadding?: number
   onVisibleMessageIdsChange?: (ids: string[]) => void
   onAtBottomChange?: (atBottom: boolean) => void
@@ -344,6 +352,10 @@ export const ChatArea = memo(
         canUndo,
         registerMessage,
         retryStatus = null,
+        queuedFollowUps = EMPTY_QUEUE,
+        onQueueSteer,
+        onQueueEdit,
+        onQueueRemove,
         bottomPadding = 0,
         onVisibleMessageIdsChange,
         onAtBottomChange,
@@ -804,7 +816,7 @@ export const ChatArea = memo(
 
       // retry/error 出现消失、输入框高度变 → 底部 footer 高度变，贴底时要跟着滚
       // 否则重试条进出后 scrollTop 停在旧位置，看起来没贴底
-      const footerPinKey = `${retryStatus ? 'r' : ''}|${loadError || connectionError ? 'e' : ''}|${spacerHeight}`
+      const footerPinKey = `${retryStatus ? 'r' : ''}|${loadError || connectionError ? 'e' : ''}|${queuedFollowUps.map(item => item.id).join('')}|${spacerHeight}`
       useLayoutEffect(() => {
         if (!shouldAnchorBottom() || prependLoading.current) return
         pinToBottom()
@@ -1004,7 +1016,19 @@ export const ChatArea = memo(
               })}
             </div>
 
-            {/* 顺序必须是：消息 → 重试/错误提示 → 输入框占位。
+            {/* 队列气泡：融在消息流尾部（PiUI 同款位置：虚拟行之后、重试提示之前） */}
+            {queuedFollowUps.length > 0 && (
+              <div className={`w-full ${maxWidthClass} mx-auto ${paddingClass}`}>
+                <QueueBubbles
+                  items={queuedFollowUps}
+                  onSteer={onQueueSteer}
+                  onEdit={onQueueEdit}
+                  onRemove={onQueueRemove}
+                />
+              </div>
+            )}
+
+            {/* 顺序必须是：消息 → 队列 → 重试/错误提示 → 输入框占位。
                 旧 Virtuoso Footer 就是这样；换 virtualizer 后 paddingEnd 在前、提示在后，会叠到输入框下。 */}
             {retryStatus && (
               <div className={`w-full ${maxWidthClass} mx-auto ${paddingClass}`}>

@@ -103,7 +103,10 @@
     "steer": "Steer",
     "steerTitle": "Inject into the current turn now",
     "cancel": "Cancel",
-    "cancelTitle": "Remove from queue"
+    "cancelTitle": "Remove from queue",
+    "queuedLabel": "Next turn ({{count}})",
+    "moveToSteering": "Inject into current turn",
+    "edit": "Retract to edit"
   },
   "permissionDialog": {
     "permission": "Permission: {{permission}}",
@@ -133,7 +136,11 @@
     "attachFile": "Attach file",
     "stopGeneration": "Stop generation",
     "sendingMessage": "Sending message",
-    "sendMessage": "Send message"
+    "sendMessage": "Send message",
+    "steer": "Steer",
+    "steerHint": "Inject into the current turn (click to queue instead)",
+    "followUp": "Queue",
+    "followUpHint": "Send after the current turn (click to steer instead)"
   },
   "inputFooter": {
     "autoApproveOff": "Auto-approve: off",

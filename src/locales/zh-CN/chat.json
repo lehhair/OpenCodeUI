@@ -103,7 +103,10 @@
     "steer": "插队",
     "steerTitle": "立即注入当前回合",
     "cancel": "取消",
-    "cancelTitle": "从队列移除"
+    "cancelTitle": "从队列移除",
+    "queuedLabel": "下轮队列（{{count}}）",
+    "moveToSteering": "插入当前回合",
+    "edit": "撤回编辑"
   },
   "permissionDialog": {
     "permission": "权限：{{permission}}",
@@ -133,7 +136,11 @@
     "attachFile": "附加文件",
     "stopGeneration": "停止生成",
     "sendingMessage": "发送消息中",
-    "sendMessage": "发送消息"
+    "sendMessage": "发送消息",
+    "steer": "插队",
+    "steerHint": "立即注入当前回合（点击切换为排队）",
+    "followUp": "排队",
+    "followUpHint": "当前回合结束后自动发送（点击切换为插队）"
   },
   "inputFooter": {
     "autoApproveOff": "自动放行：关闭",

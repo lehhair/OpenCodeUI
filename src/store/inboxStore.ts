@@ -88,14 +88,25 @@ class InboxStore {
 }
 
 export const inboxStore = new InboxStore()
+export type { QueuedUserPrompt }
 
-/** 队列视图：只含排队中的用户 prompt（官方 queue.ts 的同款过滤） */
-export function useInboxQueue(sessionId: string | null): QueuedUserPrompt[] {
+/** 官方 queuedPromptText 同款：优先 metadata.displayText */
+export function queuedPromptText(item: QueuedUserPrompt): string {
+  const display = item.payload.metadata?.['displayText']
+  return typeof display === 'string' && display.length > 0 ? display : item.payload.text
+}
+
+/** 会话 inbox 里的全部用户 prompt（queue + steer 两组，交付语义见 SessionInboxDelivery） */
+export function useInboxUserPrompts(sessionId: string | null): QueuedUserPrompt[] {
   const snapshot = useSyncExternalStore(inboxStore.subscribe, inboxStore.getSnapshot)
   return useMemo(() => {
     if (!sessionId) return EMPTY_QUEUE
-    return (snapshot.get(sessionId) ?? EMPTY_ITEMS).filter(
-      (item): item is QueuedUserPrompt => item.type === 'user' && item.delivery === 'queue',
-    )
+    return (snapshot.get(sessionId) ?? EMPTY_ITEMS).filter((item): item is QueuedUserPrompt => item.type === 'user')
   }, [sessionId, snapshot])
+}
+
+/** 队列视图：只含排队中的用户 prompt（官方 queue.ts 的同款过滤） */
+export function useInboxQueue(sessionId: string | null): QueuedUserPrompt[] {
+  const items = useInboxUserPrompts(sessionId)
+  return useMemo(() => items.filter(item => item.delivery === 'queue'), [items])
 }
