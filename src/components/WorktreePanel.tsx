@@ -20,6 +20,7 @@ import {
 import { getCurrentProject } from '../api/client'
 import { listPtySessions, removePtySession } from '../api/pty'
 import { listWorktrees, createWorktree, removeWorktree, refreshWorktrees } from '../api/worktree'
+import { getBranchList } from '../api/vcs'
 import { subscribeToEvents } from '../api/events'
 import { useDirectory, useVcsInfo, requestGitWorkspaceCatalogRefresh } from '../hooks'
 import { getDirectoryName, isSameDirectory, normalizeToForwardSlash } from '../utils'
@@ -166,13 +167,18 @@ export const WorktreePanel = memo(function WorktreePanel({ isResizing: _isResizi
 
   // 创建 worktree
   const handleCreate = useCallback(
-    async (name: string, autoOpen: boolean) => {
+    async (name: string, autoOpen: boolean, branch?: string) => {
       if (!currentDirectory || !name.trim()) return
 
       setActionLoading('create')
       try {
         const current = requireProject()
-        const wt = await createWorktree({ projectID: current.id, name: name.trim() })
+        const wt = await createWorktree({
+          projectID: current.id,
+          name: name.trim(),
+          // 官方 worktree.create 的 from=基准 ref（vcs.branch.list 选择）
+          ...(branch?.trim() ? { from: branch.trim() } : {}),
+        })
         setShowCreateForm(false)
         await loadWorktrees()
         requestGitWorkspaceCatalogRefresh()
@@ -341,6 +347,7 @@ export const WorktreePanel = memo(function WorktreePanel({ isResizing: _isResizi
       {/* Create Form */}
       {showCreateForm && canManageWorktrees && (
         <CreateWorktreeForm
+          directory={currentDirectory}
           onSubmit={handleCreate}
           onCancel={() => setShowCreateForm(false)}
           isLoading={actionLoading === 'create'}
@@ -425,20 +432,52 @@ export const WorktreePanel = memo(function WorktreePanel({ isResizing: _isResizi
 // ============================================
 
 interface CreateWorktreeFormProps {
-  onSubmit: (name: string, autoOpen: boolean) => void
+  directory: string
+  onSubmit: (name: string, autoOpen: boolean, branch?: string) => void
   onCancel: () => void
   isLoading: boolean
 }
 
-function CreateWorktreeForm({ onSubmit, onCancel, isLoading }: CreateWorktreeFormProps) {
+function CreateWorktreeForm({ directory, onSubmit, onCancel, isLoading }: CreateWorktreeFormProps) {
   const { t } = useTranslation(['components', 'common'])
   const [name, setName] = useState('')
   const [autoOpen, setAutoOpen] = useState(true)
+  // 基准分支选择（vcs.branch.list，官方 controller.ts:154 支持 search/limit）
+  const [branch, setBranch] = useState('')
+  const [branchOptions, setBranchOptions] = useState<string[]>([])
+  const [branchOpen, setBranchOpen] = useState(false)
+  const branchRequestRef = useRef(0)
+  const branchBoxRef = useRef<HTMLDivElement>(null)
+
+  const searchBranches = useCallback(
+    (search: string) => {
+      const requestId = ++branchRequestRef.current
+      getBranchList(directory || undefined, search || undefined, 50)
+        .then(list => {
+          if (requestId === branchRequestRef.current) setBranchOptions(list)
+        })
+        .catch(() => {
+          // 非 git 目录等场景下拉为空，不挡创建流程
+          if (requestId === branchRequestRef.current) setBranchOptions([])
+        })
+    },
+    [directory],
+  )
+
+  // 点击外部关闭分支下拉
+  useEffect(() => {
+    if (!branchOpen) return
+    const onPointerDown = (e: PointerEvent) => {
+      if (branchBoxRef.current && !branchBoxRef.current.contains(e.target as Node)) setBranchOpen(false)
+    }
+    document.addEventListener('pointerdown', onPointerDown)
+    return () => document.removeEventListener('pointerdown', onPointerDown)
+  }, [branchOpen])
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (name.trim()) {
-      onSubmit(name, autoOpen)
+      onSubmit(name, autoOpen, branch.trim() || undefined)
     }
   }
 
@@ -454,6 +493,43 @@ function CreateWorktreeForm({ onSubmit, onCancel, isLoading }: CreateWorktreeFor
         autoFocus
         disabled={isLoading}
       />
+      {/* 基准分支：focus 列出、输入即搜索（vcs.branch.list search/limit） */}
+      <div ref={branchBoxRef} className="relative mt-2">
+        <input
+          type="text"
+          value={branch}
+          onChange={e => {
+            setBranch(e.target.value)
+            setBranchOpen(true)
+            searchBranches(e.target.value)
+          }}
+          onFocus={() => {
+            setBranchOpen(true)
+            searchBranches(branch)
+          }}
+          placeholder={t('worktreePanel.baseBranchPlaceholder')}
+          aria-label={t('worktreePanel.baseBranch')}
+          className="w-full bg-bg-000 border border-border-200 rounded-md px-2.5 py-1.5 text-[length:var(--fs-sm)] text-text-100 placeholder:text-text-400/60 focus:outline-none focus:border-accent-main-100/50 transition-colors font-mono"
+          disabled={isLoading}
+        />
+        {branchOpen && branchOptions.length > 0 && (
+          <div className="absolute z-10 top-full left-0 right-0 mt-1 max-h-40 overflow-y-auto custom-scrollbar bg-bg-000 border border-border-200 rounded-md shadow-lg">
+            {branchOptions.map(option => (
+              <button
+                key={option}
+                type="button"
+                onClick={() => {
+                  setBranch(option)
+                  setBranchOpen(false)
+                }}
+                className="w-full px-2.5 py-1.5 text-left text-[length:var(--fs-sm)] font-mono text-text-200 hover:bg-bg-100/60 transition-colors truncate"
+              >
+                {option}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
       <label className="flex items-center gap-1.5 mt-2 cursor-pointer select-none">
         <input
           type="checkbox"

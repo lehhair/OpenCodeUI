@@ -50,3 +50,24 @@ export async function getVcsBranch(directory?: string, serverId?: string): Promi
   const info = await getVcsInfo(directory, serverId)
   return info?.branch?.current
 }
+
+/**
+ * 列出分支（v2 `vcs.branch.list`，支持 search/limit）。
+ *
+ * 官方用于新会话的分支选择器（new-session/workspace/controller.ts:154），
+ * 我们挂在 worktree 创建表单的「基于分支」选择上。
+ */
+export async function getBranchList(
+  directory?: string,
+  search?: string,
+  limit = 50,
+  serverId?: string,
+): Promise<string[]> {
+  const sdk = getSDKClient(serverId)
+  const result = await sdk.vcs.branch.list({
+    location: locationParam(directory, serverId),
+    search: search || undefined,
+    limit,
+  })
+  return result.data
+}

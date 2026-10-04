@@ -135,6 +135,8 @@
     "resetWorktreeConfirm": "要重新扫描 Worktree“{{name}}”吗？此操作不会丢弃任何未提交的更改。",
     "newWorktree": "新建 Worktree",
     "worktreeNamePlaceholder": "Worktree 名称（例如 feature-xyz）",
+    "baseBranch": "基于分支（可选）",
+    "baseBranchPlaceholder": "默认分支",
     "openSessionAfter": "创建后打开会话",
     "openSession": "在此 Worktree 中打开会话",
     "resetWorktreeAction": "刷新 Worktree",

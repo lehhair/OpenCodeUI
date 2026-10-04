@@ -137,6 +137,8 @@
     "resetWorktreeConfirm": "Re-scan worktree \"{{name}}\"? This does not discard any uncommitted changes.",
     "newWorktree": "New Worktree",
     "worktreeNamePlaceholder": "Worktree name (e.g. feature-xyz)",
+    "baseBranch": "Base branch (optional)",
+    "baseBranchPlaceholder": "Default branch",
     "openSessionAfter": "Open session after creation",
     "openSession": "Open session in this worktree",
     "resetWorktreeAction": "Refresh worktree",
