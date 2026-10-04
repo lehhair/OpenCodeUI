@@ -290,6 +290,9 @@ export const ChatPane = memo(function ChatPane({
 
     pendingPermissionRequests,
     pendingQuestionRequests,
+    queuedPrompts,
+    handleCancelQueuedPrompt,
+    handleSteerQueuedPrompt,
     handlePermissionReply,
     handleFormReply,
     handleFormCancel,
@@ -995,6 +998,42 @@ export const ChatPane = memo(function ChatPane({
           collapsed={permissionCollapsed}
           onCollapsedChange={setPermissionCollapsed}
         />
+      )}
+
+      {/* 服务端 inbox 队列（官方 queue 面板的精简版：文本 + 插队/取消） */}
+      {queuedPrompts.length > 0 && (
+        <div className="absolute bottom-0 left-0 right-0 z-[9] pointer-events-none">
+          <div className="mx-auto max-w-3xl pointer-events-auto px-3.5 pb-2">
+            <div className="border border-border-300/40 rounded-[10px] bg-bg-100/95 shadow-float px-3 py-2 space-y-1">
+              <div className="text-[length:var(--fs-xs)] text-text-400 font-medium">
+                {t('queue.title', { count: queuedPrompts.length })}
+              </div>
+              {queuedPrompts.map(item => (
+                <div key={item.id} className="flex items-center gap-2 group">
+                  <span className="flex-1 min-w-0 truncate text-[length:var(--fs-sm)] text-text-200">
+                    {item.payload.text}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => handleSteerQueuedPrompt(item.id)}
+                    title={t('queue.steerTitle')}
+                    className="shrink-0 px-1.5 py-0.5 rounded text-[length:var(--fs-xs)] text-text-400 hover:text-text-100 hover:bg-bg-200 transition-colors"
+                  >
+                    {t('queue.steer')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleCancelQueuedPrompt(item.id)}
+                    title={t('queue.cancelTitle')}
+                    className="shrink-0 px-1.5 py-0.5 rounded text-[length:var(--fs-xs)] text-text-400 hover:text-danger-100 hover:bg-bg-200 transition-colors"
+                  >
+                    {t('queue.cancel')}
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
       )}
 
       {!inlineToolRequests && pendingPermissionRequests.length === 0 && pendingQuestionRequests.length > 0 && (

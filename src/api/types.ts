@@ -57,6 +57,8 @@ export interface SendMessageParams {
   sessionId: string
   /** 客户端铸造的消息 id（`msg_` 前缀）：乐观插入与服务端 durable 行同 id 对账 */
   id?: string
+  /** 投递方式：'queue' 排队等当前回合结束（服务端自动投递），'steer' 插队注入当前回合 */
+  delivery?: 'queue' | 'steer'
   text: string
   attachments: Attachment[]
   model?: {

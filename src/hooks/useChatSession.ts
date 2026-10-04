@@ -34,6 +34,9 @@ import {
   executeCommand,
   summarizeSession,
   forkSession,
+  getSessionInbox,
+  cancelInboxItem,
+  steerInboxItem,
   type ApiFormInfo,
   type ApiPermissionRequest,
   type ApiSession,
@@ -59,7 +62,7 @@ import { createMessageId } from '../utils/identifier'
 import { serverStore } from '../store/serverStore'
 import { STORAGE_KEY_SELECTED_AGENT } from '../constants'
 import type { ChatAreaHandle } from '../features/chat'
-import { followupQueueStore, useFollowupQueue } from '../store/followupQueueStore'
+import { inboxStore, useInboxQueue } from '../store/inboxStore'
 import { themeStore } from '../store/themeStore'
 
 const handleError = createErrorHandler('session')
@@ -170,11 +173,8 @@ export function useChatSession({
     [navigateHome],
   )
 
-  const {
-    items: queuedFollowups,
-    sendingId: queuedFollowupSendingId,
-    failedId: queuedFollowupFailedId,
-  } = useFollowupQueue(routeSessionId)
+  // 服务端 inbox 队列（官方 session.pending 的对应物）：排队中的用户 prompt
+  const queuedPrompts = useInboxQueue(routeSessionId)
 
   const perSessionStateRaw = useSessionState(routeSessionId)
   const perSessionState = perSessionStateRaw ?? EMPTY_SESSION_STATE
@@ -666,6 +666,7 @@ export function useChatSession({
       directory: string
       model: { providerID: string; modelID: string }
       options?: { agent?: string; variant?: string }
+      delivery?: 'queue' | 'steer'
       allowCreateSession?: boolean
     }) => {
       let sessionId = input.sessionId ?? routeSessionId
@@ -727,6 +728,7 @@ export function useChatSession({
               model: input.model,
               agent: input.options?.agent,
               variant: input.options?.variant,
+              delivery: input.delivery,
               directory: input.directory,
             },
             paneServerId,
@@ -788,42 +790,10 @@ export function useChatSession({
         return false
       }
 
-      // 如果队列头有失败项，用户重新发送时先清掉失败项（内容已恢复到输入框）
-      if (routeSessionId && queuedFollowupFailedId) {
-        followupQueueStore.remove(routeSessionId, queuedFollowupFailedId)
-      }
-
-      const shouldQueueFollowup =
-        !!routeSessionId && (queuedFollowups.length > 0 || (queueFollowupMessages && isSessionBusy))
-
-      if (shouldQueueFollowup) {
-        const queued = followupQueueStore.enqueue({
-          sessionId: routeSessionId,
-          directory: effectiveDirectory || '',
-          text: content,
-          attachments,
-          model: {
-            providerID: currentModel.providerID,
-            modelID: currentModel.id,
-            variant: options?.variant,
-          },
-          variant: options?.variant,
-          agent: options?.agent,
-        })
-        messageStore.upsertLocalMessage(
-          queued.sessionId,
-          buildLocalQueuedMessage({
-            sessionId: queued.sessionId,
-            messageId: queued.id,
-            text: queued.text,
-            attachments: queued.attachments,
-            agent: queued.agent,
-            model: queued.model,
-            createdAt: queued.createdAt,
-          }),
-        )
-        return true
-      }
+      // 投递方式（官方 queue.ts:217 同款）：busy 时按用户偏好排队或插队，
+      // idle 时不传走服务端默认（steer 立即处理）。排队条目由服务端在当前
+      // 回合排空后自动投递，无需客户端排空逻辑。
+      const delivery = routeSessionId && isSessionBusy ? (queueFollowupMessages ? 'queue' : 'steer') : undefined
 
       return sendMessageNow({
         sessionId: routeSessionId,
@@ -834,6 +804,7 @@ export function useChatSession({
           modelID: currentModel.id,
         },
         options,
+        delivery,
         directory: effectiveDirectory || '',
         allowCreateSession: true,
       })
@@ -841,93 +812,17 @@ export function useChatSession({
     [
       currentModel,
       routeSessionId,
-      queuedFollowups.length,
-      queuedFollowupFailedId,
       queueFollowupMessages,
       isSessionBusy,
       effectiveDirectory,
-      buildLocalQueuedMessage,
       sendMessageNow,
     ],
   )
 
-  const sendQueuedFollowup = useCallback(
-    async (draftId: string, sessionId: string) => {
-      const draft = followupQueueStore.getItem(sessionId, draftId)
-      if (!draft) return false
-      if (!followupQueueStore.startSending(draft.sessionId, draft.id)) return false
-
-      // 发送前先移除占位消息，让 sendMessageNow 走和正常发送完全一样的路径
-      messageStore.removeMessage(draft.sessionId, draft.id)
-
-      const ok = await sendMessageNow({
-        sessionId: draft.sessionId,
-        content: draft.text,
-        attachments: draft.attachments,
-        model: {
-          providerID: draft.model.providerID,
-          modelID: draft.model.modelID,
-        },
-        options: {
-          agent: draft.agent,
-          variant: draft.variant,
-        },
-        directory: draft.directory,
-      })
-
-      followupQueueStore.finishSending(draft.sessionId, draft.id)
-
-      if (ok) {
-        followupQueueStore.remove(draft.sessionId, draft.id)
-      } else {
-        // 标记失败，阻塞后续队列项
-        followupQueueStore.markFailed(draft.sessionId, draft.id)
-        // 移除剩余排队消息的本地占位，恢复队头到输入框
-        const remaining = followupQueueStore.getItems(draft.sessionId)
-        for (const item of remaining) {
-          messageStore.removeMessage(draft.sessionId, item.id)
-        }
-        setRestoredContent({
-          sessionId: draft.sessionId,
-          content: {
-            messageId: draft.id,
-            text: draft.text,
-            attachments: draft.attachments,
-            model: draft.model,
-            variant: draft.variant ?? draft.model.variant,
-            agent: draft.agent,
-          },
-        })
-      }
-
-      return ok
-    },
-    [sendMessageNow],
-  )
-
-  useEffect(() => {
-    if (!routeSessionId) return
-
-    const nextQueued = queuedFollowups[0]
-    if (!nextQueued) return
-    if (queuedFollowupSendingId) return
-    if (queuedFollowupFailedId) return
-    if (isSessionBusy) return
-
-    void sendQueuedFollowup(nextQueued.id, routeSessionId)
-  }, [
-    routeSessionId,
-    queuedFollowups,
-    queuedFollowupSendingId,
-    queuedFollowupFailedId,
-    isSessionBusy,
-    sendQueuedFollowup,
-  ])
-
   // New chat handler
   const handleNewChat = useCallback(() => {
     if (routeSessionId) {
-      followupQueueStore.clearSession(routeSessionId)
+      inboxStore.clearSession(routeSessionId)
       if (!hasOtherConsumerForSession(routeSessionId, paneId)) {
         messageStore.clearSession(routeSessionId)
       }
@@ -935,6 +830,39 @@ export function useChatSession({
     resetPermissions()
     resetPendingRequests()
   }, [routeSessionId, paneId, resetPermissions, resetPendingRequests])
+
+  // inbox 快照打底（官方 pending.sync）：进入会话时拉一次，之后靠 SSE 增量维护
+  useEffect(() => {
+    if (!routeSessionId) return
+    const sessionId = routeSessionId
+    getSessionInbox(sessionId, paneServerId)
+      .then(items => inboxStore.setItems(sessionId, items))
+      .catch(() => {
+        // 拉取失败不影响主流程，SSE 事件仍会增量维护
+      })
+  }, [routeSessionId, paneServerId])
+
+  // 取消排队条目（官方 queue.remove：回声会把转写里的用户消息一并撤下）
+  const handleCancelQueuedPrompt = useCallback(
+    (inboxID: string) => {
+      if (!routeSessionId) return
+      cancelInboxItem(routeSessionId, inboxID, paneServerId).catch(error =>
+        handleError('cancel queued prompt', error),
+      )
+    },
+    [routeSessionId, paneServerId],
+  )
+
+  // 排队条目改插队（官方 queue.steer：inbox.update delivery=steer）
+  const handleSteerQueuedPrompt = useCallback(
+    (inboxID: string) => {
+      if (!routeSessionId) return
+      steerInboxItem(routeSessionId, inboxID, paneServerId).catch(error =>
+        handleError('steer queued prompt', error),
+      )
+    },
+    [routeSessionId, paneServerId],
+  )
 
   const handleForkMessage = useCallback(
     async (message: SessionMessageInfo, forkMessageId?: string) => {
@@ -1222,8 +1150,9 @@ export function useChatSession({
     // Permissions
     pendingPermissionRequests,
     pendingQuestionRequests,
-    queuedFollowups,
-    queuedFollowupSendingId,
+    queuedPrompts,
+    handleCancelQueuedPrompt,
+    handleSteerQueuedPrompt,
     handlePermissionReply,
     handleFormReply,
     handleFormCancel,

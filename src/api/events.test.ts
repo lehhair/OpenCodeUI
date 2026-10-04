@@ -216,6 +216,32 @@ describe('v2 event dispatch', () => {
     unsubscribe()
   })
 
+  it('dispatches inbox delivery.changed to its callback', async () => {
+    const harness = createEventStream()
+    subscribeMock.mockReturnValue(harness.stream)
+
+    const { subscribeToServerEvents } = await import('./events')
+    const onInboxDeliveryChanged = vi.fn()
+
+    const unsubscribe = subscribeToServerEvents('test-server', { onInboxDeliveryChanged })
+    await Promise.resolve()
+
+    harness.emit(
+      v2Event('session.inbox.delivery.changed', {
+        sessionID: 's1',
+        inboxID: 'msg_1',
+        delivery: 'steer',
+      }),
+    )
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    expect(onInboxDeliveryChanged).toHaveBeenCalledWith(
+      expect.objectContaining({ inboxID: 'msg_1', delivery: 'steer' }),
+      expect.anything(),
+    )
+    unsubscribe()
+  })
+
   it('reports connection state transitions', async () => {
     const harness = createEventStream()
     subscribeMock.mockReturnValue(harness.stream)

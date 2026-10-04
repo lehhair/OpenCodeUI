@@ -86,8 +86,7 @@ export type {
   NotificationEventSettingsBackup,
 } from './notificationEventSettingsStore'
 
-export { followupQueueStore, useFollowupQueue } from './followupQueueStore'
-export type { QueuedFollowupDraft } from './followupQueueStore'
+export { inboxStore, useInboxQueue } from './inboxStore'
 
 export {
   updateStore,

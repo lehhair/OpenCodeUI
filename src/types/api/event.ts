@@ -42,6 +42,7 @@ import type {
   SessionIdle,
   SessionInboxCancelled,
   SessionInboxDelivered,
+  SessionInboxDeliveryChanged,
   SessionInboxEnqueued,
   SessionMessageInfo,
   SessionEventDurable,
@@ -164,6 +165,8 @@ export type InboxEnqueuedPayload = SessionInboxEnqueued['data']
 export type InboxDeliveredPayload = SessionInboxDelivered['data']
 
 export type InboxCancelledPayload = SessionInboxCancelled['data']
+
+export type InboxDeliveryChangedPayload = SessionInboxDeliveryChanged['data']
 
 /**
  * 助手内容的完整快照事件负载。
@@ -421,6 +424,7 @@ export interface EventCallbacks {
   onInboxEnqueued?: (data: InboxEnqueuedPayload, facts?: EventFacts) => void
   onInboxDelivered?: (data: InboxDeliveredPayload, facts?: EventFacts) => void
   onInboxCancelled?: (data: InboxCancelledPayload, facts?: EventFacts) => void
+  onInboxDeliveryChanged?: (data: InboxDeliveryChangedPayload, facts?: EventFacts) => void
 
   // ---- 外围 ----
   onProjectUpdated?: (data: ProjectUpdatedPayload, facts?: EventFacts) => void
@@ -522,6 +526,7 @@ export const EventTypes = {
   INBOX_ENQUEUED: 'session.inbox.enqueued',
   INBOX_DELIVERED: 'session.inbox.delivered',
   INBOX_CANCELLED: 'session.inbox.cancelled',
+  INBOX_DELIVERY_CHANGED: 'session.inbox.delivery.changed',
 
   PROJECT_UPDATED: 'project.updated',
   WORKTREE_UPDATED: 'worktree.updated',

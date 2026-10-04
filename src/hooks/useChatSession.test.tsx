@@ -152,6 +152,9 @@ vi.mock('../api', () => ({
   summarizeSession: (...args: unknown[]) => summarizeSessionMock(...args),
   updateSession: vi.fn(),
   forkSession: vi.fn(),
+  getSessionInbox: vi.fn(() => Promise.resolve([])),
+  cancelInboxItem: vi.fn(() => Promise.resolve()),
+  steerInboxItem: vi.fn(() => Promise.resolve()),
   extractUserMessageContent: vi.fn(),
 }))
 

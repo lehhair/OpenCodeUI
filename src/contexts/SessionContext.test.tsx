@@ -58,8 +58,8 @@ vi.mock('../store/childSessionStore', () => ({
   },
 }))
 
-vi.mock('../store/followupQueueStore', () => ({
-  followupQueueStore: {
+vi.mock('../store/inboxStore', () => ({
+  inboxStore: {
     clearSession: clearFollowupQueueMock,
   },
 }))

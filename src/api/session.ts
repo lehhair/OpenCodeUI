@@ -25,7 +25,7 @@ import { locationParam } from './location'
 import { resolveSessionTarget } from '../utils/sessionKey'
 import { normalizeFileDiffs } from '../types/api/file'
 import type { FileDiff, Session, SessionListParams, SessionRevert, SessionStatusMap } from './types'
-import type { SessionTransferData } from '@opencode/client/promise'
+import type { SessionTransferData, SessionInboxInfo } from '@opencode/client/promise'
 
 // ============================================
 // 会话状态
@@ -341,4 +341,33 @@ export async function importSession(
  */
 export async function getLastTurnDiff(sessionId: string, directory?: string, serverId?: string): Promise<FileDiff[]> {
   return getSessionDiff(sessionId, directory, undefined, serverId)
+}
+
+// ============================================
+// Inbox（服务端队列）
+//
+// v2 的 prompt 是入队语义：delivery='queue' 的条目由服务端在当前回合
+// 排空后自动投递。队列视图读 inbox.list，取消/插队走 cancel/update
+//（官方 packages/app/src/session/composer/queue.ts 同款）。
+// ============================================
+
+/** 列出会话的 inbox 条目（排队中的 prompt / compaction 等） */
+export async function getSessionInbox(sessionId: string, serverId?: string): Promise<SessionInboxInfo[]> {
+  const target = resolveSessionTarget(sessionId, serverId)
+  const sdk = getSDKClient(target.serverId)
+  return await sdk.session.inbox.list({ sessionID: target.sessionId })
+}
+
+/** 取消 inbox 条目（官方 retractLocal：回声会把转写里的对应用户消息一并撤下） */
+export async function cancelInboxItem(sessionId: string, inboxID: string, serverId?: string): Promise<void> {
+  const target = resolveSessionTarget(sessionId, serverId)
+  const sdk = getSDKClient(target.serverId)
+  await sdk.session.inbox.cancel({ sessionID: target.sessionId, inboxID })
+}
+
+/** 把排队条目改为 steer（插队注入当前回合） */
+export async function steerInboxItem(sessionId: string, inboxID: string, serverId?: string): Promise<void> {
+  const target = resolveSessionTarget(sessionId, serverId)
+  const sdk = getSDKClient(target.serverId)
+  await sdk.session.inbox.update({ sessionID: target.sessionId, inboxID, delivery: 'steer' })
 }

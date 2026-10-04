@@ -167,9 +167,9 @@ function getReconnectDelay(attempt: number): number {
 //       → McpPanel 打开时现拉，无缓存可失效
 //   project.updated
 //       → 项目信息由会话/目录切换时刷新
-//   session.inbox.enqueued / delivered / cancelled
-//       → 本应用有自己的客户端队列（followupQueueStore）；服务端 inbox 是
-//         prompt 的投递机制，UI 不需要为它建视图
+//   session.inbox.enqueued / delivered / cancelled / delivery.changed
+//       → 已接入：排队消息走服务端 inbox（官方同款），enqueued 回声上屏 +
+//         进队列视图，delivered/cancelled 出队，delivery.changed 更新投递方式
 //   session.revert.staged / cleared / committed
 //       → 撤销/重做目前由 UI 驱动并随后重拉消息（store 的 setRevertState /
 //         truncateAfterRevert）。**已知偏差**：官方 revert.committed 会就地
@@ -402,6 +402,9 @@ function dispatchEvent(callbacks: EventCallbacks, event: GlobalEvent): void {
       break
     case 'session.inbox.cancelled':
       callbacks.onInboxCancelled?.(event.data, facts)
+      break
+    case 'session.inbox.delivery.changed':
+      callbacks.onInboxDeliveryChanged?.(event.data, facts)
       break
 
     // ---- 外围 ----

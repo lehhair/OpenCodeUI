@@ -10,6 +10,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { messageStore, childSessionStore, paneLayoutStore, serverStore } from '../store'
+import { inboxStore } from '../store/inboxStore'
 import { activeSessionStore } from '../store/activeSessionStore'
 import { notificationStore } from '../store/notificationStore'
 import { soundStore } from '../store/soundStore'
@@ -772,14 +773,21 @@ export function useGlobalEvents(directories?: string[]) {
           messageStore.handleInstructionsUpdated({ ...data, sessionID: scopedId }, facts)
         },
 
-        // ---- inbox（prompt 入队 / 取消）----
+        // ---- inbox（prompt 入队 / 投递 / 取消 / 投递方式变更）----
         //
-        // 官方 data.ts:773-790 同款：durable 回声用同一 inboxID upsert 用户消息
-        // （与发送侧的乐观插入同 id 对账，files/skills 等 durable 字段在此补齐）；
-        // 取消则整条撤下。compaction / move 不走这里（各有专属事件）。
+        // 官方 data.ts:749-790 同款：durable 回声用同一 inboxID upsert 用户消息
+        // （与发送侧的乐观插入同 id 对账，files/skills 等 durable 字段在此补齐）
+        // 并进队列视图（inboxStore）；投递/取消出队，取消同时把转写里的
+        // 用户消息整条撤下（retractLocal）。compaction / move 各有专属事件。
         onInboxEnqueued: (data, facts) => {
-          if (data.item.type !== 'user') return
           const scopedId = scope(data.sessionID)
+          inboxStore.upsertItem(scopedId, {
+            id: data.inboxID,
+            sessionID: data.sessionID,
+            time: { created: facts?.created ?? Date.now() },
+            ...data.item,
+          } as Parameters<typeof inboxStore.upsertItem>[1])
+          if (data.item.type !== 'user') return
           const payload = data.item.payload
           messageStore.handleMessageUpdated(
             {
@@ -795,9 +803,19 @@ export function useGlobalEvents(directories?: string[]) {
           )
         },
 
+        onInboxDelivered: data => {
+          // 服务端开始处理该条目：出队列视图，转写里的用户消息保留（同 id）
+          inboxStore.removeItem(scope(data.sessionID), data.inboxID)
+        },
+
         onInboxCancelled: data => {
           const scopedId = scope(data.sessionID)
+          inboxStore.removeItem(scopedId, data.inboxID)
           messageStore.removeMessage(scopedId, data.inboxID)
+        },
+
+        onInboxDeliveryChanged: data => {
+          inboxStore.updateDelivery(scope(data.sessionID), data.inboxID, data.delivery)
         },
 
         // ---- 会话级 agent / 模型切换（v2 把它们放在会话状态，不在消息上）----

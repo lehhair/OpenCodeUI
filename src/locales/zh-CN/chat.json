@@ -69,6 +69,13 @@
     "minimize": "最小化",
     "typeYourAnswer": "输入你的回答..."
   },
+  "queue": {
+    "title": "排队中（{{count}}）",
+    "steer": "插队",
+    "steerTitle": "立即注入当前回合",
+    "cancel": "取消",
+    "cancelTitle": "从队列移除"
+  },
   "permissionDialog": {
     "permission": "权限：{{permission}}",
     "moreCount": "还有 {{count}} 个",

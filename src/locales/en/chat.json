@@ -69,6 +69,13 @@
     "minimize": "Minimize",
     "typeYourAnswer": "Type your own answer..."
   },
+  "queue": {
+    "title": "Queued ({{count}})",
+    "steer": "Steer",
+    "steerTitle": "Inject into the current turn now",
+    "cancel": "Cancel",
+    "cancelTitle": "Remove from queue"
+  },
   "permissionDialog": {
     "permission": "Permission: {{permission}}",
     "moreCount": "+{{count}} more",

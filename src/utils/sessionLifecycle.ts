@@ -1,6 +1,6 @@
 import { activeSessionStore } from '../store/activeSessionStore'
 import { childSessionStore } from '../store/childSessionStore'
-import { followupQueueStore } from '../store/followupQueueStore'
+import { inboxStore } from '../store/inboxStore'
 import { messageStore } from '../store/messageStore'
 
 export function clearSessionRuntimeState(sessionId: string) {
@@ -8,7 +8,7 @@ export function clearSessionRuntimeState(sessionId: string) {
 
   for (const id of sessionIds) {
     messageStore.clearSession(id)
-    followupQueueStore.clearSession(id)
+    inboxStore.clearSession(id)
     activeSessionStore.removeSession(id)
   }
 

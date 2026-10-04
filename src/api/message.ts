@@ -137,6 +137,10 @@ function buildPromptInput(
     // 客户端铸造的 id：服务端原样采用，乐观行与 durable 行同 id 对账
     ...(params.id ? { id: params.id } : {}),
     text: params.text,
+    // 投递方式：busy 时 'queue' 排队（服务端排空后自动投递）或 'steer'
+    // 插队注入当前回合；idle 时不传走服务端默认（steer）
+    //（官方 packages/core/src/session/prompt.ts:50 默认 steer）
+    ...(params.delivery ? { delivery: params.delivery } : {}),
     ...(files.length > 0 ? { files } : {}),
     ...(agents.length > 0 ? { agents } : {}),
   }

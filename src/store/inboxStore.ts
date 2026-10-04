@@ -1,0 +1,101 @@
+// ============================================
+// InboxStore —— 服务端 inbox（队列）的客户端镜像
+//
+// 对应官方 data.ts 的 session.pending：由 `session.inbox.list` 快照打底，
+// 靠 enqueued / delivered / cancelled / delivery.changed 四个事件增量维护。
+// 队列视图 = type==='user' && delivery==='queue' 的条目
+//（官方 packages/app/src/session/composer/queue.ts:80-84 同款过滤）。
+//
+// key 一律是带服务器前缀的 scoped sessionId（与 messageStore 一致）。
+// ============================================
+
+import { useMemo, useSyncExternalStore } from 'react'
+import type { SessionInboxInfo, SessionInboxDelivery } from '@opencode/client/promise'
+
+const EMPTY_ITEMS: SessionInboxInfo[] = []
+type QueuedUserPrompt = Extract<SessionInboxInfo, { type: 'user' }>
+const EMPTY_QUEUE: QueuedUserPrompt[] = []
+
+class InboxStore {
+  private itemsBySession = new Map<string, SessionInboxInfo[]>()
+  private listeners = new Set<() => void>()
+
+  subscribe = (listener: () => void): (() => void) => {
+    this.listeners.add(listener)
+    return () => this.listeners.delete(listener)
+  }
+
+  getSnapshot = (): Map<string, SessionInboxInfo[]> => this.itemsBySession
+
+  private emit() {
+    this.listeners.forEach(listener => listener())
+  }
+
+  /** inbox.list 快照打底（官方 pending.sync） */
+  setItems(sessionId: string, items: SessionInboxInfo[]) {
+    this.itemsBySession = new Map(this.itemsBySession)
+    if (items.length === 0) this.itemsBySession.delete(sessionId)
+    else this.itemsBySession.set(sessionId, items)
+    this.emit()
+  }
+
+  /** enqueued：新条目入队（同 id 覆盖，与官方 admitLocal 一致） */
+  upsertItem(sessionId: string, item: SessionInboxInfo) {
+    const current = this.itemsBySession.get(sessionId) ?? EMPTY_ITEMS
+    const at = current.findIndex(entry => entry.id === item.id)
+    const next = at < 0 ? [...current, item] : current.map((entry, index) => (index === at ? item : entry))
+    this.itemsBySession = new Map(this.itemsBySession).set(sessionId, next)
+    this.emit()
+  }
+
+  /** delivered / cancelled：条目出队 */
+  removeItem(sessionId: string, inboxID: string) {
+    const current = this.itemsBySession.get(sessionId)
+    if (!current?.some(entry => entry.id === inboxID)) return
+    const next = current.filter(entry => entry.id !== inboxID)
+    this.itemsBySession = new Map(this.itemsBySession)
+    if (next.length === 0) this.itemsBySession.delete(sessionId)
+    else this.itemsBySession.set(sessionId, next)
+    this.emit()
+  }
+
+  /** delivery.changed：queue ↔ steer 切换 */
+  updateDelivery(sessionId: string, inboxID: string, delivery: SessionInboxDelivery) {
+    const current = this.itemsBySession.get(sessionId)
+    const at = current?.findIndex(entry => entry.id === inboxID) ?? -1
+    if (!current || at < 0 || current[at].delivery === delivery) return
+    const next = current.map((entry, index) => (index === at ? { ...entry, delivery } : entry))
+    this.itemsBySession = new Map(this.itemsBySession).set(sessionId, next)
+    this.emit()
+  }
+
+  getItems(sessionId: string | null): SessionInboxInfo[] {
+    if (!sessionId) return EMPTY_ITEMS
+    return this.itemsBySession.get(sessionId) ?? EMPTY_ITEMS
+  }
+
+  clearSession(sessionId: string) {
+    if (!this.itemsBySession.has(sessionId)) return
+    this.itemsBySession = new Map(this.itemsBySession)
+    this.itemsBySession.delete(sessionId)
+    this.emit()
+  }
+
+  reset() {
+    this.itemsBySession = new Map()
+    this.emit()
+  }
+}
+
+export const inboxStore = new InboxStore()
+
+/** 队列视图：只含排队中的用户 prompt（官方 queue.ts 的同款过滤） */
+export function useInboxQueue(sessionId: string | null): QueuedUserPrompt[] {
+  const snapshot = useSyncExternalStore(inboxStore.subscribe, inboxStore.getSnapshot)
+  return useMemo(() => {
+    if (!sessionId) return EMPTY_QUEUE
+    return (snapshot.get(sessionId) ?? EMPTY_ITEMS).filter(
+      (item): item is QueuedUserPrompt => item.type === 'user' && item.delivery === 'queue',
+    )
+  }, [sessionId, snapshot])
+}
