@@ -40,11 +40,11 @@ function getRootDirectoryCacheKey(directory?: string, serverId?: string): string
 
 async function fetchDirectory(path: string, directory?: string, serverId?: string): Promise<FileNode[]> {
   const sdk = getSDKClient(serverId)
-  const isAbsolute = /^[a-zA-Z]:/.test(path) || path.startsWith('/')
 
+  // v2 的 file.list 接受绝对或相对 path，直接透传
   const result = await sdk.file.list({
     location: locationParam(directory, serverId),
-    path: isAbsolute ? path : path,
+    path,
   })
   return result.data
 }

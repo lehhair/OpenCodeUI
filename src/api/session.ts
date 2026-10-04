@@ -20,6 +20,7 @@
 // ============================================
 
 import { getSDKClient } from './sdk'
+import { isSessionBusyError } from '@opencode/client/promise'
 import { locationParam } from './location'
 import { resolveSessionTarget } from '../utils/sessionKey'
 import { normalizeFileDiffs } from '../types/api/file'
@@ -128,19 +129,23 @@ export async function getSession(sessionId: string, _directory?: string, serverI
  * 创建会话。
  *
  * v2 的目录参数是 `location.directory`；title / agent / model 直接传。
+ *
+ * 注意：v2 **没有**「直接创建子会话」的入口——子会话只能由 task 工具、
+ * fork 或 import（带 parentID）产生；把 parentID 塞进 metadata 只会被
+ * 服务端原样存储，不会建立父子关系（官方 handlers/session.ts 无此处理），
+ * 因此这里不接受 parentID。
  */
 export async function createSession(
   params: {
     directory?: string
     title?: string
-    parentID?: string
     agent?: string
     model?: { id: string; providerID: string; variant?: string }
   } = {},
   serverId?: string,
 ): Promise<Session> {
   const sdk = getSDKClient(serverId)
-  const { directory, title, parentID, agent, model } = params
+  const { directory, title, agent, model } = params
   const location = locationParam(directory, serverId)
   return await sdk.session.create({
     title,
@@ -148,9 +153,6 @@ export async function createSession(
     model,
     // v2 的 create 里 location.directory 是必填的（给了 location 就必须带目录）
     ...(location ? { location: { directory: location.directory as string } } : {}),
-    // v2 用 parentID 表达子会话；create 输入里没有独立字段，
-    // 通过 metadata 传递会被服务端忽略，因此这里仅在 list 侧支持子会话过滤。
-    ...(parentID ? { metadata: { parentID } } : {}),
   })
 }
 
@@ -205,6 +207,10 @@ export async function abortSession(sessionId: string, _directory?: string, serve
 
 /**
  * 回退到某条消息（v1 revert → v2 revert.stage）。
+ *
+ * 服务端在会话执行活跃时会拒绝 stage（409 SessionBusyError），
+ * 官方 app 的做法是先 interrupt 再 stage（packages/app/src/session/revert.ts），
+ * 这里复刻：遇到 busy 就先中断一次再重试。
  */
 export async function revertMessage(
   sessionId: string,
@@ -215,7 +221,13 @@ export async function revertMessage(
 ): Promise<SessionRevert> {
   const target = resolveSessionTarget(sessionId, serverId)
   const sdk = getSDKClient(target.serverId)
-  return await sdk.session.revert.stage({ sessionID: target.sessionId, messageID: messageId })
+  try {
+    return await sdk.session.revert.stage({ sessionID: target.sessionId, messageID: messageId })
+  } catch (error) {
+    if (!isSessionBusyError(error)) throw error
+    await sdk.session.interrupt({ sessionID: target.sessionId }).catch(() => undefined)
+    return await sdk.session.revert.stage({ sessionID: target.sessionId, messageID: messageId })
+  }
 }
 
 /**
@@ -304,14 +316,21 @@ export async function exportSession(
 
 /**
  * 导入会话转写。
+ *
+ * v2 的 import 接受可选 `location`；不传会落到服务端的 process.cwd()
+ * （官方 app 传 `location: { directory: project.worktree }`）。
  */
 export async function importSession(
   transfer: SessionTransferData,
-  _directory?: string,
+  directory?: string,
   serverId?: string,
 ): Promise<Session> {
   const sdk = getSDKClient(serverId)
-  return await sdk.session.import(transfer)
+  const location = locationParam(directory, serverId)
+  return await sdk.session.import({
+    ...transfer,
+    ...(location ? { location: { directory: location.directory as string } } : {}),
+  })
 }
 
 /**
