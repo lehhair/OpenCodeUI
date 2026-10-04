@@ -42,7 +42,7 @@ export async function connectTauriPty({
   const { invoke, Channel } = await import('@tauri-apps/api/core')
   // 必须用终端所属服务器的 URL/auth（不能是活动服务器）：
   // 多服务器模式下焦点服务器可能已切换，但 pty 在创建它的服务器上
-  const url = getPtyConnectUrl(ptyId, directory, { includeAuthInUrl: false, cursor }, serverId)
+  const url = await getPtyConnectUrl(ptyId, directory, { includeAuthInUrl: false, cursor }, serverId)
   const authHeader = getAuthHeader(serverId)['Authorization'] || null
   // bridgeId 带服务器前缀，避免两个服务器（同后端）相同 ptyId 的 bridge 冲突
   const bridgeId = `pty:${serverId ?? ''}:${ptyId}`

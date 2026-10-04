@@ -707,39 +707,48 @@ export const Terminal = memo(function Terminal({ ptyId, directory, serverId, isA
             handleDisconnected({ reason: message })
           })
       } else {
-        const wsUrl = getPtyConnectUrl(ptyId, terminalDirectory, { cursor }, serverId)
-        logger.log('[Terminal] Connecting to:', wsUrl, reconnectAttempt > 0 ? `(reconnect #${reconnectAttempt})` : '')
-        ws = new WebSocket(wsUrl)
-        ws.binaryType = 'arraybuffer'
-        transportSendRef.current = data => {
-          if (ws && ws.readyState === WebSocket.OPEN) {
-            ws.send(data)
-          }
-        }
-        transportDisconnectRef.current = () => ws?.close()
+        // v2 的 WS 连接需要先异步换取一次性 ticket（见 api/pty.getPtyConnectUrl）
+        void getPtyConnectUrl(ptyId, terminalDirectory, { cursor }, serverId)
+          .then(wsUrl => {
+            if (!mountedRef.current) return
+            logger.log('[Terminal] Connecting to:', wsUrl, reconnectAttempt > 0 ? `(reconnect #${reconnectAttempt})` : '')
+            ws = new WebSocket(wsUrl)
+            ws.binaryType = 'arraybuffer'
+            transportSendRef.current = data => {
+              if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(data)
+              }
+            }
+            transportDisconnectRef.current = () => ws?.close()
 
-        ws.onopen = handleConnected
+            ws.onopen = handleConnected
 
-        ws.onmessage = event => {
-          if (!mountedRef.current) return
-          const frame = parsePtyFrame(event.data as string | ArrayBuffer)
-          if (!frame) return
-          if (frame.kind === 'control') {
-            cursorRef.current = frame.cursor
-            return
-          }
-          terminal.write(frame.data)
-          cursorRef.current += frame.data.length
-        }
+            ws.onmessage = event => {
+              if (!mountedRef.current) return
+              const frame = parsePtyFrame(event.data as string | ArrayBuffer)
+              if (!frame) return
+              if (frame.kind === 'control') {
+                cursorRef.current = frame.cursor
+                return
+              }
+              terminal.write(frame.data)
+              cursorRef.current += frame.data.length
+            }
 
-        ws.onclose = e => {
-          handleDisconnected({ code: e.code, reason: e.reason })
-        }
+            ws.onclose = e => {
+              handleDisconnected({ code: e.code, reason: e.reason })
+            }
 
-        ws.onerror = e => {
-          logger.log('[Terminal] WebSocket error:', ptyId, e)
-          // onclose 会在 onerror 之后触发，重连逻辑交给 onclose
-        }
+            ws.onerror = e => {
+              logger.log('[Terminal] WebSocket error:', ptyId, e)
+              // onclose 会在 onerror 之后触发，重连逻辑交给 onclose
+            }
+          })
+          .catch(error => {
+            const message = error instanceof Error ? error.message : String(error)
+            logger.log('[Terminal] Failed to prepare PTY WebSocket URL:', ptyId, message)
+            handleDisconnected({ reason: message })
+          })
       }
 
       disposeData?.dispose()

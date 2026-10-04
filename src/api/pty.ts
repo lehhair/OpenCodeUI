@@ -7,16 +7,17 @@
 //   - `pty.shells()` → **`config.shells()`**（v2 把可用 shell 移到 config）
 //   - 所有方法带 `location`
 //   - `pty.list` 返回 `{ location, data: Pty[] }`
-//   - 新增 `pty.connect.token()` 用于获取连接票据
-//
-// WebSocket 连接 URL 的构造保持在本地（浏览器/桥接两种认证方式）。
+//   - WebSocket 连接走 `GET /api/pty/:id/connect`：
+//     浏览器跨域无法带 Authorization header，官方客户端的流程是
+//     先 `POST /api/pty/:id/connect-token`（带 `x-opencode-ticket: 1` 头）
+//     换取一次性 ticket，再用 `?ticket=...` 连接
+//     （见官方 packages/client/src/solid/pty.ts）
 // ============================================
 
 import { getSDKClient } from './sdk'
 import { locationParam } from './location'
-import { getApiBaseUrl, buildQueryString } from './http'
+import { getApiBaseUrl } from './http'
 import { formatPathForApi } from '../utils/directoryUtils'
-import { serverStore } from '../store/serverStore'
 import type { Pty, PtyCreateParams, PtyUpdateParams } from '../types/api/pty'
 
 export interface ShellInfo {
@@ -103,58 +104,45 @@ export async function removePtySession(ptyId: string, directory?: string, server
 }
 
 /**
- * 获取 PTY 连接 WebSocket URL。
+ * 获取 PTY 连接 WebSocket URL（v2 流程，异步）。
  *
- * 浏览器 WebSocket 不支持自定义 header，认证方式：
- * - 跨域：auth_token query parameter（与官方 opencode app 一致）
- * - 同源：浏览器会复用页面的 Basic auth 凭据
- * - Tauri bridge：不走这里，通过 Rust 的 HTTP header 传认证
+ * v2 的 WS 端点是 `GET /api/pty/:id/connect`，认证方式：
+ * - 浏览器（includeAuthInUrl=true）：先调 `pty.connect.token()` 换一次性
+ *   ticket，拼到 `?ticket=` —— 与官方 opencode app 的 solid pty client 一致。
+ *   （浏览器 WebSocket 无法设 header，v1 的 auth_token/userinfo 方式在 v2 不存在）
+ * - Tauri bridge（includeAuthInUrl=false）：不带 ticket，由 Rust 侧在
+ *   HTTP upgrade 请求上带 Authorization header（服务端无 ticket 时走常规鉴权）。
  */
-export function getPtyConnectUrl(
+export async function getPtyConnectUrl(
   ptyId: string,
   directory?: string,
   options?: PtyConnectUrlOptions,
   serverId?: string,
-): string {
+): Promise<string> {
   const httpBase = getApiBaseUrl(serverId)
-  const wsBase = httpBase.replace(/^http/, 'ws')
   const includeAuthInUrl = options?.includeAuthInUrl ?? true
   const cursor =
     typeof options?.cursor === 'number' && Number.isSafeInteger(options.cursor) && options.cursor >= 0
       ? options.cursor
       : undefined
-
-  const auth = serverId ? serverStore.getServerAuth(serverId) : serverStore.getActiveAuth()
   const formatted = formatPathForApi(directory, serverId)
 
-  // Tauri bridge 不需要在 URL 里放认证
-  if (!includeAuthInUrl) {
-    return `${wsBase}/pty/${ptyId}/connect${buildQueryString({ directory: formatted, cursor })}`
+  const base = new URL(httpBase.endsWith('/') ? httpBase : `${httpBase}/`)
+  const url = new URL(`api/pty/${encodeURIComponent(ptyId)}/connect`, base)
+  if (formatted) url.searchParams.set('location[directory]', formatted)
+  if (cursor !== undefined) url.searchParams.set('cursor', String(cursor))
+
+  if (includeAuthInUrl) {
+    // 浏览器路径：换取一次性 ticket（服务端强制 CORS preflight + origin 校验）
+    const sdk = getSDKClient(serverId)
+    const token = await sdk.pty.connect.token({
+      ptyID: ptyId,
+      location: locationParam(directory, serverId),
+      'x-opencode-ticket': '1',
+    })
+    url.searchParams.set('ticket', token.data.ticket)
   }
 
-  // 浏览器原生 WebSocket：
-  // 跨域时用 auth_token query parameter + userinfo fallback
-  // 同源时浏览器会自动复用 Basic auth
-  const isCrossOrigin = (() => {
-    try {
-      return new URL(httpBase).origin !== location.origin
-    } catch {
-      return true
-    }
-  })()
-
-  const queryParams: Record<string, string | number | undefined> = { directory: formatted, cursor }
-
-  let wsUrl = wsBase
-  if (auth?.password) {
-    if (isCrossOrigin) {
-      // auth_token = base64(username:password)，与官方 opencode app 一致
-      queryParams.auth_token = btoa(`${auth.username}:${auth.password}`)
-    }
-    // 同时设 userinfo 作为 fallback（部分浏览器直连时能用）
-    const creds = `${encodeURIComponent(auth.username)}:${encodeURIComponent(auth.password)}@`
-    wsUrl = wsBase.replace('://', `://${creds}`)
-  }
-
-  return `${wsUrl}/pty/${ptyId}/connect${buildQueryString(queryParams)}`
+  url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
+  return url.toString()
 }
