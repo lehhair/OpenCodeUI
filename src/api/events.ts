@@ -52,6 +52,10 @@ interface ServerConnection {
   lastReconnectedBroadcast: number
   /** 是否曾经成功连接过（用于区分首次连接与重连） */
   hasConnectedBefore: boolean
+  /** 空闲看门狗计时器 */
+  watchdogTimer: ReturnType<typeof setInterval> | null
+  /** 看门狗主动掐断标记（区分于取消订阅/切换服务器的主动 abort） */
+  watchdogDrop: boolean
 }
 
 const connections = new Map<string, ServerConnection>()
@@ -75,6 +79,13 @@ const BACKGROUND_RECONNECT_DELAYS = [500, 1000, 2000, 3000, 5000, 10000]
 const BACKGROUND_KEEPALIVE_INTERVAL = 30_000
 /** onReconnected 广播 cooldown */
 const RECONNECTED_COOLDOWN = 2000
+/**
+ * 空闲看门狗：服务端每 15s 发心跳（心跳也算 onActivity），
+ * 超过 IDLE_TIMEOUT 没有任何字节说明是半开连接（休眠/闪断），
+ * 主动掐断重连（官方客户端 45s 静默即 abort，此处对齐）。
+ */
+const WATCHDOG_INTERVAL = 15_000
+const IDLE_TIMEOUT = 45_000
 
 const DEFAULT_CONNECTION_INFO: ConnectionInfo = {
   state: 'disconnected',
@@ -99,6 +110,8 @@ function getOrCreateConnection(serverId: string): ServerConnection {
       generation: 0,
       lastReconnectedBroadcast: 0,
       hasConnectedBefore: false,
+      watchdogTimer: null,
+      watchdogDrop: false,
     }
     connections.set(serverId, conn)
   }
@@ -474,6 +487,21 @@ async function connectServer(serverId: string): Promise<void> {
     invalidateSDKClient(serverId)
     const sdk = getSDKClient(serverId)
 
+    // 空闲看门狗：心跳也会触发 onActivity 刷新 lastEventTime，
+    // 因此超过 IDLE_TIMEOUT 无字节就是半开连接（休眠/闪断）——
+    // for-await 会永远挂起、状态永远停在 connected，必须主动掐断重连
+    //（对齐官方客户端 45s 静默 abort）。
+    conn.watchdogDrop = false
+    conn.watchdogTimer = setInterval(() => {
+      if (generation !== conn.generation) return
+      if (conn.info.state !== 'connected') return
+      const last = conn.info.lastEventTime
+      if (last <= 0) return
+      if (Date.now() - last <= IDLE_TIMEOUT) return
+      conn.watchdogDrop = true
+      conn.controller?.abort()
+    }, WATCHDOG_INTERVAL)
+
     const stream = sdk.event.subscribe({
       signal,
       onActivity: () => {
@@ -489,6 +517,10 @@ async function connectServer(serverId: string): Promise<void> {
 
       if (!conn.hasConnectedBefore) {
         conn.hasConnectedBefore = true
+        // 首次连接不广播 onReconnected：初始加载由各订阅方自己拉取；
+        // 若本次连接是服务器切换后的重连，清掉标记即可（切服务器的
+        // 数据刷新由 server-change 链路负责）
+        serverSwitchFlags.delete(serverId)
         updateConnectionState(serverId, {
           state: 'connected',
           reconnectAttempt: 0,
@@ -496,6 +528,13 @@ async function connectServer(serverId: string): Promise<void> {
         })
       } else if (conn.info.state !== 'connected') {
         updateConnectionState(serverId, { state: 'connected', reconnectAttempt: 0, error: undefined })
+        // 掉线后的**重连成功**：断线窗口错过的事件协议明确不补发，
+        // 广播 onReconnected 让订阅者做补偿拉取（对齐官方：每次
+        // server.connected 都触发 bootstrap refetch）。广播必须在
+        // 重连成功之后发——之前在断流时就发，REST 补拉注定失败被吞。
+        const wasSwitch = serverSwitchFlags.get(serverId) === true
+        serverSwitchFlags.delete(serverId)
+        broadcastReconnected(conn, wasSwitch ? 'server-switch' : 'network')
       }
 
       // server.connected 没有可分发的内容（data 是 {}），只用来标记连接已建立。
@@ -515,23 +554,24 @@ async function connectServer(serverId: string): Promise<void> {
       })
     }
 
-    // 流正常结束 —— 视为断开并重连
+    // 流正常结束 —— 视为断开并重连（onReconnected 在重连成功后广播）
     if (generation === conn.generation) {
       conn.isConnecting = false
       updateConnectionState(serverId, { state: 'disconnected' })
-      const wasSwitch = serverSwitchFlags.get(serverId) === true
-      serverSwitchFlags.delete(serverId)
-      broadcastReconnected(conn, wasSwitch ? 'server-switch' : 'network')
-      scheduleReconnect(conn, wasSwitch ? 'server-switch' : 'network')
+      scheduleReconnect(conn)
     }
   } catch (error) {
     if (generation !== conn.generation) return
 
     conn.isConnecting = false
 
-    // 主动中断（切换服务器 / 取消订阅）不算错误
+    // 主动中断不算错误；但看门狗掐断的半开连接需要重连
     if (signal.aborted) {
       updateConnectionState(serverId, { state: 'disconnected' })
+      if (conn.watchdogDrop) {
+        conn.watchdogDrop = false
+        scheduleReconnect(conn)
+      }
       return
     }
 
@@ -544,6 +584,10 @@ async function connectServer(serverId: string): Promise<void> {
 
     scheduleReconnect(conn)
   } finally {
+    if (conn.watchdogTimer) {
+      clearInterval(conn.watchdogTimer)
+      conn.watchdogTimer = null
+    }
     if (generation === conn.generation) {
       conn.isConnecting = false
     }
@@ -555,6 +599,11 @@ function disconnectServerConnection(conn: ServerConnection): void {
   conn.controller?.abort()
   conn.controller = null
   conn.isConnecting = false
+  conn.watchdogDrop = false
+  if (conn.watchdogTimer) {
+    clearInterval(conn.watchdogTimer)
+    conn.watchdogTimer = null
+  }
   if (conn.reconnectTimer) {
     clearTimeout(conn.reconnectTimer)
     conn.reconnectTimer = null
