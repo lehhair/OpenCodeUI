@@ -68,14 +68,28 @@ export default defineConfig({
     // 允许所有域名
     allowedHosts: true,
 
+    watch: {
+      // Rust 构建目录可达数十 GB / 数万文件，chokidar 全量监听会拖垮 dev server
+      ignored: [
+        '**/node_modules/**',
+        '**/.git/**',
+        '**/dist/**',
+        '**/src-tauri/target/**',
+        '**/src-router/target/**',
+        '**/public/material-icons/**',
+        // vitest 运行时临时目录（Windows 上监听会 EBUSY 导致 dev server 崩溃）
+        '**/*.tmpdir/**',
+      ],
+    },
+
     proxy: {
       // 开发环境代理 - 将 /api 前缀的请求转发到 OpenCode 后端
-      // 注意：Tauri 模式下前端直接请求后端（通过 plugin-http），不走此代理
+      // 注意：Tauri 模式下前端直接请求后端（通过 plugin-http），不走此代理。
+      // v2 后端的 API 就在 /api/* 下，**不能**像 v1 那样把 /api 前缀 rewrite 掉。
       '/api': {
         target: 'http://127.0.0.1:4096',
         changeOrigin: true,
         ws: true,
-        rewrite: path => path.replace(/^\/api/, ''),
       },
     },
   },
