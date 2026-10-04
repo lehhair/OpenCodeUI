@@ -37,7 +37,8 @@ pub async fn is_service_running(url: &str) -> bool {
 }
 
 /// 带可选 Basic 鉴权的健康检查，对齐官方实现：
-/// 依次尝试 /api/health 与 /global/health；WSL 侧 serve 启用了密码保护，
+/// v2 客户端用 server.info()（GET /api/info）探测；/global/health 是 v1 端点，
+/// 保留为旧版后端的回退。WSL 侧 serve 启用了密码保护，
 /// 不带凭据会收到 401 而误判为未就绪。
 pub async fn is_service_running_with_auth(url: &str, auth: Option<(&str, &str)>) -> bool {
     let base = url.trim_end_matches('/');
@@ -49,30 +50,31 @@ pub async fn is_service_running_with_auth(url: &str, auth: Option<(&str, &str)>)
         Err(_) => return false,
     };
 
-    let mut request = client.get(format!("{}/api/health", base));
-    if let Some((username, password)) = auth {
-        request = request.basic_auth(username, Some(password));
+    for path in ["/api/info", "/global/health"] {
+        let mut request = client.get(format!("{}{}", base, path));
+        if let Some((username, password)) = auth {
+            request = request.basic_auth(username, Some(password));
+        }
+        // v2 服务器对未知路径会回退到 SPA 的 HTML（也是 200），
+        // 因此必须确认返回的是 JSON
+        let is_json_ok = request
+            .timeout(Duration::from_secs(5))
+            .send()
+            .await
+            .map(|r| {
+                r.status().is_success()
+                    && r.headers()
+                        .get(reqwest::header::CONTENT_TYPE)
+                        .and_then(|v| v.to_str().ok())
+                        .map(|ct| ct.to_ascii_lowercase().contains("application/json"))
+                        .unwrap_or(false)
+            })
+            .unwrap_or(false);
+        if is_json_ok {
+            return true;
+        }
     }
-    if request
-        .timeout(Duration::from_secs(5))
-        .send()
-        .await
-        .map(|r| r.status().is_success())
-        .unwrap_or(false)
-    {
-        return true;
-    }
-
-    let mut request = client.get(format!("{}/global/health", base));
-    if let Some((username, password)) = auth {
-        request = request.basic_auth(username, Some(password));
-    }
-    request
-        .timeout(Duration::from_secs(5))
-        .send()
-        .await
-        .map(|r| r.status().is_success())
-        .unwrap_or(false)
+    false
 }
 
 /// 启动 opencode serve 进程

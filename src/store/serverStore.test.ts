@@ -487,14 +487,17 @@ describe('serverStore health check', () => {
     vi.unstubAllGlobals()
   })
 
-  it('marks a valid OpenCode health response as online', async () => {
-    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ healthy: true, version: '1.16.0' }))
+  it('marks a valid OpenCode server info response as online', async () => {
+    // v2 的 /api/info 返回 { version, pid, urls, paths }，没有 healthy 字段
+    vi.mocked(fetch).mockResolvedValueOnce(
+      jsonResponse({ version: '2.0.14', pid: 1234, urls: [], paths: { tmp: '/tmp' } }),
+    )
     const { serverStore } = await import('./serverStore')
 
     const health = await serverStore.checkHealth('local')
 
     expect(health.status).toBe('online')
-    expect(health.version).toBe('1.16.0')
+    expect(health.version).toBe('2.0.14')
   })
 
   it('rejects HTML responses even when the status is 200', async () => {
@@ -512,7 +515,7 @@ describe('serverStore health check', () => {
     expect(health.error).toMatch(/HTML/)
   })
 
-  it('rejects JSON that is not an OpenCode health response', async () => {
+  it('rejects JSON that is not an OpenCode server info response', async () => {
     vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ ok: true }))
     const { serverStore } = await import('./serverStore')
 
@@ -535,7 +538,9 @@ describe('serverStore health check', () => {
     const staleResponse = createDeferred<Response>()
     vi.mocked(fetch)
       .mockImplementationOnce(() => staleResponse.promise)
-      .mockResolvedValueOnce(jsonResponse({ healthy: true, version: '1.16.0' }))
+      .mockResolvedValueOnce(
+        jsonResponse({ version: '2.0.14', pid: 1234, urls: [], paths: { tmp: '/tmp' } }),
+      )
 
     const { serverStore } = await import('./serverStore')
 
