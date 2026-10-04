@@ -56,7 +56,9 @@
 - [x] **`session.move`** — 会话移动到其他目录/worktree（官方 session-workspace-menu.tsx:77）✅
   - 实现：`moveSession`（api/session.ts）+ Header 标题旁 SessionMoveMenu：项目根（在根时隐藏）+ 现有 worktree + 内联新建 worktree 并移入；运行中禁止；`session.moved` 由 useSessions 消费（回读后按目录匹配增删）
   - 验证：live 菜单列出 worktree，点击后服务端 location 实变并移回
-- [ ] **`session.background`** — 挂起会话转后台（官方 requests/model.ts:90）
+- [x] **`session.background`** — 阻塞回合的 shell/task 转后台（官方 requests/model.ts:90）✅
+  - 实现：`backgroundSession`（api/session.ts）+ `findBlockingBackgroundTasks`（官方 requests/background.ts 的 blocking 逻辑：最新未完成 assistant 里 running 的 shell/task）；InputBox 上方「移到后台（N 个任务）」按钮
+  - 验证：live 按钮在模型跑 60s sleep shell 时正确出现；⚠️ 测试服务器（opencode 1.18.15）对 background 返回 204 但不实际解除阻塞（jobs.block/backgroundAll 疑似未接线），端点/路径与官方一致，待新 server 复验
 - [ ] **`websearch.providers`** — 第三方搜索 provider 选择 dock（官方 session-websearch-dock.tsx；表单 `metadata.kind === 'websearch.provider'`）
 - [ ] **`plugin.list/check/update`** — 扩展管理面板（官方 extensions.tsx / server-panel.tsx）
 
