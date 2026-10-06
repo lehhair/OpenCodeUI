@@ -45,7 +45,9 @@
 - [x] **`!` shell 命令 + 后台 shell 输出**（`session.shell`、`shell.list/output`）✅
   - 官方：composer 输入 `!` 进入 shell mode（composer/suggestions/machine.ts:203），提交走 `session.shell`（submit.ts:147）；shell 消息独立成行、用 shell 工具渲染器（session-ui/tool-renderer.tsx:1837）
   - 实现：`!` 进 shell mode（mono + Shell 徽标，Enter 执行、esc/空退格退出）→ `executeSessionShell`；`ShellMessageView` 投影成 shell 工具调用走 bash 管线；可见性 + 过程时间线补 shell 类型；全局 Escape 快捷键在 shell mode 内让路（data-shell-mode）
-  - 未做：`shell.list/output` 的后台任务面板——后台 shell 输出已由工具事件流渲染进转写，官方那个独立面板依赖 session-ui 包，无对应消费场景
+  - `shell.list` ✅（api/shell.ts）：并入「移到后台」候选（官方 requests/background.ts:100-109 同款去重），busy 期间 3s 轮询
+  - `shell.get/output` ✅（api/shell.ts）：运行中 shell 实时输出跟随（followShellOutput 逐行移植官方 session-ui/shell-output.ts：游标记忆、64KB 尾窗、missing 态短路、存活期 1s 轮询）
+  - 未做：官方那个独立「后台任务面板」依赖 session-ui 包，无对应消费场景（功能已由上述两处覆盖）
 
 ### P2
 
@@ -75,4 +77,12 @@
 
 ## 官方也不用的边缘 API ⚪（不接）
 
-`session.stats/context/generate/log/environment/view`、`session.instructions.entry.*`、`vcs.base`、`debug.location`、`migration.v1.status`、`permission.create/get`、`agent.get`、`provider.get`、`form.create`、`websearch.query`、`generate.text`、`session.skill/synthetic`（官方 app 无调用点，技能走 prompt 的 `skills` 字段）、`rpc.call`（低层逃生舱）、`experimental.persistentPty.*`（仅 TUI/CLI 用，需独立 persistent-pty 端点）、`server.pair/connect`（仅 CLI/桌面原生配对通道用，web 端扫码只是解析配对 URL 填表单）
+`session.stats/context/log/environment/view`、`session.instructions.entry.*`、`vcs.base`、`debug.location`、`permission.create/get`、`agent.get`、`provider.get`、`form.create`、`websearch.query`、`generate.text`、`session.skill/synthetic`（官方 app 无调用点，技能走 prompt 的 `skills` 字段）、`rpc.call`（低层逃生舱）、`experimental.persistentPty.*`（仅 TUI/CLI 用，需独立 persistent-pty 端点）、`server.pair/connect`（仅 CLI/桌面原生配对通道用，web 端扫码只是解析配对 URL 填表单）、`shell.create/remove`（官方 app 不用；list/get/output 已接，见 P1）
+
+## 勘误与补充（2026-10 审计）
+
+- **`session.generate`**：从 ⚪ 移出——官方 app 的「/btw 侧问」在用它（app/src/session/btw/model.ts:66-73，一次性生成、不调工具，hidden、desktop-only；TUI 同款）。原声明「官方 app 无调用点」失实。当前结论：**暂不接**（产品决策，功能与主对话重叠度高）；若要功能对齐需实现 /btw。
+- **`migration.v1.status`**：官方 web app 确实不消费，但 **desktop 壳**轮询它显示 v1→v2 迁移进度 toast（desktop/src/renderer/migration-status.tsx:57），TUI 也用。SDK 2.0.21 已带 `client.migration.v1.status`；迁移期间会话列表短暂为空且无提示，如需可低成本补提示（低优先）。
+- **`session.message.get`**：官方数据层在用（model.selected 后回读校正 data.ts:677、composer admitted 去重、fork 取消息），OCUI 未接、文档原未声明。属低危补充项（list 已覆盖主要场景），需要时补单条 get 封装。
+- **本轮审计修复已落地**（不再属于缺口）：发送链路串行化 + outbox 回滚守卫（官方 sendAdmission）；queue 不立即 switchModel/switchAgent（仅 steer 切换）；prompt 载荷补 mention/skills/metadata；inbox 快照对账（pendingUpdates + inflight）；权限 always 默认交服务端持久化；历史分页改游标 + leadingTurn 补齐；revert 清空队列；compaction 去重 + started 移除 pending；回复 404 短路 + form 失败保留；工具名精确匹配（subagent/skill/list/todowrite）；标题 displayLabel 兜底；时钟校准改用真实事件时间戳。
+- **已知偏差（保留记录）**：`session.revert.committed` 事件已分发但暂无消费者（多客户端下转写不同步，官方 data.ts:1076-1092 就地 splice）；queue 拖拽重排与原位编辑未做；P0 integration/credential 仍属最大功能缺口（另立项）。
