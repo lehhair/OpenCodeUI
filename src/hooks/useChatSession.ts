@@ -48,6 +48,7 @@ import {
 } from '../api'
 import { sendAdmission, outboxAdd, outboxHas, outboxTryRollback } from '../api/sendAdmission'
 import { buildEditedPromptInput, confirmQueueEdit, queuedPromptAttachments, rewriteQueueOrder } from '../api/queue'
+import { queueMutationSettled, type QueueMutation } from '../features/chat/queueProjection'
 import { buildPromptParts } from '../api/message'
 import i18n from '../i18n'
 import { sessionDisplayTitle } from '../utils/sessionTitle'
@@ -143,6 +144,9 @@ export function useChatSession({
   // item=正在编辑的队列条目；stashRestoreNonce=取消编辑时恢复输入框暂存的触发键
   const [queueEditing, setQueueEditing] = useState<{ item: QueuedUserPrompt; nonce: number } | null>(null)
   const [stashRestoreNonce, setStashRestoreNonce] = useState(0)
+  // 队列 mutation 投影（官方 rows() 的 mutation.isPending 窗口同款）：
+  // 编辑/重排期间队列直接显示期望形态，服务端事件落地无跳变
+  const [queueMutation, setQueueMutation] = useState<QueueMutation | null>(null)
 
   // Agents
   const [agents, setAgents] = useState<ApiAgent[]>([])
@@ -933,6 +937,13 @@ export function useChatSession({
           return true
         }
         try {
+          // 投影先行（官方 rows() 同款）：mutation 期间队列直接显示
+          // 期望形态，服务端 admit/cancel 事件落地时无视觉跳变
+          setQueueMutation({
+            expected: queuedPrompts.map(entry =>
+              entry.id === original.id ? content : queuedPromptText(entry),
+            ),
+          })
           const edited = buildEditedPromptInput({
             sessionId: routeSessionId,
             text: content,
@@ -951,6 +962,7 @@ export function useChatSession({
           setQueueEditing(null)
           return true
         } catch (error) {
+          setQueueMutation(null)
           handleError('confirm queue edit', error)
           return false
         }
@@ -1082,16 +1094,36 @@ export function useChatSession({
   }, [queueEditing, stashRestoreNonce])
 
   // 队列重排（官方 queue.reorder 同款）：inbox 没有重排端点，
-  // 用 rewriteQueueOrder（后缀重写）保序替换
+  // 用 rewriteQueueOrder（后缀重写）保序替换；投影先行避免事件落地抖动
   const handleReorderQueuedPrompts = useCallback(
     (inboxIDs: string[]) => {
       if (!routeSessionId) return
-      rewriteQueueOrder(routeSessionId, inboxIDs, paneServerId).catch(error =>
-        handleError('reorder queued prompts', error),
-      )
+      // 期望的最终文本序列（投影先行：重写换 id 期间数量/顺序恒定）
+      const byId = new Map(queuedPrompts.map(entry => [entry.id, entry]))
+      const expected = inboxIDs.flatMap(id => {
+        const entry = byId.get(id)
+        return entry ? [queuedPromptText(entry)] : []
+      })
+      if (expected.length === inboxIDs.length) setQueueMutation({ expected })
+      rewriteQueueOrder(routeSessionId, inboxIDs, paneServerId).catch(error => {
+        setQueueMutation(null)
+        handleError('reorder queued prompts', error)
+      })
     },
-    [routeSessionId, paneServerId],
+    [routeSessionId, paneServerId, queuedPrompts],
   )
+
+  // 队列 mutation 落地即清除投影；超时兜底防悬挂
+  useEffect(() => {
+    if (!queueMutation) return
+    if (!queueMutationSettled(queuedPrompts, queueMutation)) return
+    setQueueMutation(null)
+  }, [queueMutation, queuedPrompts])
+  useEffect(() => {
+    if (!queueMutation) return
+    const timer = setTimeout(() => setQueueMutation(null), 10_000)
+    return () => clearTimeout(timer)
+  }, [queueMutation])
 
   // `!` shell 命令（官方 composer shell mode）：无会话时先建会话再执行，
   // shell 消息经 session.shell.started/ended 事件流入转写，无需本地乐观插入
@@ -1479,6 +1511,7 @@ export function useChatSession({
     setBusyDelivery,
     composerDraft,
     queueEditing,
+    queueMutation,
     handleCancelQueueEdit,
     handleCancelQueuedPrompt,
     handleSteerQueuedPrompt,

@@ -15,11 +15,12 @@
 // 落点 = 指针越过的条目中线；松手后交给 queue.reorder（后缀重写保序）。
 // ============================================
 
-import { memo, useCallback, useEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ArrowUpIcon, CloseIcon, GripVerticalIcon, PencilIcon, TrashIcon } from '../../components/Icons'
 import { CopyButton } from '../../components/ui'
 import { queuedPromptText, type QueuedUserPrompt } from '../../store/inboxStore'
+import { projectQueueItems, type QueueMutation } from './queueProjection'
 
 interface QueueBubblesProps {
   /** 下轮队列条目（delivery='queue'，等当前回合结束后由服务端投递） */
@@ -34,6 +35,8 @@ interface QueueBubblesProps {
   onReorder?: (ids: string[]) => void
   /** 正在编辑的条目 id：该条目高亮且「撤回编辑」变为「取消编辑」 */
   editingId?: string
+  /** 队列 mutation 投影（编辑/重排期间显示期望形态，官方 rows() 同款） */
+  mutation?: QueueMutation | null
 }
 
 const ACTION_BTN_CLASS =
@@ -70,12 +73,17 @@ export const QueueBubbles = memo(function QueueBubbles({
   onRemove,
   onReorder,
   editingId,
+  mutation,
 }: QueueBubblesProps) {
   const { t } = useTranslation('chat')
   const listRef = useRef<HTMLDivElement>(null)
   // 拖拽会话：起点条目 + 起点 Y；过了阈值才进入拖拽（显示插入指示线）
   const dragRef = useRef<{ id: string; startY: number; active: boolean } | null>(null)
   const [dragTarget, setDragTarget] = useState<number | null>(null)
+
+  // mutation 投影（官方 rows() 同款）：编辑/重排期间显示期望形态，
+  // 服务端 admit/cancel 事件落地时不抖（数量/位置/文本都稳）
+  const rows = useMemo(() => projectQueueItems(items, mutation ?? null), [items, mutation])
 
   const cancelDrag = useCallback(() => {
     dragRef.current = null
@@ -132,9 +140,9 @@ export const QueueBubbles = memo(function QueueBubbles({
     [onReorder],
   )
 
-  if (items.length === 0) return null
+  if (rows.length === 0) return null
 
-  const label = t('queue.queuedLabel', { count: items.length })
+  const label = t('queue.queuedLabel', { count: rows.length })
   return (
     <section data-message-queue="queued" aria-label={label} className="w-full pt-3 pb-2">
       <div className="flex items-center gap-3 pb-3 text-[length:var(--fs-sm)] text-text-500" role="status">
@@ -143,7 +151,7 @@ export const QueueBubbles = memo(function QueueBubbles({
         <span className="h-px flex-1 bg-border-200" aria-hidden="true" />
       </div>
       <div ref={listRef} className="flex flex-col items-end gap-2">
-        {items.map((item, index) => {
+        {rows.map(({ item }, index) => {
           const text = queuedPromptText(item)
           const isEditing = item.id === editingId
           const showInsertion = dragTarget !== null && dragTarget === index && dragRef.current?.active

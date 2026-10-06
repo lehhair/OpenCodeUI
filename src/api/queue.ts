@@ -208,7 +208,7 @@ export async function confirmQueueEdit(params: {
   edited: EditedPromptInput
   queueIds: string[]
   serverId?: string
-}): Promise<void> {
+}): Promise<string> {
   const target = resolveSessionTarget(params.sessionId, params.serverId)
   const sdk = getSDKClient(target.serverId)
   const { original, edited } = params
@@ -224,4 +224,6 @@ export async function confirmQueueEdit(params: {
       params.serverId,
     )
   }
+  // 返回替换条目的 id：队列投影用它判断 mutation 何时落地
+  return admitted.id
 }

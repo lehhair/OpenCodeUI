@@ -303,6 +303,7 @@ export const ChatPane = memo(function ChatPane({
     setBusyDelivery,
     composerDraft,
     queueEditing,
+    queueMutation,
     handleCancelQueueEdit,
     handleReorderQueuedPrompts,
     handleCancelQueuedPrompt,
@@ -943,6 +944,7 @@ export const ChatPane = memo(function ChatPane({
                 retryStatus={retryStatus}
                 queuedFollowUps={queuedPrompts}
                 queueEditingId={queueEditing?.item.id}
+                queueMutation={queueMutation}
                 onQueueSteer={handleSteerQueuedPrompt}
                 onQueueEdit={item => (queueEditing?.item.id === item.id ? handleCancelQueueEdit() : handleEditQueuedPrompt(item))}
                 onQueueRemove={item => handleCancelQueuedPrompt(item.id)}
@@ -965,14 +967,16 @@ export const ChatPane = memo(function ChatPane({
       />
 
       <div ref={inputBoxWrapperRef} className="absolute bottom-0 left-0 right-0 z-10 pointer-events-none">
-        {/* 移到后台：shell/task 工具阻塞回合时出现（官方 BackgroundMoveHint） */}
+        {/* 移到后台：shell/task 工具阻塞回合时出现（官方 BackgroundMoveHint
+            同款克制呈现：小号 ghost 文字按钮，不压输入框、不抢眼；
+            回合结束自然消失） */}
         {blockingBackgroundTasks.length > 0 && (
-          <div className="absolute bottom-full inset-x-0 flex justify-center pb-2 z-20">
+          <div className="absolute bottom-full inset-x-0 flex justify-center pb-1.5 z-20">
             <button
               type="button"
               disabled={backgroundMoving}
               onClick={() => void handleMoveToBackground()}
-              className="pointer-events-auto px-3 py-1.5 glass border border-border-200/60 rounded-lg shadow-lg text-[length:var(--fs-sm)] text-text-200 hover:text-text-100 hover:border-accent-main-100/40 transition-colors animate-in fade-in slide-in-from-bottom-2 duration-150 disabled:opacity-50"
+              className="pointer-events-auto px-2 py-1 rounded-md text-[length:var(--fs-sm)] text-text-400 hover:text-text-200 hover:bg-bg-200/60 transition-colors disabled:opacity-50"
               title={blockingBackgroundTasks.map(task => task.label).join('、')}
             >
               {t('chat:sessionBackground.move', { count: blockingBackgroundTasks.length })}

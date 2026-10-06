@@ -108,6 +108,8 @@ interface ChatAreaProps {
   queuedFollowUps?: QueuedUserPrompt[]
   /** 正在编辑的队列条目 id（该条目的「撤回编辑」切换为「取消编辑」） */
   queueEditingId?: string
+  /** 队列 mutation 投影（编辑/重排期间显示期望形态，无事件落地跳变） */
+  queueMutation?: import('./queueProjection').QueueMutation | null
   onQueueSteer?: (item: QueuedUserPrompt) => void
   onQueueEdit?: (item: QueuedUserPrompt) => void
   onQueueRemove?: (item: QueuedUserPrompt) => void
@@ -358,6 +360,7 @@ export const ChatArea = memo(
         retryStatus = null,
         queuedFollowUps = EMPTY_QUEUE,
         queueEditingId,
+        queueMutation,
         onQueueSteer,
         onQueueEdit,
         onQueueRemove,
@@ -1028,6 +1031,7 @@ export const ChatArea = memo(
                 <QueueBubbles
                   items={queuedFollowUps}
                   editingId={queueEditingId}
+                  mutation={queueMutation}
                   onSteer={onQueueSteer}
                   onEdit={onQueueEdit}
                   onRemove={onQueueRemove}
