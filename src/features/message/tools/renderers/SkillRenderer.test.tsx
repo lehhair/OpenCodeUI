@@ -10,14 +10,14 @@ function tool(name: string, state: Record<string, unknown>): ToolViewPart {
 
 describe('SkillRenderer（官方 session-ui:2172 同款）', () => {
   it('completed：一行「Loaded skill <name>」', () => {
-    render(<SkillRenderer part={tool('skill', { status: 'completed', input: { name: 'commit' }, content: [] })} />)
+    render(<SkillRenderer part={tool('skill', { status: 'completed', input: { name: 'commit' }, content: [] })} data={{}} />)
     expect(screen.getByText('Loaded skill')).toBeInTheDocument()
     expect(screen.getByText('commit')).toBeInTheDocument()
   })
 
   it('running：无名字时 shimmer 占位，带名字时名字 shimmer', () => {
     const { container } = render(
-      <SkillRenderer part={tool('skill', { status: 'running', input: { name: 'review-pr' } })} />,
+      <SkillRenderer part={tool('skill', { status: 'running', input: { name: 'review-pr' } })} data={{}} />,
     )
     expect(screen.getByText('review-pr')).toBeInTheDocument()
     expect(container.querySelector('.reasoning-shimmer-text')).toBeTruthy()

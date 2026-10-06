@@ -10,6 +10,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { messageStore, childSessionStore, paneLayoutStore, serverStore } from '../store'
+import { messageIDFromEvent } from '../store/messageStore'
 import { inboxStore } from '../store/inboxStore'
 import { usageExceededStore } from '../store/usageExceededStore'
 import { activeSessionStore } from '../store/activeSessionStore'
@@ -25,6 +26,7 @@ import {
   getPendingPermissions,
   getPendingForms,
   getSessionMessages,
+  getSessionMessage,
 } from '../api'
 import { createSessionPlaceholder } from '../utils/sessionPlaceholder'
 import { refreshModels } from './useModels'
@@ -840,6 +842,15 @@ export function useGlobalEvents(directories?: string[]) {
         onModelSelected: (data, facts) => {
           const scopedId = scope(data.sessionID)
           messageStore.handleModelSelected({ ...data, sessionID: scopedId }, facts)
+          // 官方 data.ts:677-683 同款回读：合成行先上屏，随后用
+          // message.get 把服务端 durable 行拉回原位替换（补全字段）
+          if (facts?.id) {
+            void getSessionMessage(scopedId, messageIDFromEvent(facts.id), serverId)
+              .then(item => {
+                if (item) messageStore.replaceOrAppendDurable(scopedId, item)
+              })
+              .catch(() => undefined)
+          }
         },
 
         // ---- 会话用量（成本 / token）----

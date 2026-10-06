@@ -115,6 +115,9 @@ function messageIDFromEvent(eventID: string): string {
   return eventID.replace(/^evt_/, 'msg_')
 }
 
+/** 事件 id → 消息 id（导出给事件消费方做回读，与合成行保持同一变换） */
+export { messageIDFromEvent }
+
 /**
  * 从事件事实里派生消息 id。
  *
@@ -1329,6 +1332,22 @@ class MessageStore {
       time: { created: facts?.created ?? Date.now() },
     })
     this.notify([sessionID])
+  }
+
+  /**
+   * 单条 durable 回读替换（官方 data.ts:677-683 同款）：
+   * 事件先合成的乐观行，用 message.get 拉回来的服务端行原位替换；
+   * 找不到同 id 则追加。
+   */
+  replaceOrAppendDurable(sessionId: string, message: SessionMessage) {
+    const state = this.ensureSession(sessionId)
+    const position = state.messages.findIndex(item => item.id === message.id)
+    if (position === -1) {
+      this.appendMessage(state, message)
+    } else {
+      state.messages[position] = message
+    }
+    this.notify([sessionId])
   }
 
   /** `session.shell.started`：插入 shell 消息 */

@@ -33,6 +33,23 @@ import type { Attachment, RevertedMessage, SendMessageParams } from './types'
  *（packages/client/src/solid/data.ts:1625-1630）。
  * 因此这里统一在出口反转，所有调用点拿到的都是正序。
  */
+/**
+ * 单条消息回读（官方 data.ts:677-683 同款）。
+ *
+ * model.selected 事件先合成一行 model-switched 乐观消息，随后用
+ * message.get 把服务端的 durable 行拉回替换（补全字段/对账）。
+ */
+export async function getSessionMessage(
+  sessionId: string,
+  messageId: string,
+  serverId?: string,
+): Promise<SessionMessage | undefined> {
+  const target = resolveSessionTarget(sessionId, serverId)
+  const sdk = getSDKClient(target.serverId)
+  const result = await sdk.session.message.get({ sessionID: target.sessionId, messageID: messageId })
+  return result
+}
+
 export async function getSessionMessages(
   sessionId: string,
   limit?: number,
