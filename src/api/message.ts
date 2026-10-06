@@ -15,6 +15,7 @@
 // ============================================
 
 import { getSDKClient } from './sdk'
+import type { JsonValue } from '@opencode/client/promise'
 import { resolveSessionTarget } from '../utils/sessionKey'
 import type { SessionMessage, UserMessage } from './types'
 import type { Attachment, RevertedMessage, SendMessageParams } from './types'
@@ -94,12 +95,15 @@ export function extractUserMessageContent(message: UserMessage): RevertedMessage
 // ============================================
 
 /**
- * 构建 v2 的 prompt 入参。
+ * 构建 v2 的 prompt 入参（官方 composer/request.ts + submit.ts:395-411 同款）。
  *
- * v2 的形状是 `{ text, files?, agents?, skills? }`：
- *   - 文本走 `text`
- *   - 文件附件走 `files[].uri`（不再是 file part 的 url + mime）
- *   - agent 提及走 `agents[].name`
+ * v2 的形状是 `{ text, files?, agents?, skills?, metadata }`：
+ *   - 文本走 `text`；`metadata.displayText` 记录用户原始输入（服务端与
+ *     转写展示都优先它，官方 message-timeline.tsx:295-303）
+ *   - 文件附件走 `files[].uri`；agent 提及走 `agents[].name`；两者都带
+ *     `mention` 区间（@提及在文本中的对齐信息，官方 request.ts:71-86）
+ *   - `metadata.agent/model` 记录发送时的选择快照——queue 条目投递时
+ *     服务端按它生效（ steer 才在发送前 switch，见 sendMessage）
  */
 function buildPromptInput(
   params: SendMessageParams,
@@ -108,15 +112,34 @@ function buildPromptInput(
   sessionID: string
   id?: string
   text: string
-  files?: Array<{ uri: string; name?: string; description?: string }>
-  agents?: Array<{ name: string }>
+  files?: Array<{ uri: string; name?: string; mention?: { start: number; end: number; text: string } }>
+  agents?: Array<{ name: string; mention?: { start: number; end: number; text: string } }>
+  skills?: Array<{ id: string; mention?: { start: number; end: number; text: string } }>
+  metadata?: Record<string, JsonValue>
 } {
-  const files: Array<{ uri: string; name?: string; description?: string }> = []
-  const agents: Array<{ name: string }> = []
+  const files: Array<{ uri: string; name?: string; mention?: { start: number; end: number; text: string } }> = []
+  const agents: Array<{ name: string; mention?: { start: number; end: number; text: string } }> = []
+  const skills: Array<{ id: string; mention?: { start: number; end: number; text: string } }> = []
+
+  const mention = (attachment: (typeof params.attachments)[number]) =>
+    attachment.textRange
+      ? { start: attachment.textRange.start, end: attachment.textRange.end, text: attachment.textRange.value }
+      : undefined
 
   for (const attachment of params.attachments) {
     if (attachment.type === 'agent') {
-      agents.push({ name: attachment.agentName || attachment.displayName })
+      agents.push({
+        name: attachment.agentName || attachment.displayName,
+        ...(mention(attachment) ? { mention: mention(attachment) } : {}),
+      })
+      continue
+    }
+
+    if (attachment.type === 'skill') {
+      // skill 提及（官方 request.ts:68-72）：目前输入端尚未提供 skill 附件入口，
+      // 载荷先对齐官方形状，入口落地后即通
+      const id = attachment.skillId || attachment.displayName
+      if (id) skills.push({ id, ...(mention(attachment) ? { mention: mention(attachment) } : {}) })
       continue
     }
 
@@ -128,7 +151,7 @@ function buildPromptInput(
     files.push({
       uri,
       name: attachment.displayName,
-      description: attachment.relativePath,
+      ...(mention(attachment) ? { mention: mention(attachment) } : {}),
     })
   }
 
@@ -143,6 +166,21 @@ function buildPromptInput(
     ...(params.delivery ? { delivery: params.delivery } : {}),
     ...(files.length > 0 ? { files } : {}),
     ...(agents.length > 0 ? { agents } : {}),
+    ...(skills.length > 0 ? { skills } : {}),
+    // 选择快照 + 原始输入（官方 submit.ts:401-410 同款）
+    metadata: {
+      displayText: params.text,
+      ...(params.agent ? { agent: params.agent } : {}),
+      ...(params.model
+        ? {
+            model: {
+              providerID: params.model.providerID,
+              modelID: params.model.modelID,
+              ...(params.variant ? { variant: params.variant } : {}),
+            },
+          }
+        : {}),
+    },
   }
 }
 

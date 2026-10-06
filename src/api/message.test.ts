@@ -128,3 +128,82 @@ describe('sendMessage — 模型 / agent 切换', () => {
     expect(calls).toEqual(['prompt'])
   })
 })
+
+describe('sendMessage — prompt 载荷（官方 request.ts + submit.ts:395-411 同款）', () => {
+  beforeEach(() => {
+    calls.length = 0
+    switchModelMock.mockClear()
+    switchAgentMock.mockClear()
+    promptMock.mockClear()
+  })
+
+  it('mention 区间随 files/agents 一起发出', async () => {
+    await sendMessage({
+      ...baseParams(),
+      attachments: [
+        {
+          id: 'a1',
+          type: 'file',
+          displayName: 'foo.ts',
+          url: 'file:///proj/src/foo.ts',
+          textRange: { value: '@foo.ts', start: 5, end: 12 },
+        },
+        {
+          id: 'a2',
+          type: 'agent',
+          displayName: 'build',
+          agentName: 'build',
+          textRange: { value: '@build', start: 20, end: 26 },
+        },
+      ] as never,
+    })
+
+    const payload = promptMock.mock.calls[0][0]
+    expect(payload.files).toEqual([
+      { uri: 'file:///proj/src/foo.ts', name: 'foo.ts', mention: { start: 5, end: 12, text: '@foo.ts' } },
+    ])
+    expect(payload.agents).toEqual([{ name: 'build', mention: { start: 20, end: 26, text: '@build' } }])
+  })
+
+  it('skill 附件进 skills 数组（id + mention）', async () => {
+    await sendMessage({
+      ...baseParams(),
+      attachments: [
+        {
+          id: 's1',
+          type: 'skill',
+          displayName: 'commit',
+          skillId: 'commit',
+          textRange: { value: '@commit', start: 0, end: 7 },
+        },
+      ] as never,
+    })
+
+    const payload = promptMock.mock.calls[0][0]
+    expect(payload.skills).toEqual([{ id: 'commit', mention: { start: 0, end: 7, text: '@commit' } }])
+  })
+
+  it('metadata 携带 displayText / agent / model 选择快照', async () => {
+    await sendMessage({
+      ...baseParams(),
+      text: '帮我看下 @foo.ts',
+      model: { providerID: 'opencode', modelID: 'mimo' },
+      agent: 'build',
+      variant: 'high',
+      delivery: 'queue',
+    })
+
+    const payload = promptMock.mock.calls[0][0]
+    expect(payload.metadata).toEqual({
+      displayText: '帮我看下 @foo.ts',
+      agent: 'build',
+      model: { providerID: 'opencode', modelID: 'mimo', variant: 'high' },
+    })
+  })
+
+  it('无 model/agent 时 metadata 只有 displayText', async () => {
+    await sendMessage({ ...baseParams(), text: 'hello' })
+    const payload = promptMock.mock.calls[0][0]
+    expect(payload.metadata).toEqual({ displayText: 'hello' })
+  })
+})

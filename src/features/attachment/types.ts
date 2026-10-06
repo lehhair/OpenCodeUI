@@ -1,4 +1,4 @@
-export type AttachmentType = 'file' | 'folder' | 'agent' | 'text' | 'command'
+export type AttachmentType = 'file' | 'folder' | 'agent' | 'text' | 'command' | 'skill'
 
 export interface AttachmentOriginalSource {
   type?: 'file' | 'symbol' | 'resource'
@@ -44,6 +44,9 @@ export interface Attachment {
 
   // command 用
   commandName?: string // 命令名（不含 /）
+
+  // skill 用（官方 skill 提及；输入端入口待补，载荷已对齐官方形状）
+  skillId?: string // 技能 id（发送时进 prompt.skills[].id）
 
   // 在文本中的位置信息（发送时用于构建 source）
   // 图片没有这个，因为不在文本中
