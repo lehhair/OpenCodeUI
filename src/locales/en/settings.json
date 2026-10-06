@@ -66,6 +66,8 @@
     "serversDesc": "Backend connections and fast active endpoint switching",
     "models": "Models",
     "modelsDesc": "Choose which models stay available in the selector",
+    "providers": "Providers",
+    "providersDesc": "Connected providers and credential management",
     "agent": "Agent",
     "agentDesc": "Permission approval, tool requests, and agent interaction behavior",
     "chat": "Chat",
@@ -214,6 +216,22 @@
     "behaviorDesc": "Permission approval and queued message behavior",
     "toolInteraction": "Tool Interaction",
     "toolInteractionDesc": "How tool requests and tool output behave inside conversations"
+  },
+  "providers": {
+    "connectedTitle": "Connected",
+    "connectedDesc": "Providers available on the current server and where their credentials come from. Disconnect only removes stored credentials.",
+    "empty": "No connected providers yet",
+    "popularTitle": "Popular providers",
+    "connect": "Connect",
+    "disconnect": "Disconnect",
+    "disconnected": "Disconnected from {{provider}}",
+    "source": {
+      "env": "Environment",
+      "api": "API key",
+      "account": "Account",
+      "config": "Config file",
+      "custom": "Custom"
+    }
   },
   "models": {
     "visibility": "Model Visibility",

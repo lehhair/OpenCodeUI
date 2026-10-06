@@ -29,6 +29,7 @@ const definitions = (tab: SettingsTab, labelKeys: string[]): SettingsSearchDefin
 export const SETTINGS_SEARCH_DEFINITIONS: SettingsSearchDefinition[] = [
   ...definitions('servers', ['servers.connections']),
   ...definitions('models', ['models.visibility']),
+  ...definitions('providers', ['providers.connectedTitle', 'providers.popularTitle']),
   ...definitions('agent', [
     'agent.behavior',
     'agent.toolInteraction',

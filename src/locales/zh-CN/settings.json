@@ -66,6 +66,8 @@
     "serversDesc": "后端连接和快速切换活跃端点",
     "models": "模型",
     "modelsDesc": "控制哪些模型保留在选择器里",
+    "providers": "Provider",
+    "providersDesc": "已连接的 provider 与凭据管理",
     "agent": "Agent",
     "agentDesc": "权限放行、工具请求和 agent 交互行为",
     "chat": "对话",
@@ -214,6 +216,22 @@
     "behaviorDesc": "权限放行和消息排队行为",
     "toolInteraction": "工具交互",
     "toolInteractionDesc": "控制工具请求和工具输出在对话中的交互方式"
+  },
+  "providers": {
+    "connectedTitle": "已连接",
+    "connectedDesc": "当前服务器上可用的 provider 及其凭据来源。断开仅移除已存储的凭据。",
+    "empty": "还没有已连接的 provider",
+    "popularTitle": "常用 Provider",
+    "connect": "连接",
+    "disconnect": "断开",
+    "disconnected": "已断开 {{provider}}",
+    "source": {
+      "env": "环境变量",
+      "api": "API key",
+      "account": "账号",
+      "config": "配置文件",
+      "custom": "自定义"
+    }
   },
   "models": {
     "visibility": "模型可见性",
