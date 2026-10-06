@@ -101,4 +101,30 @@ describe('sendMessage — 模型 / agent 切换', () => {
     expect(switchAgentMock).not.toHaveBeenCalled()
     expect(calls).toEqual(['prompt'])
   })
+
+  it('steer 投递时照常在 prompt 前切换（官方 submit.ts:384-410）', async () => {
+    await sendMessage({
+      ...baseParams(),
+      model: { providerID: 'openai', modelID: 'gpt-4o' },
+      agent: 'build',
+      delivery: 'steer',
+    })
+
+    expect(switchModelMock).toHaveBeenCalled()
+    expect(switchAgentMock).toHaveBeenCalled()
+    expect(calls).toEqual(['switchModel', 'switchAgent', 'prompt'])
+  })
+
+  it('queue 投递时不切换——排队条目不该重配当前正在运行的回合', async () => {
+    await sendMessage({
+      ...baseParams(),
+      model: { providerID: 'openai', modelID: 'gpt-4o' },
+      agent: 'build',
+      delivery: 'queue',
+    })
+
+    expect(switchModelMock).not.toHaveBeenCalled()
+    expect(switchAgentMock).not.toHaveBeenCalled()
+    expect(calls).toEqual(['prompt'])
+  })
 })

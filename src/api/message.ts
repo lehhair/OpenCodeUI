@@ -162,7 +162,12 @@ export async function sendMessage(params: SendMessageParams, serverId?: string):
   const target = resolveSessionTarget(params.sessionId, serverId)
   const sdk = getSDKClient(target.serverId)
 
-  if (params.model) {
+  // 模型/agent 的应用时机（官方 submit.ts:384-410）：只有 steer（含 idle 默认）
+  // 才在发送前切换——那会重配**当前正在运行的回合**。queue 条目不该碰当前
+  // 回合，其选择记入 metadata、投递时才生效。
+  const appliesImmediately = params.delivery !== 'queue'
+
+  if (params.model && appliesImmediately) {
     await sdk.session.switchModel({
       sessionID: target.sessionId,
       // 注意字段名不同：prompt 侧叫 modelID，switch 侧叫 id
@@ -174,7 +179,7 @@ export async function sendMessage(params: SendMessageParams, serverId?: string):
     })
   }
 
-  if (params.agent) {
+  if (params.agent && appliesImmediately) {
     await sdk.session.switchAgent({ sessionID: target.sessionId, agent: params.agent })
   }
 

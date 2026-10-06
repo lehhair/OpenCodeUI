@@ -29,6 +29,7 @@ import { createSessionPlaceholder } from '../utils/sessionPlaceholder'
 import { refreshModels } from './useModels'
 import type { EventCallbacks } from '../types/api/event'
 import { replyPermission } from '../api/permission'
+import { outboxConfirm } from '../api/sendAdmission'
 import { autoApproveStore } from '../store/autoApproveStore'
 import { multiServerStore } from '../store/multiServerStore'
 import type { ApiFormInfo, ApiPermissionRequest } from '../api/types'
@@ -781,6 +782,9 @@ export function useGlobalEvents(directories?: string[]) {
         // 用户消息整条撤下（retractLocal）。compaction / move 各有专属事件。
         onInboxEnqueued: (data, facts) => {
           const scopedId = scope(data.sessionID)
+          // 回声到达 = 服务端已确认该行（官方 outbox.delete 同款）：
+          // 此后 POST 失败/回滚都不得再撤它
+          outboxConfirm(data.inboxID)
           const item = {
             id: data.inboxID,
             sessionID: data.sessionID,

@@ -45,6 +45,7 @@ import {
   type Attachment,
   type Model,
 } from '../api'
+import { sendAdmission, outboxAdd, outboxTryRollback } from '../api/sendAdmission'
 import {
   assistantText,
   isAssistantMessage,
@@ -781,30 +782,38 @@ export function useChatSession({
         // 同 id 对账，inbox.enqueued 回声 upsert 补齐 files/skills。
         // 不等 POST、不等 SSE，用户消息即时可见。
         const messageId = createMessageId()
-        // 先 admit 本地 inbox 条目（官方 admitLocal）：队列气泡一步到位，
-        // 不会先闪一下实心用户气泡。inboxID 与乐观消息 id 同值——服务端
-        // 回声、durable 行、投影三者靠它对齐。
-        if (input.delivery) {
-          admitLocalInboxItem(sessionId, {
-            inboxId: messageId,
-            text: input.content,
-            delivery: input.delivery,
-            attachments: input.attachments,
-            agent: input.options?.agent,
-          })
-        }
-        messageStore.upsertLocalMessage(
-          sessionId,
-          buildLocalQueuedMessage({
+        // fresh 判定（官方 data.ts:1550-1552）：只对新 id 乐观准入，
+        // 重试复用已渲染/已确认 id 时不得重插，也不得回滚已确认状态
+        const fresh =
+          !(messageStore.getSessionState(sessionId)?.messages.some(message => message.id === messageId) ?? false) &&
+          !inboxStore.getItems(sessionId).some(item => item.id === messageId)
+        if (fresh) {
+          outboxAdd(messageId)
+          // 先 admit 本地 inbox 条目（官方 admitLocal）：队列气泡一步到位，
+          // 不会先闪一下实心用户气泡。inboxID 与乐观消息 id 同值——服务端
+          // 回声、durable 行、投影三者靠它对齐。
+          if (input.delivery) {
+            admitLocalInboxItem(sessionId, {
+              inboxId: messageId,
+              text: input.content,
+              delivery: input.delivery,
+              attachments: input.attachments,
+              agent: input.options?.agent,
+            })
+          }
+          messageStore.upsertLocalMessage(
             sessionId,
-            messageId,
-            text: input.content,
-            attachments: input.attachments,
-            agent: input.options?.agent,
-            model: { ...input.model, variant: input.options?.variant },
-            createdAt: Date.now(),
-          }),
-        )
+            buildLocalQueuedMessage({
+              sessionId,
+              messageId,
+              text: input.content,
+              attachments: input.attachments,
+              agent: input.options?.agent,
+              model: { ...input.model, variant: input.options?.variant },
+              createdAt: Date.now(),
+            }),
+          )
+        }
 
         // 记录发送前的消息数量，作为判断 SSE 是否推送新消息的基线
         const msgCountBeforeSend = messageStore.getSessionState(sessionId)?.messages.length ?? 0
@@ -812,25 +821,33 @@ export function useChatSession({
         // 不要在 send 前 setStreaming：新 user 往往还没入列，过程折叠会把
         // 「上一轮已收工」误判成最新 Working 再展开，造成一闪。
         // streaming 在 send 成功后、或 SSE 推到 assistant 时再打开。
+        const admittedSessionId = sessionId
         try {
-          await sendMessageAsync(
-            {
-              sessionId,
-              id: messageId,
-              text: input.content,
-              attachments: input.attachments,
-              model: input.model,
-              agent: input.options?.agent,
-              variant: input.options?.variant,
-              delivery: input.delivery,
-              directory: input.directory,
-            },
-            paneServerId,
+          // 同会话发送串行化（官方 sendAdmission）：等待上一次 POST 落定，
+          // 避免 switchModel/switchAgent/prompt 与另一次发送交错
+          await sendAdmission(admittedSessionId, () =>
+            sendMessageAsync(
+              {
+                sessionId: admittedSessionId,
+                id: messageId,
+                text: input.content,
+                attachments: input.attachments,
+                model: input.model,
+                agent: input.options?.agent,
+                variant: input.options?.variant,
+                delivery: input.delivery,
+                directory: input.directory,
+              },
+              paneServerId,
+            ),
           )
         } catch (error) {
-          // 官方同款回滚：POST 失败只撤掉本次乐观插入、服务端未确认的行
-          messageStore.removeMessage(sessionId, messageId)
-          if (input.delivery) inboxStore.removeItem(sessionId, messageId)
+          // 官方同款回滚守卫（data.ts:1578-1583）：只撤本次乐观插入、且
+          // 服务端尚未确认的行；回声已到达的行属于服务端状态，绝不能撤
+          if (fresh && outboxTryRollback(messageId)) {
+            messageStore.removeMessage(sessionId, messageId)
+            if (input.delivery) inboxStore.removeItem(sessionId, messageId)
+          }
           throw error
         }
 
