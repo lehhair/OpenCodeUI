@@ -18,6 +18,7 @@ import { FloatingActions, CollapsedCapsule } from './input/InputActions'
 import { useMobileCollapse } from './input/useMobileCollapse'
 import { useAttachmentRail } from './input/useAttachmentRail'
 import { useInputHistory } from './input/useInputHistory'
+import { promptHistoryStore } from '../../store/promptHistoryStore'
 import {
   TEXT_STYLE,
   bytesToDataUrl,
@@ -300,8 +301,12 @@ function InputBoxComponent({
 
   // ============================================
   // 历史消息导航（类终端体验，逻辑在 useInputHistory hook 中）
+  // 数据源：全局持久化 prompt 历史（官方 composer/history 同款）
   // ============================================
-  const { handleHistoryKeyDown, handleHistoryChange, resetHistoryIndex } = useInputHistory({ textareaRef })
+  const { handleHistoryKeyDown, handleHistoryChange, resetHistoryIndex } = useInputHistory({
+    textareaRef,
+    mode: shellMode ? 'shell' : 'normal',
+  })
 
   // ============================================
   // Mobile Input Dock: 滚动收起/展开（逻辑在 useMobileCollapse hook 中）
@@ -564,9 +569,12 @@ function InputBoxComponent({
     if (shellMode) {
       const command = text.trim()
       if (!command || !onShell) return
+      // shell 轨道历史记账（官方 history.add 同款：发送即记账、失败移除）
+      promptHistoryStore.add(command, [], 'shell')
       void runSubmit(
         () => onShell(command),
         () => setText(''),
+        () => promptHistoryStore.remove(command, [], 'shell'),
       )
       return
     }
@@ -594,6 +602,8 @@ function InputBoxComponent({
     const agentRef = mentionedAgent || selectedAgent
     const agentObj = agentRef ? agents.find(a => a.id === agentRef || a.name === agentRef) : undefined
 
+    // normal 轨道历史记账（官方 history.add 同款：发送即记账、失败移除）
+    promptHistoryStore.add(text, attachments, 'normal')
     void runSubmit(
       () =>
         onSend(text, attachments, {
@@ -607,6 +617,7 @@ function InputBoxComponent({
         resetDraft()
         onClearRevert?.()
       },
+      () => promptHistoryStore.remove(text, attachments, 'normal'),
     )
   }, [
     agents,

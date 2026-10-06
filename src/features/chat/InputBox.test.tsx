@@ -4,18 +4,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { InputBox } from './InputBox'
 import type { Command } from '../../api/command'
 import type { UserMessage } from '../../types/api/message'
+import { promptHistoryStore } from '../../store/promptHistoryStore'
 
 let slashCommands: Command[] = []
 let messagesMock: UserMessage[] = []
-
-function createHistoryMessage(text: string): UserMessage {
-  return {
-    id: `user-${text}`,
-    type: 'user',
-    time: { created: 1 },
-    text,
-  }
-}
 
 vi.mock('../attachment', () => ({
   AttachmentPreview: () => null,
@@ -111,6 +103,7 @@ describe('InputBox slash command selection', () => {
   beforeEach(() => {
     slashCommands = []
     messagesMock = []
+    promptHistoryStore.reset()
   })
 
   it('executes frontend commands immediately on selection', async () => {
@@ -312,7 +305,9 @@ describe('InputBox slash command selection', () => {
   })
 
   it('keeps navigating multiline history entries with ArrowUp', async () => {
-    messagesMock = [createHistoryMessage('first line\nsecond line'), createHistoryMessage('third line\nfourth line')]
+    // 全局 prompt 历史（官方 composer/history 同款）：最新在前
+    promptHistoryStore.add('first line\nsecond line', [], 'normal')
+    promptHistoryStore.add('third line\nfourth line', [], 'normal')
 
     render(<InputBox paneId="pane-test" onSend={vi.fn()} />)
 
@@ -336,7 +331,8 @@ describe('InputBox slash command selection', () => {
   })
 
   it('moves the caret to the end when navigating forward with ArrowDown', async () => {
-    messagesMock = [createHistoryMessage('older line\nentry'), createHistoryMessage('newer line\nentry')]
+    promptHistoryStore.add('older line\nentry', [], 'normal')
+    promptHistoryStore.add('newer line\nentry', [], 'normal')
 
     render(<InputBox paneId="pane-test" onSend={vi.fn()} />)
 
