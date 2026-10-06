@@ -2,10 +2,11 @@ import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { usePermissionHandler } from './usePermissionHandler'
 
-const { replyPermissionMock, getPendingPermissionsMock, replyFormMock, cancelFormMock, activeSessionStoreMock } =
+const { replyPermissionMock, getPendingPermissionsMock, getPendingFormsMock, replyFormMock, cancelFormMock, activeSessionStoreMock } =
   vi.hoisted(() => ({
     replyPermissionMock: vi.fn(() => Promise.resolve(true)),
     getPendingPermissionsMock: vi.fn(() => Promise.resolve([])),
+    getPendingFormsMock: vi.fn(() => Promise.resolve([])),
     replyFormMock: vi.fn((..._args: unknown[]) => Promise.resolve(true)),
     cancelFormMock: vi.fn((..._args: unknown[]) => Promise.resolve(true)),
     activeSessionStoreMock: {
@@ -18,7 +19,7 @@ vi.mock('../api', () => ({
   replyForm: replyFormMock,
   cancelForm: cancelFormMock,
   getPendingPermissions: getPendingPermissionsMock,
-  getPendingForms: vi.fn(() => Promise.resolve([])),
+  getPendingForms: getPendingFormsMock,
 }))
 
 vi.mock('../store', () => ({
@@ -35,6 +36,10 @@ describe('usePermissionHandler', () => {
     replyPermissionMock.mockResolvedValue(true)
     getPendingPermissionsMock.mockReset()
     getPendingPermissionsMock.mockResolvedValue([])
+    getPendingFormsMock.mockReset()
+    getPendingFormsMock.mockResolvedValue([])
+    replyFormMock.mockReset()
+    replyFormMock.mockResolvedValue(true)
     activeSessionStoreMock.resolvePendingRequest.mockClear()
   })
 
@@ -114,5 +119,55 @@ describe('usePermissionHandler', () => {
 
     expect(replyFormMock).toHaveBeenCalledWith('session-1', 'form-1', { choice: 'A' }, 'wsl:Ubuntu')
     expect(cancelFormMock).toHaveBeenCalledWith('session-1', 'form-2', undefined, 'wsl:Ubuntu')
+  })
+
+  it('form 回复实际失败时保留本地条目（官方 form settle 同款）', async () => {
+    replyFormMock.mockRejectedValue(new Error('network down'))
+    getPendingFormsMock.mockResolvedValue([{ id: 'form-keep', sessionID: 'session-1', title: 'Pick', fields: [] }])
+    const { result } = renderHook(() => usePermissionHandler('local'))
+
+    act(() => {
+      result.current.setPendingQuestionRequests([
+        { id: 'form-keep', sessionID: 'session-1', title: 'Pick', fields: [{ key: 'choice', type: 'string' }] },
+      ])
+    })
+
+    let success = true
+    await act(async () => {
+      success = await result.current.handleFormReply(
+        { id: 'form-keep', sessionID: 'session-1', title: 'Pick', fields: [{ key: 'choice', type: 'string' }] },
+        { choice: 'A' },
+      )
+    })
+
+    // 回复失败 + 服务端仍 pending → 条目必须留在 UI 上
+    expect(success).toBe(false)
+    expect(result.current.pendingQuestionRequests).toHaveLength(1)
+    expect(activeSessionStoreMock.resolvePendingRequest).not.toHaveBeenCalledWith('form-keep')
+  })
+
+  it('form 回复失败但服务端已不再 pending → 移除本地条目', async () => {
+    replyFormMock.mockRejectedValue(Object.assign(new Error('not found'), { status: 404 }))
+    getPendingFormsMock.mockResolvedValue([])
+    const { result } = renderHook(() => usePermissionHandler('local'))
+
+    act(() => {
+      result.current.setPendingQuestionRequests([
+        { id: 'form-gone', sessionID: 'session-1', title: 'Pick', fields: [{ key: 'choice', type: 'string' }] },
+      ])
+    })
+
+    let success = false
+    await act(async () => {
+      success = await result.current.handleFormReply(
+        { id: 'form-gone', sessionID: 'session-1', title: 'Pick', fields: [{ key: 'choice', type: 'string' }] },
+        { choice: 'A' },
+      )
+    })
+
+    // 404（已被处理）→ 视为已解决，移除
+    expect(success).toBe(true)
+    expect(result.current.pendingQuestionRequests).toEqual([])
+    expect(activeSessionStoreMock.resolvePendingRequest).toHaveBeenCalledWith('form-gone')
   })
 })

@@ -22,7 +22,8 @@
 import { getSDKClient } from './sdk'
 import { isSessionBusyError } from '@opencode/client/promise'
 import { locationParam } from './location'
-import { resolveSessionTarget } from '../utils/sessionKey'
+import { resolveSessionTarget, makeSessionKey } from '../utils/sessionKey'
+import { inboxStore } from '../store/inboxStore'
 import { normalizeFileDiffs } from '../types/api/file'
 import type { FileDiff, Session, SessionListParams, SessionRevert, SessionStatusMap } from './types'
 import type { SessionTransferData, SessionInboxInfo } from '@opencode/client/promise'
@@ -245,13 +246,37 @@ export async function revertMessage(
 ): Promise<SessionRevert> {
   const target = resolveSessionTarget(sessionId, serverId)
   const sdk = getSDKClient(target.serverId)
-  try {
-    return await sdk.session.revert.stage({ sessionID: target.sessionId, messageID: messageId })
-  } catch (error) {
-    if (!isSessionBusyError(error)) throw error
-    await sdk.session.interrupt({ sessionID: target.sessionId }).catch(() => undefined)
-    return await sdk.session.revert.stage({ sessionID: target.sessionId, messageID: messageId })
+  const stage = async () => {
+    try {
+      return await sdk.session.revert.stage({ sessionID: target.sessionId, messageID: messageId })
+    } catch (error) {
+      if (!isSessionBusyError(error)) throw error
+      await sdk.session.interrupt({ sessionID: target.sessionId }).catch(() => undefined)
+      return await sdk.session.revert.stage({ sessionID: target.sessionId, messageID: messageId })
+    }
   }
+  const staged = await stage()
+
+  // 回退到之前的 prompt 会废弃整个待投递队列（官方 revert.ts:58-79 同款）：
+  // 它们是按被回滚的历史写下的。取消「本地快照 ∪ 服务端权威列表」里的
+  // 全部 user 条目，fire-and-forget 不阻塞恢复输入框；cutoff 防止误伤
+  // revert 之后新 admit 的条目。
+  const cutoff = Date.now()
+  const scopedKey = makeSessionKey(target.serverId, target.sessionId)
+  const local = inboxStore
+    .getItems(scopedKey)
+    .filter(item => item.type === 'user')
+    .map(item => item.id)
+  void sdk.session.inbox
+    .list({ sessionID: target.sessionId })
+    .then(rows => rows.filter(row => row.type === 'user' && row.time.created <= cutoff).map(row => row.id))
+    .catch(() => [] as string[])
+    .then(authoritative => {
+      for (const inboxID of new Set([...local, ...authoritative])) {
+        void sdk.session.inbox.cancel({ sessionID: target.sessionId, inboxID }).catch(() => undefined)
+      }
+    })
+  return staged
 }
 
 /**
@@ -292,7 +317,12 @@ export async function forkSession(
  * 压缩上下文（v1 summarise → v2 compact）。
  *
  * v2 不再需要显式传 provider/model —— 会话已绑定模型。
+ * in-flight 去重（官方 data.ts:1496-1498 的 compacting map 同款）：
+ * 同一会话已有进行中的 compact 请求时直接复用，双击 /compact 不会
+ * 发出两个 POST（服务端回声会按同一 admission 合并）。
  */
+const inflightCompactions = new Map<string, Promise<boolean>>()
+
 export async function summarizeSession(
   sessionId: string,
   _params?: { providerID?: string; modelID?: string; auto?: boolean },
@@ -300,9 +330,23 @@ export async function summarizeSession(
   serverId?: string,
 ): Promise<boolean> {
   const target = resolveSessionTarget(sessionId, serverId)
+  const scopedKey = makeSessionKey(target.serverId, target.sessionId)
+  const inflight = inflightCompactions.get(scopedKey)
+  if (inflight) return inflight
+
   const sdk = getSDKClient(target.serverId)
-  await sdk.session.compact({ sessionID: target.sessionId })
-  return true
+  const request = (async () => {
+    try {
+      await sdk.session.compact({ sessionID: target.sessionId })
+      return true
+    } finally {
+      // map 同一时刻只会有一个 in-flight 请求（后来者直接复用），
+      // 当前 finally 必属于它，直接删
+      inflightCompactions.delete(scopedKey)
+    }
+  })()
+  inflightCompactions.set(scopedKey, request)
+  return request
 }
 
 /**

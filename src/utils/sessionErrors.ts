@@ -55,3 +55,17 @@ export function isSessionNotFoundError(error: unknown): boolean {
     /session\s+(does\s+not\s+exist|not\s+found|missing)/i.test(text)
   )
 }
+
+/**
+ * 通用「目标已不存在」判定（404 / not found）。
+ * 用于 permission.reply / form.reply：服务端已没有该请求（被其他客户端
+ * 处理、会话回退等）时不该重试，官方 data.ts:1741 同款吞掉。
+ */
+export function isNotFoundError(error: unknown): boolean {
+  const status = readErrorNumber(error, 'status') ?? readErrorNumber(error, 'statusCode')
+  if (status === 404) return true
+
+  const text = collectErrorText(error).toLowerCase()
+  if (!text) return false
+  return text.includes('404') || text.includes('not found') || text.includes('not_found')
+}

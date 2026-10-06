@@ -16,6 +16,7 @@ import {
 } from '../api'
 import { activeSessionStore } from '../store'
 import { makeSessionKey } from '../utils/sessionKey'
+import { isNotFoundError } from '../utils/sessionErrors'
 import { permissionErrorHandler } from '../utils'
 
 export interface UsePermissionHandlerResult {
@@ -62,7 +63,22 @@ async function isPermissionStillPending(
   }
 }
 
-async function withRetry<T>(fn: () => Promise<T>, retries = MAX_RETRIES, delay = RETRY_DELAY): Promise<T> {
+/** 表单回复失败后确认服务端是否仍 pending（官方 form settle 容错同款） */
+async function isFormStillPending(sessionId: string, formId: string, serverId?: string): Promise<boolean | undefined> {
+  try {
+    const pending = await getPendingForms(sessionId, undefined, serverId)
+    return pending.some(form => form.id === formId)
+  } catch {
+    return undefined
+  }
+}
+
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  retries = MAX_RETRIES,
+  delay = RETRY_DELAY,
+  shouldRetry?: (error: Error) => boolean,
+): Promise<T> {
   let lastError: Error | undefined
 
   for (let i = 0; i < retries; i++) {
@@ -70,6 +86,9 @@ async function withRetry<T>(fn: () => Promise<T>, retries = MAX_RETRIES, delay =
       return await fn()
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err))
+      // 目标已不存在（404）时不重试：官方 permission.reply 同款吞掉
+      //（请求已被其他客户端处理/会话回退），直接走后续容错
+      if (shouldRetry && !shouldRetry(lastError)) throw lastError
       console.warn(`[Permission] Attempt ${i + 1} failed:`, lastError.message)
 
       if (i < retries - 1) {
@@ -105,7 +124,12 @@ export function usePermissionHandler(serverId: string): UsePermissionHandlerResu
       setIsReplying(true)
 
       try {
-        await withRetry(() => replyPermission(requestId, reply, undefined, directory, sessionId, serverId))
+        await withRetry(
+          () => replyPermission(requestId, reply, undefined, directory, sessionId, serverId),
+          MAX_RETRIES,
+          RETRY_DELAY,
+          error => !isNotFoundError(error),
+        )
         setPendingPermissionRequests(prev =>
           prev.some(r => r.id === requestId) ? prev.filter(r => r.id !== requestId) : prev,
         )
@@ -150,14 +174,32 @@ export function usePermissionHandler(serverId: string): UsePermissionHandlerResu
       setIsReplying(true)
 
       try {
-        await withRetry(() => replyForm(form.sessionID, formId, answer, serverId))
+        await withRetry(
+          () => replyForm(form.sessionID, formId, answer, serverId),
+          MAX_RETRIES,
+          RETRY_DELAY,
+          error => !isNotFoundError(error),
+        )
         setPendingQuestionRequests(prev => prev.filter(r => r.id !== formId))
         activeSessionStore.resolvePendingRequest(formId)
         return true
       } catch (error) {
+        // 官方 form settle 同款（data.ts:299-309）：只有成功、或确认服务端
+        // 已不再 pending（NotFound/已被处理）才移除本地条目——回复实际失败
+        // 时表单必须留在 UI 上，否则用户永远丢失这条提问
+        if (isNotFoundError(error)) {
+          setPendingQuestionRequests(prev => prev.filter(r => r.id !== formId))
+          activeSessionStore.resolvePendingRequest(formId)
+          return true
+        }
+        const stillPending = await isFormStillPending(form.sessionID, formId, serverId)
+        if (stillPending === false) {
+          setPendingQuestionRequests(prev => prev.filter(r => r.id !== formId))
+          activeSessionStore.resolvePendingRequest(formId)
+          return true
+        }
+
         permissionErrorHandler('form reply after retries', error)
-        setPendingQuestionRequests(prev => prev.filter(r => r.id !== formId))
-        activeSessionStore.resolvePendingRequest(formId)
         return false
       } finally {
         replyingIdsRef.current.delete(formId)

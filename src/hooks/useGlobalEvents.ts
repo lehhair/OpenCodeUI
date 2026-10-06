@@ -731,6 +731,9 @@ export function useGlobalEvents(directories?: string[]) {
 
         onCompactionStarted: (data, facts) => {
           const scopedId = scope(data.sessionID)
+          // 官方 data.ts:1013 同款：压缩消息落位后，其 inbox 条目即出队，
+          // 否则队列视图里会留一条永不投递的 compaction 条目
+          if (data.inputID) inboxStore.removeItem(scopedId, data.inputID)
           messageStore.handleCompactionStarted({ ...data, sessionID: scopedId }, facts)
         },
 
