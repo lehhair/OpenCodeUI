@@ -3,6 +3,57 @@
   "subtitle": "自定义界面、行为和服务器配置",
   "closeSettings": "关闭设置",
   "version": "OpenCodeUI v{{version}}",
+  "providerConnect": {
+    "title": "连接 Provider",
+    "searchPlaceholder": "搜索 provider...",
+    "empty": "没有可连接的 provider",
+    "connectTitle": "连接 {{provider}}",
+    "selectMethod": "选择 {{provider}} 的连接方式",
+    "toast": {
+      "connected": "Provider 已连接"
+    },
+    "status": {
+      "inProgress": "正在处理…",
+      "waiting": "等待浏览器授权…",
+      "failed": "连接失败：{{error}}"
+    },
+    "method": {
+      "apiKey": "API key",
+      "browser": "浏览器",
+      "headless": "无头"
+    },
+    "unsupportedForm": "该认证表单包含暂不支持的字段",
+    "oauth": {
+      "expired": "授权已过期，请重试",
+      "codeInvalid": "授权码无效",
+      "openBrowser": "打开浏览器授权",
+      "code": {
+        "required": "请输入授权码",
+        "description": "已在浏览器中打开 {{provider}} 的授权页，完成授权后把页面显示的授权码粘贴到这里。",
+        "label": "授权码",
+        "placeholder": "粘贴授权码"
+      },
+      "auto": {
+        "description": "已在浏览器中打开 {{provider}} 的授权页，完成授权后会自动连接。",
+        "confirmationCode": "确认码"
+      }
+    },
+    "console": {
+      "description": "使用 OpenCode Console 账号登录 {{provider}}。",
+      "opening": "正在打开浏览器…",
+      "apiKey": {
+        "description": "也可以在 OpenCode Console 创建 API key 使用。",
+        "link": "打开 Console",
+        "switch": "使用 API key"
+      }
+    },
+    "apiKey": {
+      "required": "请输入 API key",
+      "description": "粘贴 {{provider}} 的 API key 以启用它的模型。",
+      "label": "{{provider}} API key",
+      "placeholder": "sk-..."
+    }
+  },
   "search": {
     "placeholder": "搜索设置",
     "clear": "清空设置搜索",

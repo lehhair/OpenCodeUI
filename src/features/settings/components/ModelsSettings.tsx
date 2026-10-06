@@ -12,6 +12,8 @@ import { useModels } from '../../../hooks'
 import { modelVisibilityStore, useHiddenModelKeys } from '../../../store'
 import { groupModelsByProvider, getModelKey, providerDisplayName } from '../../../utils/modelUtils'
 import type { Model } from '../../../api'
+import { Button } from '../../../components/ui'
+import { ProviderConnectDialog } from './ProviderConnectDialog'
 import { SettingsSection } from './SettingsUI'
 
 function formatContext(limit: number): string {
@@ -73,6 +75,7 @@ export function ModelsSettings() {
   const [query, setQuery] = useState('')
   const deferredQuery = useDeferredValue(query)
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set())
+  const [connectOpen, setConnectOpen] = useState(false)
   // 范围选择锚点：上一次单击的模型 key
   const anchorKeyRef = useRef<string | null>(null)
   const hiddenModelKeySet = useMemo(() => new Set(hiddenModelKeys), [hiddenModelKeys])
@@ -189,7 +192,15 @@ export function ModelsSettings() {
   )
 
   return (
-    <SettingsSection title={t('models.visibility')} description={t('models.visibilityDesc')}>
+    <SettingsSection
+      title={t('models.visibility')}
+      description={t('models.visibilityDesc')}
+      actions={
+        <Button variant="secondary" size="sm" onClick={() => setConnectOpen(true)}>
+          {t('providerConnect.title')}
+        </Button>
+      }
+    >
       <div className="relative group">
         <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-text-400 w-3.5 h-3.5 group-focus-within:text-accent-main-100 transition-colors pointer-events-none" />
         <input
@@ -352,6 +363,8 @@ export function ModelsSettings() {
       )}
 
       <p className="text-[length:var(--fs-xs)] text-text-400">{t('models.keepOneEnabled')}</p>
+
+      <ProviderConnectDialog isOpen={connectOpen} onClose={() => setConnectOpen(false)} />
     </SettingsSection>
   )
 }

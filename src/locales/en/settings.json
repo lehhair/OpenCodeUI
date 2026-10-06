@@ -3,6 +3,57 @@
   "subtitle": "Customize UI, behavior, and server setup",
   "closeSettings": "Close settings",
   "version": "OpenCodeUI v{{version}}",
+  "providerConnect": {
+    "title": "Connect provider",
+    "searchPlaceholder": "Search providers...",
+    "empty": "No connectable providers",
+    "connectTitle": "Connect {{provider}}",
+    "selectMethod": "Choose how to connect {{provider}}",
+    "toast": {
+      "connected": "Provider connected"
+    },
+    "status": {
+      "inProgress": "Working…",
+      "waiting": "Waiting for browser authorization…",
+      "failed": "Connection failed: {{error}}"
+    },
+    "method": {
+      "apiKey": "API key",
+      "browser": "browser",
+      "headless": "headless"
+    },
+    "unsupportedForm": "This authentication form contains unsupported fields",
+    "oauth": {
+      "expired": "Authorization expired, please retry",
+      "codeInvalid": "Invalid authorization code",
+      "openBrowser": "Open browser to authorize",
+      "code": {
+        "required": "Please enter the authorization code",
+        "description": "The {{provider}} authorization page has been opened in your browser. Paste the code shown after you authorize.",
+        "label": "Authorization code",
+        "placeholder": "Paste the code"
+      },
+      "auto": {
+        "description": "The {{provider}} authorization page has been opened in your browser. It will connect automatically once authorized.",
+        "confirmationCode": "Confirmation code"
+      }
+    },
+    "console": {
+      "description": "Sign in to {{provider}} with your OpenCode Console account.",
+      "opening": "Opening browser…",
+      "apiKey": {
+        "description": "You can also create an API key in the OpenCode Console.",
+        "link": "Open Console",
+        "switch": "Use API key"
+      }
+    },
+    "apiKey": {
+      "required": "Please enter an API key",
+      "description": "Paste your {{provider}} API key to enable its models.",
+      "label": "{{provider}} API key",
+      "placeholder": "sk-..."
+    }
+  },
   "search": {
     "placeholder": "Search settings",
     "clear": "Clear settings search",

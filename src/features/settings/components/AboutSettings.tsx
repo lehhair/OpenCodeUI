@@ -5,19 +5,8 @@ import { DownloadIcon, ExternalLinkIcon, RetryIcon, UploadIcon } from '../../../
 import { hasUpdateAvailable, updateStore, useUpdateStore, RELEASES_PAGE_URL } from '../../../store/updateStore'
 import { saveData } from '../../../utils/downloadUtils'
 import { exportSettingsBackup, importSettingsBackup, previewBackupMeta } from '../../../utils/settingsBackup'
-import { isTauri } from '../../../utils/tauri'
+import { openExternalUrl } from '../../../utils/externalUrl'
 import { SettingsSection } from './SettingsUI'
-
-async function openExternalUrl(url: string): Promise<void> {
-  if (isTauri()) {
-    await import('@tauri-apps/plugin-opener')
-      .then(mod => mod.openUrl(url))
-      .catch(() => window.open(url, '_blank', 'noopener,noreferrer'))
-    return
-  }
-
-  window.open(url, '_blank', 'noopener,noreferrer')
-}
 
 export function AboutSettings() {
   const { t } = useTranslation(['settings'])
