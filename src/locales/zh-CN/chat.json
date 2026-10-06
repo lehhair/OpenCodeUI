@@ -98,6 +98,14 @@
     "minimize": "最小化",
     "typeYourAnswer": "输入你的回答..."
   },
+  "btw": {
+    "title": "侧问",
+    "description": "就当前对话提一个一次性问题——直接作答，不调用任何工具，也不会写入对话记录。",
+    "placeholder": "想问什么？",
+    "ask": "提问",
+    "asking": "正在回答…",
+    "failed": "侧问失败，请重试"
+  },
   "usageExceeded": {
     "dontShowAgain": "不再提示",
     "freeTier": {

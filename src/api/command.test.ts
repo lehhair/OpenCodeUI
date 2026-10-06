@@ -36,6 +36,7 @@ describe('getCommands', () => {
       { name: 'redo', description: 'Redo the undone change', source: 'frontend' },
       { name: 'fork', description: 'Fork the current session into a new one', source: 'frontend' },
       { name: 'export', description: 'Export the session transcript as a JSON file', source: 'frontend' },
+      { name: 'btw', description: 'Ask a one-off side question about this conversation (no tool calls)', source: 'frontend' },
     ])
   })
 
@@ -51,6 +52,7 @@ describe('getCommands', () => {
       { name: 'redo', description: 'Redo the undone change', source: 'frontend' },
       { name: 'fork', description: 'Fork the current session into a new one', source: 'frontend' },
       { name: 'export', description: 'Export the session transcript as a JSON file', source: 'frontend' },
+      { name: 'btw', description: 'Ask a one-off side question about this conversation (no tool calls)', source: 'frontend' },
     ])
   })
 })

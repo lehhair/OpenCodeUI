@@ -10,6 +10,7 @@ import { memo, useRef, useEffect, useState, useCallback, useMemo, useDeferredVal
 import { Trans, useTranslation } from 'react-i18next'
 
 import { ChatArea, Header, InputBox, PermissionDialog, QuestionDialog, type ChatAreaHandle } from '.'
+import { BtwDialog } from '../../components/BtwDialog'
 import { type ModelSelectorHandle } from './ModelSelector'
 import { OutlineIndex } from '../../components/OutlineIndex'
 import { PaneHeader } from './PaneHeader'
@@ -340,9 +341,19 @@ export const ChatPane = memo(function ChatPane({
     sessionId,
     navigateToSession,
     navigateHome,
+    onBtwRequest: question => {
+      setBtwQuestion(question)
+      setBtwNonce(Date.now())
+      setBtwOpen(true)
+    },
   })
 
   const shouldDeferMessages = displayMode === 'split' && !isStreaming && messages.length > 20
+
+  // /btw 侧问对话框（官方 session/btw 同款）
+  const [btwOpen, setBtwOpen] = useState(false)
+  const [btwQuestion, setBtwQuestion] = useState<string | undefined>(undefined)
+  const [btwNonce, setBtwNonce] = useState<number | undefined>(undefined)
 
   // ============================================
   // 后台化阻塞任务（v2 session.background，官方 requests/model.ts:90）
@@ -1049,6 +1060,15 @@ export const ChatPane = memo(function ChatPane({
           }
         />
       </div>
+
+      <BtwDialog
+        isOpen={btwOpen}
+        onClose={() => setBtwOpen(false)}
+        sessionId={routeSessionId}
+        serverId={paneServerId}
+        initialQuestion={btwQuestion}
+        askNonce={btwNonce}
+      />
 
       {!inlineToolRequests && pendingPermissionRequests.length > 0 && (
         <PermissionDialog

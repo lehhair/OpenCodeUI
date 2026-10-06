@@ -97,6 +97,7 @@
     "redoDesc": "Redo the undone change",
     "forkDesc": "Fork the current session into a new one",
     "exportDesc": "Export the session transcript as a JSON file",
+    "btwDesc": "Ask a one-off side question about this conversation (no tool calls)",
     "noMatchingCommands": "No matching commands",
     "noCommandsAvailable": "No commands available"
   },

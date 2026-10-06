@@ -98,6 +98,14 @@
     "minimize": "Minimize",
     "typeYourAnswer": "Type your own answer..."
   },
+  "btw": {
+    "title": "Side question",
+    "description": "Ask a one-off question about this conversation — answered directly, with no tool calls and nothing written to the transcript.",
+    "placeholder": "What do you want to know?",
+    "ask": "Ask",
+    "asking": "Answering…",
+    "failed": "Side question failed, please retry"
+  },
   "usageExceeded": {
     "dontShowAgain": "Don't show again",
     "freeTier": {

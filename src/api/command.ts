@@ -33,6 +33,7 @@ function getFrontendCommands(): Command[] {
     { name: 'redo', description: i18n.t('commands:slashCommand.redoDesc'), source: 'frontend' },
     { name: 'fork', description: i18n.t('commands:slashCommand.forkDesc'), source: 'frontend' },
     { name: 'export', description: i18n.t('commands:slashCommand.exportDesc'), source: 'frontend' },
+    { name: 'btw', description: i18n.t('commands:slashCommand.btwDesc'), source: 'frontend' },
   ]
 }
 

@@ -11,6 +11,7 @@ import {
   type MentionItem,
 } from '../mention'
 import { SlashCommandMenu, type SlashCommandMenuHandle } from '../slash-command'
+import { getCommands } from '../../api/command'
 import { InputToolbar } from './input/InputToolbar'
 import type { ModelSelectorHandle } from './ModelSelector'
 import { InputFooter } from './input/InputFooter'
@@ -602,33 +603,60 @@ function InputBoxComponent({
       return
     }
 
-    // 从 attachments 中找 agent mention
-    const agentAttachment = attachments.find(a => a.type === 'agent')
-    const mentionedAgent = agentAttachment?.agentName
+    // 正常发送（普通消息 / 附件消息）
+    const sendCurrent = () => {
+      // 从 attachments 中找 agent mention
+      const agentAttachment = attachments.find(a => a.type === 'agent')
+      const mentionedAgent = agentAttachment?.agentName
 
-    // v2 的 switchAgent 需要 agent **id**（'build'），而界面选择/mention 存的
-    // 可能是显示名（'Build'）——服务端不校验、收下后执行直接失败且静默。
-    // 发送边界统一把 name 解析回 id。
-    const agentRef = mentionedAgent || selectedAgent
-    const agentObj = agentRef ? agents.find(a => a.id === agentRef || a.name === agentRef) : undefined
+      // v2 的 switchAgent 需要 agent **id**（'build'），而界面选择/mention 存的
+      // 可能是显示名（'Build'）——服务端不校验、收下后执行直接失败且静默。
+      // 发送边界统一把 name 解析回 id。
+      const agentRef = mentionedAgent || selectedAgent
+      const agentObj = agentRef ? agents.find(a => a.id === agentRef || a.name === agentRef) : undefined
 
-    // normal 轨道历史记账（官方 history.add 同款：发送即记账、失败移除）
-    promptHistoryStore.add(text, attachments, 'normal')
-    void runSubmit(
-      () =>
-        onSend(text, attachments, {
-          agent: agentObj?.id ?? agentRef,
-          variant: selectedVariant,
-        }),
-      () => {
-        // 队列编辑草稿发送成功 → 丢弃暂存（官方 confirmEdit 同款：
-        // 发送的内容就是编辑结果，不再恢复旧输入）
-        draftStashRef.current = null
-        resetDraft()
-        onClearRevert?.()
-      },
-      () => promptHistoryStore.remove(text, attachments, 'normal'),
-    )
+      // normal 轨道历史记账（官方 history.add 同款：发送即记账、失败移除）
+      promptHistoryStore.add(text, attachments, 'normal')
+      void runSubmit(
+        () =>
+          onSend(text, attachments, {
+            agent: agentObj?.id ?? agentRef,
+            variant: selectedVariant,
+          }),
+        () => {
+          // 队列编辑草稿发送成功 → 丢弃暂存（官方 confirmEdit 同款：
+          // 发送的内容就是编辑结果，不再恢复旧输入）
+          draftStashRef.current = null
+          resetDraft()
+          onClearRevert?.()
+        },
+        () => promptHistoryStore.remove(text, attachments, 'normal'),
+      )
+    }
+
+    // 纯文本斜杠命令兜底（官方 composer 同款：手敲 /cmd args 不从菜单
+    // 选择也按命令路由，而不是当普通消息发出去）。getCommands 有 10s
+    // 缓存，未知命令名回退正常发送。
+    const trimmedText = text.trim()
+    const slashMatch = /^\/([a-z][\w-]*)(?:\s+([\s\S]+))?$/.exec(trimmedText)
+    if (slashMatch && onCommand && attachments.length === 0) {
+      const name = slashMatch[1].toLowerCase()
+      void getCommands(rootPath || undefined)
+        .then(known => known.some(c => c.name.toLowerCase() === name))
+        .catch(() => false)
+        .then(isCommand => {
+          if (isCommand) {
+            void onCommand(trimmedText)
+            resetDraft()
+          } else {
+            // 不是已知命令 → 按普通消息发送
+            sendCurrent()
+          }
+        })
+      return
+    }
+
+    sendCurrent()
   }, [
     agents,
     attachments,
@@ -644,6 +672,7 @@ function InputBoxComponent({
     selectedVariant,
     shellMode,
     submitCommandOptimistically,
+    rootPath,
     text,
   ])
 
@@ -961,7 +990,13 @@ function InputBoxComponent({
         if (!onCommand) return
 
         setSlashOpen(false)
-        submitCommandOptimistically(`/${command.name}`)
+        // 带参数直发（/btw 问题）：query 里命令名之后的部分是参数
+        //（官方 composer 对 /cmd args 的解析同款）
+        const query = slashQuery.trim()
+        const args = query.toLowerCase().startsWith(command.name.toLowerCase())
+          ? query.slice(command.name.length).trim()
+          : ''
+        submitCommandOptimistically(`/${command.name}${args ? ' ' + args : ''}`)
         requestAnimationFrame(() => textareaRef.current?.focus())
         return
       }

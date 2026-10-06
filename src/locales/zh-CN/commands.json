@@ -97,6 +97,7 @@
     "redoDesc": "重做被撤销的操作",
     "forkDesc": "从当前会话分叉出一个新会话",
     "exportDesc": "导出会话转写为 JSON 文件",
+    "btwDesc": "就当前对话提一个一次性问题（不调用工具）",
     "noMatchingCommands": "没有匹配的命令",
     "noCommandsAvailable": "没有可用的命令"
   },

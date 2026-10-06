@@ -367,6 +367,27 @@ export type { SessionPlaceholderInput } from '../utils/sessionPlaceholder'
 // 会话导出 / 导入（取代 v1 的 share / unshare）
 // ============================================
 /**
+ * 侧问（官方 /btw，session/btw/model.ts 同款）。
+ *
+ * `session.generate`：基于当前会话上下文一次性生成回答，
+ * 不落转写、不调工具（指令由调用方拼进 prompt）。
+ */
+export async function generateSessionAnswer(
+  sessionId: string,
+  prompt: string,
+  serverId?: string,
+  signal?: AbortSignal,
+): Promise<string> {
+  const target = resolveSessionTarget(sessionId, serverId)
+  const sdk = getSDKClient(target.serverId)
+  const result = await sdk.session.generate(
+    { sessionID: target.sessionId, prompt },
+    signal ? { signal } : undefined,
+  )
+  return result.text ?? ''
+}
+
+/**
  * 导出会话转写。
  *
  * v2 用 export 取代了 v1 的 share：不再生成公开链接，

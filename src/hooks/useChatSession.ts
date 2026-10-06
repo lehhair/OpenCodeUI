@@ -108,6 +108,8 @@ interface UseChatSessionOptions {
   sessionId: string | null
   navigateToSession: (sessionId: string, directory?: string) => void
   navigateHome: () => void
+  /** /btw 侧问请求（官方 session.btw 同款）：打开侧问对话框，args 预填问题 */
+  onBtwRequest?: (question?: string) => void
 }
 
 interface LiveRetryStatus {
@@ -125,6 +127,7 @@ export function useChatSession({
   sessionId: routeSessionId,
   navigateToSession,
   navigateHome,
+  onBtwRequest,
 }: UseChatSessionOptions) {
   const { statusMap } = useActiveSessionStore()
   const { queueFollowupMessages } = useSyncExternalStore(themeStore.subscribe, themeStore.getSnapshot)
@@ -1261,6 +1264,14 @@ export function useChatSession({
         return true
       }
 
+      // /btw 侧问（官方 session/btw 同款）：打开侧问对话框；
+      // 带参数时预填问题自动提问
+      if (command === 'btw') {
+        if (!routeSessionId) return false
+        onBtwRequest?.(args || undefined)
+        return true
+      }
+
       let sessionId = routeSessionId
 
       try {
@@ -1323,6 +1334,7 @@ export function useChatSession({
       handleUndo,
       handleRedo,
       canRedo,
+      onBtwRequest,
     ],
   )
 
