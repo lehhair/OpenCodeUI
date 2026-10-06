@@ -760,6 +760,35 @@ describe('messageStore（原生 v2 消息）', () => {
     expect(messageStore.getRevertState(SESSION)).toBeNull()
   })
 
+  it('applyRevertCommitted 按事件边界就地裁剪并清除 revert 态（官方 data.ts:1076-1092 同款）', () => {
+    messageStore.setMessages(SESSION, [
+      createAssistantMessage('message-1', textContent('one')),
+      createAssistantMessage('message-2', textContent('two')),
+      createAssistantMessage('message-3', textContent('three')),
+    ])
+    messageStore.setRevertState(SESSION, { messageId: 'message-2', history: [] })
+
+    messageStore.applyRevertCommitted(SESSION, 'message-2')
+
+    // 与 truncateAfterRevert 不同：即便本地 revert 态不存在也要裁剪
+    //（另一客户端落盘的 undo）
+    expect(messageIds(SESSION)).toEqual(['message-1'])
+    expect(messageStore.getRevertState(SESSION)).toBeNull()
+
+    // 本地无 revert 态时同样生效
+    messageStore.setMessages(SESSION, [
+      createAssistantMessage('message-1', textContent('one')),
+      createAssistantMessage('message-2', textContent('two')),
+    ])
+    messageStore.applyRevertCommitted(SESSION, 'message-2')
+    expect(messageIds(SESSION)).toEqual(['message-1'])
+
+    // 边界之外不裁剪
+    messageStore.setMessages(SESSION, [createAssistantMessage('message-1', textContent('one'))])
+    messageStore.applyRevertCommitted(SESSION, 'message-99')
+    expect(messageIds(SESSION)).toEqual(['message-1'])
+  })
+
   it('prependMessages 去重后前插历史页', () => {
     messageStore.setMessages(SESSION, [createAssistantMessage('message-2', textContent('two'))])
 

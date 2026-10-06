@@ -49,6 +49,22 @@ describe('inboxStore', () => {
     expect(items[1].delivery).toBe('queue')
   })
 
+  it('dropFromBoundary：revert.committed 后按边界丢弃条目（官方 data.ts:1079-1084 同款）', () => {
+    inboxStore.setItems('s1', [userItem('msg_100'), userItem('msg_200'), userItem('msg_300')])
+    inboxStore.dropFromBoundary('s1', 'msg_200')
+    expect(inboxStore.getItems('s1').map(i => i.id)).toEqual(['msg_100'])
+
+    // 边界之前的保留、恰好等于边界的丢弃
+    inboxStore.setItems('s1', [userItem('msg_100')])
+    inboxStore.dropFromBoundary('s1', 'msg_050')
+    expect(inboxStore.getItems('s1')).toEqual([])
+
+    // 无变化不报错
+    inboxStore.setItems('s1', [userItem('msg_100')])
+    inboxStore.dropFromBoundary('s1', 'msg_999')
+    expect(inboxStore.getItems('s1')).toHaveLength(1)
+  })
+
   it('clearSession 只清目标会话', () => {
     inboxStore.setItems('s1', [userItem('a')])
     inboxStore.setItems('s2', [userItem('b')])

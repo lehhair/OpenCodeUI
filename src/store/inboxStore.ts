@@ -127,6 +127,25 @@ class InboxStore {
     this.emit()
   }
 
+  /**
+   * revert.committed：丢弃边界之后的入队条目（官方 data.ts:1079-1084
+   * 同款——projector 删掉了 id >= to 的消息，这些条目不会收到 cancel
+   * 事件，只能按边界过滤掉）
+   */
+  dropFromBoundary(sessionId: string, boundaryId: string) {
+    const current = this.itemsBySession.get(sessionId)
+    if (!current) return
+    const next = current.filter(entry => entry.id < boundaryId)
+    if (next.length === current.length) return
+    for (const entry of current) {
+      if (entry.id >= boundaryId) this.recordSnapshotUpdate(sessionId, entry.id, undefined)
+    }
+    this.itemsBySession = new Map(this.itemsBySession)
+    if (next.length === 0) this.itemsBySession.delete(sessionId)
+    else this.itemsBySession.set(sessionId, next)
+    this.emit()
+  }
+
   getItems(sessionId: string | null): SessionInboxInfo[] {
     if (!sessionId) return EMPTY_ITEMS
     return this.itemsBySession.get(sessionId) ?? EMPTY_ITEMS

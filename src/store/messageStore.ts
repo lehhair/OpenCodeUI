@@ -1449,6 +1449,31 @@ class MessageStore {
     this.notify([sessionId])
   }
 
+  /**
+   * revert.committed 事件消费（官方 data.ts:1076-1092 同款）：
+   * 用事件的 `to` 边界**就地** splice 掉 id >= to 的消息并清除 revert
+   * 状态——多客户端场景下另一端的 undo 落盘后，本端同步裁剪。
+   */
+  applyRevertCommitted(sessionId: string, boundaryMessageId: string) {
+    const state = this.sessions.get(sessionId)
+    if (!state) return
+    const position = state.messages.findIndex(message => message.id >= boundaryMessageId)
+    if (position !== -1) {
+      state.messages.splice(position)
+    }
+    if (state.revertState) {
+      state.revertState = null
+    }
+    // 脏引用指向已删除的消息对象时一并丢弃，避免旧帧复活
+    const dirty = this.dirtyContentBySession.get(sessionId)
+    if (dirty) {
+      for (const messageID of [...dirty.keys()]) {
+        if (!state.messages.some(message => message.id === messageID)) dirty.delete(messageID)
+      }
+    }
+    this.notify([sessionId])
+  }
+
   createSendRollbackSnapshot(sessionId: string): SendRollbackSnapshot | null {
     const state = this.sessions.get(sessionId)
     if (!state?.revertState) return null

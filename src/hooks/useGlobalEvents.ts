@@ -821,6 +821,15 @@ export function useGlobalEvents(directories?: string[]) {
           inboxStore.updateDelivery(scope(data.sessionID), data.inboxID, data.delivery)
         },
 
+        // ---- 回退落盘（官方 data.ts:1076-1092 同款）----
+        // revert.committed：另一客户端的 undo 落盘（或本端 undo 的确认回声）——
+        // 就地裁剪边界后的消息与入队条目，清除 revert 状态，多客户端保持同步
+        onRevertCommitted: data => {
+          const scopedId = scope(data.sessionID)
+          messageStore.applyRevertCommitted(scopedId, data.to)
+          inboxStore.dropFromBoundary(scopedId, data.to)
+        },
+
         // ---- 会话级 agent / 模型切换（v2 把它们放在会话状态，不在消息上）----
 
         onAgentSelected: (data, facts) => {
