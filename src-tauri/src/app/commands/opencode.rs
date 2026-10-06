@@ -24,6 +24,11 @@ pub struct StartOpencodeServiceResult {
     started: bool,
     started_by_us: bool,
     url: Option<String>,
+    /// v2 服务端生成的随机密码（无 OPENCODE_SERVER_PASSWORD 时
+    /// serve 自动生成并打印 `server password <pwd>` 到 stdout——
+    /// 官方 cli/server-process.ts:160 同款契约）。用户显式配置密码时
+    /// 服务端不打印，这里为 None（前端继续用条目上已有的凭据）。
+    server_password: Option<String>,
 }
 
 struct SpawnedOpencodeServe {
@@ -150,6 +155,52 @@ fn parse_listening_url(line: &str) -> Option<String> {
     let parsed = reqwest::Url::parse(&normalized).ok()?;
 
     Some(parsed.to_string().trim_end_matches('/').to_string())
+}
+
+/// 提取 v2 服务端自动生成的随机密码（官方 cli/server-process.ts:160：
+/// `server password <pwd>` 打到 stdout）
+fn parse_server_password(line: &str) -> Option<String> {
+    let password = line.trim().strip_prefix("server password ")?.trim();
+    if password.is_empty() {
+        return None;
+    }
+    Some(password.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{parse_listening_url, parse_server_password};
+
+    #[test]
+    fn parses_generated_password_line() {
+        assert_eq!(
+            parse_server_password("server password 10oCmAyibNWQdMSa-NBRdSsDA5fcedgh__w2RkRA7s8"),
+            Some("10oCmAyibNWQdMSa-NBRdSsDA5fcedgh__w2RkRA7s8".to_string())
+        );
+        // 带尾随空白/多余空行也要命中
+        assert_eq!(
+            parse_server_password("  server password abc123  "),
+            Some("abc123".to_string())
+        );
+    }
+
+    #[test]
+    fn ignores_non_password_lines() {
+        assert_eq!(parse_server_password("server listening on http://127.0.0.1:4097"), None);
+        assert_eq!(parse_server_password("server password "), None);
+        assert_eq!(parse_server_password(""), None);
+    }
+
+    #[test]
+    fn listening_url_and_password_coexist() {
+        // v2.0.14 实机启动输出的两行：URL 与随机密码各自被对应解析器命中
+        let url_line = "server listening on http://127.0.0.1:4097";
+        let password_line = "server password 10oCmAyibNWQdMSa-NBRdSsDA5fcedgh__w2RkRA7s8";
+        assert_eq!(parse_listening_url(url_line).as_deref(), Some("http://127.0.0.1:4097"));
+        assert_eq!(parse_server_password(url_line), None);
+        assert!(parse_server_password(password_line).is_some());
+        assert_eq!(parse_listening_url(password_line), None);
+    }
 }
 
 fn remember_recent_output(recent_output: &mut VecDeque<String>, line: String) {
@@ -293,27 +344,35 @@ pub async fn start_opencode_service(
     url: String,
     binary_path: String,
     env_vars: std::collections::HashMap<String, String>,
+    auth: Option<(String, String)>,
 ) -> Result<StartOpencodeServiceResult, String> {
+    // 「已经在跑」的探测要带条目上已有的凭据——v2 服务端强制随机密码，
+    // 不带凭据的探测会 401 误判成没在跑，进而尝试重复 spawn 撞端口
+    let health_auth = auth
+        .as_ref()
+        .map(|(username, password)| (username.as_str(), password.as_str()));
     if state.we_started.load(Ordering::SeqCst) {
         let current_url = state.service_url.lock().map_err(|e| e.to_string())?.clone();
         if let Some(current_url) = current_url {
-            if is_service_running(&current_url).await {
+            if is_service_running_with_auth(&current_url, health_auth).await {
                 log::info!("opencode service already running at {}", current_url);
                 return Ok(StartOpencodeServiceResult {
                     started: false,
                     started_by_us: true,
                     url: Some(current_url),
+                    server_password: None,
                 });
             }
         }
     }
 
-    if is_service_running(&url).await {
+    if is_service_running_with_auth(&url, health_auth).await {
         log::info!("opencode service already running at {}", url);
         return Ok(StartOpencodeServiceResult {
             started: false,
             started_by_us: false,
             url: Some(url),
+            server_password: None,
         });
     }
 
@@ -326,6 +385,7 @@ pub async fn start_opencode_service(
     *state.service_url.lock().map_err(|e| e.to_string())? = None;
 
     let mut detected_url: Option<String> = None;
+    let mut detected_password: Option<String> = None;
     let mut recent_output = VecDeque::new();
 
     for _ in 0..30 {
@@ -334,6 +394,12 @@ pub async fn start_opencode_service(
                 log::info!("Detected opencode serve URL: {}", parsed_url);
                 *state.service_url.lock().map_err(|e| e.to_string())? = Some(parsed_url.clone());
                 detected_url = Some(parsed_url);
+            }
+            if detected_password.is_none() {
+                if let Some(password) = parse_server_password(&line) {
+                    log::info!("Detected opencode serve generated password");
+                    detected_password = Some(password);
+                }
             }
             remember_recent_output(&mut recent_output, line);
         }
@@ -350,13 +416,19 @@ pub async fn start_opencode_service(
         }
 
         let health_url = detected_url.as_deref().unwrap_or(&url);
-        if is_service_running(health_url).await {
+        // v2 服务端会强制随机密码（未显式配置时）——带密码做健康检查，
+        // 否则 401 永远「未就绪」
+        let health_auth = detected_password
+            .as_deref()
+            .map(|password| ("opencode", password));
+        if is_service_running_with_auth(health_url, health_auth).await {
             log::info!("opencode service is ready at {}", health_url);
             *state.service_url.lock().map_err(|e| e.to_string())? = Some(health_url.to_string());
             return Ok(StartOpencodeServiceResult {
                 started: true,
                 started_by_us: true,
                 url: Some(health_url.to_string()),
+                server_password: detected_password,
             });
         }
 
@@ -368,6 +440,7 @@ pub async fn start_opencode_service(
         started: true,
         started_by_us: true,
         url: detected_url,
+        server_password: detected_password,
     })
 }
 

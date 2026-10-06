@@ -96,6 +96,8 @@ interface StartOpencodeServiceResult {
   started: boolean
   startedByUs: boolean
   url?: string | null
+  /** v2 服务端自动生成的随机密码（未显式配置 OPENCODE_SERVER_PASSWORD 时强制生成） */
+  serverPassword?: string | null
 }
 
 function configureNativeShell() {
@@ -134,9 +136,13 @@ async function initializeNativeDesktopService() {
       url: serverUrl,
       binaryPath: serviceStore.effectiveBinaryPath,
       envVars: serviceStore.envVarsRecord,
+      // 条目上已有的凭据：让「已经在跑」的探测通过 v2 的强制密码门
+      auth: serverStore.getLocalServer()?.auth
+        ? ([serverStore.getLocalServer()!.auth!.username, serverStore.getLocalServer()!.auth!.password] as [string, string])
+        : null,
     })
 
-    applyLocalServiceUrl(result.url)
+    applyLocalServiceUrl(result.url, result.serverPassword)
     serviceStore.setStartedByUs(result.startedByUs)
     serviceStore.setRunning(true)
     if (result.started) {
