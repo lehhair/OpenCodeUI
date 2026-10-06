@@ -57,6 +57,24 @@ export default defineConfig({
     format: 'es',
   },
 
+  // shiki 全家桶在 Web Worker 里用（src/workers/shikiWorker.ts）。vite 初始
+  // 依赖扫描只走 index.html 主图，扫不到 worker 的依赖——不设这里的话，
+  // worker 首次加载会触发「发现新依赖」的中途重优化，browserHash 换戳后
+  // worker 里已转换好的 chunk URL（主题/语言）全部失效（504/404），
+  // 设置页代码块预览报 "Failed to fetch dynamically imported module" 就是它。
+  optimizeDeps: {
+    entries: ['index.html', 'src/workers/shikiWorker.ts'],
+    include: [
+      'shiki-stream',
+      'shiki/core',
+      'shiki/engine/oniguruma',
+      'shiki/langs',
+      'shiki/themes',
+      'shiki/themes/github-dark-default.mjs',
+      'shiki/themes/github-light-default.mjs',
+    ],
+  },
+
   // Tauri CLI 兼容：不清屏，让 Tauri 的日志能保留在终端
   clearScreen: false,
 
