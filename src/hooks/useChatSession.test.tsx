@@ -28,6 +28,11 @@ const {
   refreshPendingRequestsMock,
   useSessionStateMock,
   activeSessionStatusMap,
+  handleUndoMock,
+  handleRedoMock,
+  forkSessionMock,
+  exportSessionMock,
+  saveDataMock,
 } = vi.hoisted(() => ({
   createSessionMock: vi.fn(),
   summarizeSessionMock: vi.fn(),
@@ -52,6 +57,15 @@ const {
   refreshPendingRequestsMock: vi.fn((_sessionIds?: string | string[], _directory?: string) => Promise.resolve()),
   useSessionStateMock: vi.fn((_sessionId: string | null) => null as null | { isStreaming: boolean; messages: unknown[] }),
   activeSessionStatusMap: {} as Record<string, { type: string; attempt?: number; message?: string; next?: number }>,
+  handleUndoMock: vi.fn((_messageId: string) => Promise.resolve()),
+  handleRedoMock: vi.fn(() => Promise.resolve()),
+  forkSessionMock: vi.fn((_sessionId?: string, _messageId?: string, _directory?: string, _serverId?: string) =>
+    Promise.resolve({ id: 'ses-forked', location: { directory: '/workspace/demo' } }),
+  ),
+  exportSessionMock: vi.fn((_sessionId?: string, _directory?: string, _serverId?: string) =>
+    Promise.resolve({ info: {}, messages: [] }),
+  ),
+  saveDataMock: vi.fn(),
 }))
 
 const autoApproveState = vi.hoisted(() => ({
@@ -98,8 +112,8 @@ vi.mock('../hooks', () => ({
   useSessionManager: () => ({
     loadSession: vi.fn(),
     loadMoreHistory: vi.fn(),
-    handleUndo: vi.fn(),
-    handleRedo: vi.fn(),
+    handleUndo: handleUndoMock,
+    handleRedo: handleRedoMock,
     handleRedoAll: vi.fn(),
     clearRevert: vi.fn(),
   }),
@@ -157,7 +171,8 @@ vi.mock('../api', () => ({
   executeCommand: (...args: unknown[]) => executeCommandMock(...args),
   summarizeSession: (...args: unknown[]) => summarizeSessionMock(...args),
   updateSession: vi.fn(),
-  forkSession: vi.fn(),
+  forkSession: (...args: unknown[]) => forkSessionMock(...(args as [string, string?, string?, string?])),
+  exportSession: (...args: unknown[]) => exportSessionMock(...(args as [string, string?, string?])),
   getSessionInbox: vi.fn(() => Promise.resolve([])),
   cancelInboxItem: vi.fn(() => Promise.resolve()),
   steerInboxItem: vi.fn(() => Promise.resolve()),
@@ -175,6 +190,10 @@ vi.mock('../utils/perServerStorage', () => ({
     get: vi.fn(() => 'build'),
     set: vi.fn(),
   },
+}))
+
+vi.mock('../utils/downloadUtils', () => ({
+  saveData: (...args: unknown[]) => saveDataMock(...args),
 }))
 
 describe('useChatSession handleCommand', () => {
@@ -198,6 +217,11 @@ describe('useChatSession handleCommand', () => {
     handlePermissionReplyMock.mockReset()
     refreshPendingRequestsMock.mockReset()
     useSessionStateMock.mockReset()
+    handleUndoMock.mockClear()
+    handleRedoMock.mockClear()
+    forkSessionMock.mockClear()
+    exportSessionMock.mockClear()
+    saveDataMock.mockClear()
     pendingPermissionRequestsMock.length = 0
     for (const key of Object.keys(activeSessionStatusMap)) {
       delete activeSessionStatusMap[key]
@@ -294,6 +318,99 @@ describe('useChatSession handleCommand', () => {
     expect(executeCommandMock).toHaveBeenCalledWith('session-1', 'review', 'src/App.tsx', '/workspace/demo', 'local')
     expect(settled).toBe(true)
     expect(commandResult).toBe(true)
+  })
+
+  it('客户端命令族：/undo /redo /fork /export 不走后端 command 路由', async () => {
+    useSessionStateMock.mockReturnValue({
+      isStreaming: false,
+      canRedo: true,
+      messages: [
+        { id: 'u1', type: 'user', text: 'first', time: { created: 1 } },
+        { id: 'a1', type: 'assistant', parts: [], time: { created: 2 } },
+        { id: 'u2', type: 'user', text: 'second', time: { created: 3 } },
+      ],
+    } as never)
+    const navigateToSession = vi.fn()
+
+    const { result } = renderHook(() =>
+      useChatSession({
+        paneId: 'pane-1',
+        chatAreaRef: { current: null },
+        currentModel: { id: 'model-1', providerID: 'provider-1', variants: [] } as never,
+        refetchModels: vi.fn(async () => {}),
+        sessionId: 'session-1',
+        navigateToSession,
+        navigateHome: vi.fn(),
+      }),
+    )
+
+    // /undo → 回到最后一条用户消息（官方 session.undo 同款）
+    let ok = false
+    await act(async () => {
+      ok = (await result.current.handleCommand('/undo')) ?? false
+    })
+    expect(ok).toBe(true)
+    expect(handleUndoMock).toHaveBeenCalledWith('u2')
+    expect(executeCommandMock).not.toHaveBeenCalled()
+
+    // /redo → handleRedo
+    await act(async () => {
+      ok = (await result.current.handleCommand('/redo')) ?? false
+    })
+    expect(ok).toBe(true)
+    expect(handleRedoMock).toHaveBeenCalled()
+
+    // /fork → fork 整个会话（不传 messageID）并跳转
+    await act(async () => {
+      ok = (await result.current.handleCommand('/fork')) ?? false
+    })
+    expect(ok).toBe(true)
+    expect(forkSessionMock).toHaveBeenCalledWith('session-1', undefined, '/workspace/demo', 'local')
+    expect(navigateToSession).toHaveBeenCalledWith('ses-forked', '/workspace/demo')
+
+    // /export → 导出转写并下载（官方 session.export 同款）
+    await act(async () => {
+      ok = (await result.current.handleCommand('/export')) ?? false
+    })
+    expect(ok).toBe(true)
+    expect(exportSessionMock).toHaveBeenCalledWith('session-1', '/workspace/demo', 'local')
+    expect(saveDataMock).toHaveBeenCalled()
+
+    expect(executeCommandMock).not.toHaveBeenCalled()
+  })
+
+  it('/undo 在无用户消息时不动作；/redo 在不可 redo 时不动作', async () => {
+    useSessionStateMock.mockReturnValue({
+      isStreaming: false,
+      canRedo: false,
+      messages: [{ id: 'a1', type: 'assistant', parts: [], time: { created: 2 } }],
+    } as never)
+
+    const { result } = renderHook(() =>
+      useChatSession({
+        paneId: 'pane-1',
+        chatAreaRef: { current: null },
+        currentModel: { id: 'model-1', providerID: 'provider-1', variants: [] } as never,
+        refetchModels: vi.fn(async () => {}),
+        sessionId: 'session-1',
+        navigateToSession: vi.fn(),
+        navigateHome: vi.fn(),
+      }),
+    )
+
+    let ok: boolean | undefined
+    await act(async () => {
+      ok = await result.current.handleCommand('/undo')
+    })
+    expect(ok).toBe(false)
+    expect(handleUndoMock).not.toHaveBeenCalled()
+
+    await act(async () => {
+      ok = await result.current.handleCommand('/redo')
+    })
+    expect(ok).toBe(false)
+    expect(handleRedoMock).not.toHaveBeenCalled()
+    expect(executeCommandMock).not.toHaveBeenCalled()
   })
 
   it('refreshes pending permissions when session full auto pending sweep is enabled', async () => {
@@ -423,6 +540,11 @@ describe('useChatSession busy UI signal', () => {
     handlePermissionReplyMock.mockReset()
     refreshPendingRequestsMock.mockReset()
     useSessionStateMock.mockReset()
+    handleUndoMock.mockClear()
+    handleRedoMock.mockClear()
+    forkSessionMock.mockClear()
+    exportSessionMock.mockClear()
+    saveDataMock.mockClear()
     pendingPermissionRequestsMock.length = 0
     for (const key of Object.keys(activeSessionStatusMap)) {
       delete activeSessionStatusMap[key]

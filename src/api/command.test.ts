@@ -32,6 +32,10 @@ describe('getCommands', () => {
       { name: 'review', description: 'Run project review', source: 'api' },
       { name: 'new', description: 'Create a new chat session', source: 'frontend' },
       { name: 'compact', description: 'Compact session by summarizing conversation history', source: 'frontend' },
+      { name: 'undo', description: 'Undo the last change (back to the previous user message)', source: 'frontend' },
+      { name: 'redo', description: 'Redo the undone change', source: 'frontend' },
+      { name: 'fork', description: 'Fork the current session into a new one', source: 'frontend' },
+      { name: 'export', description: 'Export the session transcript as a JSON file', source: 'frontend' },
     ])
   })
 
@@ -43,6 +47,10 @@ describe('getCommands', () => {
     expect(commands).toEqual([
       { name: 'compact', description: 'Native compact command', source: 'api' },
       { name: 'new', description: 'Create a new chat session', source: 'frontend' },
+      { name: 'undo', description: 'Undo the last change (back to the previous user message)', source: 'frontend' },
+      { name: 'redo', description: 'Redo the undone change', source: 'frontend' },
+      { name: 'fork', description: 'Fork the current session into a new one', source: 'frontend' },
+      { name: 'export', description: 'Export the session transcript as a JSON file', source: 'frontend' },
     ])
   })
 })

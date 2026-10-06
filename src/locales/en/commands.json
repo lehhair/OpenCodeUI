@@ -93,6 +93,10 @@
     "commands": "Commands",
     "newSessionDesc": "Create a new chat session",
     "compactDesc": "Compact session by summarizing conversation history",
+    "undoDesc": "Undo the last change (back to the previous user message)",
+    "redoDesc": "Redo the undone change",
+    "forkDesc": "Fork the current session into a new one",
+    "exportDesc": "Export the session transcript as a JSON file",
     "noMatchingCommands": "No matching commands",
     "noCommandsAvailable": "No commands available"
   },

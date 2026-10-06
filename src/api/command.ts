@@ -23,10 +23,16 @@ export interface Command {
 }
 
 // 前端本地补的斜杠命令，不来自 command.list。
+// undo/redo/fork/export 对应官方客户端命令族（use-session-commands.tsx
+// 的 session.undo/redo/fork/export）——它们不走后端 command 路由。
 function getFrontendCommands(): Command[] {
   return [
     { name: 'new', description: i18n.t('commands:slashCommand.newSessionDesc'), source: 'frontend' },
     { name: 'compact', description: i18n.t('commands:slashCommand.compactDesc'), source: 'frontend' },
+    { name: 'undo', description: i18n.t('commands:slashCommand.undoDesc'), source: 'frontend' },
+    { name: 'redo', description: i18n.t('commands:slashCommand.redoDesc'), source: 'frontend' },
+    { name: 'fork', description: i18n.t('commands:slashCommand.forkDesc'), source: 'frontend' },
+    { name: 'export', description: i18n.t('commands:slashCommand.exportDesc'), source: 'frontend' },
   ]
 }
 

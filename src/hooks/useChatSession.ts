@@ -34,6 +34,7 @@ import {
   executeCommand,
   summarizeSession,
   forkSession,
+  exportSession,
   getSessionInbox,
   cancelInboxItem,
   updateInboxDelivery,
@@ -61,6 +62,7 @@ import {
 } from '../types/api/message'
 import type { APIError } from '../types/api/common'
 import { clipboardErrorHandler, copyTextToClipboard, createErrorHandler } from '../utils'
+import { saveData } from '../utils/downloadUtils'
 import { clearSessionRuntimeState } from '../utils/sessionLifecycle'
 import { serverStorage } from '../utils/perServerStorage'
 import { sessionKeyToServerId, splitSessionKey } from '../utils/sessionKey'
@@ -1218,6 +1220,47 @@ export function useChatSession({
         return true
       }
 
+      // 客户端命令族（官方 use-session-commands 同款，不走后端 command 路由）：
+      // undo/redo/fork/export 由本端处理
+      if (command === 'undo') {
+        if (!routeSessionId) return false
+        const lastUser = [...messagesRef.current].reverse().find(isUserMessage)
+        if (!lastUser) return false
+        await handleUndo(lastUser.id)
+        return true
+      }
+
+      if (command === 'redo') {
+        if (!routeSessionId || !canRedo) return false
+        await handleRedo()
+        return true
+      }
+
+      if (command === 'fork') {
+        if (!routeSessionId) return false
+        // 不传 messageID = fork 整个会话（官方 session.fork 同款）
+        const forkedSession = await forkSession(routeSessionId, undefined, effectiveDirectory, paneServerId)
+        setRestoredContent(null)
+        navigateToSession(forkedSession.id, forkedSession.location?.directory)
+        return true
+      }
+
+      if (command === 'export') {
+        if (!routeSessionId) return false
+        // 官方 session.export 同款：{info, messages} 转写下载为 JSON
+        // （文件名取 title/slug，官方 sessionExportFilename 同款清洗）
+        const transfer = await exportSession(routeSessionId, effectiveDirectory, paneServerId)
+        const state = messageStore.getSessionState(routeSessionId)
+        const raw = state?.title || ''
+        const name = raw.toLowerCase().replace(/[^a-z0-9_-]+/gi, '-').replace(/^-+|-+$/g, '')
+        saveData(
+          new TextEncoder().encode(JSON.stringify(transfer, null, 2)),
+          `${name || routeSessionId.split('::').pop()}.json`,
+          'application/json',
+        )
+        return true
+      }
+
       let sessionId = routeSessionId
 
       try {
@@ -1277,6 +1320,9 @@ export function useChatSession({
       navigateHome,
       handleNewChat,
       paneServerId,
+      handleUndo,
+      handleRedo,
+      canRedo,
     ],
   )
 

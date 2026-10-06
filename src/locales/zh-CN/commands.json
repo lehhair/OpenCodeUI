@@ -93,6 +93,10 @@
     "commands": "命令",
     "newSessionDesc": "创建新的对话会话",
     "compactDesc": "通过总结对话历史来压缩当前会话",
+    "undoDesc": "撤销最近一次操作（回到上一条用户消息）",
+    "redoDesc": "重做被撤销的操作",
+    "forkDesc": "从当前会话分叉出一个新会话",
+    "exportDesc": "导出会话转写为 JSON 文件",
     "noMatchingCommands": "没有匹配的命令",
     "noCommandsAvailable": "没有可用的命令"
   },
