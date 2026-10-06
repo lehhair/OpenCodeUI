@@ -11,6 +11,7 @@ import { RightPanel } from './components/RightPanel'
 import { BottomPanel } from './components/BottomPanel'
 import { DesktopTitlebar } from './components/DesktopTitlebar'
 import { useDirectory, useGlobalEvents, useGlobalKeybindings, useRouter } from './hooks'
+import { useSessionContext } from './contexts/useSessionContext'
 import { useViewportHeight } from './hooks/useViewportHeight'
 import { useCloseServiceDialog } from './hooks/useCloseServiceDialog'
 import { useWakeLock } from './hooks/useWakeLock'
@@ -224,6 +225,23 @@ function App() {
     },
     [paneLayout.focusedPaneId, navigatePaneToSession],
   )
+
+  // 命令面板混合搜索的会话/文件数据源（官方 palette.ts 同款：
+  // 命令之外还能搜到会话与文件）
+  const { sessions: allSessions } = useSessionContext()
+  const paletteSessions = useMemo(
+    () =>
+      allSessions.map(session => ({
+        id: session.id,
+        title: session.title || session.id,
+        directory: session.location?.directory,
+      })),
+    [allSessions],
+  )
+  const handlePaletteOpenFile = useCallback((path: string) => {
+    const name = path.split(/[\\/]/).pop() ?? path
+    layoutStore.openFilePreview({ path, name })
+  }, [])
 
   const handleNewSession = useCallback(() => {
     const paneId = paneLayout.focusedPaneId ?? paneLayoutStore.getFocusedPaneId()
@@ -1046,6 +1064,10 @@ function App() {
             isOpen={commandPaletteOpen}
             onClose={() => setCommandPaletteOpen(false)}
             commands={commands}
+            directory={focusedDirectory || currentDirectory || undefined}
+            sessions={paletteSessions}
+            onOpenSession={handleSelectSession}
+            onOpenFile={handlePaletteOpenFile}
           />
         </Suspense>
 

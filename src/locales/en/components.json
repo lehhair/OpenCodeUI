@@ -1,7 +1,9 @@
 {
   "commandPalette": {
     "placeholder": "Type a command...",
-    "noCommandsFound": "No commands found"
+    "noCommandsFound": "No commands found",
+    "files": "Files",
+    "sessions": "Sessions"
   },
   "fileExplorer": {
     "selectProject": "Select a project to browse files",

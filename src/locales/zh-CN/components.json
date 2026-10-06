@@ -1,7 +1,9 @@
 {
   "commandPalette": {
     "placeholder": "输入命令...",
-    "noCommandsFound": "未找到命令"
+    "noCommandsFound": "未找到命令",
+    "files": "文件",
+    "sessions": "会话"
   },
   "fileExplorer": {
     "selectProject": "选择项目以浏览文件",

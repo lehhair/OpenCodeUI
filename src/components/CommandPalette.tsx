@@ -6,7 +6,8 @@
 import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
-import { SearchIcon } from './Icons'
+import { SearchIcon, FileIcon, MessageSquareIcon } from './Icons'
+import { searchFiles } from '../api'
 import { formatKeybinding, parseKeybinding } from '../store/keybindingStore'
 import { useDelayedRender } from '../hooks/useDelayedRender'
 import { scrollItemIntoView } from '../utils/scrollUtils'
@@ -30,7 +31,25 @@ interface CommandPaletteProps {
   isOpen: boolean
   onClose: () => void
   commands: CommandItem[]
+  /** 混合搜索（官方 shell/commands/palette.ts 同款）：非空查询时附带文件/会话条目 */
+  directory?: string
+  sessions?: Array<{ id: string; title: string; directory?: string }>
+  onOpenSession?: (session: { id: string; directory?: string }) => void
+  onOpenFile?: (path: string) => void
 }
+
+/** 文件/会话条目的统一形状（内部） */
+interface MixedEntry {
+  kind: 'file' | 'session'
+  id: string
+  title: string
+  description?: string
+  directory?: string
+}
+
+/** 官方 ENTRY_LIMIT 同款：每类最多 5 条 */
+const MIXED_ENTRY_LIMIT = 5
+const FILE_SEARCH_DEBOUNCE_MS = 200
 
 // ============================================
 // Kbd Component - 单个按键显示
@@ -67,7 +86,7 @@ function ShortcutDisplay({ shortcut }: { shortcut: string }) {
 // CommandPalette Component
 // ============================================
 
-export function CommandPalette({ isOpen, onClose, commands }: CommandPaletteProps) {
+export function CommandPalette({ isOpen, onClose, commands, directory, sessions, onOpenSession, onOpenFile }: CommandPaletteProps) {
   const { t } = useTranslation(['components', 'common'])
   const [query, setQuery] = useState('')
   const [selectedIndex, setSelectedIndex] = useState(0)
@@ -138,7 +157,48 @@ export function CommandPalette({ isOpen, onClose, commands }: CommandPaletteProp
       })
   }, [commands, query])
 
-  const activeIndex = filteredCommands.length === 0 ? 0 : Math.min(selectedIndex, filteredCommands.length - 1)
+  // ---- 混合搜索（官方 palette.ts 同款）：非空查询时附带文件/会话 ----
+
+  // 文件：防抖搜索（file.find），上限 5
+  const [fileEntries, setFileEntries] = useState<MixedEntry[]>([])
+  useEffect(() => {
+    const q = query.trim()
+    if (!q || !onOpenFile) {
+      setFileEntries([])
+      return
+    }
+    let cancelled = false
+    const timer = setTimeout(() => {
+      searchFiles(q, { directory, limit: MIXED_ENTRY_LIMIT })
+        .then(paths => {
+          if (cancelled) return
+          setFileEntries(paths.slice(0, MIXED_ENTRY_LIMIT).map(path => ({ kind: 'file' as const, id: `file:${path}`, title: path })))
+        })
+        .catch(() => {
+          if (!cancelled) setFileEntries([])
+        })
+    }, FILE_SEARCH_DEBOUNCE_MS)
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
+  }, [query, directory, onOpenFile])
+
+  // 会话：按标题/id 过滤，上限 5
+  const sessionEntries = useMemo<MixedEntry[]>(() => {
+    const q = query.trim().toLowerCase()
+    if (!q || !onOpenSession || !sessions?.length) return []
+    return sessions
+      .filter(session => session.title.toLowerCase().includes(q) || session.id.toLowerCase().includes(q))
+      .slice(0, MIXED_ENTRY_LIMIT)
+      .map(session => ({ kind: 'session' as const, id: `session:${session.id}`, title: session.title, description: session.id, directory: session.directory }))
+  }, [query, sessions, onOpenSession])
+
+  // 展平的混合列表：命令 → 文件 → 会话（键盘导航走这个顺序）
+  const mixedEntries = useMemo(() => [...fileEntries, ...sessionEntries], [fileEntries, sessionEntries])
+  const flatCount = filteredCommands.length + mixedEntries.length
+
+  const activeIndex = flatCount === 0 ? 0 : Math.min(selectedIndex, flatCount - 1)
 
   // Execute command
   const executeCommand = useCallback(
@@ -150,6 +210,18 @@ export function CommandPalette({ isOpen, onClose, commands }: CommandPaletteProp
     [onClose],
   )
 
+  // 文件/会话条目执行
+  const executeMixed = useCallback(
+    (entry: MixedEntry) => {
+      onClose()
+      requestAnimationFrame(() => {
+        if (entry.kind === 'file') onOpenFile?.(entry.id.slice('file:'.length))
+        else onOpenSession?.({ id: entry.id.slice('session:'.length), directory: entry.directory })
+      })
+    },
+    [onClose, onOpenFile, onOpenSession],
+  )
+
   // Keyboard navigation
   useEffect(() => {
     if (!isOpen) return
@@ -158,16 +230,19 @@ export function CommandPalette({ isOpen, onClose, commands }: CommandPaletteProp
       switch (e.key) {
         case 'ArrowDown':
           e.preventDefault()
-          setSelectedIndex(prev => (prev < filteredCommands.length - 1 ? prev + 1 : 0))
+          setSelectedIndex(prev => (prev < flatCount - 1 ? prev + 1 : 0))
           break
         case 'ArrowUp':
           e.preventDefault()
-          setSelectedIndex(prev => (prev > 0 ? prev - 1 : filteredCommands.length - 1))
+          setSelectedIndex(prev => (prev > 0 ? prev - 1 : flatCount - 1))
           break
         case 'Enter':
           e.preventDefault()
-          if (filteredCommands[activeIndex]) {
-            executeCommand(filteredCommands[activeIndex])
+          if (activeIndex < filteredCommands.length) {
+            if (filteredCommands[activeIndex]) executeCommand(filteredCommands[activeIndex])
+          } else {
+            const entry = mixedEntries[activeIndex - filteredCommands.length]
+            if (entry) executeMixed(entry)
           }
           break
         case 'Escape':
@@ -180,7 +255,7 @@ export function CommandPalette({ isOpen, onClose, commands }: CommandPaletteProp
 
     document.addEventListener('keydown', handleKeyDown, { capture: true })
     return () => document.removeEventListener('keydown', handleKeyDown, { capture: true })
-  }, [isOpen, filteredCommands, activeIndex, executeCommand, onClose])
+  }, [isOpen, filteredCommands, mixedEntries, flatCount, activeIndex, executeCommand, executeMixed, onClose])
 
   // Scroll selected item into view
   useLayoutEffect(() => {
@@ -257,35 +332,91 @@ export function CommandPalette({ isOpen, onClose, commands }: CommandPaletteProp
 
         {/* Command List */}
         <div ref={listRef} className="overflow-y-auto custom-scrollbar flex-1 p-1">
-          {filteredCommands.length === 0 ? (
+          {flatCount === 0 ? (
             <div className="px-4 py-8 text-center text-text-400 text-[length:var(--fs-base)]">{t('commandPalette.noCommandsFound')}</div>
           ) : (
-            filteredCommands.map((cmd, index) => (
-              <button
-                key={cmd.id}
-                data-index={index}
-                onClick={() => executeCommand(cmd)}
-                onMouseEnter={() => setSelectedIndex(index)}
-                className={`
-                  w-full flex items-center justify-between rounded-md px-2 py-2 text-left
-                  transition-colors duration-100
-                  ${index === activeIndex ? 'bg-accent-main-100/10 text-text-100' : 'text-text-300 hover:bg-bg-200/50 hover:text-text-100'}
-                `}
-              >
-                <div className="flex items-center gap-2.5 min-w-0">
-                  {cmd.icon && <span className="text-text-400 shrink-0">{cmd.icon}</span>}
-                  <div className="min-w-0">
-                    <div className="text-[length:var(--fs-base)] truncate">{cmd.label}</div>
-                    {cmd.description && <div className="text-[length:var(--fs-sm)] text-text-400 truncate">{cmd.description}</div>}
+            <>
+              {filteredCommands.map((cmd, index) => (
+                <button
+                  key={cmd.id}
+                  data-index={index}
+                  onClick={() => executeCommand(cmd)}
+                  onMouseEnter={() => setSelectedIndex(index)}
+                  className={`
+                    w-full flex items-center justify-between rounded-md px-2 py-2 text-left
+                    transition-colors duration-100
+                    ${index === activeIndex ? 'bg-accent-main-100/10 text-text-100' : 'text-text-300 hover:bg-bg-200/50 hover:text-text-100'}
+                  `}
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    {cmd.icon && <span className="text-text-400 shrink-0">{cmd.icon}</span>}
+                    <div className="min-w-0">
+                      <div className="text-[length:var(--fs-base)] truncate">{cmd.label}</div>
+                      {cmd.description && <div className="text-[length:var(--fs-sm)] text-text-400 truncate">{cmd.description}</div>}
+                    </div>
                   </div>
-                </div>
-                {cmd.shortcut && (
-                  <div className="shrink-0 ml-4">
-                    <ShortcutDisplay shortcut={cmd.shortcut} />
-                  </div>
-                )}
-              </button>
-            ))
+                  {cmd.shortcut && (
+                    <div className="shrink-0 ml-4">
+                      <ShortcutDisplay shortcut={cmd.shortcut} />
+                    </div>
+                  )}
+                </button>
+              ))}
+
+              {/* 混合搜索条目（官方 palette 同款：命令之后按组列出文件/会话） */}
+              {mixedEntries.length > 0 && (
+                <>
+                  {fileEntries.length > 0 && (
+                    <div className="px-2 pt-2 pb-1 text-[length:var(--fs-xs)] font-medium text-text-500">
+                      {t('commandPalette.files')}
+                    </div>
+                  )}
+                  {fileEntries.map(entry => {
+                    const index = filteredCommands.length + mixedEntries.indexOf(entry)
+                    return (
+                      <button
+                        key={entry.id}
+                        data-index={index}
+                        onClick={() => executeMixed(entry)}
+                        onMouseEnter={() => setSelectedIndex(index)}
+                        className={`
+                          w-full flex items-center gap-2.5 rounded-md px-2 py-2 text-left
+                          transition-colors duration-100
+                          ${index === activeIndex ? 'bg-accent-main-100/10 text-text-100' : 'text-text-300 hover:bg-bg-200/50 hover:text-text-100'}
+                        `}
+                      >
+                        <span className="text-text-400 shrink-0"><FileIcon size={14} /></span>
+                        <span className="text-[length:var(--fs-base)] truncate font-mono">{entry.title}</span>
+                      </button>
+                    )
+                  })}
+                  {sessionEntries.length > 0 && (
+                    <div className="px-2 pt-2 pb-1 text-[length:var(--fs-xs)] font-medium text-text-500">
+                      {t('commandPalette.sessions')}
+                    </div>
+                  )}
+                  {sessionEntries.map(entry => {
+                    const index = filteredCommands.length + mixedEntries.indexOf(entry)
+                    return (
+                      <button
+                        key={entry.id}
+                        data-index={index}
+                        onClick={() => executeMixed(entry)}
+                        onMouseEnter={() => setSelectedIndex(index)}
+                        className={`
+                          w-full flex items-center gap-2.5 rounded-md px-2 py-2 text-left
+                          transition-colors duration-100
+                          ${index === activeIndex ? 'bg-accent-main-100/10 text-text-100' : 'text-text-300 hover:bg-bg-200/50 hover:text-text-100'}
+                        `}
+                      >
+                        <span className="text-text-400 shrink-0"><MessageSquareIcon size={14} /></span>
+                        <span className="min-w-0 flex-1 text-[length:var(--fs-base)] truncate">{entry.title}</span>
+                      </button>
+                    )
+                  })}
+                </>
+              )}
+            </>
           )}
         </div>
 
