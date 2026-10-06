@@ -19,6 +19,7 @@ import { useMobileCollapse } from './input/useMobileCollapse'
 import { useAttachmentRail } from './input/useAttachmentRail'
 import { useInputHistory } from './input/useInputHistory'
 import { promptHistoryStore } from '../../store/promptHistoryStore'
+import { usePersistedDraft, draftStorageKey, clearPersistedDraft } from './input/usePersistedDraft'
 import {
   TEXT_STYLE,
   bytesToDataUrl,
@@ -308,6 +309,13 @@ function InputBoxComponent({
     mode: shellMode ? 'shell' : 'normal',
   })
 
+  // 草稿持久化（官方 composer persistence 同款：按会话/工作区作用域，
+  // 切换会话/重启后恢复，发送成功清空）
+  const draftKey = useMemo(() => draftStorageKey(sessionId, rootPath), [sessionId, rootPath])
+  const draftKeyRef = useRef<string | null>(null)
+  draftKeyRef.current = draftKey
+  usePersistedDraft({ storageKey: draftKey, text, attachments, setText, setAttachments })
+
   // ============================================
   // Mobile Input Dock: 滚动收起/展开（逻辑在 useMobileCollapse hook 中）
   // ============================================
@@ -483,6 +491,8 @@ function InputBoxComponent({
     latestDraftRef.current = { text: '', attachments: [] }
     setText('')
     setAttachments([])
+    // 发送成功/命令提交 → 草稿键同步删除（官方草稿随提交清空同款）
+    clearPersistedDraft(draftKeyRef.current)
     resetHistoryIndex()
   }, [resetHistoryIndex])
 

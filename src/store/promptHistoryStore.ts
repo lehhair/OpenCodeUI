@@ -36,25 +36,29 @@ export interface PromptHistoryEntry {
   attachments: HistoryAttachment[]
 }
 
+/** 单附件 → 可序列化子集（不可序列化的返回 null） */
+export function toHistoryAttachment(attachment: Attachment): HistoryAttachment | null {
+  if (attachment.type !== 'file' && attachment.type !== 'folder' && attachment.type !== 'agent' && attachment.type !== 'skill') {
+    return null
+  }
+  // data: URL（内联图片）重启后无意义且体积大，不落盘
+  const url = attachment.url?.startsWith('data:') ? undefined : attachment.url
+  if (attachment.type === 'file' && !url && !attachment.relativePath) return null
+  return {
+    type: attachment.type,
+    displayName: attachment.displayName,
+    ...(attachment.relativePath ? { relativePath: attachment.relativePath } : {}),
+    ...(url ? { url } : {}),
+    ...(attachment.mime ? { mime: attachment.mime } : {}),
+    ...(attachment.agentName ? { agentName: attachment.agentName } : {}),
+    ...(attachment.skillId ? { skillId: attachment.skillId } : {}),
+  }
+}
+
 function toSerializable(attachments: Attachment[]): HistoryAttachment[] {
   return attachments.flatMap(attachment => {
-    if (attachment.type !== 'file' && attachment.type !== 'folder' && attachment.type !== 'agent' && attachment.type !== 'skill') {
-      return []
-    }
-    // data: URL（内联图片）重启后无意义且体积大，不落盘
-    const url = attachment.url?.startsWith('data:') ? undefined : attachment.url
-    if (attachment.type === 'file' && !url && !attachment.relativePath) return []
-    return [
-      {
-        type: attachment.type,
-        displayName: attachment.displayName,
-        ...(attachment.relativePath ? { relativePath: attachment.relativePath } : {}),
-        ...(url ? { url } : {}),
-        ...(attachment.mime ? { mime: attachment.mime } : {}),
-        ...(attachment.agentName ? { agentName: attachment.agentName } : {}),
-        ...(attachment.skillId ? { skillId: attachment.skillId } : {}),
-      },
-    ]
+    const item = toHistoryAttachment(attachment)
+    return item ? [item] : []
   })
 }
 
