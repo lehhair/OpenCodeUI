@@ -271,7 +271,7 @@ describe('useGlobalEvents', () => {
     activeSessionStoreMock.getSnapshot.mockReturnValue({ statusMap: {} })
   })
 
-  it('stores server clock calibration when server.connected arrives', async () => {
+  it('server.connected 不再用本地时钟做伪校准（真实校准在事件分发层）', async () => {
     let callbacks: Parameters<typeof subscribeToEventsMock>[0] | undefined
     subscribeToEventsMock.mockImplementation(cb => {
       callbacks = cb
@@ -282,10 +282,12 @@ describe('useGlobalEvents', () => {
 
     await waitFor(() => expect(callbacks).toBeDefined())
 
-    // v2 的 server.connected 负载是 {}，没有服务端时间戳，钩子用本地时间打点
+    // v2 的 server.connected 负载是 {}，没有服务端时间戳；
+    // 时钟校准改由事件分发层用事件自带的 created 完成（api/events.ts），
+    // 这里不应再调 applyServerConnectedTimestamp
     callbacks!.onServerConnected?.()
 
-    expect(applyServerConnectedTimestampMock).toHaveBeenCalledWith('local', expect.any(Number))
+    expect(applyServerConnectedTimestampMock).not.toHaveBeenCalled()
   })
 
   it('refreshes active server health on mount', async () => {

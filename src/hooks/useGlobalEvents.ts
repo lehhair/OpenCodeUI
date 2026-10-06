@@ -967,7 +967,9 @@ export function useGlobalEvents(directories?: string[]) {
         },
 
         onServerConnected: () => {
-          serverStore.applyServerConnectedTimestamp(serverId, Date.now())
+          // 时钟校准不走这里：以前把本地时钟 Date.now() 当"服务器时间"校准，
+          // 偏移恒为 0，是伪校准。真实校准在事件分发层用事件自带的 created
+          // 完成（api/events.ts → serverStore.calibrateFromServerTimestamp）。
         },
 
         // ============================================

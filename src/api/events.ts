@@ -551,6 +551,12 @@ async function connectServer(serverId: string): Promise<void> {
         continue
       }
 
+      // 时钟校准（真实时间源）：事件自带服务端 created，用它 + 本地接收时刻
+      // 做 服务器时钟↔本地单调时钟 锚点（60s 节流，见 serverStore）
+      if (typeof event.created === 'number') {
+        serverStore.calibrateFromServerTimestamp(serverId, event.created)
+      }
+
       conn.subscribers.forEach(cb => {
         try {
           dispatchEvent(cb, event)

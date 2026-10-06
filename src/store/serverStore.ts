@@ -154,6 +154,8 @@ class ServerStore {
   private healthMap = new Map<string, ServerHealth>()
   private healthCheckSeqMap = new Map<string, number>()
   private clockCalibrationMap = new Map<string, ServerClockCalibration>()
+  /** 上次用服务端事件时间戳校准的本地单调时刻（calibrateFromServerTimestamp 节流用） */
+  private lastClockCalibrationAt = new Map<string, number>()
   private listeners: Set<Listener> = new Set()
   private localServerUrlOverride: string | null = null
   // 上次关闭时用户停留的 WSL 服务器 id（wslStore 就绪后据此恢复 active）
@@ -623,6 +625,25 @@ class ServerStore {
     })
     this.notify()
     return true
+  }
+
+  /**
+   * 用事件自带的服务端时间戳校准时钟（真实时间源），带节流。
+   *
+   * SSE 每个事件（除 server.connected）都带服务端 `created`：它 + 本地
+   * 接收时刻（performance.now）就是一组可靠的 服务器时钟↔本地单调时钟
+   * 锚点。时钟漂移是慢变量，60s 内重复校准没有意义，还会触发无谓 notify。
+   */
+  calibrateFromServerTimestamp(serverId: string, serverTimestamp: number, minIntervalMs = 60_000): void {
+    const now = performance.now()
+    const last = this.lastClockCalibrationAt.get(serverId) ?? -Infinity
+    if (now - last < minIntervalMs) return
+    this.lastClockCalibrationAt.set(serverId, now)
+    this.clockCalibrationMap.set(serverId, {
+      serverTimestamp,
+      calibratedAtMonotonic: now,
+    })
+    this.notify()
   }
 
   // ============================================

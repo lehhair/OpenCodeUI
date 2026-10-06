@@ -68,6 +68,26 @@ describe('serverStore clock calibration', () => {
 
     expect(serverStore.getActiveCalibratedNow()).toBeUndefined()
   })
+
+  it('calibrateFromServerTimestamp 60s 节流：窗口内重复校准被忽略', async () => {
+    const { serverStore } = await import('./serverStore')
+    const perfSpy = vi.spyOn(performance, 'now')
+    const serverId = serverStore.getActiveServerId()
+
+    perfSpy.mockReturnValue(1_000)
+    serverStore.calibrateFromServerTimestamp(serverId, 1_000_000)
+    expect(serverStore.getActiveCalibratedNow()).toBe(1_000_000)
+
+    // 同一窗口内（< 60s）再来一个不同时间戳：不得覆盖已有锚点
+    perfSpy.mockReturnValue(2_000)
+    serverStore.calibrateFromServerTimestamp(serverId, 9_999_999)
+    expect(serverStore.getActiveCalibratedNow()).toBe(1_000_000 + 1_000)
+
+    // 超过节流窗口：允许重新校准
+    perfSpy.mockReturnValue(62_000)
+    serverStore.calibrateFromServerTimestamp(serverId, 2_000_000)
+    expect(serverStore.getActiveCalibratedNow()).toBe(2_000_000)
+  })
 })
 
 describe('serverStore local runtime URL', () => {
