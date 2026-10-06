@@ -93,6 +93,13 @@
     "retryable": "可重试",
     "statusCode": "状态码：{{code}}",
     "contextCompacted": "历史已压缩",
+    "compactionStarted": "开始压缩上下文",
+    "compactionRunning": "正在压缩上下文…",
+    "providerCompaction": "服务商压缩",
+    "compactionCancelled": "压缩已取消",
+    "compactionInterrupted": "压缩被中断",
+    "compactionFailed": "压缩失败",
+    "compactionUsage": "输入 {{input}} · 输出 {{output}}",
     "autoPrefix": "自动",
     "filesChanged": "{{count}} 个文件变更",
     "filesChanged_other": "{{count}} 个文件变更"

@@ -119,6 +119,13 @@
     "retryable": "Retryable",
     "statusCode": "Status: {{code}}",
     "contextCompacted": "History compacted",
+    "compactionStarted": "Compacting context",
+    "compactionRunning": "Compacting context…",
+    "providerCompaction": "Provider compaction",
+    "compactionCancelled": "Compaction cancelled",
+    "compactionInterrupted": "Compaction interrupted",
+    "compactionFailed": "Compaction failed",
+    "compactionUsage": "{{input}} in · {{output}} out",
     "autoPrefix": "auto-",
     "filesChanged": "{{count}} file changed",
     "filesChanged_other": "{{count}} files changed"
