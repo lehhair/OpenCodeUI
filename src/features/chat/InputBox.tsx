@@ -165,6 +165,10 @@ export interface InputBoxProps {
     nonce: number
     restoreStash: boolean
   } | null
+  /** 阻塞中的后台任务（非空时页脚显示「移到后台」入口） */
+  backgroundTasks?: Array<{ label: string }>
+  onMoveToBackground?: () => void
+  backgroundMoving?: boolean
   /** busy 时的投递方式：steer=插队本轮 / queue=排队下轮（流式期间输入栏可切换） */
   busyDelivery?: 'queue' | 'steer'
   onBusyDeliveryChange?: (delivery: 'queue' | 'steer') => void
@@ -217,6 +221,9 @@ function InputBoxComponent({
   composerDraft,
   busyDelivery,
   onBusyDeliveryChange,
+  backgroundTasks,
+  onMoveToBackground,
+  backgroundMoving,
   canRedo = false,
   revertSteps = 0,
   onRedo,
@@ -1622,6 +1629,9 @@ function InputBoxComponent({
             sessionId={sessionId}
             onNewChat={onNewChat}
             inputContainerRef={inputContainerRef}
+            backgroundTasks={backgroundTasks}
+            onMoveToBackground={onMoveToBackground}
+            backgroundMoving={backgroundMoving}
           />
         </div>
       </div>

@@ -28,9 +28,19 @@ interface InputFooterProps {
   sessionId?: string | null
   onNewChat?: () => void
   inputContainerRef?: RefObject<HTMLDivElement | null>
+  /** 阻塞中的后台任务（非空时显示「移到后台」入口，官方 BackgroundMoveHint 同款克制呈现） */
+  backgroundTasks?: Array<{ label: string }>
+  onMoveToBackground?: () => void
+  backgroundMoving?: boolean
 }
 
-export const InputFooter = memo(function InputFooter({ paneId, onNewChat }: InputFooterProps) {
+export const InputFooter = memo(function InputFooter({
+  paneId,
+  onNewChat,
+  backgroundTasks,
+  onMoveToBackground,
+  backgroundMoving,
+}: InputFooterProps) {
   const { t } = useTranslation(['chat', 'common'])
   const fullAutoMode = useFullAutoMode(paneId)
 
@@ -65,6 +75,21 @@ export const InputFooter = memo(function InputFooter({ paneId, onNewChat }: Inpu
       <button onClick={onNewChat} className="hover:text-text-300 transition-colors">
         {t('inputFooter.pleaseVerify')}
       </button>
+
+      {/* 移到后台（官方 BackgroundMoveHint 同款位置与重量：页脚一行的小字入口） */}
+      {backgroundTasks && backgroundTasks.length > 0 && onMoveToBackground && (
+        <>
+          <span className="text-text-500/30 shrink-0">·</span>
+          <button
+            onClick={onMoveToBackground}
+            disabled={backgroundMoving}
+            className="hover:text-text-300 transition-colors disabled:opacity-50"
+            title={backgroundTasks.map(task => task.label).join('、')}
+          >
+            {t('chat:sessionBackground.move', { count: backgroundTasks.length })}
+          </button>
+        </>
+      )}
     </div>
   )
 })
