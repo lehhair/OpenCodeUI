@@ -937,7 +937,7 @@ interface ToolGroupProps {
 }
 
 /** 用户需要阅读/交互的工具：沉浸模式下这些工具完成后保持展开 */
-const READABLE_TOOL_PATTERNS = /bash|\bsh\b|cmd|terminal|shell|write|save|edit|replace|patch|todo|question|ask/i
+const READABLE_TOOL_PATTERNS = /bash|\bsh\b|cmd|terminal|shell|write|save|edit|replace|patch|question|ask/i
 
 function isReadableTool(toolName: string): boolean {
   return READABLE_TOOL_PATTERNS.test(toolName.toLowerCase())
@@ -1223,7 +1223,6 @@ type ToolSummaryCategory =
   | 'list'
   | 'network'
   | 'task'
-  | 'todo'
   | 'question'
   | 'skill'
   | 'think'
@@ -1340,8 +1339,7 @@ function formatToolSummarySegment(
 function getToolSummaryCategory(toolName: string): ToolSummaryCategory {
   const lower = toolName.toLowerCase()
 
-  if (lower.includes('todo')) return 'todo'
-  if (lower === 'task') return 'task'
+  if (lower === 'task' || lower === 'subagent') return 'task'
   if (lower.includes('question') || lower.includes('ask')) return 'question'
   if (lower.includes('skill')) return 'skill'
   if (
@@ -1473,6 +1471,8 @@ function groupContentForRender(message: AssistantMessage): RenderItem[] {
     if (!isRenderableContent(entry.content, isStreaming)) continue
 
     if (entry.content.type === 'tool') {
+      // todowrite：官方整卡不渲染（session-ui/tool-renderer.tsx:1197）
+      if (entry.content.name.toLowerCase() === 'todowrite') continue
       toolGroup.push(entry as ToolEntry)
       continue
     }

@@ -8,7 +8,6 @@ import {
   SearchIcon,
   GlobeIcon,
   BrainIcon,
-  ChecklistIcon,
   QuestionIcon,
   TaskIcon,
   WrenchIcon,
@@ -299,15 +298,9 @@ export const toolRegistry: ToolRegistry = [
     renderer: BashRenderer,
   },
 
-  // Todo (must be before write/read to avoid TodoWrite matching "write")
+  // Task / Subagent（v2 工具名 subagent；task 为旧名兼容）
   {
-    match: includes('todo'),
-    icon: <ChecklistIcon />,
-  },
-
-  // Task (子 agent)
-  {
-    match: exact('task'),
+    match: exact('task', 'subagent'),
     icon: <TaskIcon />,
   },
 
@@ -316,6 +309,19 @@ export const toolRegistry: ToolRegistry = [
     match: includes('read', 'cat'),
     icon: <FileReadIcon />,
     extractData: readExtractData,
+  },
+
+  // List directory（官方 session-ui 有独立 ListRenderer；先精确命中图标，
+  // 内容渲染待对齐）
+  {
+    match: exact('list'),
+    icon: <FileReadIcon />,
+  },
+
+  // Skill 调用（官方 session-ui 有独立 SkillRenderer；先精确命中图标）
+  {
+    match: exact('skill'),
+    icon: <BrainIcon />,
   },
 
   // Write file

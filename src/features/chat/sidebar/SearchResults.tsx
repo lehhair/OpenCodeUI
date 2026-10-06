@@ -13,6 +13,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import { useTranslation } from 'react-i18next'
 import { getSessions, type ApiSession } from '../../../api'
 import { makeSessionKey } from '../../../utils/sessionKey'
+import { sessionDisplayTitle } from '../../../utils/sessionTitle'
 import { serverStore } from '../../../store/serverStore'
 import { multiServerStore, useMultiServerStore } from '../../../store/multiServerStore'
 import { useDirectory } from '../../../contexts/useDirectory'
@@ -182,7 +183,10 @@ function ServerSearchGroup({
           >
             <MessageSquareIcon size={13} className="shrink-0 text-text-400" />
             <span className="min-w-0 flex-1 truncate text-[length:var(--fs-sm)] text-text-200">
-              {session.title || t('sessions.untitledChat', { defaultValue: 'Untitled chat' })}
+              {sessionDisplayTitle(session, {
+                newSession: t('commands:sessions.newSession'),
+                childSession: t('commands:sessions.childSession'),
+              })}
             </span>
             {session.location?.directory && (
               <span className="shrink-0 max-w-[40%] truncate text-[length:var(--fs-xxs)] text-text-400/70">

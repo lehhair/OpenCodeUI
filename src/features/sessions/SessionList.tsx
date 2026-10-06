@@ -14,6 +14,7 @@ import { startInternalDrag } from '../../lib/internalDragCore'
 import { makeSessionKey, splitSessionKey } from '../../utils/sessionKey'
 import { pinnedSessionsStore, type PinnedSessionEntry } from '../../store/pinnedSessionsStore'
 import { serverStore } from '../../store/serverStore'
+import { sessionDisplayTitle } from '../../utils/sessionTitle'
 
 interface SessionListProps {
   sessions: ApiSession[]
@@ -420,6 +421,12 @@ export function SessionListItem({
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const touchMoved = useRef(false)
 
+  // 标题展示兜底（官方 displayLabel 同款：无标题/历史时间戳标题 → 简洁标签）
+  const displayTitle = sessionDisplayTitle(session, {
+    newSession: t('sessions.newSession'),
+    childSession: t('sessions.childSession'),
+  })
+
   // 活跃状态标记（activeSessionStore / notificationStore 的 key 是复合 serverId::sessionId；
   // 单服务器模式 session.id 是原始 id，需用活动服务器合成复合 key 查询）
   const activeQueryKey = activeSessionKey ?? makeSessionKey(serverStore.getActiveServerId(), session.id)
@@ -478,7 +485,7 @@ export function SessionListItem({
       pinnedSessionsStore.pin({
         sessionId: session.id,
         directory: session.location?.directory || '',
-        title: session.title || t('sessions.untitledChat'),
+        title: displayTitle,
       })
     }
   }
@@ -694,9 +701,9 @@ export function SessionListItem({
           >
             <span
               className="min-w-0 flex-1 truncate text-[length:var(--fs-sm)]"
-              title={session.title || t('sessions.untitledChat')}
+              title={displayTitle}
             >
-              {session.title || t('sessions.untitledChat')}
+              {displayTitle}
             </span>
 
             {((hasCostStats && session.cost) || session.time?.updated) && (
@@ -805,9 +812,9 @@ export function SessionListItem({
                 ? 'text-text-100'
                 : 'text-text-200 group-hover:text-text-100'
             }`}
-            title={session.title || t('sessions.untitledChat')}
+            title={displayTitle}
           >
-            {session.title || t('sessions.untitledChat')}
+            {displayTitle}
           </p>
 
           <div
@@ -956,3 +963,4 @@ function LoadingSpinner({ size = 'md' }: { size?: 'sm' | 'md' }) {
   const sizeClass = size === 'sm' ? 'w-3 h-3' : 'w-5 h-5'
   return <SpinnerIcon className={`animate-spin text-text-400 ${sizeClass}`} size={size === 'sm' ? 12 : 20} />
 }
+

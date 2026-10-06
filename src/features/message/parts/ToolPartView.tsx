@@ -479,7 +479,7 @@ export const ToolPartView = memo(function ToolPartView({
 // ============================================
 
 /** 用户需要阅读/交互的工具 */
-const READABLE_TOOL_PATTERNS = /bash|\bsh\b|cmd|terminal|shell|write|save|edit|replace|patch|todo|question|ask/i
+const READABLE_TOOL_PATTERNS = /bash|\bsh\b|cmd|terminal|shell|write|save|edit|replace|patch|question|ask/i
 
 function isReadableTool(toolName: string): boolean {
   return READABLE_TOOL_PATTERNS.test(toolName.toLowerCase())
@@ -543,7 +543,10 @@ const ToolBody = memo(function ToolBody({
 }) {
   const lowerTool = part.name.toLowerCase()
 
-  if (lowerTool === 'task') {
+  // todowrite：官方整卡不渲染（session-ui/tool-renderer.tsx:1197）
+  if (lowerTool === 'todowrite') return null
+
+  if (lowerTool === 'task' || lowerTool === 'subagent') {
     return <TaskRenderer part={part} data={data} context={context} onFullscreenChange={onFullscreenChange} />
   }
 

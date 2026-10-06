@@ -46,6 +46,8 @@ import {
   type Model,
 } from '../api'
 import { sendAdmission, outboxAdd, outboxHas, outboxTryRollback } from '../api/sendAdmission'
+import i18n from '../i18n'
+import { sessionDisplayTitle } from '../utils/sessionTitle'
 import {
   assistantText,
   isAssistantMessage,
@@ -229,8 +231,13 @@ export function useChatSession({
   const getSessionTitle = useCallback(
     (sessionId?: string) => {
       const session = sessions.find(s => s.id === sessionId)
-      if (session?.title) return session.title
-      if (sessionId) return `Session ${sessionId.slice(0, 6)}`
+      if (session) {
+        // 官方 displayLabel 同款兜底（无标题/历史时间戳标题 → 简洁标签）
+        return sessionDisplayTitle(session, {
+          newSession: i18n.t('commands:sessions.newSession'),
+          childSession: i18n.t('commands:sessions.childSession'),
+        })
+      }
       return 'OpenCode'
     },
     [sessions],

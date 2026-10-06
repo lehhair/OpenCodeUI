@@ -168,7 +168,6 @@ export const PERMISSION_TOOLS: { tool: string; pattern: boolean; en: string; zh:
   { tool: 'external_directory', pattern: true, en: 'Access dirs outside workspace', zh: '访问工作区外目录' },
   { tool: 'lsp', pattern: true, en: 'Language server actions', zh: '语言服务器操作' },
   { tool: 'skill', pattern: true, en: 'Load skills', zh: '加载技能' },
-  { tool: 'todowrite', pattern: false, en: 'Write todo list', zh: '写入待办列表' },
   { tool: 'question', pattern: false, en: 'Ask the user questions', zh: '向用户提问' },
   { tool: 'webfetch', pattern: false, en: 'Fetch web pages', zh: '抓取网页' },
   { tool: 'websearch', pattern: false, en: 'Search the web', zh: '联网搜索' },

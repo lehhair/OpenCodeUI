@@ -67,6 +67,8 @@
     "newChat": "New Chat",
     "noChatsYet": "No chats yet",
     "untitledChat": "Untitled Chat",
+    "newSession": "New session",
+    "childSession": "Child session",
     "rename": "Rename",
     "pinned": "Pinned",
     "switchProject": "Switch Project",
