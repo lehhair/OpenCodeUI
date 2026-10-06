@@ -45,7 +45,7 @@ import {
   type Attachment,
   type Model,
 } from '../api'
-import { sendAdmission, outboxAdd, outboxTryRollback } from '../api/sendAdmission'
+import { sendAdmission, outboxAdd, outboxHas, outboxTryRollback } from '../api/sendAdmission'
 import {
   assistantText,
   isAssistantMessage,
@@ -946,16 +946,21 @@ export function useChatSession({
   // inbox 快照打底（官方 pending.sync）：进入会话时拉一次，之后靠 SSE 增量维护。
   // 快照里的排队条目也要物化进转写（官方 data.ts:1427-1430）——服务端转写里
   // 投递前并没有这些行，不物化的话刷新后它们只在队列气泡里、投递时无处可落。
+  // 快照合并（官方 pendingUpdates + inflight 同款）：拉取期间到达的事件先记账
+  // 再合并；本地已 admit、回声未确认（outbox 在途）的条目必须保留——快照可能
+  // 早于 admit 发出，直接整体替换会把它们抹掉（气泡消失 + 回滚失效）。
   useEffect(() => {
     if (!routeSessionId) return
     const sessionId = routeSessionId
+    inboxStore.beginSnapshot(sessionId)
     getSessionInbox(sessionId, paneServerId)
       .then(items => {
-        inboxStore.setItems(sessionId, items)
-        for (const item of items) messageStore.materializeInboxMessage(sessionId, item)
+        inboxStore.setItems(sessionId, items, { keepIf: id => outboxHas(id) })
+        for (const item of inboxStore.getItems(sessionId)) messageStore.materializeInboxMessage(sessionId, item)
       })
       .catch(() => {
         // 拉取失败不影响主流程，SSE 事件仍会增量维护
+        inboxStore.endSnapshot(sessionId)
       })
   }, [routeSessionId, paneServerId])
 

@@ -47,6 +47,11 @@ export function outboxConfirm(id: string): void {
   outbox.delete(id)
 }
 
+/** 条目是否仍在 outbox（本地已 admit、回声未确认的在途乐观条目） */
+export function outboxHas(id: string): boolean {
+  return outbox.has(id)
+}
+
 /**
  * 回滚许可（官方 `outbox.delete(id)` 守卫同款）：
  * 仅当条目仍在 outbox（服务端未确认）时返回 true 并移除。
