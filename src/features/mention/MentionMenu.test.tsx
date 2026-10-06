@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MentionMenu } from './MentionMenu'
-import { listDirectory, searchFiles, getReferences } from '../../api/client'
+import { listDirectory, searchFiles, getReferences, getSkills } from '../../api/client'
 
 vi.mock('../../api/client', () => ({
   // v2 的文件条目只有 { path, type }
@@ -11,6 +11,10 @@ vi.mock('../../api/client', () => ({
   ]),
   searchFiles: vi.fn().mockResolvedValue(['src/components/Button.tsx']),
   getReferences: vi.fn().mockResolvedValue([]),
+  getSkills: vi.fn().mockResolvedValue([
+    { id: 'commit', name: 'Commit', description: '生成 commit', path: '/s/commit.md', content: '' },
+    { id: 'review-pr', name: 'Review PR', description: '审查 PR', path: '/s/review.md', content: '' },
+  ]),
 }))
 
 describe('MentionMenu', () => {
@@ -28,6 +32,10 @@ describe('MentionMenu', () => {
     ])
     vi.mocked(searchFiles).mockResolvedValue(['src/components/Button.tsx'])
     vi.mocked(getReferences).mockResolvedValue([])
+    vi.mocked(getSkills).mockResolvedValue([
+      { id: 'commit', name: 'Commit', description: '生成 commit', path: '/s/commit.md', content: '' },
+      { id: 'review-pr', name: 'Review PR', description: '审查 PR', path: '/s/review.md', content: '' },
+    ])
   })
 
   afterEach(() => {
@@ -90,6 +98,46 @@ describe('MentionMenu', () => {
 
     expect(screen.getByText('shared-lib')).toBeInTheDocument()
     expect(screen.queryByText('secret-ref')).not.toBeInTheDocument()
+  })
+
+  it('根目录列出技能（官方 composer/model.ts:193-205 同款：label @skill.id）', async () => {
+    render(
+      <div>
+        <MentionMenu isOpen={true} query="" agents={[]} rootPath="/workspace/project" onSelect={vi.fn()} onClose={vi.fn()} />
+      </div>,
+    )
+
+    await act(async () => {
+      vi.advanceTimersByTime(32)
+      await Promise.resolve()
+    })
+    await act(async () => {
+      vi.advanceTimersByTime(32)
+      await Promise.resolve()
+    })
+
+    expect(screen.getByText('Commit')).toBeInTheDocument()
+    expect(screen.getByText('Review PR')).toBeInTheDocument()
+  })
+
+  it('搜索态按 id/name 过滤技能', async () => {
+    render(
+      <div>
+        <MentionMenu isOpen={true} query="rev" agents={[]} rootPath="/workspace/project" onSelect={vi.fn()} onClose={vi.fn()} />
+      </div>,
+    )
+
+    await act(async () => {
+      vi.advanceTimersByTime(32)
+      await Promise.resolve()
+    })
+    await act(async () => {
+      vi.advanceTimersByTime(32)
+      await Promise.resolve()
+    })
+
+    expect(screen.getByText('Review PR')).toBeInTheDocument()
+    expect(screen.queryByText('Commit')).not.toBeInTheDocument()
   })
 
   it('navigates back through breadcrumb control', async () => {

@@ -853,11 +853,14 @@ function InputBoxComponent({
         return
       }
 
-      // 构建 @ 文本（reference 用挂载名，官方 model.ts:159 content 即 `@name`）
+      // 构建 @ 文本（reference 用挂载名，官方 model.ts:159 content 即 `@name`；
+      // skill 用技能 id，官方 model.ts:200 content 即 `@skill.id`）
       const mentionText =
         item.type === 'agent' || item.type === 'reference'
           ? `@${item.displayName}`
-          : `@${item.relativePath || item.displayName}`
+          : item.type === 'skill'
+            ? `@${item.value}`
+            : `@${item.relativePath || item.displayName}`
 
       // 计算新文本
       const beforeAt = text.slice(0, mentionStartIndex)
@@ -871,9 +874,10 @@ function InputBoxComponent({
         type: attachType,
         displayName: item.displayName,
         relativePath: item.type === 'reference' ? item.value : item.relativePath,
-        url: item.type !== 'agent' ? item.value : undefined,
+        url: item.type !== 'agent' && item.type !== 'skill' ? item.value : undefined,
         mime: item.type === 'reference' ? 'application/x-directory' : item.type !== 'agent' ? 'text/plain' : undefined,
         agentName: item.type === 'agent' ? item.displayName : undefined,
+        skillId: item.type === 'skill' ? item.value : undefined,
         textRange: {
           value: mentionText,
           start: mentionStartIndex,

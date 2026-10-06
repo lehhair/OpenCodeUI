@@ -1,4 +1,4 @@
-import { FileIcon, FolderIcon, AgentIcon, ImageIcon, TerminalIcon } from '../../components/Icons'
+import { FileIcon, FolderIcon, AgentIcon, ImageIcon, TerminalIcon, ThinkingIcon } from '../../components/Icons'
 import type { Attachment } from './types'
 
 /**
@@ -139,6 +139,8 @@ export function getAttachmentIcon(attachment: Attachment): { Icon: React.FC; col
       return { Icon: TerminalIcon, colorClass: 'text-text-400' }
     case 'command':
       return { Icon: TerminalIcon, colorClass: 'text-accent-secondary-100' }
+    case 'skill':
+      return { Icon: ThinkingIcon, colorClass: 'text-info-100' }
     default:
       return { Icon: FileIcon, colorClass: 'text-text-400' }
   }

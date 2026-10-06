@@ -219,4 +219,10 @@ export const MENTION_COLORS: Record<
     border: 'border-success-100/20',
     darkText: '',
   },
+  skill: {
+    bg: 'bg-info-bg',
+    text: 'text-info-100',
+    border: 'border-info-100/20',
+    darkText: '',
+  },
 }

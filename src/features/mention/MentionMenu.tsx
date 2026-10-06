@@ -14,7 +14,8 @@ import {
   useMemo,
 } from 'react'
 import { useTranslation } from 'react-i18next'
-import { searchFiles, listDirectory, getReferences, type ApiAgent, type ReferenceInfo } from '../../api/client'
+import { searchFiles, listDirectory, getReferences, getSkills, type ApiAgent, type ReferenceInfo } from '../../api/client'
+import type { SkillInfo } from '@opencode/client/promise'
 import { fileBaseName } from '../../utils/pathUtils'
 import { fileErrorHandler } from '../../utils'
 import { scrollItemIntoView } from '../../utils/scrollUtils'
@@ -67,6 +68,9 @@ export const MentionMenu = forwardRef<MentionMenuHandle, MentionMenuProps>(funct
   const restoreFolderRef = useRef<string | null>(null)
   // v2 引用目录（reference.list，官方 composer/model.ts:147）：打开菜单时拉一次
   const [references, setReferences] = useState<ReferenceInfo[]>([])
+  // v2 技能目录（skill.list，官方 composer/model.ts:193-205 同款）：
+  // 打开菜单时拉一次，根目录与搜索态都列出，label `@skill.id`
+  const [skills, setSkills] = useState<SkillInfo[]>([])
   useEffect(() => {
     if (!isOpen) return
     let cancelled = false
@@ -76,6 +80,13 @@ export const MentionMenu = forwardRef<MentionMenuHandle, MentionMenuProps>(funct
       })
       .catch(() => {
         // 引用目录是可选增强，失败不影响文件/agent 提及
+      })
+    getSkills(rootPath || undefined)
+      .then(list => {
+        if (!cancelled) setSkills(list)
+      })
+      .catch(() => {
+        // 技能目录是可选增强，失败不影响其它提及
       })
     return () => {
       cancelled = true
@@ -216,6 +227,20 @@ export const MentionMenu = forwardRef<MentionMenuHandle, MentionMenuProps>(funct
                   .map(a => createItem('agent', a.name, a.name, a.description))
               : []
 
+          // 技能目录（官方 composer/model.ts:193-205 同款：只在根目录显示，
+          // label `@skill.id`，排在 agent/reference 之前）
+          const skillItems: MentionItem[] =
+            path === '.'
+              ? skills
+                  .filter(s => !lowerFilter || s.id.toLowerCase().includes(lowerFilter) || s.name.toLowerCase().includes(lowerFilter))
+                  .map(s => ({
+                    type: 'skill' as const,
+                    value: s.id,
+                    displayName: s.name,
+                    relativePath: s.description ?? s.id,
+                  }))
+              : []
+
           // 引用目录（只在根目录显示；官方 composer/model.ts:147 同款：
           // label `@name`，选中插入目录附件）
           const referenceItems: MentionItem[] =
@@ -231,7 +256,7 @@ export const MentionMenu = forwardRef<MentionMenuHandle, MentionMenuProps>(funct
                   }))
               : []
 
-          const allItems = [...agentItems, ...referenceItems, ...folders, ...files].filter(
+          const allItems = [...skillItems, ...agentItems, ...referenceItems, ...folders, ...files].filter(
             item => !excludeValuesRef.current?.has(item.value),
           )
 
@@ -258,7 +283,7 @@ export const MentionMenu = forwardRef<MentionMenuHandle, MentionMenuProps>(funct
           }
         })
     },
-    [createItem, rootPath, references],
+    [createItem, rootPath, references, skills],
   )
 
   // 搜索逻辑 - 基于 query prop
@@ -315,6 +340,16 @@ export const MentionMenu = forwardRef<MentionMenuHandle, MentionMenuProps>(funct
             .filter(a => a.name.toLowerCase().includes(lowerQuery))
             .map(a => createItem('agent', a.name, a.name, a.description))
 
+          // 搜索态同样带出匹配的技能（官方同款：按 id/name 过滤）
+          const skillItems = skills
+            .filter(s => s.id.toLowerCase().includes(lowerQuery) || s.name.toLowerCase().includes(lowerQuery))
+            .map(s => ({
+              type: 'skill' as const,
+              value: s.id,
+              displayName: s.name,
+              relativePath: s.description ?? s.id,
+            }))
+
           // 搜索态同样带出匹配的引用目录
           const referenceItems = references
             .filter(r => !r.hidden)
@@ -326,7 +361,7 @@ export const MentionMenu = forwardRef<MentionMenuHandle, MentionMenuProps>(funct
               relativePath: r.description ?? r.path,
             }))
 
-          const allItems = [...agentItems, ...referenceItems, ...folders, ...fileItems].filter(
+          const allItems = [...skillItems, ...agentItems, ...referenceItems, ...folders, ...fileItems].filter(
             item => !excludeValuesRef.current?.has(item.value),
           )
 
@@ -346,7 +381,7 @@ export const MentionMenu = forwardRef<MentionMenuHandle, MentionMenuProps>(funct
     })
 
     return () => cancelAnimationFrame(frameId)
-  }, [isOpen, query, loadDirectory, createItem, rootPath, references])
+  }, [isOpen, query, loadDirectory, createItem, rootPath, references, skills])
 
   // 暴露方法给父组件
   useImperativeHandle(
@@ -498,6 +533,7 @@ function TypeBadge({ type }: { type: MentionType }) {
     file: 'text-info-100',
     folder: 'text-success-100',
     reference: 'text-warning-100',
+    skill: 'text-info-100',
   }
 
   const labels = {
@@ -505,6 +541,7 @@ function TypeBadge({ type }: { type: MentionType }) {
     file: t('mention.file'),
     folder: t('mention.folder'),
     reference: t('mention.reference'),
+    skill: t('mention.skill'),
   }
 
   return <span className={`text-[length:var(--fs-sm)] font-medium ${colors[type]}`}>{labels[type]}:</span>

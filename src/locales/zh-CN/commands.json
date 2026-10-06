@@ -101,7 +101,8 @@
     "agent": "Agent",
     "file": "文件",
     "folder": "文件夹",
-    "reference": "引用"
+    "reference": "引用",
+    "skill": "技能"
   },
   "attachment": {
     "removeAttachment": "移除附件",

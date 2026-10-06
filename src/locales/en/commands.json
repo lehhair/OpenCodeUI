@@ -101,7 +101,8 @@
     "agent": "Agent",
     "file": "File",
     "folder": "Folder",
-    "reference": "Ref"
+    "reference": "Ref",
+    "skill": "Skill"
   },
   "attachment": {
     "removeAttachment": "Remove attachment",
