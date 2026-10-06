@@ -89,7 +89,7 @@
     "agentBehavior": "Agent 行为",
     "agentBehaviorDesc": "工具操作的执行默认值",
     "alwaysAllowMode": "始终允许处理方式",
-    "alwaysAllowModeDesc": "决定点击“始终允许”时交给后端保存，还是由前端临时记住规则并用 once 放行",
+    "alwaysAllowModeDesc": "决定点击“始终允许”时的处理方式。默认交给后端按规则持久化（官方行为，刷新后仍生效）；也可选前端临时记住并用 once 放行（仅当前浏览器会话有效，刷新失效）。",
     "alwaysAllowBackend": "后端始终",
     "alwaysAllowFrontend": "前端临时",
     "clearFrontendRulesConfirm": "切换到“后端始终”会删除全部前端临时放行规则，是否继续？",

@@ -12,13 +12,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 // ============================================
 
 const calls: string[] = []
-const switchModelMock = vi.fn(async () => {
+const switchModelMock = vi.fn(async (_input?: unknown) => {
   calls.push('switchModel')
 })
-const switchAgentMock = vi.fn(async () => {
+const switchAgentMock = vi.fn(async (_input?: unknown) => {
   calls.push('switchAgent')
 })
-const promptMock = vi.fn(async () => {
+const promptMock = vi.fn(async (_input?: unknown) => {
   calls.push('prompt')
 })
 
@@ -33,6 +33,17 @@ vi.mock('./sdk', () => ({
 }))
 
 const { sendMessage } = await import('./message')
+
+type PromptPayload = {
+  files?: Array<{ uri: string; name?: string; mention?: { start: number; end: number; text: string } }>
+  agents?: Array<{ name: string; mention?: { start: number; end: number; text: string } }>
+  skills?: Array<{ id: string; mention?: { start: number; end: number; text: string } }>
+  metadata?: Record<string, unknown>
+}
+
+function lastPromptPayload(): PromptPayload {
+  return promptMock.mock.calls.at(-1)?.[0] as PromptPayload
+}
 
 function baseParams() {
   return {
@@ -158,7 +169,7 @@ describe('sendMessage — prompt 载荷（官方 request.ts + submit.ts:395-411 
       ] as never,
     })
 
-    const payload = promptMock.mock.calls[0][0]
+    const payload = lastPromptPayload()
     expect(payload.files).toEqual([
       { uri: 'file:///proj/src/foo.ts', name: 'foo.ts', mention: { start: 5, end: 12, text: '@foo.ts' } },
     ])
@@ -179,7 +190,7 @@ describe('sendMessage — prompt 载荷（官方 request.ts + submit.ts:395-411 
       ] as never,
     })
 
-    const payload = promptMock.mock.calls[0][0]
+    const payload = lastPromptPayload()
     expect(payload.skills).toEqual([{ id: 'commit', mention: { start: 0, end: 7, text: '@commit' } }])
   })
 
@@ -193,7 +204,7 @@ describe('sendMessage — prompt 载荷（官方 request.ts + submit.ts:395-411 
       delivery: 'queue',
     })
 
-    const payload = promptMock.mock.calls[0][0]
+    const payload = lastPromptPayload()
     expect(payload.metadata).toEqual({
       displayText: '帮我看下 @foo.ts',
       agent: 'build',
@@ -203,7 +214,8 @@ describe('sendMessage — prompt 载荷（官方 request.ts + submit.ts:395-411 
 
   it('无 model/agent 时 metadata 只有 displayText', async () => {
     await sendMessage({ ...baseParams(), text: 'hello' })
-    const payload = promptMock.mock.calls[0][0]
+    const payload = lastPromptPayload()
     expect(payload.metadata).toEqual({ displayText: 'hello' })
   })
 })
+

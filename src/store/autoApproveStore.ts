@@ -67,14 +67,17 @@ class AutoApproveStore {
   private _autoReplyRequestIds = new Set<string>()
 
   constructor() {
-    // 从 localStorage 读取开关状态
+    // 从 localStorage 读取开关状态。
+    // 默认 backend（官方语义：always 交给服务端持久化规则，data.ts 的
+    // permission.reply decision:'always'）；前端内存模式是显式可选的
+    // 「仅浏览器会话内临时记住」增强，只有用户主动选择才启用。
     try {
       const stored = serverStorage.get(this.STORAGE_KEY)
-      this._enabled = stored === null ? true : stored === 'true'
+      this._enabled = stored === 'true'
       const approvePendingStored = serverStorage.get(this.STORAGE_KEY_APPROVE_PENDING_ON_FULL_AUTO)
       this._approvePendingOnFullAuto = approvePendingStored === 'true'
     } catch {
-      this._enabled = true
+      this._enabled = false
       this._approvePendingOnFullAuto = false
     }
   }
@@ -89,11 +92,11 @@ class AutoApproveStore {
   reloadFromStorage(): void {
     try {
       const stored = serverStorage.get(this.STORAGE_KEY)
-      this._enabled = stored === null ? true : stored === 'true'
+      this._enabled = stored === 'true'
       const approvePendingStored = serverStorage.get(this.STORAGE_KEY_APPROVE_PENDING_ON_FULL_AUTO)
       this._approvePendingOnFullAuto = approvePendingStored === 'true'
     } catch {
-      this._enabled = true
+      this._enabled = false
       this._approvePendingOnFullAuto = false
     }
     // 切换服务器时清空规则并关闭 Full Auto

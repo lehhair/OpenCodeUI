@@ -89,7 +89,7 @@
     "agentBehavior": "Agent Behavior",
     "agentBehaviorDesc": "Execution defaults for tool actions",
     "alwaysAllowMode": "Always Allow Mode",
-    "alwaysAllowModeDesc": "Choose whether Always allow is saved by the backend or temporarily remembered by the frontend and approved with once",
+    "alwaysAllowModeDesc": "How \"Always allow\" is handled. By default it is saved by the backend as a persistent rule (official behavior, survives restarts); you can opt into frontend mode, which remembers rules temporarily and approves with once (browser session only, lost on refresh).",
     "alwaysAllowBackend": "Backend Always",
     "alwaysAllowFrontend": "Frontend Temporary",
     "clearFrontendRulesConfirm": "Switching to Backend Always will delete all temporary frontend allow rules. Continue?",
