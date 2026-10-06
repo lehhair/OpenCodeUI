@@ -10,8 +10,10 @@
     "connectTitle": "连接 {{provider}}",
     "selectMethod": "选择 {{provider}} 的连接方式",
     "toast": {
-      "connected": "Provider 已连接"
+      "connected": "Provider 已连接",
+      "disconnected": "已断开 {{provider}}"
     },
+    "disconnect": "断开",
     "status": {
       "inProgress": "正在处理…",
       "waiting": "等待浏览器授权…",

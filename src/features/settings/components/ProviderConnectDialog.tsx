@@ -20,6 +20,8 @@ import {
   getIntegrations,
   type IntegrationInfo,
 } from '../../../api'
+import { removeCredential } from '../../../api/credential'
+import { refreshModels } from '../../../hooks/useModels'
 import {
   useProviderConnectionController,
   type ProviderConnectMethod,
@@ -101,6 +103,16 @@ function ProviderPicker({
   const { t } = useTranslation(['settings', 'common'])
   const [integrations, setIntegrations] = useState<IntegrationInfo[] | undefined>(undefined)
   const [filter, setFilter] = useState('')
+  const [disconnecting, setDisconnecting] = useState<string | undefined>(undefined)
+
+  const load = useMemo(
+    () => () => {
+      getIntegrations(directory, serverId)
+        .catch(() => [] as IntegrationInfo[])
+        .then(list => setIntegrations(list))
+    },
+    [directory, serverId],
+  )
 
   useEffect(() => {
     let stale = false
@@ -112,7 +124,26 @@ function ProviderPicker({
     return () => {
       stale = true
     }
-  }, [directory, serverId])
+  }, [directory, serverId, load])
+
+  /** 断开连接（官方设置页 disconnect 同款：遍历 credential connections 逐个 remove） */
+  const disconnect = async (entry: IntegrationInfo) => {
+    const credentials = entry.connections.filter(connection => connection.type === 'credential')
+    if (credentials.length === 0) return
+    setDisconnecting(entry.id)
+    try {
+      for (const credential of credentials) {
+        await removeCredential(credential.id, serverId)
+      }
+      notificationStore.push('completed', t('settings:providerConnect.toast.disconnected', { provider: entry.name }), '', '')
+      await refreshModels(serverId).catch(() => undefined)
+      load()
+    } catch (err) {
+      notificationStore.push('error', t('common:failed'), err instanceof Error ? err.message : String(err), '')
+    } finally {
+      setDisconnecting(undefined)
+    }
+  }
 
   const providers = useMemo(() => {
     const withMethods = (integrations ?? []).filter(entry =>
@@ -153,17 +184,32 @@ function ProviderPicker({
         {integrations !== undefined && visible.length === 0 && (
           <div className="px-3 py-2 text-text-400">{t('settings:providerConnect.empty')}</div>
         )}
-        {visible.map(entry => (
-          <button
-            key={entry.id}
-            type="button"
-            onClick={() => onSelect(entry.id)}
-            className="flex items-center gap-2 rounded-md px-3 py-2 text-left text-text-200 hover:bg-bg-200/60 transition-colors"
-          >
-            <span className="font-medium">{entry.name}</span>
-            <span className="text-[length:var(--fs-sm)] text-text-500">{entry.id}</span>
-          </button>
-        ))}
+        {visible.map(entry => {
+          const connected = entry.connections.some(connection => connection.type === 'credential')
+          return (
+            <div
+              key={entry.id}
+              className="group flex items-center gap-2 rounded-md px-3 py-2 text-left text-text-200 hover:bg-bg-200/60 transition-colors"
+            >
+              <button type="button" onClick={() => onSelect(entry.id)} className="flex min-w-0 flex-1 items-center gap-2 text-left">
+                <span className="font-medium">{entry.name}</span>
+                <span className="text-[length:var(--fs-sm)] text-text-500">{entry.id}</span>
+              </button>
+              {connected &&
+                (disconnecting === entry.id ? (
+                  <SpinnerIcon size={12} className="animate-spin shrink-0 text-text-400" />
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => void disconnect(entry)}
+                    className="shrink-0 rounded-md px-2 py-0.5 text-[length:var(--fs-sm)] text-text-400 hover:bg-danger-bg hover:text-danger-100 transition-colors"
+                  >
+                    {t('settings:providerConnect.disconnect')}
+                  </button>
+                ))}
+            </div>
+          )
+        })}
       </div>
     </div>
   )

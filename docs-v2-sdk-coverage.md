@@ -28,11 +28,14 @@
 
 > 每项完成后把 🚧 改成 ✅ 并注明实现位置。原则：对照官方实现照抄，不自造层。
 
-### P0 — 明确不做（本次范围外）
+### P0 — 认证域（2026-10 已完成 ✅）
 
-| SDK | 官方用途 | 备注 |
+| SDK | 官方用途 | 实现 |
 |---|---|---|
-| `integration.*` + `credential.*` | provider/MCP 的 OAuth 登录、API key 连接、凭据管理 | 最大缺口，单独排期 |
+| `integration.*` | provider/MCP 的 OAuth 登录、API key 连接 | api/integration.ts 封装（list/get/connect.key/oauth.connect/status/complete/cancel/wellknown.add + CONSOLE_INTEGRATION 特例）；`useProviderConnectionController` 官方 controller.ts 同款状态机；`ProviderConnectDialog`（Picker→方法选择→表单→API key/OAuth 浏览器授权）；Models 设置页入口；usage-exceeded 引导连接 |
+| `credential.*` | 凭据管理 | api/credential.ts 封装（list/create/update/activate/remove）；Picker 行内「断开」（遍历 credential connections 逐个 remove，官方设置页同款） |
+| MCP `needs_auth` 授权 | 远程 MCP 拉起浏览器授权 | McpPanel handleAuth 走官方 useMcpToggle 同款 integration OAuth 流 |
+| usage-exceeded | 用量超限对话框 | usageExceededStore（24h 窗口 + 不再提示，官方 GO_UPSELL_* 同款）+ UsageExceededDialog（free_tier_limit/account_rate_limit）；session.status 事件接入 |
 
 ### P1
 

@@ -124,8 +124,16 @@ describe('useProviderConnectionController（官方 controller.ts 同款状态机
     oauthStatusMock.mockResolvedValue({ status: 'failed', message: 'denied' })
 
     const { result } = render()
-    await waitFor(() => expect(result.current.state === 'error' || result.current.error !== undefined), { timeout: 3000 })
-    expect(result.current.error).toBe('denied')
+    // 状态与错误文案在同一条件里等待：状态机异步链路中可能出现
+    // 中间渲染帧，单等其中一个会在负载高时偶发错位
+    try {
+      await waitFor(() => expect(result.current.state === 'error' && result.current.error === 'denied').toBe(true), {
+        timeout: 3000,
+      })
+    } catch (error) {
+      console.log('[trace] waitFor failed:', `state=${String(result.current.state)}`, `error=${JSON.stringify(result.current.error)}`, `connect=${oauthConnectMock.mock.calls.length}`, `status=${oauthStatusMock.mock.calls.length}`)
+      throw error
+    }
   })
 
   it('reset 取消进行中的授权尝试（官方 cancelAttempt 同款）', async () => {

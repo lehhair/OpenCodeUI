@@ -10,8 +10,10 @@
     "connectTitle": "Connect {{provider}}",
     "selectMethod": "Choose how to connect {{provider}}",
     "toast": {
-      "connected": "Provider connected"
+      "connected": "Provider connected",
+      "disconnected": "Disconnected from {{provider}}"
     },
+    "disconnect": "Disconnect",
     "status": {
       "inProgress": "Working…",
       "waiting": "Waiting for browser authorization…",
