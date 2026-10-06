@@ -16,8 +16,8 @@ import { useSyncExternalStore } from 'react'
 
 export type NotificationType = 'permission' | 'question' | 'completed' | 'error'
 
-/** push 后的回调，用于声音播放等扩展 */
-export type NotificationPushListener = (type: NotificationType) => void
+/** push 后的回调，用于声音播放等扩展；eventID 供跨标签页去重认领 */
+export type NotificationPushListener = (type: NotificationType, eventID?: string) => void
 
 export interface NotificationEntry {
   id: string
@@ -28,6 +28,8 @@ export interface NotificationEntry {
   directory?: string
   timestamp: number
   read: boolean
+  /** 来源事件 id（跨标签页声音去重认领键） */
+  eventID?: string
 }
 
 export interface ToastItem {
@@ -137,7 +139,7 @@ class NotificationStore {
   // 推送通知（加历史 + 弹 toast）
   // ============================================
 
-  push(type: NotificationType, title: string, body: string, sessionId: string, directory?: string) {
+  push(type: NotificationType, title: string, body: string, sessionId: string, directory?: string, eventID?: string) {
     const entry: NotificationEntry = {
       id: `notif_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
       type,
@@ -147,6 +149,7 @@ class NotificationStore {
       directory,
       timestamp: Date.now(),
       read: false,
+      ...(eventID ? { eventID } : {}),
     }
 
     // 加到历史
@@ -173,7 +176,7 @@ class NotificationStore {
     // 触发 push 后回调（声音播放等）
     this.pushListeners.forEach(fn => {
       try {
-        fn(type)
+        fn(type, eventID)
       } catch {
         // 回调异常不影响通知流程
       }

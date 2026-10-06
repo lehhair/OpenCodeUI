@@ -964,7 +964,7 @@ export function useGlobalEvents(directories?: string[]) {
           if (!belongsToCurrentSession(scopedId)) {
             const meta = activeSessionStore.getSessionMeta(scopedId)
             const sessionLabel = meta?.title || data.sessionID.slice(0, 8)
-            notificationStore.push('error', sessionLabel, 'Session error', scopedId, meta?.directory)
+            notificationStore.push('error', sessionLabel, 'Session error', scopedId, meta?.directory, facts?.id)
           } else if (isSessionDirectlyOpen(scopedId) && soundStore.getSnapshot().currentSessionEnabled) {
             playNotificationSoundDeduped('error')
           }
@@ -997,7 +997,7 @@ export function useGlobalEvents(directories?: string[]) {
         // Permission Events → callbacks (通过 ref 调用)
         // ============================================
 
-        onPermissionAsked: request => {
+        onPermissionAsked: (request, facts) => {
           const scopedId = scope(request.sessionID)
 
           // Full Auto 全局模式拦截 — 所有会话的权限请求直接放行
@@ -1034,7 +1034,7 @@ export function useGlobalEvents(directories?: string[]) {
 
           // Toast 通知 — 不属于当前 session family 的才弹
           if (!belongsToCurrentSession(scopedId)) {
-            notificationStore.push('permission', `${sessionLabel} — Permission`, desc, scopedId, meta?.directory)
+            notificationStore.push('permission', `${sessionLabel} — Permission`, desc, scopedId, meta?.directory, facts?.id)
           } else if (
             shouldPlayPermissionSound(scopedId) &&
             isSessionDirectlyOpen(scopedId) &&
@@ -1058,7 +1058,7 @@ export function useGlobalEvents(directories?: string[]) {
         // Form Events（取代 v1 的 Question Events）
         // ============================================
 
-        onFormCreated: data => {
+        onFormCreated: (data, facts) => {
           // v2 的 form.created 把表单包在 data.form 里
           const form = data.form as ApiFormInfo
           const scopedId = scope(form.sessionID)
@@ -1079,7 +1079,7 @@ export function useGlobalEvents(directories?: string[]) {
           }
 
           if (!belongsToCurrentSession(scopedId)) {
-            notificationStore.push('question', `${sessionLabel} — Question`, desc, scopedId, meta?.directory)
+            notificationStore.push('question', `${sessionLabel} — Question`, desc, scopedId, meta?.directory, facts?.id)
           } else if (isSessionDirectlyOpen(scopedId) && soundStore.getSnapshot().currentSessionEnabled) {
             playNotificationSoundDeduped('question')
           }
@@ -1117,7 +1117,7 @@ export function useGlobalEvents(directories?: string[]) {
         // Session Status → activeSessionStore
         // ============================================
 
-        onSessionStatus: data => {
+        onSessionStatus: (data, facts) => {
           const scopedId = scope(data.sessionID)
           const prevStatus = activeSessionStore.getSnapshot().statusMap[scopedId]
           const wasBusy = prevStatus && (prevStatus.type === 'busy' || prevStatus.type === 'retry')
@@ -1135,7 +1135,7 @@ export function useGlobalEvents(directories?: string[]) {
           if (wasBusy && data.status.type === 'idle' && !belongsToCurrentSession(scopedId)) {
             const meta = activeSessionStore.getSessionMeta(scopedId)
             const sessionLabel = meta?.title || data.sessionID.slice(0, 8)
-            notificationStore.push('completed', sessionLabel, 'Session completed', scopedId, meta?.directory)
+            notificationStore.push('completed', sessionLabel, 'Session completed', scopedId, meta?.directory, facts?.id)
           } else if (
             wasBusy &&
             data.status.type === 'idle' &&
@@ -1203,11 +1203,21 @@ export function useGlobalEvents(directories?: string[]) {
       reconnectServerSSE(changedId)
     })
 
+    // 健康检查自动轮询：接入/切换时的即时检查之外，每 10s 对订阅中的
+    // 服务器例行体检（断线的服务器能被状态栏及时反映出来）
+    const healthPollTimer = setInterval(() => {
+      if (disposed) return
+      for (const serverId of subscriptions.keys()) {
+        refreshServerHealth(serverId)
+      }
+    }, 10_000)
+
     return () => {
       disposed = true
       refreshRef.current = null
       serverSyncRef.current = null
       offRuntimeChange()
+      clearInterval(healthPollTimer)
       subscriptions.forEach(unsubscribe => unsubscribe())
       unsubscribeAutoApprove()
       unsubscribeServerChange()

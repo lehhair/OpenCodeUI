@@ -15,6 +15,7 @@ import type { NotificationType } from '../store/notificationStore'
 import { autoApproveStore } from '../store/autoApproveStore'
 import { notificationStore } from '../store/notificationStore'
 import { soundStore } from '../store/soundStore'
+import { notificationCoordinator } from './notificationCoordinator'
 import { playSound } from './soundPlayer'
 
 /**
@@ -65,11 +66,13 @@ export function playNotificationSoundDeduped(type: NotificationType): void {
  * 在 App 层调用一次即可，注册 notificationStore.push 的声音回调
  */
 export function initNotificationSound(): () => void {
-  const unsubscribe = notificationStore.onPush((type: NotificationType) => {
+  const unsubscribe = notificationStore.onPush((type: NotificationType, eventID?: string) => {
     // notificationStore.push 只在后台会话触发（非当前 session family）
     // 记录播放时间用于去重
     recentPlays.set(type, Date.now())
-    playNotificationSound(type)
+    // 跨标签页去重（官方 coordinator 同款）：同一事件 id 只在认领到的
+    // 标签页播一次声音（每页各有自己的 SSE，同一事件每页都会收到）
+    void notificationCoordinator.once(eventID, () => playNotificationSound(type))
   })
 
   return unsubscribe
