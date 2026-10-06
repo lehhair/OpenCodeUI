@@ -569,7 +569,12 @@ function getTaskChildSessionRef(part: ToolViewPart, serverId: string): TaskChild
 /** Extract description from tool input as title fallback (available while running) */
 function getInputDescription(part: ToolViewPart): string | undefined {
   const input = currentToolInput(part)
-  return (input.description as string) || undefined
+  if (typeof input.description === 'string' && input.description) return input.description
+  // list：官方 subtitle 是目录路径（session-ui tool-renderer.tsx:1392-1412 同款）
+  if (part.name === 'list' && typeof input.path === 'string') return input.path || '/'
+  // skill：官方 loadedSkill 行带技能名（input.name，session-ui:2178 同款）
+  if (part.name === 'skill' && typeof input.name === 'string' && input.name) return input.name
+  return undefined
 }
 
 // ============================================

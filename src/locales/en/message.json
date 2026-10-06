@@ -32,7 +32,9 @@
   },
   "toolPart": {
     "running": "Running",
-    "failed": "Failed"
+    "failed": "Failed",
+    "loadedSkill": "Loaded skill",
+    "skill": "Skill"
   },
   "toolSteps": {
     "separator": ", ",

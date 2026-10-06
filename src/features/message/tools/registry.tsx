@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import type { ToolConfig, ToolRegistry, ExtractedToolData, DiagnosticInfo, ToolViewPart } from './types'
 import { BashRenderer, QuestionRenderer } from './renderers'
+import { SkillRenderer } from './renderers/SkillRenderer'
 import {
   FileReadIcon,
   FileWriteIcon,
@@ -223,6 +224,27 @@ export function defaultExtractData(part: ToolViewPart): ExtractedToolData {
 // Tool-Specific Data Extractors
 // ============================================
 
+/**
+ * list：官方 ListRenderer 同款——completed 时只留 output（目录清单），
+ * 压掉 input 的 JSON dump；streaming 时保留原始 input 预览。
+ */
+function listExtractData(part: ToolViewPart): ExtractedToolData {
+  const base = defaultExtractData(part)
+  if (part.state.status !== 'streaming') {
+    delete base.input
+    delete base.inputLang
+  }
+  return base
+}
+
+/** skill：名字走 header 标题（官方 loadedSkill 行），body 只留状态行 */
+function skillExtractData(part: ToolViewPart): ExtractedToolData {
+  // 官方整卡就是一行状态文本，input/output 都不展示
+  const result: ExtractedToolData = {}
+  void part
+  return result
+}
+
 function bashExtractData(part: ToolViewPart): ExtractedToolData {
   const base = defaultExtractData(part)
   const input = currentToolInput(part)
@@ -311,17 +333,20 @@ export const toolRegistry: ToolRegistry = [
     extractData: readExtractData,
   },
 
-  // List directory（官方 session-ui 有独立 ListRenderer；先精确命中图标，
-  // 内容渲染待对齐）
+  // List directory（官方 session-ui ListRenderer 同款：subtitle=目录路径，
+  // 内容只展示 output 清单，input 的 JSON dump 没有意义）
   {
     match: exact('list'),
     icon: <FileReadIcon />,
+    extractData: listExtractData,
   },
 
-  // Skill 调用（官方 session-ui 有独立 SkillRenderer；先精确命中图标）
+  // Skill 调用（官方 session-ui SkillRenderer 同款：紧凑「已加载技能」行）
   {
     match: exact('skill'),
     icon: <BrainIcon />,
+    extractData: skillExtractData,
+    renderer: SkillRenderer,
   },
 
   // Write file
