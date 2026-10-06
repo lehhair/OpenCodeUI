@@ -36,11 +36,6 @@ struct SpawnedOpencodeServe {
     output: mpsc::Receiver<String>,
 }
 
-/// 检查 opencode 服务是否在运行（通过 health endpoint）
-pub async fn is_service_running(url: &str) -> bool {
-    is_service_running_with_auth(url, None).await
-}
-
 /// 带可选 Basic 鉴权的健康检查，对齐官方实现：
 /// v2 客户端用 server.info()（GET /api/info）探测；/global/health 是 v1 端点，
 /// 保留为旧版后端的回退。WSL 侧 serve 启用了密码保护，
@@ -331,10 +326,14 @@ pub fn kill_process_by_pid(pid: u32) {
     }
 }
 
-/// 检查 opencode 服务是否在运行
+/// 检查 opencode 服务是否在运行（带可选 Basic 凭据——v2 强制密码，
+/// 无凭据的健康检查会 401 误判成未运行）
 #[tauri::command]
-pub async fn check_opencode_service(url: String) -> Result<bool, String> {
-    Ok(is_service_running(&url).await)
+pub async fn check_opencode_service(url: String, auth: Option<(String, String)>) -> Result<bool, String> {
+    let health_auth = auth
+        .as_ref()
+        .map(|(username, password)| (username.as_str(), password.as_str()));
+    Ok(is_service_running_with_auth(&url, health_auth).await)
 }
 
 /// 启动 opencode serve

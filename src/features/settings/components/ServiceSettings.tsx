@@ -167,7 +167,11 @@ export function ServiceSettings() {
     setCheckingService(true)
     try {
       const { invoke } = await import('@tauri-apps/api/core')
-      const running = await invoke<boolean>('check_opencode_service', { url: getServerUrl() })
+      const running = await invoke<boolean>('check_opencode_service', {
+        url: getServerUrl(),
+        // 带条目凭据：v2 强制随机密码下，无鉴权检查 401 会误判成未运行
+        auth: localServer?.auth ? ([localServer.auth.username, localServer.auth.password] as [string, string]) : null,
+      })
       if (operation !== serviceOperationRef.current) return
       serviceStore.setRunning(running)
       if (running) {
