@@ -1,5 +1,9 @@
 # Changelog
 
+## [v0.7.1] - 2026-10-06
+
+- fix(v2): 内嵌服务接住 v2 强制随机密码——stdout server password 提取回传 (7c2fdea6)
+
 ## [v0.7.0] - 2026-10-06
 
 - fix(v2): shiki 依赖列入 optimizeDeps——修复 dev 下代码块主题预览 404 (a4744c11)
