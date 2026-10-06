@@ -9,6 +9,8 @@ import { useCompositorExpand, useDisclosureScrollLock } from '../../hooks'
 import { useInputCapabilities } from '../../hooks/useInputCapabilities'
 import { useNow } from '../../hooks/useNow'
 import { useTheme } from '../../hooks/useTheme'
+import { useDirectory } from '../../hooks'
+import { followShellOutput } from './shellOutput'
 import {
   useInlineToolRequests,
   findPermissionRequestForTool,
@@ -342,7 +344,23 @@ export const MessageRenderer = memo(function MessageRenderer({
 
 const ShellMessageView = memo(function ShellMessageView({ message }: { message: SessionMessageInfo & { type: 'shell' } }) {
   const { t } = useTranslation('chat')
-  const outputText = message.output?.output ?? ''
+  const { serverId } = useInlineToolRequests()
+  const { currentDirectory } = useDirectory()
+  // 运行中 shell 的实时输出跟随（官方 session-ui shell 渲染器同款）：
+  // 事件流只在 shell 结束时给最终 output，存活期间靠 shell.output 游标轮询
+  const isRunning = message.status === 'running'
+  const [streamedOutput, setStreamedOutput] = useState('')
+  useEffect(() => {
+    if (!isRunning || !message.shellID) return
+    return followShellOutput({
+      id: message.shellID,
+      directory: currentDirectory,
+      serverId: serverId || undefined,
+      running: true,
+      onOutput: setStreamedOutput,
+    })
+  }, [isRunning, message.shellID, currentDirectory, serverId])
+  const outputText = (isRunning && streamedOutput) || message.output?.output || ''
   const exit = typeof message.exit === 'number' ? message.exit : undefined
   const part = useMemo<ToolViewPart>(() => {
     const input = { command: message.command }

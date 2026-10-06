@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { findBlockingBackgroundTasks } from './backgroundTasks'
+import { findBlockingBackgroundTasks, mergeRunningShells } from './backgroundTasks'
 import type { SessionMessageInfo } from '../../types/api/message'
+import type { ShellInfo } from '@opencode/client/promise'
 
 function assistant(overrides: {
   completed?: number
@@ -66,5 +67,41 @@ describe('findBlockingBackgroundTasks', () => {
       assistant({ completed: 2, content: [{ type: 'text', text: 'done' }] }),
     ])
     expect(tasks).toEqual([])
+  })
+})
+
+function shellInfo(id: string, command: string, sessionID: string, status: ShellInfo['status'] = 'running'): ShellInfo {
+  return {
+    id,
+    status,
+    command,
+    cwd: '/repo',
+    shell: 'bash',
+    file: '/tmp/out',
+    metadata: { sessionID },
+    time: { started: 1 },
+  } as ShellInfo
+}
+
+describe('mergeRunningShells（官方 background.ts:100-109 同款）', () => {
+  it('并入本会话的 running shells', () => {
+    const merged = mergeRunningShells([], [shellInfo('sh-1', 'sleep 60', 'ses_raw')], 'ses_raw')
+    expect(merged).toEqual([{ type: 'shell', id: 'sh-1', label: 'sleep 60' }])
+  })
+
+  it('其它会话 / 非 running 的 shell 不并入', () => {
+    const merged = mergeRunningShells(
+      [],
+      [shellInfo('sh-1', 'a', 'ses_other'), shellInfo('sh-2', 'b', 'ses_raw', 'exited')],
+      'ses_raw',
+    )
+    expect(merged).toEqual([])
+  })
+
+  it('与消息工具态推导的结果按 id / label 去重', () => {
+    const fromMessages = [{ type: 'shell' as const, id: 'part_shell', label: 'sleep 60' }]
+    const merged = mergeRunningShells(fromMessages, [shellInfo('sh-1', 'sleep 60', 'ses_raw')], 'ses_raw')
+    expect(merged).toHaveLength(1)
+    expect(merged[0].id).toBe('part_shell')
   })
 })

@@ -46,6 +46,7 @@ export * from './pty'
 export * from './worktree'
 export * from './command'
 export * from './websearch'
+export * from './shell'
 export * from './global'
 
 // ============================================

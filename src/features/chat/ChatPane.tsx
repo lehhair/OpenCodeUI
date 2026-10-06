@@ -19,12 +19,12 @@ import { FolderProjectDropOverlay } from './FolderProjectDropOverlay'
 import { useChatSession, useModels, useModelSelection } from '../../hooks'
 import { useServerStore } from '../../hooks/useServerStore'
 import { useCancelHint } from '../../hooks/useCancelHint'
-import { makeSessionKey, sessionKeyToServerId } from '../../utils/sessionKey'
+import { makeSessionKey, sessionKeyToServerId, splitSessionKey } from '../../utils/sessionKey'
 import { serverStore } from '../../store/serverStore'
 import { InlineToolRequestContext, type InlineToolRequestContextValue } from './InlineToolRequestContext'
 import { ChatViewportProvider, canUseSplitPane, useChatViewportMaybe, type ChatViewportValue } from './chatViewport'
 import { useChatPageViewModel } from './useChatPageViewModel'
-import { findBlockingBackgroundTasks } from './backgroundTasks'
+import { findBlockingBackgroundTasks, mergeRunningShells, useRunningShells } from './backgroundTasks'
 import { projectQueueEchoes } from './chatAreaVisibility'
 import { backgroundSession } from '../../api/client'
 import { WebsearchDock } from './WebsearchDock'
@@ -343,12 +343,15 @@ export const ChatPane = memo(function ChatPane({
 
   // ============================================
   // 后台化阻塞任务（v2 session.background，官方 requests/model.ts:90）
-  // 最新未完成 assistant 回合里有 running 的 shell/task 工具 → 允许转后台
+  // 最新未完成 assistant 回合里有 running 的 shell/task 工具 → 允许转后台；
+  // 并入服务端 running shells（官方 background.ts:100-109 同款）
   // ============================================
-  const blockingBackgroundTasks = useMemo(
-    () => (isStreaming && routeSessionId ? findBlockingBackgroundTasks(messages) : []),
-    [isStreaming, routeSessionId, messages],
-  )
+  const runningShells = useRunningShells(routeSessionId, isStreaming, paneServerId)
+  const blockingBackgroundTasks = useMemo(() => {
+    if (!isStreaming || !routeSessionId) return []
+    const { sessionId: rawSessionId } = splitSessionKey(routeSessionId)
+    return mergeRunningShells(findBlockingBackgroundTasks(messages), runningShells, rawSessionId ?? routeSessionId)
+  }, [isStreaming, routeSessionId, messages, runningShells])
   const [backgroundMoving, setBackgroundMoving] = useState(false)
   const handleMoveToBackground = useCallback(async () => {
     if (!routeSessionId || backgroundMoving) return
