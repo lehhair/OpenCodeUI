@@ -120,7 +120,8 @@
     "queuedLabel": "Next turn ({{count}})",
     "moveToSteering": "Inject into current turn",
     "edit": "Retract to edit",
-    "editCancel": "Cancel edit"
+    "editCancel": "Cancel edit",
+    "dragReorder": "Drag to reorder"
   },
   "permissionDialog": {
     "permission": "Permission: {{permission}}",

@@ -303,6 +303,7 @@ export const ChatPane = memo(function ChatPane({
     composerDraft,
     queueEditing,
     handleCancelQueueEdit,
+    handleReorderQueuedPrompts,
     handleCancelQueuedPrompt,
     handleSteerQueuedPrompt,
     handleEditQueuedPrompt,
@@ -934,6 +935,7 @@ export const ChatPane = memo(function ChatPane({
                 onQueueSteer={handleSteerQueuedPrompt}
                 onQueueEdit={item => (queueEditing?.item.id === item.id ? handleCancelQueueEdit() : handleEditQueuedPrompt(item))}
                 onQueueRemove={item => handleCancelQueuedPrompt(item.id)}
+                onQueueReorder={handleReorderQueuedPrompts}
                 bottomPadding={inputBoxHeight}
                 onVisibleMessageIdsChange={handleVisibleIdsChange}
                 onAtBottomChange={setIsAtBottom}

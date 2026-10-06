@@ -46,7 +46,7 @@ import {
   type Model,
 } from '../api'
 import { sendAdmission, outboxAdd, outboxHas, outboxTryRollback } from '../api/sendAdmission'
-import { buildEditedPromptInput, confirmQueueEdit, queuedPromptAttachments } from '../api/queue'
+import { buildEditedPromptInput, confirmQueueEdit, queuedPromptAttachments, rewriteQueueOrder } from '../api/queue'
 import { buildPromptParts } from '../api/message'
 import i18n from '../i18n'
 import { sessionDisplayTitle } from '../utils/sessionTitle'
@@ -1076,6 +1076,18 @@ export function useChatSession({
     return null
   }, [queueEditing, stashRestoreNonce])
 
+  // 队列重排（官方 queue.reorder 同款）：inbox 没有重排端点，
+  // 用 rewriteQueueOrder（后缀重写）保序替换
+  const handleReorderQueuedPrompts = useCallback(
+    (inboxIDs: string[]) => {
+      if (!routeSessionId) return
+      rewriteQueueOrder(routeSessionId, inboxIDs, paneServerId).catch(error =>
+        handleError('reorder queued prompts', error),
+      )
+    },
+    [routeSessionId, paneServerId],
+  )
+
   // `!` shell 命令（官方 composer shell mode）：无会话时先建会话再执行，
   // shell 消息经 session.shell.started/ended 事件流入转写，无需本地乐观插入
   const handleShellCommand = useCallback(
@@ -1413,6 +1425,7 @@ export function useChatSession({
     handleCancelQueuedPrompt,
     handleSteerQueuedPrompt,
     handleEditQueuedPrompt,
+    handleReorderQueuedPrompts,
     handleShellCommand,
     handlePermissionReply,
     handleFormReply,

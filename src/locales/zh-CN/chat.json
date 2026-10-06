@@ -120,7 +120,8 @@
     "queuedLabel": "下轮队列（{{count}}）",
     "moveToSteering": "插入当前回合",
     "edit": "撤回编辑",
-    "editCancel": "取消编辑"
+    "editCancel": "取消编辑",
+    "dragReorder": "拖拽调整顺序"
   },
   "permissionDialog": {
     "permission": "权限：{{permission}}",

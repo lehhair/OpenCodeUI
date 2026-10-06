@@ -111,6 +111,8 @@ interface ChatAreaProps {
   onQueueSteer?: (item: QueuedUserPrompt) => void
   onQueueEdit?: (item: QueuedUserPrompt) => void
   onQueueRemove?: (item: QueuedUserPrompt) => void
+  /** 拖拽重排（官方 queue.reorder 同款） */
+  onQueueReorder?: (ids: string[]) => void
   bottomPadding?: number
   onVisibleMessageIdsChange?: (ids: string[]) => void
   onAtBottomChange?: (atBottom: boolean) => void
@@ -359,6 +361,7 @@ export const ChatArea = memo(
         onQueueSteer,
         onQueueEdit,
         onQueueRemove,
+        onQueueReorder,
         bottomPadding = 0,
         onVisibleMessageIdsChange,
         onAtBottomChange,
@@ -1028,6 +1031,7 @@ export const ChatArea = memo(
                   onSteer={onQueueSteer}
                   onEdit={onQueueEdit}
                   onRemove={onQueueRemove}
+                  onReorder={onQueueReorder}
                 />
               </div>
             )}
