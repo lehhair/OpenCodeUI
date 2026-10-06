@@ -3,11 +3,13 @@ import { Trans, useTranslation } from 'react-i18next'
 import { Button } from '../../../components/ui/Button'
 import { DropdownMenu } from '../../../components/ui/DropdownMenu'
 import { MenuItem } from '../../../components/ui/MenuItem'
-import { SunIcon, MoonIcon, SystemIcon, CheckIcon, GlobeIcon, UndoIcon } from '../../../components/Icons'
+import { SunIcon, MoonIcon, SystemIcon, CheckIcon, GlobeIcon, UndoIcon, CloseIcon } from '../../../components/Icons'
 import { settingsFieldAreaClass, settingsFieldClass, Toggle, SegmentedControl, SettingRow, SettingField, SettingsSection } from './SettingsUI'
 import { CodeBlockThemeSettings } from './CodeBlockThemeSettings'
 import { useTheme } from '../../../hooks'
 import { getThemePreset } from '../../../themes'
+import { parseOpenCodeTheme } from '../../../themes/opencodeTheme'
+import { themeStore } from '../../../store/themeStore'
 import type { CustomCSSSnippet } from '../../../store/themeStore'
 import { FONT_SCALE_MIN, FONT_SCALE_MAX } from '../../../store/themeStore'
 import { saveData } from '../../../utils/downloadUtils'
@@ -53,6 +55,7 @@ function PresetCard({
   description,
   isActive,
   onClick,
+  onRemove,
   resolvedTheme,
 }: {
   id: string
@@ -60,19 +63,36 @@ function PresetCard({
   description: string
   isActive: boolean
   onClick: (e: React.MouseEvent) => void
+  /** 自定义主题的移除入口 */
+  onRemove?: () => void
   resolvedTheme: 'light' | 'dark'
 }) {
+  const { t } = useTranslation('settings')
   const colors = getPresetPreviewColors(id, resolvedTheme)
   return (
     <button
       onClick={onClick}
-      className={`flex items-start gap-3 p-3 rounded-lg border transition-all text-left w-full
+      className={`group relative flex items-start gap-3 p-3 rounded-lg border transition-all text-left w-full
         ${
           isActive
             ? 'border-accent-main-100/60 bg-accent-main-100/5 ring-1 ring-accent-main-100/20'
             : 'border-border-200/50 hover:border-border-300 hover:bg-bg-100/50'
         }`}
     >
+      {onRemove && (
+        <span
+          role="button"
+          tabIndex={-1}
+          title={t('appearance.removeCustomTheme')}
+          onClick={e => {
+            e.stopPropagation()
+            onRemove()
+          }}
+          className="absolute top-1.5 right-1.5 hidden group-hover:flex items-center justify-center w-5 h-5 rounded text-text-400 hover:text-danger-100 hover:bg-danger-bg transition-colors"
+        >
+          <CloseIcon size={11} />
+        </span>
+      )}
       <div
         className="shrink-0 w-8 h-8 rounded-md border border-border-200/30 overflow-hidden relative mt-0.5"
         style={{ backgroundColor: colors.bg }}
@@ -663,6 +683,30 @@ export function AppearanceSettings() {
   })
   const snippetName = snippetDraft.snippetId === activeSnippetId ? snippetDraft.name : activeSnippetName
 
+  // OpenCode 官方桌面主题 JSON 导入
+  const themeFileInputRef = useRef<HTMLInputElement>(null)
+  const [themeImportError, setThemeImportError] = useState<string | null>(null)
+
+  const handleImportThemeFile = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+    setThemeImportError(null)
+    void file
+      .text()
+      .then(text => JSON.parse(text) as unknown)
+      .then(raw => {
+        const preset = parseOpenCodeTheme(raw)
+        if (!preset) {
+          setThemeImportError(t('appearance.importThemeInvalid'))
+          return
+        }
+        themeStore.addCustomTheme(preset)
+        setPresetWithAnimation(preset.id)
+      })
+      .catch(() => setThemeImportError(t('appearance.importThemeInvalid')))
+  }
+
   const handleImportCSS = (css: string) => {
     clearActiveCustomCSSSnippet()
     setCustomCSS(css)
@@ -699,7 +743,28 @@ export function AppearanceSettings() {
   return (
     <div>
       {availablePresets.length > 0 && (
-        <SettingsSection title={t('appearance.themePresets')} description={t('appearance.themePresetsDesc')}>
+        <SettingsSection
+          title={t('appearance.themePresets')}
+          description={t('appearance.themePresetsDesc')}
+          actions={
+            <Button variant="secondary" size="sm" onClick={() => themeFileInputRef.current?.click()}>
+              {t('appearance.importTheme')}
+            </Button>
+          }
+        >
+          {/* OpenCode 官方桌面主题 JSON（desktop-theme.schema.json）导入 */}
+          <input
+            ref={themeFileInputRef}
+            type="file"
+            accept=".json,application/json"
+            className="hidden"
+            onChange={handleImportThemeFile}
+          />
+          {themeImportError && (
+            <div role="alert" className="text-[length:var(--fs-sm)] text-danger-100">
+              {themeImportError}
+            </div>
+          )}
           <div className="grid gap-2 sm:grid-cols-2">
             {availablePresets.map(p => (
               <PresetCard
@@ -709,6 +774,7 @@ export function AppearanceSettings() {
                 description={p.description}
                 isActive={presetId === p.id}
                 onClick={e => setPresetWithAnimation(p.id, e)}
+                onRemove={p.custom ? () => themeStore.removeCustomTheme(p.id) : undefined}
                 resolvedTheme={resolvedTheme}
               />
             ))}

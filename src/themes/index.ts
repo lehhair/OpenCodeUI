@@ -914,8 +914,27 @@ export const builtinThemes: ThemePreset[] = [
   obsidianTheme,
 ]
 
+// ============================================
+// 自定义主题注册表（OpenCode 官方主题 JSON 导入的落点）
+// 持久化由 themeStore 承担（customThemes 键），这里只是运行时注册表
+// ============================================
+
+const customThemes = new Map<string, ThemePreset>()
+
+export function registerCustomTheme(preset: ThemePreset): void {
+  customThemes.set(preset.id, preset)
+}
+
+export function unregisterCustomTheme(id: string): void {
+  customThemes.delete(id)
+}
+
+export function listCustomThemes(): ThemePreset[] {
+  return [...customThemes.values()]
+}
+
 export function getThemePreset(id: string): ThemePreset | undefined {
-  return builtinThemes.find(t => t.id === id)
+  return builtinThemes.find(t => t.id === id) ?? customThemes.get(id)
 }
 
 /**

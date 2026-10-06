@@ -252,6 +252,9 @@
   "appearance": {
     "themePresets": "主题预设",
     "themePresetsDesc": "选择应用的基础视觉风格",
+    "importTheme": "导入主题",
+    "importThemeInvalid": "主题文件无效——需要 OpenCode 官方桌面主题 JSON（含 light/dark 两套 palette）",
+    "removeCustomTheme": "移除导入的主题",
     "customCss": "自定义 CSS",
     "customCssDesc": "覆盖字体、颜色和任何 CSS 变量。适用于所有主题。",
     "customCssHelp": "使用自定义 CSS 覆盖字体、颜色和样式。",

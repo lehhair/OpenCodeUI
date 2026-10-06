@@ -252,6 +252,9 @@
   "appearance": {
     "themePresets": "Theme Presets",
     "themePresetsDesc": "Choose a base visual style for the app",
+    "importTheme": "Import theme",
+    "importThemeInvalid": "Invalid theme file — expects an official OpenCode desktop theme JSON (with light/dark palettes)",
+    "removeCustomTheme": "Remove imported theme",
     "customCss": "Custom CSS",
     "customCssDesc": "Override fonts, colors, and any CSS variables. Works with all themes.",
     "customCssHelp": "Override fonts, colors, and styles with custom CSS.",

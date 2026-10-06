@@ -8,8 +8,35 @@
  * - CSS 变量注入
  */
 
-import { getThemePreset, themeColorsToCSSVars, builtinThemes, DEFAULT_THEME_ID } from '../themes'
+import { getThemePreset, themeColorsToCSSVars, builtinThemes, DEFAULT_THEME_ID, registerCustomTheme, unregisterCustomTheme, listCustomThemes } from '../themes'
 import type { ThemePreset, ThemeColors } from '../themes'
+
+const STORAGE_KEY_CUSTOM_THEMES = 'opencode:custom-themes'
+
+/** 自定义主题（OpenCode 官方主题 JSON 导入）的读盘注册 */
+function loadCustomThemes(): void {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_CUSTOM_THEMES)
+    if (!raw) return
+    const list = JSON.parse(raw) as ThemePreset[]
+    if (!Array.isArray(list)) return
+    for (const preset of list) {
+      if (preset && typeof preset.id === 'string' && preset.light && preset.dark) {
+        registerCustomTheme(preset)
+      }
+    }
+  } catch {
+    // 损坏的持久化数据直接忽略
+  }
+}
+
+function persistCustomThemes(): void {
+  try {
+    localStorage.setItem(STORAGE_KEY_CUSTOM_THEMES, JSON.stringify(listCustomThemes()))
+  } catch {
+    // 存储满时忽略
+  }
+}
 import {
   DEFAULT_CODE_BLOCK_THEME_DARK,
   DEFAULT_CODE_BLOCK_THEME_LIGHT,
@@ -280,6 +307,9 @@ class ThemeStore {
   private listeners = new Set<() => void>()
 
   constructor() {
+    // 自定义主题（OpenCode 官方主题 JSON 导入）先于 preset 校验注册——
+    // 否则上次的自定义 presetId 会被归一成默认值
+    loadCustomThemes()
     const savedPreset = localStorage.getItem(STORAGE_KEY_PRESET) || DEFAULT_THEME_ID
     const normalizedPreset = getThemePreset(savedPreset) ? savedPreset : DEFAULT_THEME_ID
     const savedMode = (localStorage.getItem(STORAGE_KEY_COLOR_MODE) as ColorMode) || 'system'
@@ -538,13 +568,44 @@ class ThemeStore {
     return getThemePreset(this.state.presetId)
   }
 
-  /** 获取所有可用主题列表 */
-  getAvailablePresets(): { id: string; name: string; description: string }[] {
-    return builtinThemes.map(t => ({
-      id: t.id,
-      name: t.name,
-      description: t.description,
-    }))
+  /** 获取所有可用主题列表（内置 + 自定义导入） */
+  getAvailablePresets(): { id: string; name: string; description: string; custom?: boolean }[] {
+    return [
+      ...builtinThemes.map(t => ({
+        id: t.id,
+        name: t.name,
+        description: t.description,
+      })),
+      ...listCustomThemes().map(t => ({
+        id: t.id,
+        name: t.name,
+        description: t.description,
+        custom: true,
+      })),
+    ]
+  }
+
+  /**
+   * 注册自定义主题（OpenCode 官方主题 JSON 导入）。
+   * 导入后立即可选；返回值即注册后的 id。
+   */
+  addCustomTheme(preset: ThemePreset): string {
+    registerCustomTheme(preset)
+    persistCustomThemes()
+    this.emit()
+    return preset.id
+  }
+
+  /** 移除自定义主题；若当前正在使用则回落到默认主题 */
+  removeCustomTheme(id: string): void {
+    unregisterCustomTheme(id)
+    persistCustomThemes()
+    if (this.state.presetId === id) {
+      this.state = { ...this.state, presetId: DEFAULT_THEME_ID }
+      localStorage.setItem(STORAGE_KEY_PRESET, DEFAULT_THEME_ID)
+      this.applyTheme()
+    }
+    this.emit()
   }
 
   /** 解析实际生效的暗/亮模式 */
