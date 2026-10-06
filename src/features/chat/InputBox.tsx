@@ -149,7 +149,19 @@ export interface InputBoxProps {
   revertedText?: string
   revertedAttachments?: Attachment[]
   /** 队列编辑回填：nonce 变化时把 text 注入输入框并聚焦（PiUI backToInput） */
-  injectedText?: { text: string; nonce: number } | null
+  /**
+   * 队列编辑草稿（官方 queue.edit 的 stash 同款）：
+   * - restoreStash=false：装载编辑草稿。首次装载前自动暂存当前输入，
+   *   之后连续装载（换条目编辑）不覆盖暂存
+   * - restoreStash=true：恢复暂存内容（取消编辑）
+   * - 发送成功时丢弃暂存（发送的内容就是编辑结果，官方 confirmEdit 同款）
+   * nonce 变化才触发，允许重复注入同内容
+   */
+  composerDraft?: {
+    content: { text: string; attachments: Attachment[] } | null
+    nonce: number
+    restoreStash: boolean
+  } | null
   /** busy 时的投递方式：steer=插队本轮 / queue=排队下轮（流式期间输入栏可切换） */
   busyDelivery?: 'queue' | 'steer'
   onBusyDeliveryChange?: (delivery: 'queue' | 'steer') => void
@@ -199,7 +211,7 @@ function InputBoxComponent({
   sessionId,
   revertedText,
   revertedAttachments,
-  injectedText,
+  composerDraft,
   busyDelivery,
   onBusyDeliveryChange,
   canRedo = false,
@@ -343,20 +355,33 @@ function InputBoxComponent({
     }
   }, [revertedText, revertedAttachments, isSubmitting])
 
-  // 队列编辑回填：nonce 变化 → 注入文本并聚焦到末尾
+  // 队列编辑草稿：装载（暂存当前输入）/ 恢复（取消编辑），nonce 为触发键
+  const draftStashRef = useRef<{ text: string; attachments: Attachment[] } | null>(null)
   useEffect(() => {
-    if (!injectedText) return
-    setText(injectedText.text)
+    if (!composerDraft) return
+    if (composerDraft.restoreStash) {
+      // 恢复暂存（官方 cancelEdit 同款）
+      const stash = draftStashRef.current
+      draftStashRef.current = null
+      setText(stash?.text ?? '')
+      setAttachments(stash?.attachments ?? [])
+    } else if (composerDraft.content) {
+      // 装载编辑草稿：只在未暂存时暂存当前输入（官方 stash 只在首次 edit 时建立）
+      draftStashRef.current ??= { text, attachments }
+      setText(composerDraft.content.text)
+      setAttachments(composerDraft.content.attachments)
+    }
     const frameId = requestAnimationFrame(() => {
       if (textareaRef.current) {
         textareaRef.current.focus()
-        textareaRef.current.setSelectionRange(injectedText.text.length, injectedText.text.length)
+        const end = textareaRef.current.value.length
+        textareaRef.current.setSelectionRange(end, end)
       }
     })
     return () => cancelAnimationFrame(frameId)
-    // 以 nonce 为触发键，允许重复注入同文本
+    // 以 nonce 为触发键，允许重复注入同内容
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [injectedText?.nonce])
+  }, [composerDraft?.nonce])
 
   useEffect(
     () => () => {
@@ -576,6 +601,9 @@ function InputBoxComponent({
           variant: selectedVariant,
         }),
       () => {
+        // 队列编辑草稿发送成功 → 丢弃暂存（官方 confirmEdit 同款：
+        // 发送的内容就是编辑结果，不再恢复旧输入）
+        draftStashRef.current = null
         resetDraft()
         onClearRevert?.()
       },

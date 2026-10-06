@@ -106,6 +106,8 @@ interface ChatAreaProps {
   retryStatus?: RetryStatusInlineData | null
   /** 下轮队列气泡（PiUI 同款：融在消息流尾部，虚拟行之后、重试提示之前） */
   queuedFollowUps?: QueuedUserPrompt[]
+  /** 正在编辑的队列条目 id（该条目的「撤回编辑」切换为「取消编辑」） */
+  queueEditingId?: string
   onQueueSteer?: (item: QueuedUserPrompt) => void
   onQueueEdit?: (item: QueuedUserPrompt) => void
   onQueueRemove?: (item: QueuedUserPrompt) => void
@@ -353,6 +355,7 @@ export const ChatArea = memo(
         registerMessage,
         retryStatus = null,
         queuedFollowUps = EMPTY_QUEUE,
+        queueEditingId,
         onQueueSteer,
         onQueueEdit,
         onQueueRemove,
@@ -1021,6 +1024,7 @@ export const ChatArea = memo(
               <div className={`w-full ${maxWidthClass} mx-auto ${paddingClass}`}>
                 <QueueBubbles
                   items={queuedFollowUps}
+                  editingId={queueEditingId}
                   onSteer={onQueueSteer}
                   onEdit={onQueueEdit}
                   onRemove={onQueueRemove}

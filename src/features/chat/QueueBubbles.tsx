@@ -15,7 +15,7 @@
 
 import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ArrowUpIcon, PencilIcon, TrashIcon } from '../../components/Icons'
+import { ArrowUpIcon, CloseIcon, PencilIcon, TrashIcon } from '../../components/Icons'
 import { CopyButton } from '../../components/ui'
 import { queuedPromptText, type QueuedUserPrompt } from '../../store/inboxStore'
 
@@ -28,12 +28,14 @@ interface QueueBubblesProps {
   onEdit?: (item: QueuedUserPrompt) => void
   /** 从队列删除 */
   onRemove?: (item: QueuedUserPrompt) => void
+  /** 正在编辑的条目 id：该条目高亮且「撤回编辑」变为「取消编辑」 */
+  editingId?: string
 }
 
 const ACTION_BTN_CLASS =
   'p-1.5 rounded-md text-text-400 hover:text-text-200 hover:bg-bg-200/50 transition-colors'
 
-export const QueueBubbles = memo(function QueueBubbles({ items, onSteer, onEdit, onRemove }: QueueBubblesProps) {
+export const QueueBubbles = memo(function QueueBubbles({ items, onSteer, onEdit, onRemove, editingId }: QueueBubblesProps) {
   const { t } = useTranslation('chat')
   if (items.length === 0) return null
 
@@ -48,10 +50,15 @@ export const QueueBubbles = memo(function QueueBubbles({ items, onSteer, onEdit,
       <div className="flex flex-col items-end gap-2">
         {items.map(item => {
           const text = queuedPromptText(item)
+          const isEditing = item.id === editingId
           return (
             <div key={item.id} className="group/msg flex flex-col items-end gap-1 max-w-[85%]">
-              {/* 气泡：虚线边框表示尚未投递 */}
-              <div className="whitespace-pre-wrap break-words rounded-2xl border border-dashed border-border-200 bg-bg-300/60 px-4 py-2.5 text-[length:var(--fs-base)] leading-relaxed text-text-200">
+              {/* 气泡：虚线边框表示尚未投递；编辑中的条目 accent 高亮 */}
+              <div
+                className={`whitespace-pre-wrap break-words rounded-2xl border border-dashed px-4 py-2.5 text-[length:var(--fs-base)] leading-relaxed text-text-200 ${
+                  isEditing ? 'border-accent-main-100 bg-accent-main-100/10' : 'border-border-200 bg-bg-300/60'
+                }`}
+              >
                 {text}
               </div>
               {/* 操作行：气泡下方（对齐用户消息 action bar） */}
@@ -84,11 +91,11 @@ export const QueueBubbles = memo(function QueueBubbles({ items, onSteer, onEdit,
                     <button
                       type="button"
                       onClick={() => onEdit(item)}
-                      title={t('queue.edit')}
-                      aria-label={t('queue.edit')}
+                      title={isEditing ? t('queue.editCancel') : t('queue.edit')}
+                      aria-label={isEditing ? t('queue.editCancel') : t('queue.edit')}
                       className={ACTION_BTN_CLASS}
                     >
-                      <PencilIcon size={14} />
+                      {isEditing ? <CloseIcon size={14} /> : <PencilIcon size={14} />}
                     </button>
                   )}
                 </div>

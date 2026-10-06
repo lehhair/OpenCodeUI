@@ -121,38 +121,24 @@ export function extractUserMessageContent(message: UserMessage): RevertedMessage
 // ============================================
 
 /**
- * 构建 v2 的 prompt 入参（官方 composer/request.ts + submit.ts:395-411 同款）。
- *
- * v2 的形状是 `{ text, files?, agents?, skills?, metadata }`：
- *   - 文本走 `text`；`metadata.displayText` 记录用户原始输入（服务端与
- *     转写展示都优先它，官方 message-timeline.tsx:295-303）
- *   - 文件附件走 `files[].uri`；agent 提及走 `agents[].name`；两者都带
- *     `mention` 区间（@提及在文本中的对齐信息，官方 request.ts:71-86）
- *   - `metadata.agent/model` 记录发送时的选择快照——queue 条目投递时
- *     服务端按它生效（ steer 才在发送前 switch，见 sendMessage）
+ * 附件 → prompt 的 files/agents/skills 部件（buildPromptInput 的组装段，
+ * 队列编辑确认（editedPromptInput）与正常发送共用）。
  */
-function buildPromptInput(
-  params: SendMessageParams,
-  sessionID: string,
-): {
-  sessionID: string
-  id?: string
-  text: string
-  files?: Array<{ uri: string; name?: string; mention?: { start: number; end: number; text: string } }>
-  agents?: Array<{ name: string; mention?: { start: number; end: number; text: string } }>
-  skills?: Array<{ id: string; mention?: { start: number; end: number; text: string } }>
-  metadata?: Record<string, JsonValue>
+export function buildPromptParts(attachments: Attachment[]): {
+  files: Array<{ uri: string; name?: string; mention?: { start: number; end: number; text: string } }>
+  agents: Array<{ name: string; mention?: { start: number; end: number; text: string } }>
+  skills: Array<{ id: string; mention?: { start: number; end: number; text: string } }>
 } {
   const files: Array<{ uri: string; name?: string; mention?: { start: number; end: number; text: string } }> = []
   const agents: Array<{ name: string; mention?: { start: number; end: number; text: string } }> = []
   const skills: Array<{ id: string; mention?: { start: number; end: number; text: string } }> = []
 
-  const mention = (attachment: (typeof params.attachments)[number]) =>
+  const mention = (attachment: Attachment) =>
     attachment.textRange
       ? { start: attachment.textRange.start, end: attachment.textRange.end, text: attachment.textRange.value }
       : undefined
 
-  for (const attachment of params.attachments) {
+  for (const attachment of attachments) {
     if (attachment.type === 'agent') {
       agents.push({
         name: attachment.agentName || attachment.displayName,
@@ -180,6 +166,34 @@ function buildPromptInput(
       ...(mention(attachment) ? { mention: mention(attachment) } : {}),
     })
   }
+
+  return { files, agents, skills }
+}
+
+/**
+ * 构建 v2 的 prompt 入参（官方 composer/request.ts + submit.ts:395-411 同款）。
+ *
+ * v2 的形状是 `{ text, files?, agents?, skills?, metadata }`：
+ *   - 文本走 `text`；`metadata.displayText` 记录用户原始输入（服务端与
+ *     转写展示都优先它，官方 message-timeline.tsx:295-303）
+ *   - 文件附件走 `files[].uri`；agent 提及走 `agents[].name`；两者都带
+ *     `mention` 区间（@提及在文本中的对齐信息，官方 request.ts:71-86）
+ *   - `metadata.agent/model` 记录发送时的选择快照——queue 条目投递时
+ *     服务端按它生效（ steer 才在发送前 switch，见 sendMessage）
+ */
+function buildPromptInput(
+  params: SendMessageParams,
+  sessionID: string,
+): {
+  sessionID: string
+  id?: string
+  text: string
+  files?: Array<{ uri: string; name?: string; mention?: { start: number; end: number; text: string } }>
+  agents?: Array<{ name: string; mention?: { start: number; end: number; text: string } }>
+  skills?: Array<{ id: string; mention?: { start: number; end: number; text: string } }>
+  metadata?: Record<string, JsonValue>
+} {
+  const { files, agents, skills } = buildPromptParts(params.attachments)
 
   return {
     sessionID,

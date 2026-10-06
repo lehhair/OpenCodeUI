@@ -119,7 +119,8 @@
     "cancelTitle": "从队列移除",
     "queuedLabel": "下轮队列（{{count}}）",
     "moveToSteering": "插入当前回合",
-    "edit": "撤回编辑"
+    "edit": "撤回编辑",
+    "editCancel": "取消编辑"
   },
   "permissionDialog": {
     "permission": "权限：{{permission}}",

@@ -119,7 +119,8 @@
     "cancelTitle": "Remove from queue",
     "queuedLabel": "Next turn ({{count}})",
     "moveToSteering": "Inject into current turn",
-    "edit": "Retract to edit"
+    "edit": "Retract to edit",
+    "editCancel": "Cancel edit"
   },
   "permissionDialog": {
     "permission": "Permission: {{permission}}",

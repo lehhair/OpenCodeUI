@@ -46,6 +46,8 @@ import {
   type Model,
 } from '../api'
 import { sendAdmission, outboxAdd, outboxHas, outboxTryRollback } from '../api/sendAdmission'
+import { buildEditedPromptInput, confirmQueueEdit, queuedPromptAttachments } from '../api/queue'
+import { buildPromptParts } from '../api/message'
 import i18n from '../i18n'
 import { sessionDisplayTitle } from '../utils/sessionTitle'
 import {
@@ -132,8 +134,10 @@ export function useChatSession({
     setBusyDelivery(queueFollowupMessages ? 'queue' : 'steer')
   }, [queueFollowupMessages])
 
-  // 队列编辑回填：{text, nonce}，nonce 变化触发 InputBox 注入
-  const [queueEditDraft, setQueueEditDraft] = useState<{ text: string; nonce: number } | null>(null)
+  // 队列编辑状态（官方 queue.edit 的 editing 同款）：
+  // item=正在编辑的队列条目；stashRestoreNonce=取消编辑时恢复输入框暂存的触发键
+  const [queueEditing, setQueueEditing] = useState<{ item: QueuedUserPrompt; nonce: number } | null>(null)
+  const [stashRestoreNonce, setStashRestoreNonce] = useState(0)
 
   // Agents
   const [agents, setAgents] = useState<ApiAgent[]>([])
@@ -909,6 +913,44 @@ export function useChatSession({
         return false
       }
 
+      // 队列编辑确认（官方 confirmEdit 同款）：发送走的是「替换提交」，
+      // 不是新 prompt——admit 替换条目（新 id）→ cancel 原条目 →
+      // rewrite 放回原来的位置；内容与原文一致则视为未修改，仅取消编辑
+      const editing = queueEditing
+      if (editing && routeSessionId) {
+        const original = editing.item
+        const originalAttachments = queuedPromptAttachments(original)
+        const pristine =
+          content.trim() === queuedPromptText(original).trim() && attachments.length === originalAttachments.length
+        if (pristine && original.delivery === 'queue') {
+          setQueueEditing(null)
+          setStashRestoreNonce(Date.now())
+          return true
+        }
+        try {
+          const edited = buildEditedPromptInput({
+            sessionId: routeSessionId,
+            text: content,
+            attachments,
+            original,
+            delivery: original.delivery,
+            request: buildPromptParts(attachments),
+          })
+          await confirmQueueEdit({
+            sessionId: routeSessionId,
+            original,
+            edited,
+            queueIds: queuedPrompts.map(entry => entry.id),
+            serverId: paneServerId,
+          })
+          setQueueEditing(null)
+          return true
+        } catch (error) {
+          handleError('confirm queue edit', error)
+          return false
+        }
+      }
+
       // 投递方式（官方 queue.ts:217 同款）：busy 时按输入栏当前选择排队或插队，
       // idle 时不传走服务端默认（steer 立即处理）。排队条目由服务端在当前
       // 回合排空后自动投递，无需客户端排空逻辑。
@@ -935,6 +977,9 @@ export function useChatSession({
       isSessionBusy,
       effectiveDirectory,
       sendMessageNow,
+      queueEditing,
+      queuedPrompts,
+      paneServerId,
     ],
   )
 
@@ -993,19 +1038,43 @@ export function useChatSession({
     [routeSessionId, paneServerId],
   )
 
-  // 编辑排队条目：从队列撤回并把文本回填输入框（PiUI backToInput 同款；
-  // 官方 queue.edit 是 stash+替换提交，这里用更轻量的「取消+回填，用户重发」）
-  const handleEditQueuedPrompt = useCallback(
-    (item: QueuedUserPrompt) => {
-      if (!routeSessionId) return
-      cancelInboxItem(routeSessionId, item.id, paneServerId)
-        .then(() => {
-          setQueueEditDraft({ text: queuedPromptText(item), nonce: Date.now() })
-        })
-        .catch(error => handleError('edit queued prompt', error))
-    },
-    [routeSessionId, paneServerId],
-  )
+  // 装载队列条目到编辑器（官方 queue.edit 同款）：
+  // 不取消服务端条目，只把文本+附件注入编辑器并暂存当前输入；
+  // 确认时走「替换提交」（handleSend 的 editing 分支）
+  const handleEditQueuedPrompt = useCallback((item: QueuedUserPrompt) => {
+    setQueueEditing({ item, nonce: Date.now() })
+  }, [])
+
+  // 取消队列编辑（官方 cancelEdit 同款）：恢复输入框暂存
+  const handleCancelQueueEdit = useCallback(() => {
+    setQueueEditing(null)
+    setStashRestoreNonce(Date.now())
+  }, [])
+
+  // 队列条目消失（被投递/取消）时自动退出编辑态（官方 createEffect 同款）
+  useEffect(() => {
+    if (!queueEditing) return
+    if (inboxUserPrompts.some(item => item.id === queueEditing.item.id)) return
+    setQueueEditing(null)
+  }, [queueEditing, inboxUserPrompts])
+
+  // composerDraft：编辑器注入内容（装载=编辑草稿 / 恢复=取消后的暂存）
+  const composerDraft = useMemo(() => {
+    if (queueEditing) {
+      return {
+        content: {
+          text: queuedPromptText(queueEditing.item),
+          attachments: queuedPromptAttachments(queueEditing.item),
+        },
+        nonce: queueEditing.nonce,
+        restoreStash: false,
+      }
+    }
+    if (stashRestoreNonce > 0) {
+      return { content: null, nonce: stashRestoreNonce, restoreStash: true }
+    }
+    return null
+  }, [queueEditing, stashRestoreNonce])
 
   // `!` shell 命令（官方 composer shell mode）：无会话时先建会话再执行，
   // shell 消息经 session.shell.started/ended 事件流入转写，无需本地乐观插入
@@ -1338,7 +1407,9 @@ export function useChatSession({
     inboxUserPrompts,
     busyDelivery,
     setBusyDelivery,
-    queueEditDraft,
+    composerDraft,
+    queueEditing,
+    handleCancelQueueEdit,
     handleCancelQueuedPrompt,
     handleSteerQueuedPrompt,
     handleEditQueuedPrompt,

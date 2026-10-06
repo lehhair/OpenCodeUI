@@ -300,7 +300,9 @@ export const ChatPane = memo(function ChatPane({
     inboxUserPrompts,
     busyDelivery,
     setBusyDelivery,
-    queueEditDraft,
+    composerDraft,
+    queueEditing,
+    handleCancelQueueEdit,
     handleCancelQueuedPrompt,
     handleSteerQueuedPrompt,
     handleEditQueuedPrompt,
@@ -928,8 +930,9 @@ export const ChatPane = memo(function ChatPane({
                 registerMessage={registerMessage}
                 retryStatus={retryStatus}
                 queuedFollowUps={queuedPrompts}
+                queueEditingId={queueEditing?.item.id}
                 onQueueSteer={handleSteerQueuedPrompt}
-                onQueueEdit={handleEditQueuedPrompt}
+                onQueueEdit={item => (queueEditing?.item.id === item.id ? handleCancelQueueEdit() : handleEditQueuedPrompt(item))}
                 onQueueRemove={item => handleCancelQueuedPrompt(item.id)}
                 bottomPadding={inputBoxHeight}
                 onVisibleMessageIdsChange={handleVisibleIdsChange}
@@ -1007,7 +1010,7 @@ export const ChatPane = memo(function ChatPane({
           sessionId={routeSessionId}
           revertedText={revertedMessage?.text}
           revertedAttachments={revertedMessage?.attachments}
-          injectedText={queueEditDraft}
+          composerDraft={composerDraft}
           busyDelivery={busyDelivery}
           onBusyDeliveryChange={setBusyDelivery}
           canRedo={canRedo}
