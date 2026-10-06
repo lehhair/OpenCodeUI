@@ -79,8 +79,10 @@ export async function getSessionMessagesPage(
   const result = await sdk.message.list({
     sessionID: target.sessionId,
     limit: options?.limit,
-    order: 'desc',
-    ...(options?.cursor ? { cursor: options.cursor } : {}),
+    // 游标自带 order/direction（服务端 cursor JSON 内含）——同传 order
+    // 会吃 InvalidCursorError(400)，官方 data.ts loadMore 同款：
+    // 首页 limit+order，翻页只带 limit+cursor
+    ...(options?.cursor ? { cursor: options.cursor } : { order: 'desc' as const }),
   })
   return {
     messages: [...result.data].reverse(),
