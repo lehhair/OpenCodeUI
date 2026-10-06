@@ -11,12 +11,31 @@ import { useCallback, useEffect, useRef } from 'react'
 import { logger } from '../utils/logger'
 import { messageStore, type RevertState } from '../store'
 import { sessionKeyToServerId } from '../utils/sessionKey'
-import { getSessionMessages, getSession, revertMessage, unrevertSession, type SessionMessage } from '../api'
+import { getSessionMessagesPage, getSession, revertMessage, unrevertSession } from '../api'
 import { sessionErrorHandler } from '../utils'
 import { isSessionNotFoundError } from '../utils/sessionErrors'
 import { INITIAL_MESSAGE_LIMIT, HISTORY_LOAD_BATCH_SIZE } from '../constants'
 import { isUserMessage } from '../types/api/message'
 import type { APIError } from '../types/api/common'
+import type { SessionMessageInfo } from '../types/api/message'
+
+/**
+ * 首屏窗口是否从半截回合开始（官方 leadingTurnNeedsParent 同款，
+ * packages/app/src/session/timeline/model.ts:90-95）：
+ * 最早一条 assistant 之前没有任何 user/shell 边界 → 它的父 prompt
+ * 还在更深的历史页里，需要补翻。
+ */
+export function leadingTurnNeedsParent(messages: SessionMessageInfo[]): boolean {
+  const assistant = messages.findIndex(message => message.type === 'assistant')
+  if (assistant === -1) return false
+  const boundary = messages.findIndex(message => message.type === 'user' || message.type === 'shell')
+  return boundary === -1 || assistant < boundary
+}
+
+/** enrichLeadingTurn 的上限与节奏（官方 leadingTurnPageLimit / Delay 同款） */
+const LEADING_TURN_PAGE_LIMIT = 3
+const LEADING_TURN_PAGE_DELAY = 200
+const pause = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
 /**
  * 会话加载失败 → v2 的结构化错误（`{ type, message, status?, response? }`）。
@@ -54,9 +73,44 @@ export function useSessionManager({
   onSessionMissing,
 }: UseSessionManagerOptions) {
   const loadSequenceRef = useRef<Map<string, number>>(new Map())
-  /** 每个 session 当前已请求的消息 limit（cursor），loadMore 时递增 */
-  const cursorRef = useRef<Map<string, number>>(new Map())
+  /** 每个 session 的历史翻页 in-flight 守卫（官方 messageLoads 同款，防止并发翻页） */
+  const historyLoadsRef = useRef<Map<string, Promise<boolean>>>(new Map())
   const loadSessionRef = useRef<(sid: string, options?: { force?: boolean }) => Promise<void>>(async () => {})
+
+  /**
+   * 用游标翻一页更老的历史并前插（官方 message.loadMore 同款）。
+   * 返回是否还有更早的页。并发调用复用同一个 in-flight 请求。
+   */
+  const prependHistoryPage = useCallback(async (sid: string): Promise<boolean> => {
+    const inflight = historyLoadsRef.current.get(sid)
+    if (inflight) return inflight
+
+    const request = (async (): Promise<boolean> => {
+      const state = messageStore.getSessionState(sid)
+      if (!state) return false
+      const cursor = state.historyCursor
+      if (cursor === null) return false
+
+      const serverId = sessionKeyToServerId(sid)
+      const page = await getSessionMessagesPage(sid, { limit: HISTORY_LOAD_BATCH_SIZE, cursor }, serverId)
+      const latestState = messageStore.getSessionState(sid)
+      if (!latestState) return false
+
+      // 去重 + 按时间排序（历史页总是更早的消息）
+      const existingIds = new Set(latestState.messages.map(message => message.id))
+      const prependCandidates = page.messages
+        .filter(message => !existingIds.has(message.id))
+        .sort((a, b) => (a.time?.created ?? 0) - (b.time?.created ?? 0))
+
+      messageStore.prependMessages(sid, prependCandidates, page.nextCursor !== null, page.nextCursor)
+      return page.nextCursor !== null
+    })().finally(() => {
+      historyLoadsRef.current.delete(sid)
+    })
+
+    historyLoadsRef.current.set(sid, request)
+    return request
+  }, [])
 
   // 使用 ref 保存 directory，避免依赖变化
   const directoryRef = useRef(directory)
@@ -94,19 +148,17 @@ export function useSessionManager({
         const serverId = sessionKeyToServerId(sid)
         Promise.all([
           getSession(sid, dir, serverId).catch(() => null),
-          getSessionMessages(sid, INITIAL_MESSAGE_LIMIT, dir, serverId)
-            .then(messages => ({ ok: true as const, messages }))
-            .catch(() => ({ ok: false as const, messages: [] as SessionMessage[] })),
+          getSessionMessagesPage(sid, { limit: INITIAL_MESSAGE_LIMIT }, serverId)
+            .then(page => ({ ok: true as const, page }))
+            .catch(() => ({ ok: false as const, page: null })),
         ])
           .then(([sessionInfo, messagesResult]) => {
             if (isStale()) return
 
-            if (messagesResult.ok) {
-              cursorRef.current.set(sid, Math.max(INITIAL_MESSAGE_LIMIT, messagesResult.messages.length))
-            }
-
             messageStore.updateSessionMetadata(sid, {
-              ...(messagesResult.ok ? { hasMoreHistory: messagesResult.messages.length >= INITIAL_MESSAGE_LIMIT } : {}),
+              ...(messagesResult.ok && messagesResult.page
+                ? { hasMoreHistory: messagesResult.page.nextCursor !== null, historyCursor: messagesResult.page.nextCursor }
+                : {}),
               directory: sessionInfo?.location?.directory ?? dir ?? '',
               title: sessionInfo?.title,
             })
@@ -125,12 +177,15 @@ export function useSessionManager({
       try {
         // 并行加载 session 信息和消息（传递 directory）
         const serverId = sessionKeyToServerId(sid)
-        const [sessionInfo, apiMessages] = await Promise.all([
+        const [sessionInfo, firstPage] = await Promise.all([
           getSession(sid, dir, serverId).catch(() => null),
-          getSessionMessages(sid, INITIAL_MESSAGE_LIMIT, dir, serverId),
+          getSessionMessagesPage(sid, { limit: INITIAL_MESSAGE_LIMIT }, serverId),
         ])
 
         if (isStale()) return
+
+        const apiMessages = firstPage.messages
+        const nextCursor = firstPage.nextCursor
 
         // 再次检查：加载期间 SSE 可能已经推送了更多消息
         // force 模式下（重连）始终用服务器数据覆盖，因为本地数据可能不完整
@@ -146,13 +201,13 @@ export function useSessionManager({
           // SSE 推送的消息比 API 返回的多，说明有新消息，跳过覆盖
           // 但仍需更新元数据，否则 hasMoreHistory 等状态可能停留在默认值
           messageStore.updateSessionMetadata(sid, {
-            hasMoreHistory: apiMessages.length >= INITIAL_MESSAGE_LIMIT,
+            hasMoreHistory: nextCursor !== null,
+            historyCursor: nextCursor,
             directory: sessionInfo?.location?.directory ?? dir ?? '',
             title: sessionInfo?.title,
             loadState: 'loaded',
           })
           onLoadComplete?.()
-          cursorRef.current.set(sid, Math.max(INITIAL_MESSAGE_LIMIT, apiMessages.length))
           return
         }
 
@@ -160,13 +215,26 @@ export function useSessionManager({
         messageStore.setMessages(sid, apiMessages, {
           directory: sessionInfo?.location?.directory ?? dir ?? '',
           title: sessionInfo?.title,
-          hasMoreHistory: apiMessages.length >= INITIAL_MESSAGE_LIMIT,
+          hasMoreHistory: nextCursor !== null,
+          historyCursor: nextCursor,
           // v2 的 SessionInfo 不再携带 revert / share：
           // 回退状态由 session.revert 接口与事件维护，分享改为导出
           revertState: null,
         })
 
-        cursorRef.current.set(sid, Math.max(INITIAL_MESSAGE_LIMIT, apiMessages.length))
+        // 首屏窗口可能从半截回合开始（首条 assistant 的父 user 在更深的历史页）：
+        // 官方 enrichLeadingTurn 同款，最多补翻 3 页直到首回合完整
+        //（app/src/session/timeline/model.ts:69-95）
+        if (nextCursor !== null) {
+          for (let pages = 0; pages < LEADING_TURN_PAGE_LIMIT; pages++) {
+            const state = messageStore.getSessionState(sid)
+            if (!state || !leadingTurnNeedsParent(state.messages) || !state.hasMoreHistory) break
+            await pause(LEADING_TURN_PAGE_DELAY)
+            if (isStale()) return
+            const more = await prependHistoryPage(sid).catch(() => false)
+            if (!more) break
+          }
+        }
 
         // force 模式（如 SSE 重连）只静默刷新数据，不触发滚动
         if (!force) {
@@ -196,33 +264,12 @@ export function useSessionManager({
 
   const loadMoreHistory = useCallback(async () => {
     if (!sessionId) return
-
-    const state = messageStore.getSessionState(sessionId)
-    if (!state) return
-
-    const dir = state.directory || directoryRef.current
-    const currentCursor = cursorRef.current.get(sessionId) ?? Math.max(INITIAL_MESSAGE_LIMIT, state.messages.length)
-    const targetCursor = currentCursor + HISTORY_LOAD_BATCH_SIZE
-
     try {
-      const apiMessages = await getSessionMessages(sessionId, targetCursor, dir, sessionKeyToServerId(sessionId))
-      cursorRef.current.set(sessionId, targetCursor)
-
-      const latestState = messageStore.getSessionState(sessionId)
-      if (!latestState) return
-
-      // 去重 + 按时间排序（v2 的原始消息直接有 id / time，没有 info 包装）
-      const existingIds = new Set(latestState.messages.map(m => m.id))
-      const prependCandidates = apiMessages
-        .filter(m => !existingIds.has(m.id))
-        .sort((a, b) => (a.time?.created ?? 0) - (b.time?.created ?? 0))
-
-      const hasMore = apiMessages.length >= targetCursor
-      messageStore.prependMessages(sessionId, prependCandidates, hasMore)
+      await prependHistoryPage(sessionId)
     } catch (error) {
       sessionErrorHandler('load more history', error)
     }
-  }, [sessionId])
+  }, [sessionId, prependHistoryPage])
 
   // ============================================
   // Undo
@@ -347,12 +394,6 @@ export function useSessionManager({
       const canUseCached = !!cached && cached.loadState === 'loaded' && !cached.isStale && cached.messages.length > 0
 
       if (canUseCached) {
-        const cachedCursor = Math.max(INITIAL_MESSAGE_LIMIT, cached.messages.length)
-        const prevCursor = cursorRef.current.get(sessionId) ?? 0
-        if (cachedCursor > prevCursor) {
-          cursorRef.current.set(sessionId, cachedCursor)
-        }
-
         logger.log('[SessionManager] switch:use-cached', {
           sessionId,
           cachedCount: cached.messages.length,

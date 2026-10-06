@@ -2,9 +2,9 @@ import { renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useSessionManager } from './useSessionManager'
 
-const { getSessionMock, getSessionMessagesMock, messageStoreMock, sessionErrorHandlerMock } = vi.hoisted(() => ({
+const { getSessionMock, getSessionMessagesPageMock, messageStoreMock, sessionErrorHandlerMock } = vi.hoisted(() => ({
   getSessionMock: vi.fn(),
-  getSessionMessagesMock: vi.fn(),
+  getSessionMessagesPageMock: vi.fn(),
   messageStoreMock: {
     getSessionState: vi.fn(),
     setLoadState: vi.fn(),
@@ -19,7 +19,7 @@ const { getSessionMock, getSessionMessagesMock, messageStoreMock, sessionErrorHa
 
 vi.mock('../api', () => ({
   getSession: (...args: unknown[]) => getSessionMock(...args),
-  getSessionMessages: (...args: unknown[]) => getSessionMessagesMock(...args),
+  getSessionMessagesPage: (...args: unknown[]) => getSessionMessagesPageMock(...args),
   revertMessage: vi.fn(),
   unrevertSession: vi.fn(),
   extractUserMessageContent: vi.fn(),
@@ -36,7 +36,7 @@ vi.mock('../utils', () => ({
 describe('useSessionManager', () => {
   beforeEach(() => {
     getSessionMock.mockReset()
-    getSessionMessagesMock.mockReset()
+    getSessionMessagesPageMock.mockReset()
     messageStoreMock.getSessionState.mockReset()
     messageStoreMock.setLoadState.mockReset()
     messageStoreMock.setLoadError.mockReset()
@@ -48,14 +48,14 @@ describe('useSessionManager', () => {
 
     messageStoreMock.getSessionState.mockReturnValue(null)
     getSessionMock.mockResolvedValue({ id: 'session-1', directory: '/workspace/demo' })
-    getSessionMessagesMock.mockResolvedValue([])
+    getSessionMessagesPageMock.mockResolvedValue({ messages: [], nextCursor: null })
   })
 
   it('reports missing route sessions when loading returns not found', async () => {
     const onSessionMissing = vi.fn()
     const notFoundError = Object.assign(new Error('session not found'), { status: 404 })
     getSessionMock.mockRejectedValue(notFoundError)
-    getSessionMessagesMock.mockRejectedValue(notFoundError)
+    getSessionMessagesPageMock.mockRejectedValue(notFoundError)
 
     renderHook(() =>
       useSessionManager({

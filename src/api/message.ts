@@ -45,6 +45,32 @@ export async function getSessionMessages(
   return [...result.data].reverse()
 }
 
+/**
+ * 按游标翻一页历史（官方 message.loadMore 的数据通道，data.ts:1684-1709）。
+ *
+ * v2 的 `message.list` 响应带 `cursor.next`：传回即可拿到更老的一页，
+ * 不需要像「递增 limit 从头重拉」那样重复传输已加载的消息。
+ * 返回的 messages 同样是正序（旧→新）；nextCursor 为 null 表示没有更早的历史。
+ */
+export async function getSessionMessagesPage(
+  sessionId: string,
+  options?: { limit?: number; cursor?: string },
+  serverId?: string,
+): Promise<{ messages: SessionMessage[]; nextCursor: string | null }> {
+  const target = resolveSessionTarget(sessionId, serverId)
+  const sdk = getSDKClient(target.serverId)
+  const result = await sdk.message.list({
+    sessionID: target.sessionId,
+    limit: options?.limit,
+    order: 'desc',
+    ...(options?.cursor ? { cursor: options.cursor } : {}),
+  })
+  return {
+    messages: [...result.data].reverse(),
+    nextCursor: result.cursor.next ?? null,
+  }
+}
+
 // ============================================
 // 用户消息内容提取
 // ============================================

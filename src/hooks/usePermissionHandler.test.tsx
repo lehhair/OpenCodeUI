@@ -6,7 +6,7 @@ const { replyPermissionMock, getPendingPermissionsMock, getPendingFormsMock, rep
   vi.hoisted(() => ({
     replyPermissionMock: vi.fn(() => Promise.resolve(true)),
     getPendingPermissionsMock: vi.fn(() => Promise.resolve([])),
-    getPendingFormsMock: vi.fn(() => Promise.resolve([])),
+    getPendingFormsMock: vi.fn((): Promise<unknown[]> => Promise.resolve([])),
     replyFormMock: vi.fn((..._args: unknown[]) => Promise.resolve(true)),
     cancelFormMock: vi.fn((..._args: unknown[]) => Promise.resolve(true)),
     activeSessionStoreMock: {

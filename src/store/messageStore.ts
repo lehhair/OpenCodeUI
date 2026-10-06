@@ -449,6 +449,7 @@ class MessageStore {
         isStreaming: false,
         loadState: 'idle',
         hasMoreHistory: false,
+        historyCursor: null,
         directory: '',
         title: undefined,
         agent: undefined,
@@ -502,6 +503,7 @@ class MessageStore {
     sessionId: string,
     options: {
       hasMoreHistory?: boolean
+      historyCursor?: string | null
       directory?: string
       title?: string
       loadState?: SessionState['loadState']
@@ -512,6 +514,7 @@ class MessageStore {
     if (!state) return
 
     if (options.hasMoreHistory !== undefined) state.hasMoreHistory = options.hasMoreHistory
+    if (options.historyCursor !== undefined) state.historyCursor = options.historyCursor
     if (options.directory !== undefined) state.directory = options.directory
     if (options.title !== undefined) state.title = options.title
     if (options.loadState !== undefined) state.loadState = options.loadState
@@ -647,6 +650,7 @@ class MessageStore {
       directory?: string
       title?: string
       hasMoreHistory?: boolean
+      historyCursor?: string | null
       revertState?: SessionRevert | null
     },
   ) {
@@ -679,6 +683,7 @@ class MessageStore {
     state.loadState = 'loaded'
     state.loadError = undefined
     state.hasMoreHistory = options?.hasMoreHistory ?? false
+    if (options?.historyCursor !== undefined) state.historyCursor = options.historyCursor
     state.directory = options?.directory ?? ''
     if (options?.title !== undefined) state.title = options.title
     state.isStale = false
@@ -708,7 +713,7 @@ class MessageStore {
     this.notify([sessionId])
   }
 
-  prependMessages(sessionId: string, apiMessages: SessionMessageInfo[], hasMore: boolean) {
+  prependMessages(sessionId: string, apiMessages: SessionMessageInfo[], hasMore: boolean, historyCursor?: string | null) {
     const state = this.sessions.get(sessionId)
     if (!state) return
 
@@ -720,6 +725,7 @@ class MessageStore {
       state.messages = [...unique, ...state.messages]
     }
     state.hasMoreHistory = hasMore
+    if (historyCursor !== undefined) state.historyCursor = historyCursor
 
     this.notify([sessionId])
   }

@@ -47,6 +47,12 @@ export interface SessionState {
   loadError?: APIError
   /** 是否还有更多历史消息 */
   hasMoreHistory: boolean
+  /**
+   * 历史翻页游标（官方 session.messageCursor 同款）：
+   * 上一页响应的 `cursor.next`，再传回即可拿到更老的一页；
+   * null 表示没有更早的历史（或尚未加载过）。
+   */
+  historyCursor: string | null
   /** session 目录 */
   directory: string
   /** session 标题 */
