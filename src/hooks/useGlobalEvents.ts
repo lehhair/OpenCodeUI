@@ -11,6 +11,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { messageStore, childSessionStore, paneLayoutStore, serverStore } from '../store'
 import { inboxStore } from '../store/inboxStore'
+import { usageExceededStore } from '../store/usageExceededStore'
 import { activeSessionStore } from '../store/activeSessionStore'
 import { notificationStore } from '../store/notificationStore'
 import { soundStore } from '../store/soundStore'
@@ -1102,6 +1103,13 @@ export function useGlobalEvents(directories?: string[]) {
           const wasBusy = prevStatus && (prevStatus.type === 'busy' || prevStatus.type === 'retry')
 
           activeSessionStore.updateStatus(scopedId, data.status)
+
+          // 用量超限对话框（官方 usage-exceeded-dialogs 同款）：
+          // retry + action 且 provider ∈ {opencode, opencode-go} 时上报，
+          // 24h 窗口与「不再提示」由 store 判定
+          if (data.status.type === 'retry') {
+            usageExceededStore.report(data.status.action)
+          }
 
           // Toast — session 从 busy/retry 变成 idle 时弹 completed 通知
           if (wasBusy && data.status.type === 'idle' && !belongsToCurrentSession(scopedId)) {

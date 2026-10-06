@@ -98,6 +98,19 @@
     "minimize": "Minimize",
     "typeYourAnswer": "Type your own answer..."
   },
+  "usageExceeded": {
+    "dontShowAgain": "Don't show again",
+    "freeTier": {
+      "title": "Free tier limit reached",
+      "description": "You've used up the OpenCode free tier. Sign in with an OpenCode Console account or add your own API key to keep going.",
+      "actionLabel": "Take action"
+    },
+    "accountRateLimit": {
+      "title": "Account rate limit reached",
+      "description": "This account is sending requests too frequently and hit the rate limit. We'll retry automatically, or you can upgrade your quota.",
+      "actionLabel": "Learn more"
+    }
+  },
   "queue": {
     "title": "Queued ({{count}})",
     "steer": "Steer",

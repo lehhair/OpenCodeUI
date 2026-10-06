@@ -6,6 +6,7 @@ import { ChatPane } from './features/chat/ChatPane'
 import { SplitContainer } from './features/chat/SplitContainer'
 import type { CommandItem } from './components/CommandPalette'
 import { ToastContainer } from './components/ToastContainer'
+import { UsageExceededDialog } from './components/UsageExceededDialog'
 import { RightPanel } from './components/RightPanel'
 import { BottomPanel } from './components/BottomPanel'
 import { DesktopTitlebar } from './components/DesktopTitlebar'
@@ -1036,6 +1037,7 @@ function App() {
             </>
           )}
           <ToastContainer onOpenAbout={openAboutSettings} />
+          <UsageExceededDialog />
         </div>
 
         <Suspense fallback={null}>

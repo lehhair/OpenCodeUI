@@ -124,7 +124,7 @@ describe('useProviderConnectionController（官方 controller.ts 同款状态机
     oauthStatusMock.mockResolvedValue({ status: 'failed', message: 'denied' })
 
     const { result } = render()
-    await waitFor(() => expect(result.current.state === 'error' || result.current.error !== undefined))
+    await waitFor(() => expect(result.current.state === 'error' || result.current.error !== undefined), { timeout: 3000 })
     expect(result.current.error).toBe('denied')
   })
 

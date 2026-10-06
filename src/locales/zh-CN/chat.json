@@ -98,6 +98,19 @@
     "minimize": "最小化",
     "typeYourAnswer": "输入你的回答..."
   },
+  "usageExceeded": {
+    "dontShowAgain": "不再提示",
+    "freeTier": {
+      "title": "免费额度已用尽",
+      "description": "OpenCode 免费额度已用完。登录 OpenCode Console 账号或配置自己的 API key 即可继续。",
+      "actionLabel": "去处理"
+    },
+    "accountRateLimit": {
+      "title": "已达到账号速率限制",
+      "description": "当前账号请求过于频繁，触发了速率限制。稍后会自动重试，也可以升级额度。",
+      "actionLabel": "了解详情"
+    }
+  },
   "queue": {
     "title": "排队中（{{count}}）",
     "steer": "插队",
