@@ -102,8 +102,12 @@ export function useSessionManager({
         .filter(message => !existingIds.has(message.id))
         .sort((a, b) => (a.time?.created ?? 0) - (b.time?.created ?? 0))
 
-      messageStore.prependMessages(sid, prependCandidates, page.nextCursor !== null, page.nextCursor)
-      return page.nextCursor !== null
+      // 游标必须前进：服务端异常时可能返回自指游标（next 与本次入参相同），
+      // 不前进 = 到头——否则 hasMoreHistory 永真，「加载更多」死循环
+      //（真机复现：v2.0.14 服务端偶发连续返回同一 next 值）
+      const hasMore = page.nextCursor !== null && page.nextCursor !== cursor
+      messageStore.prependMessages(sid, prependCandidates, hasMore, hasMore ? page.nextCursor : null)
+      return hasMore
     })().finally(() => {
       historyLoadsRef.current.delete(sid)
     })

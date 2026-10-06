@@ -75,4 +75,73 @@ describe('useSessionManager', () => {
       expect.objectContaining({ type: 'APIError' }),
     )
   })
+
+  it('历史翻页：游标自指（服务端异常）视为到头，hasMoreHistory=false', async () => {
+    // 真机复现：v2.0.14 服务端偶发连续返回同一 next 值，「加载更多」死循环
+    const state = {
+      messages: [{ id: 'msg-2', time: { created: 2 } }],
+      historyCursor: 'cursor-A',
+    }
+    messageStoreMock.getSessionState.mockReturnValue(state)
+    getSessionMessagesPageMock.mockResolvedValue({
+      messages: [{ id: 'msg-1', time: { created: 1 } }],
+      nextCursor: 'cursor-A', // 与入参相同 = 不前进
+    })
+
+    const { result } = renderHook(() =>
+      useSessionManager({ sessionId: 'local::session-1', directory: '/workspace/demo' }),
+    )
+
+    await result.current.loadMoreHistory()
+
+    expect(messageStoreMock.prependMessages).toHaveBeenCalledWith(
+      'local::session-1',
+      [{ id: 'msg-1', time: { created: 1 } }],
+      false,
+      null,
+    )
+  })
+
+  it('历史翻页：游标前进则继续（hasMoreHistory=true + 新游标）', async () => {
+    const state = {
+      messages: [{ id: 'msg-2', time: { created: 2 } }],
+      historyCursor: 'cursor-A',
+    }
+    messageStoreMock.getSessionState.mockReturnValue(state)
+    getSessionMessagesPageMock.mockResolvedValue({
+      messages: [{ id: 'msg-1', time: { created: 1 } }],
+      nextCursor: 'cursor-B',
+    })
+
+    const { result } = renderHook(() =>
+      useSessionManager({ sessionId: 'local::session-1', directory: '/workspace/demo' }),
+    )
+
+    await result.current.loadMoreHistory()
+
+    expect(messageStoreMock.prependMessages).toHaveBeenCalledWith(
+      'local::session-1',
+      [{ id: 'msg-1', time: { created: 1 } }],
+      true,
+      'cursor-B',
+    )
+  })
+
+  it('历史翻页：historyCursor 为 null 不再请求', async () => {
+    messageStoreMock.getSessionState.mockReturnValue({ messages: [], historyCursor: null })
+
+    const { result } = renderHook(() =>
+      useSessionManager({ sessionId: 'local::session-1', directory: '/workspace/demo' }),
+    )
+
+    // 挂载时的初始加载也会调一次首页（不带 cursor）——等它完成后清零再断言
+    await waitFor(() => {
+      expect(getSessionMessagesPageMock).toHaveBeenCalled()
+    })
+    getSessionMessagesPageMock.mockClear()
+
+    await result.current.loadMoreHistory()
+
+    expect(getSessionMessagesPageMock).not.toHaveBeenCalled()
+  })
 })
