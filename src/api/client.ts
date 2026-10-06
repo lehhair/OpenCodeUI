@@ -47,6 +47,8 @@ export * from './worktree'
 export * from './command'
 export * from './websearch'
 export * from './shell'
+export * from './integration'
+export * from './credential'
 export * from './global'
 
 // ============================================
