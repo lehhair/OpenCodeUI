@@ -44,7 +44,27 @@
   - 实现：busy 发送带 `delivery=queue/steer`（sendMessageNow）；`inboxStore` 镜像官方 pending（inbox.list 快照 + 四事件增量）；气泡式队列 UI（`QueueBubbles`，PiUI 形态）融在消息流尾部，操作行含复制 / 插入当前回合 / 撤回编辑 / 删除；输入栏 busy 投递 chip 切换 插队↔排队
   - 转写回声投影 `projectQueueEchoes`（官方 controller-projection.ts 的 `visibleTimelineMessages` 同款）：queue 回声隐藏（气泡是唯一展示位）、steer 回声挪到转写末尾
   - 发送时同步 `admitLocalInboxItem`（官方 admitLocal）：消除「先乐观实心气泡、再跳回队列」的闪烁
-  - 未做：官方 queue.edit 的 stash + 重发替换（我们用更轻的「撤回编辑→回填输入框→用户重发」）；拖拽重排（官方靠重发 suffix，复杂度高、需求低）
+  - 未做：~~官方 queue.edit 的 stash + 重发替换~~ → **已做（2026-10 收口轮）**：stash 草稿 + editedPromptInput 保留原提及 + admit→cancel→rewrite 原位替换；**拖拽重排也已做**（rewriteQueueOrder 后缀重写 + 把手拖拽，官方 queue-panel 同款）
+
+### 收口轮已完成项（2026-10，对齐官方照抄）
+
+| 项 | 实现 |
+|---|---|
+| skill 提及入口 | @ 菜单接入 skill.list（官方 composer/model.ts:193-205 同款），@skill.id 文本 + skill 附件，prompt.skills 端到端验证（服务端解析技能内容） |
+| compaction 进行中/失败/用量 | CompactionPartView 对齐官方 SessionCompactionMessage：started 分隔线 + 摘要流式 + running 指示 + 结果/用量/失败详情 |
+| 队列编辑原位替换 | 官方 queue.edit 同款 stash + 替换提交 + rewriteQueueOrder 保序；编辑中条目高亮、铅笔变取消 |
+| 队列拖拽重排 | QueueBubbles 把手拖拽（4px 阈值 + 中线槽位），rewriteQueueOrder 后缀重写 |
+| 客户端斜杠命令族 | /undo /redo /fork /export /btw 本端处理不走后端路由；纯文本 /cmd args 兜底路由 |
+| revert.committed 消费 | messageStore.applyRevertCommitted + inboxStore.dropFromBoundary（官方 data.ts:1076-1092 同款，多客户端同步） |
+| 全局输入历史 | promptHistoryStore（官方 composer/history 同款：全局持久化、normal/shell 分轨、上限 100、失败移除） |
+| 草稿持久化 | usePersistedDraft（官方 composer persistence 同款：按会话/工作区作用域、防抖写盘、发送清空） |
+| List/Skill 渲染器 | 官方 session-ui 同款：list 只展 output+目录 subtitle；skill 紧凑「Loaded skill」行 |
+| session.message.get 回读 | model.selected 合成行后 durable 回读原位替换（官方 data.ts:677-683 同款） |
+| 命令面板混合搜索 | 命令 + 文件（file.find 防抖）+ 会话（标题过滤），各 5 条（官方 palette.ts ENTRY_LIMIT 同款） |
+| 健康检查轮询 + 通知跨标签去重 | 订阅中服务器 10s 例行体检；notificationCoordinator 官方 coordinator 同款（locks + localStorage 认领清单） |
+| 设置 Provider 页 | 官方 settings/providers 同款：已连接列表 + 来源标签（env/api/account/config/custom）+ 断开 + 常用区 |
+| /btw 侧问 | session.generate 封装 + BtwDialog（官方 session/btw 同款：一次性作答、不落转写） |
+| 官方主题 JSON 导入 | opencodeTheme.ts 映射器（扁平 palette → HSL 层级）+ 自定义主题注册/持久化 + 外观页导入/移除 |
 - [x] **`!` shell 命令 + 后台 shell 输出**（`session.shell`、`shell.list/output`）✅
   - 官方：composer 输入 `!` 进入 shell mode（composer/suggestions/machine.ts:203），提交走 `session.shell`（submit.ts:147）；shell 消息独立成行、用 shell 工具渲染器（session-ui/tool-renderer.tsx:1837）
   - 实现：`!` 进 shell mode（mono + Shell 徽标，Enter 执行、esc/空退格退出）→ `executeSessionShell`；`ShellMessageView` 投影成 shell 工具调用走 bash 管线；可见性 + 过程时间线补 shell 类型；全局 Escape 快捷键在 shell mode 内让路（data-shell-mode）
