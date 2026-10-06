@@ -27,6 +27,8 @@ import {
   disconnectMcpServer,
   addMcpServer,
 } from '../api/mcp'
+import { getIntegration, connectIntegrationOauth } from '../api/integration'
+import { openExternalUrl } from '../utils/externalUrl'
 import type { MCPResourceEntry, MCPStatus, McpServerConfig } from '../types/api/mcp'
 import { useDirectory } from '../hooks'
 import { logger } from '../utils/logger'
@@ -39,6 +41,8 @@ import { apiErrorHandler } from '../utils'
 interface ServerEntry {
   name: string
   status: MCPStatus
+  /** needs_auth 服务器的 OAuth integration（官方 useMcpToggle 的授权入口） */
+  integrationID?: string
   resources: MCPResourceEntry[]
 }
 
@@ -84,6 +88,7 @@ export const McpPanel = memo(function McpPanel({ isResizing: _isResizing }: McpP
       const entries: ServerEntry[] = statusResponse.map(server => ({
         name: server.name,
         status: server.status,
+        integrationID: server.integrationID,
         resources: resourcesByClient.get(server.name) ?? [],
       }))
 
@@ -145,25 +150,38 @@ export const McpPanel = memo(function McpPanel({ isResizing: _isResizing }: McpP
   )
 
   /**
-   * 处理需要认证的服务器。
+   * 处理需要认证的服务器（官方 providers/connect/mcp.ts:42-52 同款）。
    *
-   * v2 删除了 OAuth 专用端点（`mcp.auth.*` 已不存在），认证由服务端在
-   * 连接过程中自行处理，因此这里只触发一次 connect 再刷新状态。
+   * needs_auth 的远程 MCP 走它自己 integration 的 OAuth：
+   * integration.get → 找一个**无表单字段**的 oauth 方法 → oauth.connect
+   * 拿授权 URL → 拉起浏览器。没有 integrationID 的服务器退回 connect。
    */
   const handleAuth = useCallback(
     async (name: string) => {
       setActionLoading(name)
       try {
-        await connectMcpServer(name, currentDirectory)
+        const server = servers.find(entry => entry.name === name)
+        const integrationID = server?.integrationID
+        if (!integrationID) {
+          await connectMcpServer(name, currentDirectory)
+        } else {
+          const integration = await getIntegration(integrationID, currentDirectory)
+          const method = integration?.methods.find(item => item.type === 'oauth' && !(item.form?.length))
+          if (!method || method.type !== 'oauth') {
+            throw new Error(t('mcpPanel.authInteractiveForm', { name }))
+          }
+          const attempt = await connectIntegrationOauth(integrationID, method.id, undefined, currentDirectory)
+          await openExternalUrl(attempt.url)
+        }
         await new Promise(r => setTimeout(r, 500))
         await loadStatus()
       } catch (err) {
-        apiErrorHandler('connect MCP server for auth', err)
+        apiErrorHandler('MCP auth', err)
       } finally {
         setActionLoading(null)
       }
     },
-    [currentDirectory, loadStatus],
+    [servers, currentDirectory, loadStatus, t],
   )
 
   // 添加新服务器

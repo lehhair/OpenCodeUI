@@ -106,6 +106,7 @@
     "connected": "Connected",
     "disabled": "Disabled",
     "needsAuth": "Needs Auth",
+    "authInteractiveForm": "{{name}} requires interactive authorization, which this form does not support yet",
     "resources": "Resources",
     "resourceCount_one": "{{count}} resource",
     "resourceCount_other": "{{count}} resources",

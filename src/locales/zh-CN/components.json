@@ -105,6 +105,7 @@
     "connected": "已连接",
     "disabled": "已禁用",
     "needsAuth": "需要认证",
+    "authInteractiveForm": "{{name}} 需要交互式授权，当前版本暂不支持该表单",
     "resources": "资源",
     "resourceCount_other": "{{count}} 个资源",
     "disconnect": "断开连接",
