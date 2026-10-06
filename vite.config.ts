@@ -57,14 +57,14 @@ export default defineConfig({
     format: 'es',
   },
 
-  // shiki 全家桶在 Web Worker 里用（src/workers/shikiWorker.ts）。vite 初始
-  // 依赖扫描只走 index.html 主图，扫不到 worker 的依赖——不设这里的话，
-  // worker 首次加载会触发「发现新依赖」的中途重优化，browserHash 换戳后
-  // worker 里已转换好的 chunk URL（主题/语言）全部失效（504/404），
-  // 设置页代码块预览报 "Failed to fetch dynamically imported module" 就是它。
+  // shiki 全家桶只在 Web Worker（src/workers/shikiWorker.ts）里用。
+  // 它们全是纯 ESM（type:module）——排除出依赖预打包，走普通转换管线：
+  // 主题/语言按需加载、URL 稳定无版本戳，**永远不会**触发中途重优化。
+  // （此前 worker 晚于初始扫描被发现 → 重优化换戳 → worker 里已转换好的
+  //   chunk URL 全部失效，设置页代码块预览 404 就是这么来的；
+  //   反过来 include 全量预打包则冷启动要捆 ~430 个 chunk，巨慢）
   optimizeDeps: {
-    entries: ['index.html', 'src/workers/shikiWorker.ts'],
-    include: [
+    exclude: [
       'shiki-stream',
       'shiki/core',
       'shiki/engine/oniguruma',
