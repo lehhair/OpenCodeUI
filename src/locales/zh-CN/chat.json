@@ -19,7 +19,7 @@
     "runningTitle": "会话运行中，暂不能移动"
   },
   "sessionBackground": {
-    "move": "移到后台（{{count}} 个任务）"
+    "move": "移到后台 ({{count}} 个任务)"
   },
   "websearch": {
     "title": "第三方网页搜索",
