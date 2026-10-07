@@ -248,7 +248,7 @@ function InputBoxComponent({
       },
     [fileCapabilitiesProp, supportsImages],
   )
-  const { externalFileDropMode } = useSyncExternalStore(themeStore.subscribe, themeStore.getSnapshot)
+  const { externalFileDropMode, queueDeliveryChipVisible } = useSyncExternalStore(themeStore.subscribe, themeStore.getSnapshot)
 
   // 是否有任何文件附件能力
   const supportsAnyFile = fileCaps.image || fileCaps.pdf || fileCaps.audio || fileCaps.video
@@ -1599,6 +1599,7 @@ function InputBoxComponent({
                       isSending={isSubmitting}
                       busyDelivery={busyDelivery}
                       onBusyDeliveryChange={onBusyDeliveryChange}
+                      deliveryChipVisible={queueDeliveryChipVisible}
                       onAbort={onAbort}
                       canSend={canSend || false}
                       onSend={handleSend}

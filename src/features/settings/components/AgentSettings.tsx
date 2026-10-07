@@ -10,6 +10,7 @@ export function AgentSettings() {
   const [alwaysAllowMode, setAlwaysAllowMode] = useState<AlwaysAllowMode>(autoApproveStore.alwaysAllowMode)
   const [approvePendingOnFullAuto, setApprovePendingOnFullAuto] = useState(autoApproveStore.approvePendingOnFullAuto)
   const [queueFollowupMessages, setQueueFollowupMessages] = useState(themeStore.queueFollowupMessages)
+  const [queueDeliveryChipVisible, setQueueDeliveryChipVisible] = useState(themeStore.queueDeliveryChipVisible)
   const [descriptiveToolSteps, setDescriptiveToolSteps] = useState(themeStore.descriptiveToolSteps)
   const [inlineToolRequests, setInlineToolRequests] = useState(themeStore.inlineToolRequests)
   const [toolCardStyle, setToolCardStyle] = useState(themeStore.toolCardStyle)
@@ -50,6 +51,12 @@ export function AgentSettings() {
     const next = !queueFollowupMessages
     setQueueFollowupMessages(next)
     themeStore.setQueueFollowupMessages(next)
+  }
+
+  const toggleQueueDeliveryChipVisible = () => {
+    const next = !queueDeliveryChipVisible
+    setQueueDeliveryChipVisible(next)
+    themeStore.setQueueDeliveryChipVisible(next)
   }
 
   const toggleInlineToolRequests = () => {
@@ -106,6 +113,14 @@ export function AgentSettings() {
           onClick={toggleQueueFollowup}
         >
           <Toggle enabled={queueFollowupMessages} onChange={toggleQueueFollowup} />
+        </SettingRow>
+
+        <SettingRow
+          label={t('chat.queueDeliveryChipVisible')}
+          description={t('chat.queueDeliveryChipVisibleDesc')}
+          onClick={toggleQueueDeliveryChipVisible}
+        >
+          <Toggle enabled={queueDeliveryChipVisible} onChange={toggleQueueDeliveryChipVisible} />
         </SettingRow>
       </SettingsSection>
 

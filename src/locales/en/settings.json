@@ -152,6 +152,8 @@
     "approvePendingOnFullAutoDesc": "When enabled, switching the footer auto-approve control to this session or all sessions also approves already waiting permissions with once",
     "queueFollowupMessages": "Queue Follow-Up Messages",
     "queueFollowupMessagesDesc": "When the current session is still busy, keep new messages in a queue and send them automatically after the turn finishes",
+    "queueDeliveryChipVisible": "Show steer/queue toggle in input",
+    "queueDeliveryChipVisibleDesc": "The steer/queue toggle at the bottom-right of the input box while the session is busy; hidden means messages go by the default delivery above",
     "sidebarRecents": "Sidebar Recents",
     "sidebarRecentsDesc": "Optional folder view for recent chats",
     "folderStyleRecents": "Folder-Style Recents",

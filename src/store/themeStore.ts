@@ -159,6 +159,8 @@ const DEFAULT_IMMERSIVE_MODE = true
 const DEFAULT_COMPACT_INLINE_PERMISSION = true
 const DEFAULT_GLASS_EFFECT = true
 const DEFAULT_QUEUE_FOLLOWUP_MESSAGES = false
+/** 输入框 busy 投递 chip（插队/排队）默认显示 */
+const DEFAULT_QUEUE_DELIVERY_CHIP_VISIBLE = true
 const DEFAULT_MANUAL_TERMINAL_TITLES = false
 const DEFAULT_EXTERNAL_FILE_DROP_MODE: ExternalFileDropMode = 'upload-first'
 const DEFAULT_OUTLINE_CURRENT_HIGHLIGHT = true
@@ -214,6 +216,8 @@ export interface ThemeState {
   glassEffect: boolean
   /** 忙碌时后续消息是否进入队列 */
   queueFollowupMessages: boolean
+  /** 输入框的 busy 投递 chip（插队/排队）是否显示 */
+  queueDeliveryChipVisible: boolean
   /** 终端标签是否改为手动命名模式 */
   manualTerminalTitles: boolean
   /** 外部文件拖入输入框时的处理方式 */
@@ -260,6 +264,7 @@ const STORAGE_KEY_IMMERSIVE_MODE = 'immersive-mode'
 const STORAGE_KEY_COMPACT_INLINE_PERMISSION = 'compact-inline-permission'
 const STORAGE_KEY_GLASS_EFFECT = 'glass-effect'
 const STORAGE_KEY_QUEUE_FOLLOWUP_MESSAGES = 'queue-followup-messages'
+const STORAGE_KEY_QUEUE_DELIVERY_CHIP_VISIBLE = 'queue-delivery-chip-visible'
 const STORAGE_KEY_MANUAL_TERMINAL_TITLES = 'manual-terminal-titles'
 const STORAGE_KEY_EXTERNAL_FILE_DROP_MODE = 'external-file-drop-mode'
 const STORAGE_KEY_OUTLINE_CURRENT_HIGHLIGHT = 'outline-current-highlight'
@@ -386,6 +391,12 @@ class ThemeStore {
     const queueFollowupMessages =
       savedQueueFollowupMessages === null ? DEFAULT_QUEUE_FOLLOWUP_MESSAGES : savedQueueFollowupMessages === 'true'
 
+    const savedQueueDeliveryChipVisible = localStorage.getItem(STORAGE_KEY_QUEUE_DELIVERY_CHIP_VISIBLE)
+    const queueDeliveryChipVisible =
+      savedQueueDeliveryChipVisible === null
+        ? DEFAULT_QUEUE_DELIVERY_CHIP_VISIBLE
+        : savedQueueDeliveryChipVisible === 'true'
+
     const savedManualTerminalTitles = localStorage.getItem(STORAGE_KEY_MANUAL_TERMINAL_TITLES)
     const manualTerminalTitles =
       savedManualTerminalTitles === null ? DEFAULT_MANUAL_TERMINAL_TITLES : savedManualTerminalTitles === 'true'
@@ -450,6 +461,7 @@ class ThemeStore {
       compactInlinePermission,
       glassEffect,
       queueFollowupMessages,
+      queueDeliveryChipVisible,
       manualTerminalTitles,
       externalFileDropMode,
       outlineCurrentHighlight,
@@ -532,6 +544,10 @@ class ThemeStore {
   }
   get queueFollowupMessages() {
     return this.state.queueFollowupMessages
+  }
+
+  get queueDeliveryChipVisible() {
+    return this.state.queueDeliveryChipVisible
   }
   get manualTerminalTitles() {
     return this.state.manualTerminalTitles
@@ -853,6 +869,13 @@ class ThemeStore {
     this.emit()
   }
 
+  setQueueDeliveryChipVisible(enabled: boolean) {
+    if (this.state.queueDeliveryChipVisible === enabled) return
+    this.state = { ...this.state, queueDeliveryChipVisible: enabled }
+    localStorage.setItem(STORAGE_KEY_QUEUE_DELIVERY_CHIP_VISIBLE, String(enabled))
+    this.emit()
+  }
+
   setManualTerminalTitles(enabled: boolean) {
     if (this.state.manualTerminalTitles === enabled) return
     this.state = { ...this.state, manualTerminalTitles: enabled }
@@ -1149,6 +1172,10 @@ function normalizeThemeBackup(raw: unknown): ThemeBackup {
       typeof parsed?.queueFollowupMessages === 'boolean'
         ? parsed.queueFollowupMessages
         : DEFAULT_QUEUE_FOLLOWUP_MESSAGES,
+    queueDeliveryChipVisible:
+      typeof parsed?.queueDeliveryChipVisible === 'boolean'
+        ? parsed.queueDeliveryChipVisible
+        : DEFAULT_QUEUE_DELIVERY_CHIP_VISIBLE,
     manualTerminalTitles:
       typeof parsed?.manualTerminalTitles === 'boolean'
         ? parsed.manualTerminalTitles
@@ -1218,6 +1245,7 @@ export function importThemeBackup(raw: unknown): void {
   localStorage.setItem(STORAGE_KEY_COMPACT_INLINE_PERMISSION, String(backup.compactInlinePermission))
   localStorage.setItem(STORAGE_KEY_GLASS_EFFECT, String(backup.glassEffect))
   localStorage.setItem(STORAGE_KEY_QUEUE_FOLLOWUP_MESSAGES, String(backup.queueFollowupMessages))
+  localStorage.setItem(STORAGE_KEY_QUEUE_DELIVERY_CHIP_VISIBLE, String(backup.queueDeliveryChipVisible))
   localStorage.setItem(STORAGE_KEY_MANUAL_TERMINAL_TITLES, String(backup.manualTerminalTitles))
   localStorage.setItem(STORAGE_KEY_EXTERNAL_FILE_DROP_MODE, backup.externalFileDropMode)
   localStorage.setItem(STORAGE_KEY_OUTLINE_CURRENT_HIGHLIGHT, String(backup.outlineCurrentHighlight))

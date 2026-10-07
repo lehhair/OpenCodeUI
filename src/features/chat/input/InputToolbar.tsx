@@ -26,6 +26,8 @@ interface InputToolbarProps {
   /** busy 时新消息的投递方式（steer=插队本轮 / queue=排队下轮），流式期间显示切换 chip */
   busyDelivery?: 'queue' | 'steer'
   onBusyDeliveryChange?: (delivery: 'queue' | 'steer') => void
+  /** 插队/排队 chip 是否显示（设置页可关，默认显示） */
+  deliveryChipVisible?: boolean
 
   canSend: boolean
   onSend: () => void
@@ -55,6 +57,7 @@ export function InputToolbar({
   onAbort,
   busyDelivery,
   onBusyDeliveryChange,
+  deliveryChipVisible = true,
   canSend,
   onSend,
   models = [],
@@ -503,7 +506,7 @@ export function InputToolbar({
       {/* Action Buttons */}
       <div className="flex items-center gap-1">
         {/* busy 投递方式切换（PiUI InputToolbar steer/follow-up chip 同款） */}
-        <AnimatedPresence show={Boolean(isStreaming && onBusyDeliveryChange)} className="shrink-0">
+        <AnimatedPresence show={Boolean(isStreaming && onBusyDeliveryChange && deliveryChipVisible)} className="shrink-0">
           <button
             type="button"
             aria-pressed={busyDelivery === 'steer'}
