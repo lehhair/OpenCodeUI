@@ -415,12 +415,16 @@ pub async fn start_opencode_service(
         }
 
         let health_url = detected_url.as_deref().unwrap_or(&url);
-        // v2 服务端会强制随机密码（未显式配置时）——带密码做健康检查，
-        // 否则 401 永远「未就绪」
-        let health_auth = detected_password
+        // 就绪检查的凭据来源（按优先级）：
+        // 1. 服务端刚打印的随机密码（未显式配置时强制生成）
+        // 2. 条目上已有的凭据（用户通过 env 配了 OPENCODE_SERVER_PASSWORD
+        //    时服务端不打印，但只要条目 auth 与之匹配就能秒级就绪，
+        //    否则 401 每次迭代全失败、白等 15 秒超时才返回）
+        let ready_auth = detected_password
             .as_deref()
-            .map(|password| ("opencode", password));
-        if is_service_running_with_auth(health_url, health_auth).await {
+            .map(|password| ("opencode", password))
+            .or(health_auth);
+        if is_service_running_with_auth(health_url, ready_auth).await {
             log::info!("opencode service is ready at {}", health_url);
             *state.service_url.lock().map_err(|e| e.to_string())? = Some(health_url.to_string());
             return Ok(StartOpencodeServiceResult {
