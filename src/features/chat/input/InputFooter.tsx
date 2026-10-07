@@ -43,6 +43,7 @@ export const InputFooter = memo(function InputFooter({
 }: InputFooterProps) {
   const { t } = useTranslation(['chat', 'common'])
   const fullAutoMode = useFullAutoMode(paneId)
+  const hasBlocking = Boolean(backgroundTasks && backgroundTasks.length > 0 && onMoveToBackground)
 
   return (
     <div className="relative flex h-full w-full items-center justify-center gap-2 text-[length:var(--fs-xs)] leading-none text-text-500">
@@ -72,21 +73,27 @@ export const InputFooter = memo(function InputFooter({
 
       <span className="text-text-500/30 shrink-0">·</span>
 
-      <button onClick={onNewChat} className="hover:text-text-300 transition-colors">
-        {t('inputFooter.pleaseVerify')}
-      </button>
-
-      {/* 移到后台（官方 BackgroundMoveHint 同款位置与重量：页脚一行的小字入口） */}
-      {backgroundTasks && backgroundTasks.length > 0 && onMoveToBackground && (
+      {/* disclaimer / 移到后台（v1 todos 的布局同款：
+          平时只有免责声明；有阻塞任务时换成任务入口 + 新对话） */}
+      {!hasBlocking ? (
+        <button onClick={onNewChat} className="hover:text-text-300 transition-colors">
+          {t('inputFooter.pleaseVerify')}
+        </button>
+      ) : (
         <>
-          <span className="text-text-500/30 shrink-0">·</span>
           <button
             onClick={onMoveToBackground}
             disabled={backgroundMoving}
             className="hover:text-text-300 transition-colors disabled:opacity-50"
-            title={backgroundTasks.map(task => task.label).join('、')}
+            title={(backgroundTasks ?? []).map(task => task.label).join('、')}
           >
-            {t('chat:sessionBackground.move', { count: backgroundTasks.length })}
+            {t('chat:sessionBackground.move', { count: backgroundTasks?.length ?? 0 })}
+          </button>
+
+          <span className="text-text-500/30 shrink-0">·</span>
+
+          <button onClick={onNewChat} className="hover:text-text-300 transition-colors shrink-0">
+            {t('sidebar.newChat')}
           </button>
         </>
       )}
