@@ -86,6 +86,20 @@ export default defineConfig({
     // 允许所有域名
     allowedHosts: true,
 
+    // 启动后立刻在后台预热转译管线（vite 的按请求转译是「ready 秒出
+    // 但首访白屏几秒」的根因——几千个模块在第一次请求时才转）。
+    // 预热把同一份工作挪到启动后台并行跑：客户端入口 + shiki worker
+    //（shiki exclude 后 worker 依赖也走转换管线，冷启动必转）
+
+    // 启动后立刻在后台预热转译管线（vite 的按请求转译是「ready 秒出
+    // 但首访白屏几秒」的根因——几千个模块在第一次请求时才转）。
+    // 预热把同一份工作挪到启动后台并行跑：客户端入口 + shiki worker
+    //（shiki exclude 后 worker 依赖也走转换管线，冷启动必转）
+    warmup: {
+      clientFiles: ['./src/main.tsx'],
+      workerFiles: ['./src/workers/shikiWorker.ts'],
+    },
+
     watch: {
       // Rust 构建目录可达数十 GB / 数万文件，chokidar 全量监听会拖垮 dev server
       ignored: [
@@ -112,3 +126,5 @@ export default defineConfig({
     },
   },
 })
+
+
