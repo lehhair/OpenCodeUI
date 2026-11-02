@@ -528,6 +528,29 @@ body {
   stroke: currentColor;
 }
 
+/* 长公式横向滚动（手机窄屏必需）
+ *
+ * KaTeX 的 display 公式是 nowrap，超宽时会直接溢出容器被裁掉，末尾看不见。
+ * 这里把容器改成横向滚动：
+ *   - 不溢出时靠 `margin-inline: auto` 保持居中（跟 KaTeX 默认 text-align 一致）
+ *   - 溢出时 margin 归零、内容左对齐，滚动条能从公式开头一直拖到结尾
+ * 不能直接用 `justify-content: center`：溢出时左端会跑到不可滚动的负区域里。
+ * 只作用于块级公式，行内公式仍按正常行内流换行。
+ *
+ * 滚动条不写样式：原生滚动条全局隐藏，overlayScrollbar.ts 会扫描
+ * `overflow-x: auto` 且真的溢出的容器，自动挂 `.os-thumb-x`（表格、代码块同款）。 */
+.markdown-content .katex-display {
+  display: flex;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  padding-block: 0.125rem;
+}
+
+.markdown-content .katex-display > .katex {
+  margin-inline: auto;
+}
+
 /* Streaming Markdown is rendered in stable/live chunks. Without this, Tailwind
  * first:/last: margin utilities run per chunk root and make adjacent blocks too tight.
  * Use DOM position (:first-child/:last-child) so settled blocks need no isFirst/isLast props. */
