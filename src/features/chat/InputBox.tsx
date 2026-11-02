@@ -1246,6 +1246,9 @@ function InputBoxComponent({
         mime: item.type === 'reference' ? 'application/x-directory' : item.type !== 'agent' ? 'text/plain' : undefined,
         agentName: item.type === 'agent' ? item.displayName : undefined,
         skillId: item.type === 'skill' ? item.value : undefined,
+        // 物理路径引用只写路径（官方 composer 的 path 部件）：`@path` 已在文本里，
+        // 进 prompt.files[] 只会让服务端把整份文件读进内存，还撞 20MB 上限。
+        ...(attachType === 'file' || attachType === 'folder' ? { pathOnly: true } : {}),
         textRange: {
           value: mentionText,
           start: mentionStartIndex,
@@ -1474,9 +1477,15 @@ function InputBoxComponent({
     }
   }, [])
 
-  // 将拖入的文件信息插入为 @mention 附件
+  /**
+   * 将拖入的文件信息插入为 @mention 附件。
+   *
+   * `pathOnly`：只把路径写进 prompt 文本，不进 `prompt.files[]`。外部拖入的本机
+   * 文件走这条（对齐官方 composer 的 `path` 部件）：服务端不必把整份文件读进内存、
+   * 也不会撞上 20MB 上限，模型按需用工具读。侧边栏内部拖拽仍传 files[]。
+   */
   const insertDraggedFiles = useCallback(
-    (fileInfos: DraggedFileInfo[]) => {
+    (fileInfos: DraggedFileInfo[], options: { pathOnly?: boolean } = {}) => {
       if (fileInfos.length === 0) return
 
       const currentText = textareaRef.current?.value ?? text
@@ -1508,6 +1517,7 @@ function InputBoxComponent({
           relativePath,
           url: toFileUrl(fileInfo.absolute),
           mime: fileInfo.type === 'file' ? 'text/plain' : undefined,
+          ...(options.pathOnly ? { pathOnly: true } : {}),
           textRange: {
             value: mentionText,
             start,
@@ -1737,7 +1747,10 @@ function InputBoxComponent({
           setAttachments(prev => [...prev, ...uploadAttachments])
         }
 
-        insertDraggedFiles(mentionFiles)
+        // 外部拖入的本机文件只作路径引用（官方 composer 的 `path` 部件）：
+        // 路径已经在 prompt 文本里，再进 files[] 会让服务端把整份文件读进内存，
+        // 超过 20MB 还会让整条 prompt 以 AttachmentError 失败。
+        insertDraggedFiles(mentionFiles, { pathOnly: true })
       } catch (err) {
         console.warn('[InputBox] Failed to process dropped paths:', err)
       }

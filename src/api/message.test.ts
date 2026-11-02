@@ -299,6 +299,27 @@ describe('sendMessage — 路径型附件的文本引用', () => {
     expect(payload.metadata?.attachments).toBeUndefined()
   })
 
+  it('带 mention 的附件被从文本删掉后仍补路径（pathOnly 只能靠文本可见）', async () => {
+    await sendMessage({
+      ...baseParams(),
+      text: '看下这个',
+      attachments: [
+        {
+          id: 'a1',
+          type: 'file',
+          displayName: 'foo.ts',
+          url: 'file:///proj/src/foo.ts',
+          pathOnly: true,
+          textRange: { value: '@src/foo.ts', start: 0, end: 11 },
+        },
+      ] as never,
+    })
+
+    const payload = lastPromptPayload()
+    expect(payload.files).toBeUndefined()
+    expect(payload.text).toBe('看下这个\nAttached file: `/proj/src/foo.ts`')
+  })
+
   it('revert 回填的文本里已有同一引用时不重复追加', async () => {
     const path = '/tmp/opencode/uploads/u1/report.zip'
     await sendMessage({

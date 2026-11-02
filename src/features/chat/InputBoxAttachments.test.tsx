@@ -39,7 +39,7 @@ vi.mock('../attachment', () => ({
     attachments,
     onRetry,
   }: {
-    attachments: Array<{ id: string; url?: string; uploadStatus?: string; progress?: number }>
+    attachments: Array<{ id: string; url?: string; uploadStatus?: string; progress?: number; pathOnly?: boolean }>
     onRetry?: (id: string) => void
   }) => (
     <div data-testid="attachment-count">
@@ -47,6 +47,7 @@ vi.mock('../attachment', () => ({
       {attachments.map(attachment => (
         <span key={attachment.id} data-testid="attachment-meta">
           {`${attachment.url ?? ''}|${attachment.uploadStatus ?? ''}|${attachment.progress ?? ''}`}
+          {attachment.pathOnly ? '|pathOnly' : ''}
         </span>
       ))}
       {attachments
@@ -303,6 +304,9 @@ describe('InputBox attachment handling', () => {
     // 项目外的文件用绝对路径做引用；整条链路不碰上传
     expect(uploadAttachmentMock).not.toHaveBeenCalled()
     expect(screen.getByTestId('attachment-count')).toHaveTextContent('1')
+    // 引用只写路径（对齐官方 composer 的 path 部件）：不进 prompt.files[]，
+    // 服务端就不会把整份文件读进内存，也不会撞上 20MB 上限
+    expect(screen.getByTestId('attachment-meta')).toHaveTextContent('|pathOnly')
   })
 
   it('选中的是模型支持的媒体（图片）→ 内联，不占用 @，也不上传', async () => {

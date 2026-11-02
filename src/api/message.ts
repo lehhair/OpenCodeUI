@@ -273,14 +273,20 @@ export function fileUrlToAbsolutePath(url: string): string | undefined {
 }
 
 /**
- * 路径型附件：`file://` 引用且**不带 mention**。
+ * 路径型附件：`file://` 引用。
  *
- * 带 mention 的附件（`@` 提及、侧边栏拖入）路径已经在文本里，再补一行
- * 路径引用纯属噪声——官方也是这么区分的（path 部件 vs file 部件）。
+ * 带 mention 的附件（`@` 提及、拖入）路径已经在文本里，不再补一行引用
+ * ——官方也是这么区分的（path 部件 vs file 部件）。
+ *
+ * 但 pathOnly 附件不会进 `prompt.files[]`，文本是模型看到它的唯一途径。
+ * 如果用户把 `@path` 那段删掉了（chip 还在），这里必须补回去，
+ * 否则模型完全看不到这个附件。
  */
-export function isPathReferenceAttachment(attachment: Attachment): boolean {
+export function isPathReferenceAttachment(attachment: Attachment, text?: string): boolean {
   if (attachment.type !== 'file') return false
-  if (attachment.textRange) return false
+  if (attachment.textRange) {
+    return text !== undefined && !text.includes(attachment.textRange.value)
+  }
   return Boolean(attachment.url?.startsWith('file://'))
 }
 
@@ -291,11 +297,14 @@ export function attachmentReferencePath(attachment: Attachment): string | undefi
 }
 
 /** 收集路径引用（去重、保序） */
-export function buildAttachmentReferences(attachments: Attachment[]): PromptAttachmentReference[] {
+export function buildAttachmentReferences(
+  attachments: Attachment[],
+  text?: string,
+): PromptAttachmentReference[] {
   const references: PromptAttachmentReference[] = []
 
   for (const attachment of attachments) {
-    if (!isPathReferenceAttachment(attachment)) continue
+    if (!isPathReferenceAttachment(attachment, text)) continue
     const path = attachmentReferencePath(attachment)
     if (!path) continue
 
@@ -384,7 +393,7 @@ function buildPromptInput(
   const { files, agents, skills } = buildPromptParts(params.attachments)
   // 路径型附件额外把绝对路径写进文本（官方 request.ts:173-182 同款）：
   // files[].uri 只让服务端读到字节，模型能否看到取决于 mime（见文件顶部说明）。
-  const attachmentReferences = buildAttachmentReferences(params.attachments)
+  const attachmentReferences = buildAttachmentReferences(params.attachments, params.text)
 
   return {
     sessionID,
