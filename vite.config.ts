@@ -28,7 +28,8 @@ function katexWoff2Only() {
 
 // https://vite.dev/config/
 export default defineConfig({
-  base: process.env.VITE_BASE_PATH || '/',
+  // 🔥 THIS IS THE FIX: Changed from '/' to '/OpenCodeUI/'
+  base: process.env.VITE_BASE_PATH || '/OpenCodeUI/',
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
     __SHIKI_SUPPORTED_LANGS__: JSON.stringify(shikiSupportedLangs),
@@ -41,8 +42,6 @@ export default defineConfig({
           if (!id.includes('node_modules')) return
 
           if (id.includes('@xterm/')) return 'vendor-terminal'
-          // shiki core + engine + themes → 一个小 chunk；
-          // 语言 grammar（@shikijs/langs/*）由 dynamic import 自动拆分
           if ((id.includes('shiki') || id.includes('@shikijs/')) && !id.includes('@shikijs/langs'))
             return 'vendor-shiki'
           if (id.includes('marked') || id.includes('dompurify') || id.includes('morphdom') || id.includes('katex')) return 'vendor-markdown'
@@ -57,12 +56,6 @@ export default defineConfig({
     format: 'es',
   },
 
-  // shiki 全家桶只在 Web Worker（src/workers/shikiWorker.ts）里用。
-  // 它们全是纯 ESM（type:module）——排除出依赖预打包，走普通转换管线：
-  // 主题/语言按需加载、URL 稳定无版本戳，**永远不会**触发中途重优化。
-  // （此前 worker 晚于初始扫描被发现 → 重优化换戳 → worker 里已转换好的
-  //   chunk URL 全部失效，设置页代码块预览 404 就是这么来的；
-  //   反过来 include 全量预打包则冷启动要捆 ~430 个 chunk，巨慢）
   optimizeDeps: {
     exclude: [
       'shiki-stream',
@@ -75,32 +68,16 @@ export default defineConfig({
     ],
   },
 
-  // Tauri CLI 兼容：不清屏，让 Tauri 的日志能保留在终端
   clearScreen: false,
 
   server: {
-    // Tauri mobile dev 需要通过网络访问 Vite dev server
     host: process.env.TAURI_DEV_HOST || false,
-    // 避免端口冲突
     strictPort: true,
-    // 允许所有域名
     allowedHosts: true,
-
-    // 启动后立刻在后台预热转译管线（vite 的按请求转译是「ready 秒出
-    // 但首访白屏几秒」的根因——几千个模块在第一次请求时才转）。
-    // 预热把同一份工作挪到启动后台并行跑：客户端入口 + shiki worker
-    //（shiki exclude 后 worker 依赖也走转换管线，冷启动必转）
-
-    // 启动后立刻在后台预热转译管线（vite 的按请求转译是「ready 秒出
-    // 但首访白屏几秒」的根因——几千个模块在第一次请求时才转）。
-    // 预热把同一份工作挪到启动后台并行跑（vite 8 只支持 clientFiles/
-    // ssrFiles，worker 文件的预热靠客户端入口传递覆盖不到的按需转译）
     warmup: {
       clientFiles: ['./src/main.tsx'],
     },
-
     watch: {
-      // Rust 构建目录可达数十 GB / 数万文件，chokidar 全量监听会拖垮 dev server
       ignored: [
         '**/node_modules/**',
         '**/.git/**',
@@ -108,15 +85,10 @@ export default defineConfig({
         '**/src-tauri/target/**',
         '**/src-router/target/**',
         '**/public/material-icons/**',
-        // vitest 运行时临时目录（Windows 上监听会 EBUSY 导致 dev server 崩溃）
         '**/*.tmpdir/**',
       ],
     },
-
     proxy: {
-      // 开发环境代理 - 将 /api 前缀的请求转发到 OpenCode 后端
-      // 注意：Tauri 模式下前端直接请求后端（通过 plugin-http），不走此代理。
-      // v2 后端的 API 就在 /api/* 下，**不能**像 v1 那样把 /api 前缀 rewrite 掉。
       '/api': {
         target: 'http://127.0.0.1:4096',
         changeOrigin: true,
@@ -125,5 +97,3 @@ export default defineConfig({
     },
   },
 })
-
-
