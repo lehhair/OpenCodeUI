@@ -1,5 +1,18 @@
 # Changelog
 
+## [v0.7.26] - 2026-11-06
+
+- perf(react): 稳定 useSyncExternalStore 订阅引用，避免每次渲染重绑 (35154609)
+- chore(api): 删除已无引用的手写 SSE 解析器 (ab2629d9)
+- perf(panel): 右侧面板首次打开前不再挂载 files/changes 内容 (6c690185)
+- perf(sidebar): 不再为最近会话的每个目录打开 shell 库存 (3c03f935)
+- fix(permission): 旧快照不再复活已经通过的权限请求 (1770f6ed)
+- fix(desktop): 刷新后复用本机服务，不再重走完整启动流程 (81d3f19c)
+- perf(session-list): 目录补拉批量合并，重连时强制补偿首屏 (16ec3f99)
+- perf(server): 健康检查与探测降噪，快照引用稳定，SSE 状态与健康收敛 (40d0c6a5)
+- perf(events): 全局状态接口只查一次，目录引用抖动不再触发刷新风暴 (782e9089)
+- perf(api): 桌面端首请求固定走 Tauri fetch，避免 CORS 必败重试 (f0084a04)
+
 ## [v0.7.25] - 2026-11-02
 
 - fix(markdown): 长公式支持横向滚动 (44800bdd)
