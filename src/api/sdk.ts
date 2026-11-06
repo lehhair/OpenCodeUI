@@ -35,8 +35,21 @@ async function getTauriFetch(): Promise<typeof globalThis.fetch> {
   return _tauriFetchLoading
 }
 
-function getFetchImpl(): typeof globalThis.fetch {
-  return isTauri() && _tauriFetch ? _tauriFetch : globalThis.fetch
+/**
+ * 解析本次请求实际使用的 fetch 实现。
+ *
+ * 桌面端必须用 Tauri 的 plugin-http：webview 里的原生 fetch 受 CORS 约束，
+ * 而 opencode serve 默认不带 `--cors`，从 tauri:// 源打到 127.0.0.1 的首个
+ * 请求会被浏览器直接拒绝。之前这里是「tauri fetch 已加载就用，否则用原生」，
+ * 启动时请求只要比动态 import 先到，就会白打一次必败请求并进入重试退避——
+ * 首屏会话/模型列表因此慢半拍甚至停在失败态。
+ *
+ * 现在改成等 import 落地（本身被缓存，之后是已 resolve 的 promise），
+ * 保证第一次请求就走对通道。
+ */
+async function resolveFetchImpl(): Promise<typeof globalThis.fetch> {
+  if (!isTauri()) return globalThis.fetch
+  return await getTauriFetch()
 }
 
 function createAbortError(message: string) {
@@ -99,7 +112,17 @@ async function trackedFetch(
       throw createAbortError('Stale API request')
     }
 
-    const fetchPromise = getFetchImpl()(input, {
+    const fetchImpl = await resolveFetchImpl()
+    // 等待 import 期间可能又发生了端点切换：起飞前再校验一次代次
+    if (generation !== _apiRequestGeneration) {
+      throw createAbortError('Stale API request')
+    }
+    // 等待期间外部取消（切会话 / 断连）也要在起飞前生效
+    if (controller.signal.aborted) {
+      throw controller.signal.reason ?? createAbortError('Request aborted')
+    }
+
+    const fetchPromise = fetchImpl(input, {
       ...init,
       signal: controller.signal,
     })

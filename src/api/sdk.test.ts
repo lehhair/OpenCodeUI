@@ -89,6 +89,9 @@ describe('v2 client request lifecycle', () => {
     })
 
     const request = client.__fetch('http://127.0.0.1:4096/api/session')
+    // 注入的 fetch 现在会先 await 传输实现（Tauri 下是 plugin-http 的
+    // 动态 import），所以等它真正起飞后再中断，覆盖「在途请求被 abort」路径。
+    await vi.waitFor(() => expect(signal).toBeDefined())
 
     abortInFlightApiRequests('Server endpoint changed')
 
