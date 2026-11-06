@@ -28,7 +28,7 @@ import { useChatSession, useModels, useModelSelection, useSessionModelRestore } 
 import { useServerStore } from '../../hooks/useServerStore'
 import { useCancelHint } from '../../hooks/useCancelHint'
 import { makeSessionKey, sessionKeyToServerId, splitSessionKey } from '../../utils/sessionKey'
-import { serverStore } from '../../store/serverStore'
+import { serverStore, subscribeServerStore } from '../../store/serverStore'
 import { InlineToolRequestContext, partitionUnclaimedRequests, type InlineToolRequestContextValue } from './InlineToolRequestContext'
 import { ChatViewportProvider, canUseSplitPane, useChatViewportMaybe, type ChatViewportValue } from './chatViewport'
 import { useChatPageViewModel } from './useChatPageViewModel'
@@ -172,7 +172,7 @@ export const ChatPane = memo(function ChatPane({
 
   // 当前 pane 绑定的服务器（sessionId 为复合 key，split 出 serverId；home 状态跟随 active server 实时变化）
   const activeServerId = useSyncExternalStore(
-    cb => serverStore.subscribe(cb),
+    subscribeServerStore,
     () => serverStore.getActiveServerId(),
     () => serverStore.getActiveServerId(),
   )

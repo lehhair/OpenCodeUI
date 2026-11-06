@@ -23,6 +23,7 @@ import { usePermissions, usePermissionHandler, useMessageAnimation, useDirectory
 import { useNotification } from './useNotification'
 import { notificationEventSettingsStore } from '../store/notificationEventSettingsStore'
 import { notificationStore } from '../store/notificationStore'
+import { subscribeFullAutoMode } from '../store/autoApproveStore'
 import { shellInventoryStore } from '../store/shellInventoryStore'
 import {
   sendMessageAsync,
@@ -71,7 +72,7 @@ import { serverStorage } from '../utils/perServerStorage'
 import { makeSessionKey, sessionKeyToServerId, splitSessionKey } from '../utils/sessionKey'
 import { sweepTaskChildBindings, verifyTaskChildBindings } from '../utils/taskChildBinding'
 import { createMessageId } from '../utils/identifier'
-import { serverStore } from '../store/serverStore'
+import { serverStore, subscribeServerStore } from '../store/serverStore'
 import { STORAGE_KEY_SELECTED_AGENT } from '../constants'
 import type { ChatAreaHandle } from '../features/chat'
 import { inboxStore, useInboxUserPrompts, useInboxCompactions, queuedPromptText } from '../store/inboxStore'
@@ -186,7 +187,7 @@ export function useChatSession({
    * 漏声明就会把请求打到旧服务器。被 routeSessionId 守卫的单元除外：此时 paneServerId 是它的纯函数。
    */
   const activeServerId = useSyncExternalStore(
-    cb => serverStore.subscribe(cb),
+    subscribeServerStore,
     () => serverStore.getActiveServerId(),
     () => serverStore.getActiveServerId(),
   )
@@ -323,7 +324,7 @@ export function useChatSession({
   const effectiveDirectory = sessionDirectory || currentDirectory
 
   const fullAutoMode = useSyncExternalStore(
-    cb => autoApproveStore.onFullAutoChange(cb),
+    subscribeFullAutoMode,
     () => autoApproveStore.getPaneFullAutoMode(paneId),
   )
   const approvePendingOnFullAuto = useSyncExternalStore(

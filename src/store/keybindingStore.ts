@@ -754,6 +754,10 @@ class KeybindingStore {
 // 单例导出
 export const keybindingStore = new KeybindingStore()
 
+/** 稳定引用的订阅函数（useSyncExternalStore 的 subscribe 每次渲染换新会反复重绑） */
+export const subscribeKeybindingStore = (listener: () => void): (() => void) =>
+  keybindingStore.subscribe(listener)
+
 export function exportKeybindingBackup(): KeybindingBackup {
   const customKeys: Record<string, string> = {}
   for (const keybinding of keybindingStore.getAll()) {

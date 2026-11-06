@@ -45,7 +45,7 @@ import {
 } from './input/attachmentUpload'
 import { createUploadId } from '../../api/file'
 import { notificationStore } from '../../store/notificationStore'
-import { LOCAL_SERVER_ID, serverStore } from '../../store/serverStore'
+import { LOCAL_SERVER_ID, serverStore, subscribeServerStore } from '../../store/serverStore'
 import { sessionKeyToServerId } from '../../utils/sessionKey'
 import { keybindingStore, matchesKeybinding } from '../../store/keybindingStore'
 import { themeStore } from '../../store/themeStore'
@@ -324,7 +324,7 @@ function InputBoxComponent({
    * 去引用一个服务端根本读不到的宿主路径。
    */
   const endpointStates = useSyncExternalStore(
-    serverStore.subscribe.bind(serverStore),
+    subscribeServerStore,
     () => serverStore.getEndpointStates(),
     () => serverStore.getEndpointStates(),
   )

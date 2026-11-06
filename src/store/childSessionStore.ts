@@ -371,7 +371,7 @@ import { useSyncExternalStore } from 'react'
  */
 export function useChildSessions(parentId: string | null): ChildSessionInfo[] {
   return useSyncExternalStore(
-    onStoreChange => childSessionStore.subscribe(onStoreChange),
+    childSessionStore.subscribe,
     () => getChildSessionsSnapshot(parentId),
     () => getChildSessionsSnapshot(parentId),
   )
@@ -382,7 +382,7 @@ export function useChildSessions(parentId: string | null): ChildSessionInfo[] {
  */
 export function useSessionFamily(sessionId: string | null): string[] {
   return useSyncExternalStore(
-    onStoreChange => childSessionStore.subscribe(onStoreChange),
+    childSessionStore.subscribe,
     () => getSessionFamilySnapshot(sessionId),
     () => getSessionFamilySnapshot(sessionId),
   )

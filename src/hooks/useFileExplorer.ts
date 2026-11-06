@@ -104,7 +104,7 @@ export function useFileExplorer(options: UseFileExplorerOptions = {}): UseFileEx
   // 多服务器模式：session 可能属于远端服务器，其工作区目录是远端路径（session 创建时的工作区）。
   // 文件树/文件状态应使用 session 自身目录，而不是本地 URL/currentDirectory 派生的目录。
   const sessionDirectory = useSyncExternalStore(
-    cb => activeSessionStore.subscribe(cb),
+    activeSessionStore.subscribe,
     () => (sessionId ? activeSessionStore.getSessionMeta(sessionId)?.directory : undefined),
     () => (sessionId ? activeSessionStore.getSessionMeta(sessionId)?.directory : undefined),
   )

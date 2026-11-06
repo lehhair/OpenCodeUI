@@ -1346,6 +1346,9 @@ layoutStore.subscribe(() => {
   cachedSnapshot = null
 })
 
+/** 稳定引用：useSyncExternalStore 的 subscribe 每次渲染换新会反复解绑/重绑 */
+const subscribeLayoutStore = (listener: () => void): (() => void) => layoutStore.subscribe(listener)
+
 export function useLayoutStore() {
-  return useSyncExternalStore(cb => layoutStore.subscribe(cb), getSnapshot, getSnapshot)
+  return useSyncExternalStore(subscribeLayoutStore, getSnapshot, getSnapshot)
 }

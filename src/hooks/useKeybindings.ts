@@ -5,6 +5,7 @@
 import { useEffect, useCallback, useSyncExternalStore } from 'react'
 import {
   keybindingStore,
+  subscribeKeybindingStore,
   matchesKeybinding,
   type KeybindingAction,
   type KeybindingConfig,
@@ -20,7 +21,7 @@ export type KeybindingHandlers = Partial<Record<KeybindingAction, () => void>>
  */
 export function useKeybindingStore() {
   const keybindings = useSyncExternalStore(
-    keybindingStore.subscribe.bind(keybindingStore),
+    subscribeKeybindingStore,
     () => keybindingStore.getAll(),
     () => keybindingStore.getAll(),
   )

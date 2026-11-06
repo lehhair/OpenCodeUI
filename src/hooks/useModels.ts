@@ -1,7 +1,7 @@
 import { useSyncExternalStore, useCallback, useEffect } from 'react'
 import { getActiveModels, getProviders, type Model, type Provider } from '../api'
 import { getSDKClientAsync } from '../api/sdk'
-import { serverStore } from '../store/serverStore'
+import { serverStore, subscribeServerStore } from '../store/serverStore'
 
 // ============================================
 // Per-server models cache — 每个服务器独立维护模型列表。
@@ -129,7 +129,7 @@ interface UseModelsResult {
 
 export function useModels(serverId?: string): UseModelsResult {
   const activeServerId = useSyncExternalStore(
-    cb => serverStore.subscribe(cb),
+    subscribeServerStore,
     () => serverStore.getActiveServerId(),
     () => serverStore.getActiveServerId(),
   )

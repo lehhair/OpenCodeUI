@@ -3,7 +3,13 @@
 // ============================================
 
 import { useSyncExternalStore, useCallback } from 'react'
-import { serverStore, type ServerConfig, type ServerHealth, type EndpointRuntime } from '../store/serverStore'
+import {
+  serverStore,
+  subscribeServerStore,
+  type ServerConfig,
+  type ServerHealth,
+  type EndpointRuntime,
+} from '../store/serverStore'
 export type { ServerConfig, ServerHealth, EndpointRuntime }
 
 /**
@@ -11,33 +17,33 @@ export type { ServerConfig, ServerHealth, EndpointRuntime }
  */
 export function useServerStore() {
   const servers = useSyncExternalStore(
-    serverStore.subscribe.bind(serverStore),
+    subscribeServerStore,
     () => serverStore.getServers(),
     () => serverStore.getServers(),
   )
 
   const activeServer = useSyncExternalStore(
-    serverStore.subscribe.bind(serverStore),
+    subscribeServerStore,
     () => serverStore.getActiveServer(),
     () => serverStore.getActiveServer(),
   )
 
   const healthMap = useSyncExternalStore(
-    serverStore.subscribe.bind(serverStore),
+    subscribeServerStore,
     () => serverStore.getAllHealth(),
     () => serverStore.getAllHealth(),
   )
 
   // 启动默认服务器偏好（setDefaultServer 内部会 notify，这里能正常感知）
   const defaultServerId = useSyncExternalStore(
-    serverStore.subscribe.bind(serverStore),
+    subscribeServerStore,
     () => serverStore.getDefaultServerId(),
     () => serverStore.getDefaultServerId(),
   )
 
   // 多地址运行时状态（生效地址 / 锁定地址）
   const endpointStates = useSyncExternalStore(
-    serverStore.subscribe.bind(serverStore),
+    subscribeServerStore,
     () => serverStore.getEndpointStates(),
     () => serverStore.getEndpointStates(),
   )

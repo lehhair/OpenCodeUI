@@ -301,7 +301,7 @@ export function SidePanel({
   const busySessions = useBusySessions()
   const busyCount = useBusyCount()
   useSyncExternalStore(
-    childSessionStore.subscribe.bind(childSessionStore),
+    childSessionStore.subscribe,
     childSessionStore.getVersion,
     childSessionStore.getVersion,
   )

@@ -14,7 +14,7 @@ import { useTranslation } from 'react-i18next'
 import { getSessions, type ApiSession } from '../../../api'
 import { makeSessionKey } from '../../../utils/sessionKey'
 import { sessionDisplayTitle } from '../../../utils/sessionTitle'
-import { serverStore } from '../../../store/serverStore'
+import { serverStore, subscribeServerStore } from '../../../store/serverStore'
 import { multiServerStore, useMultiServerStore } from '../../../store/multiServerStore'
 import { useDirectory } from '../../../contexts/useDirectory'
 import { readServerWorkspaces } from '../../../utils/serverWorkspaces'
@@ -265,7 +265,7 @@ export function SearchResults({ search, selectedSessionId, onSelectSession }: Se
 
   // 活动服务器（响应式：单服务器模式切服务器后刷新）
   const activeServerId = useSyncExternalStore(
-    cb => serverStore.subscribe(cb),
+    subscribeServerStore,
     () => serverStore.getActiveServerId(),
     () => serverStore.getActiveServerId(),
   )

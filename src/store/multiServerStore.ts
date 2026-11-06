@@ -130,10 +130,13 @@ class MultiServerStore {
 
 export const multiServerStore = new MultiServerStore()
 
+/** 稳定引用：useSyncExternalStore 的 subscribe 每次渲染换新会反复解绑/重绑 */
+const subscribeMultiServerStore = (listener: () => void): (() => void) => multiServerStore.subscribe(listener)
+
 /** React hook：多服务器模式配置 */
 export function useMultiServerStore(): PersistedShape {
   return useSyncExternalStore(
-    listener => multiServerStore.subscribe(listener),
+    subscribeMultiServerStore,
     () => multiServerStore.getSnapshot(),
     () => multiServerStore.getSnapshot(),
   )

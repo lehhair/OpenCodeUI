@@ -349,3 +349,7 @@ class AutoApproveStore {
 
 // 单例导出
 export const autoApproveStore = new AutoApproveStore()
+
+/** 稳定引用的 Full Auto 订阅（useSyncExternalStore 的 subscribe 不能每次渲染换新函数） */
+export const subscribeFullAutoMode = (listener: FullAutoListener): (() => void) =>
+  autoApproveStore.onFullAutoChange(listener)

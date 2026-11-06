@@ -16,7 +16,7 @@
 
 import { useSyncExternalStore, useCallback, useEffect } from 'react'
 import { getSelectableAgents } from '../api'
-import { serverStore } from '../store/serverStore'
+import { serverStore, subscribeServerStore } from '../store/serverStore'
 import { normalizePathSeparators } from '../utils/pathUtils'
 import type { Agent } from '../types/api/agent'
 
@@ -141,7 +141,7 @@ interface UseAgentsResult {
 
 export function useAgents(directory?: string, serverId?: string): UseAgentsResult {
   const activeServerId = useSyncExternalStore(
-    cb => serverStore.subscribe(cb),
+    subscribeServerStore,
     () => serverStore.getActiveServerId(),
     () => serverStore.getActiveServerId(),
   )

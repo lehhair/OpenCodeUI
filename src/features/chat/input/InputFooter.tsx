@@ -2,7 +2,7 @@ import { memo, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { RefObject } from 'react'
 import { FastForwardIcon } from '../../../components/Icons'
-import { autoApproveStore, type FullAutoMode } from '../../../store/autoApproveStore'
+import { autoApproveStore, subscribeFullAutoMode, type FullAutoMode } from '../../../store/autoApproveStore'
 
 // ============================================
 // Full Auto 状态 hook
@@ -10,7 +10,7 @@ import { autoApproveStore, type FullAutoMode } from '../../../store/autoApproveS
 
 function useFullAutoMode(paneId: string): FullAutoMode {
   return useSyncExternalStore(
-    cb => autoApproveStore.onFullAutoChange(cb),
+    subscribeFullAutoMode,
     () => autoApproveStore.getPaneFullAutoMode(paneId),
   )
 }

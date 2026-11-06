@@ -1317,6 +1317,14 @@ class ServerStore {
 // 单例导出
 export const serverStore = new ServerStore()
 
+/**
+ * 稳定引用的订阅函数。
+ *
+ * `useSyncExternalStore(store.subscribe.bind(store), ...)` 每次渲染都会生成
+ * 新函数，React 会先解绑再重绑；用模块级常量避免这类无意义订阅抖动。
+ */
+export const subscribeServerStore = (listener: () => void): (() => void) => serverStore.subscribe(listener)
+
 function normalizeServerBackup(raw: unknown): ServerSettingsBackup {
   const parsed = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : undefined
   const servers = Array.isArray(parsed?.servers)

@@ -82,9 +82,13 @@ class PaneControllerStore {
 
 export const paneControllerStore = new PaneControllerStore()
 
+/** 稳定引用：useSyncExternalStore 的 subscribe 每次渲染换新会反复解绑/重绑 */
+const subscribePaneControllerStore = (listener: () => void): (() => void) =>
+  paneControllerStore.subscribe(listener)
+
 export function usePaneController(paneId: string | null | undefined): PaneControllerState | null {
   return useSyncExternalStore(
-    listener => paneControllerStore.subscribe(listener),
+    subscribePaneControllerStore,
     () => paneControllerStore.getController(paneId),
     () => paneControllerStore.getController(paneId),
   )
@@ -92,7 +96,7 @@ export function usePaneController(paneId: string | null | undefined): PaneContro
 
 export function usePaneControllers(): PaneControllerState[] {
   return useSyncExternalStore(
-    listener => paneControllerStore.subscribe(listener),
+    subscribePaneControllerStore,
     () => paneControllerStore.getControllers(),
     () => paneControllerStore.getControllers(),
   )
