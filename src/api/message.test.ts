@@ -150,8 +150,10 @@ describe('sendMessage — prompt 载荷（官方 request.ts + submit.ts:395-411 
   })
 
   it('mention 区间随 files/agents 一起发出', async () => {
+    const text = '看下 @foo.ts 用 @build 跑'
     await sendMessage({
       ...baseParams(),
+      text,
       attachments: [
         {
           id: 'a1',
@@ -171,15 +173,24 @@ describe('sendMessage — prompt 载荷（官方 request.ts + submit.ts:395-411 
     })
 
     const payload = lastPromptPayload()
+    const fileStart = text.indexOf('@foo.ts')
     expect(payload.files).toEqual([
-      { uri: 'file:///proj/src/foo.ts', name: 'foo.ts', mention: { start: 5, end: 12, text: '@foo.ts' } },
+      {
+        uri: 'file:///proj/src/foo.ts',
+        name: 'foo.ts',
+        mention: { start: fileStart, end: fileStart + '@foo.ts'.length, text: '@foo.ts' },
+      },
     ])
-    expect(payload.agents).toEqual([{ name: 'build', mention: { start: 20, end: 26, text: '@build' } }])
+    const agentStart = text.indexOf('@build')
+    expect(payload.agents).toEqual([
+      { name: 'build', mention: { start: agentStart, end: agentStart + '@build'.length, text: '@build' } },
+    ])
   })
 
   it('skill 附件进 skills 数组（id + mention）', async () => {
     await sendMessage({
       ...baseParams(),
+      text: '@commit 提交',
       attachments: [
         {
           id: 's1',
@@ -279,7 +290,7 @@ describe('sendMessage — 路径型附件的文本引用', () => {
     expect(payload.metadata?.attachments).toHaveLength(1)
   })
 
-  it('带 mention 的附件（@ 引用）不额外注入路径', async () => {
+  it('带 mention 的附件（@ 引用）进 files[]，不额外注入路径', async () => {
     await sendMessage({
       ...baseParams(),
       text: '@src/foo.ts 看下',
@@ -295,8 +306,36 @@ describe('sendMessage — 路径型附件的文本引用', () => {
     })
 
     const payload = lastPromptPayload()
+    expect(payload.files).toEqual([
+      {
+        uri: 'file:///proj/src/foo.ts',
+        name: 'foo.ts',
+        mention: { start: 0, end: 11, text: '@src/foo.ts' },
+      },
+    ])
     expect(payload.text).toBe('@src/foo.ts 看下')
     expect(payload.metadata?.attachments).toBeUndefined()
+  })
+
+  it('提及前面改过字后，mention 区间按当前文本重新定位', async () => {
+    await sendMessage({
+      ...baseParams(),
+      text: '先加一句 @src/foo.ts 看下',
+      attachments: [
+        {
+          id: 'a1',
+          type: 'file',
+          displayName: 'foo.ts',
+          url: 'file:///proj/src/foo.ts',
+          // 插入时记下的旧偏移（在开头），用户后来在前面补了字
+          textRange: { value: '@src/foo.ts', start: 0, end: 11 },
+        },
+      ] as never,
+    })
+
+    const payload = lastPromptPayload()
+    const start = '先加一句 '.length
+    expect(payload.files?.[0].mention).toEqual({ start, end: start + 11, text: '@src/foo.ts' })
   })
 
   it('带 mention 的附件被从文本删掉后仍补路径（pathOnly 只能靠文本可见）', async () => {
@@ -400,6 +439,56 @@ describe('extractUserMessageContent — 路径附件回填', () => {
       url: 'file:///C:/tmp/uploads/u1/report.zip',
       relativePath: 'C:/tmp/uploads/u1/report.zip',
       pathOnly: true,
+    })
+  })
+
+  it('@ 提及文件回填 mention 区间，再次发送仍按附件处理', async () => {
+    const { extractUserMessageContent } = await import('./message')
+    const restored = extractUserMessageContent(
+      userMessage({
+        files: [
+          {
+            data: 'QQ==',
+            mime: 'text/plain',
+            source: { type: 'uri', uri: 'file:///repo/a.ts' },
+            name: 'a.ts',
+            mention: { start: 3, end: 9, text: '@a.ts' },
+          },
+        ],
+      }),
+    )
+
+    expect(restored.attachments[0]).toMatchObject({
+      type: 'file',
+      displayName: 'a.ts',
+      url: 'file:///repo/a.ts',
+      mime: 'text/plain',
+      textRange: { value: '@a.ts', start: 3, end: 9 },
+    })
+    expect(restored.attachments[0]?.pathOnly).toBeUndefined()
+  })
+
+  it('inline 附件从 data 还原成 data URL，回退重发不丢内容', async () => {
+    const { extractUserMessageContent } = await import('./message')
+    const restored = extractUserMessageContent(
+      userMessage({
+        metadata: undefined,
+        files: [
+          {
+            data: 'aW1n',
+            mime: 'image/png',
+            source: { type: 'inline' },
+            name: 'shot.png',
+          },
+        ],
+      }),
+    )
+
+    expect(restored.attachments[0]).toMatchObject({
+      type: 'file',
+      displayName: 'shot.png',
+      url: 'data:image/png;base64,aW1n',
+      mime: 'image/png',
     })
   })
 

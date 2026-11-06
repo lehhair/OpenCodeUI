@@ -14,12 +14,10 @@ import { getSDKClient } from './sdk'
 import { resolveSessionTarget } from '../utils/sessionKey'
 import { cancelInboxItem } from './session'
 import { createMessageId } from '../utils/identifier'
-import { fileBaseName } from '../utils/pathUtils'
 import {
   applyAttachmentReferences,
   buildAttachmentReferences,
   dedupeAttachmentReferences,
-  fileUrlToAbsolutePath,
 } from './message'
 import type { QueuedUserPrompt } from '../store/inboxStore'
 import type { Attachment } from './types'
@@ -148,26 +146,24 @@ export function buildEditedPromptInput(params: {
     return { text: value.text, start, end: start + value.text.length }
   }
 
-  // 非 composer 附件（带 mention 或非 inline 的文件）全部保留
+  // 非 composer 附件（mention / 上下文文件）保留；mention 被编辑删掉就丢弃
+  //（官方 editedPromptInput 同款）。uri 型文件必须原样保留 uri——之前统一
+  // 拼成 data URL，会把 @ 引用的 file:// 变成空 data，等于附件丢失。
+  const requestFiles = params.request.files ?? []
   const preservedFiles = (payload.files ?? [])
-    .filter(file => file.mention || file.source.type !== 'inline')
+    .filter(file => !!file.mention || file.source.type !== 'inline')
+    .filter(file => !file.mention || params.text.includes(file.mention.text))
     .map(file => ({
-      uri: `data:${file.mime};base64,${file.data}`,
+      uri: file.source.type === 'uri' ? file.source.uri : `data:${file.mime};base64,${file.data}`,
       name: file.name,
       description: file.description,
       mention: mention(file.mention),
     }))
+    .filter(file => !requestFiles.some(entry => entry.uri === file.uri))
 
-  // 路径引用（Issue #182）：原条目里 uri 型文件的路径 + 编辑器当前的路径型附件。
-  // 两者都要重新注入文本——编辑确认会重写 text，旧的那一行可能在 notes 里，
-  // 也可能被新文本顶掉；applyAttachmentReferences 会按路径去重，不会重复。
-  const preservedReferences = (payload.files ?? []).flatMap(file => {
-    if (file.source.type !== 'uri') return []
-    const path = fileUrlToAbsolutePath(file.source.uri) ?? file.source.uri
-    return [{ name: file.name ?? fileBaseName(path), mime: file.mime, path }]
-  })
-  // 旧的 composer 路径附件形态是「无 url、有 relativePath」（queue 回填的条目），
-  // 保留兼容；新的上传附件带 file:// url，由 buildAttachmentReferences 收集。
+  // 路径引用（Issue #182）：原条目的路径引用由 queuedPromptAttachments 回填到
+  // 编辑器（无 url、有 relativePath），这里统一从编辑器附件收集；不再把
+  // payload.files 里的普通 uri 文件误当成路径引用重复注入文本。
   const composerReferences = [
     ...params.attachments
       .filter(attachment => attachment.type === 'file' && !attachment.url && attachment.relativePath)
@@ -178,7 +174,7 @@ export function buildEditedPromptInput(params: {
       })),
     ...buildAttachmentReferences(params.attachments),
   ]
-  const references = dedupeAttachmentReferences([...preservedReferences, ...composerReferences])
+  const references = dedupeAttachmentReferences(composerReferences)
 
   const requestAgents = params.request.agents ?? []
   const agents = [

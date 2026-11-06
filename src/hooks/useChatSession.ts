@@ -1083,7 +1083,7 @@ export function useChatSession({
             attachments,
             original,
             delivery: original.delivery,
-            request: buildPromptParts(attachments),
+            request: buildPromptParts(attachments, content),
           })
           await confirmQueueEdit({
             sessionId: routeSessionId,

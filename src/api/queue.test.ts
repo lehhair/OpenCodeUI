@@ -76,7 +76,7 @@ describe('rewriteQueueOrder（官方 queue.rewrite 同款：后缀重写保序�
 })
 
 describe('buildEditedPromptInput（官方 editedPromptInput 同款）', () => {
-  it('保留原文件/agent/skill 提及（文本仍含 mention 时），合并新请求', () => {
+  it('保留仍被提及的文件（uri 原样保留），mention 被编辑删掉的丢弃', () => {
     const original = queuedItem('q1', '看下 @agent-x 和 @skill-y', {
       files: [
         {
@@ -92,9 +92,10 @@ describe('buildEditedPromptInput（官方 editedPromptInput 同款）', () => {
       metadata: { displayText: '看下 @agent-x 和 @skill-y' },
     })
 
+    const text = '再看下 @agent-x 和 @a.ts 就行'
     const result = buildEditedPromptInput({
       sessionId: 'ses-1',
-      text: '再看下 @agent-x 就行',
+      text,
       attachments: [],
       original,
       delivery: 'queue',
@@ -102,13 +103,26 @@ describe('buildEditedPromptInput（官方 editedPromptInput 同款）', () => {
     })
 
     // agent-x 仍被提及 → 保留且区间重定位；skill-y 不再被提及 → 丢弃
-    expect(result.agents).toEqual([{ name: 'agent-x', mention: { text: '@agent-x', start: 4, end: 12 } }])
+    expect(result.agents).toEqual([
+      { name: 'agent-x', mention: { text: '@agent-x', start: 4, end: 12 } },
+    ])
     expect(result.skills).toEqual([])
-    // 文件全部保留（非 composer 附件），区间重定位；不存在则 undefined
-    expect(result.files?.[0].uri).toBe('data:text/plain;base64,QQ==')
-    expect(result.files?.[0].mention).toBeUndefined()
-    expect(result.metadata?.displayText).toBe('再看下 @agent-x 就行')
+    // 文件仍被提及：uri 原样保留（不能拼成 data URL），mention 区间重定位
+    expect(result.files?.[0].uri).toBe('file:///repo/a.ts')
+    expect(result.files?.[0].mention).toEqual({ text: '@a.ts', start: 15, end: 20 })
+    expect(result.metadata?.displayText).toBe(text)
     expect(result.resume).toBe(false)
+
+    // 编辑把 mention 删掉 → 这条文件不再发送（官方 editedPromptInput 同款）
+    const dropped = buildEditedPromptInput({
+      sessionId: 'ses-1',
+      text: '再看下 @agent-x 就行',
+      attachments: [],
+      original,
+      delivery: 'queue',
+      request: { files: [], agents: [], skills: [] },
+    })
+    expect(dropped.files).toEqual([])
   })
 
   it('model 可见文本后缀（notes）接回 text 尾部', () => {

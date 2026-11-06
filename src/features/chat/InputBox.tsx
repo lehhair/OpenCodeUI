@@ -1246,9 +1246,9 @@ function InputBoxComponent({
         mime: item.type === 'reference' ? 'application/x-directory' : item.type !== 'agent' ? 'text/plain' : undefined,
         agentName: item.type === 'agent' ? item.displayName : undefined,
         skillId: item.type === 'skill' ? item.value : undefined,
-        // 物理路径引用只写路径（官方 composer 的 path 部件）：`@path` 已在文本里，
-        // 进 prompt.files[] 只会让服务端把整份文件读进内存，还撞 20MB 上限。
-        ...(attachType === 'file' || attachType === 'folder' ? { pathOnly: true } : {}),
+        // @ 提及走 `files[]`（官方 FileAttachmentPart 同款）：服务端自己按 uri
+        // 读文件——文本/图片/pdf/目录都能进上下文，二进制的 `@path` 也还在文本里。
+        // 之前这里一刀切 pathOnly，只有 `Attached file:` 一行文本，等于把附件降级没了。
         textRange: {
           value: mentionText,
           start: mentionStartIndex,

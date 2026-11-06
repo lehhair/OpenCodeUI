@@ -114,15 +114,30 @@ export function extractUserMessageContent(message: UserMessage): RevertedMessage
   for (const file of message.files ?? []) {
     const source = file.source
     const uri = source?.type === 'uri' ? source.uri : ''
+    // inline 附件（图片/pdf 等原生媒体）的字节在 data 里，回填成 data URL
+    // 才能再次发送；之前 url 为空，回退/重发时附件会静默丢失。
+    const inlineUrl = uri ? '' : file.data ? `data:${file.mime};base64,${file.data}` : ''
+    const url = uri || inlineUrl
     const displayName = file.name || uri || file.mime || 'attachment'
-    if (uri) seenPaths.add(uri)
+    if (url) seenPaths.add(url)
     attachments.push({
       id: crypto.randomUUID(),
-      type: 'file',
+      type: file.mime === 'application/x-directory' ? 'folder' : 'file',
       displayName,
-      // inline 附件没有可回填的路径，只在有 uri 时带上
-      url: uri,
+      url,
+      mime: file.mime,
       relativePath: uri || displayName,
+      // @ 提及的文件回填 mention 区间：再次发送时仍走 files[] + mention，
+      // 不会被当成普通路径附件重复注入一条 Attached file 文本（官方 promptFromMessage 同款）。
+      ...(file.mention
+        ? {
+            textRange: {
+              value: file.mention.text,
+              start: file.mention.start,
+              end: file.mention.end,
+            },
+          }
+        : {}),
     })
   }
 
@@ -175,7 +190,10 @@ export function extractUserMessageContent(message: UserMessage): RevertedMessage
  * 附件 → prompt 的 files/agents/skills 部件（buildPromptInput 的组装段，
  * 队列编辑确认（editedPromptInput）与正常发送共用）。
  */
-export function buildPromptParts(attachments: Attachment[]): {
+export function buildPromptParts(
+  attachments: Attachment[],
+  text?: string,
+): {
   files: Array<{ uri: string; name?: string; mention?: { start: number; end: number; text: string } }>
   agents: Array<{ name: string; mention?: { start: number; end: number; text: string } }>
   skills: Array<{ id: string; mention?: { start: number; end: number; text: string } }>
@@ -184,10 +202,24 @@ export function buildPromptParts(attachments: Attachment[]): {
   const agents: Array<{ name: string; mention?: { start: number; end: number; text: string } }> = []
   const skills: Array<{ id: string; mention?: { start: number; end: number; text: string } }> = []
 
-  const mention = (attachment: Attachment) =>
-    attachment.textRange
-      ? { start: attachment.textRange.start, end: attachment.textRange.end, text: attachment.textRange.value }
-      : undefined
+  /**
+   * 解析 mention 区间。
+   *
+   * textarea 的 textRange 是插入时记下的静态偏移，用户在提及前面改过字就会过期。
+   * 位置仍然对得上时沿用原区间（能区分重复出现的同名提及）；对不上就按
+   * 当前文本重新定位。官方编辑器的区间是实时维护的，这里用等价的后处理兜住。
+   */
+  const mention = (attachment: Attachment) => {
+    const range = attachment.textRange
+    if (!range) return undefined
+    if (!text) return { start: range.start, end: range.end, text: range.value }
+    if (text.slice(range.start, range.end) === range.value) {
+      return { start: range.start, end: range.end, text: range.value }
+    }
+    const index = text.indexOf(range.value)
+    if (index < 0) return undefined
+    return { start: index, end: index + range.value.length, text: range.value }
+  }
 
   for (const attachment of attachments) {
     if (attachment.type === 'agent') {
@@ -283,7 +315,7 @@ export function fileUrlToAbsolutePath(url: string): string | undefined {
  * 否则模型完全看不到这个附件。
  */
 export function isPathReferenceAttachment(attachment: Attachment, text?: string): boolean {
-  if (attachment.type !== 'file') return false
+  if (attachment.type !== 'file' && attachment.type !== 'folder') return false
   if (attachment.textRange) {
     return text !== undefined && !text.includes(attachment.textRange.value)
   }
@@ -390,7 +422,7 @@ function buildPromptInput(
   skills?: Array<{ id: string; mention?: { start: number; end: number; text: string } }>
   metadata?: Record<string, JsonValue>
 } {
-  const { files, agents, skills } = buildPromptParts(params.attachments)
+  const { files, agents, skills } = buildPromptParts(params.attachments, params.text)
   // 路径型附件额外把绝对路径写进文本（官方 request.ts:173-182 同款）：
   // files[].uri 只让服务端读到字节，模型能否看到取决于 mime（见文件顶部说明）。
   const attachmentReferences = buildAttachmentReferences(params.attachments, params.text)
