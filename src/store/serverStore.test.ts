@@ -745,6 +745,37 @@ describe('serverStore SSE 连接与健康状态收敛', () => {
     expect(serverStore.getHealth('local')?.status).toBe('online')
   })
 
+  it('SSE 连着时，失败的探测不能把状态降级成灰色', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockRejectedValue(new TypeError('fetch failed')),
+    )
+    const { serverStore } = await import('./serverStore')
+
+    // 对话正常（SSE 连着），但 HTTP 探测瞬时失败 / 走了旧地址
+    serverStore.noteServerConnected('local')
+    expect(serverStore.getHealth('local')?.status).toBe('online')
+
+    const health = await serverStore.checkHealth('local')
+    expect(health.status).toBe('offline')
+    // 状态点仍以「服务器实际可用」为准
+    expect(serverStore.getHealth('local')?.status).toBe('online')
+  })
+
+  it('SSE 断开后才允许健康探测把状态判为离线', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockRejectedValue(new TypeError('fetch failed')),
+    )
+    const { serverStore } = await import('./serverStore')
+
+    serverStore.noteServerConnected('local')
+    serverStore.noteServerDisconnected('local')
+    await serverStore.checkHealth('local')
+
+    expect(serverStore.getHealth('local')?.status).toBe('offline')
+  })
+
   it('已经在线时不再重复通知订阅方', async () => {
     vi.stubGlobal(
       'fetch',

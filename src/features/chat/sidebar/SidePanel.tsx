@@ -43,11 +43,10 @@ import {
   updateSession,
   deleteSession as apiDeleteSession,
   getSession,
-  subscribeToConnectionState,
   type ApiSession,
-  type ConnectionInfo,
 } from '../../../api'
 import { getDirectoryName, isSameDirectory, normalizeToForwardSlash } from '../../../utils'
+import { healthToConnectionDisplay } from '../../../utils/connectionDisplay'
 import { createSessionPlaceholder } from '../../../utils/sessionPlaceholder'
 import { makeSessionKey, splitSessionKey } from '../../../utils/sessionKey'
 import { uiErrorHandler } from '../../../utils'
@@ -124,7 +123,7 @@ export function SidePanel({
   // servers 快照同时喂给下方 subscribedServerIds 的过滤：WSL 服务器就绪注册
   // （upsert）只更新 serverStore，订阅白名单本身不变，漏了它 memo 会停留在
   // 「服务器还不存在」的旧过滤结果上，侧边栏永远缺 WSL 分组
-  const { activeServer, servers: registryServers } = useServerStore()
+  const { activeServer, servers: registryServers, getHealth } = useServerStore()
   const catalogServerId = multiServerConfig.enabled
     ? (multiServerConfig.focusedServerId ?? activeServer?.id)
     : undefined
@@ -154,7 +153,6 @@ export function SidePanel({
     () => (currentDirectory ? normalizeToForwardSlash(currentDirectory) : undefined),
     [currentDirectory],
   )
-  const [connectionState, setConnectionState] = useState<ConnectionInfo | null>(null)
   const [projectDeleteConfirm, setProjectDeleteConfirm] = useState<{ isOpen: boolean; projectId: string | null }>({
     isOpen: false,
     projectId: null,
@@ -309,9 +307,20 @@ export function SidePanel({
   const notifications = useNotifications()
   const unreadNotificationCount = useUnreadNotificationCount()
 
+  // 状态点与设置页同源：直接读目标服务器的健康状态（/api/info），不看 SSE。
+  // 目标服务器优先取焦点会话所属服务器——切到别的服务器的会话时也能对上，
+  // 不会再去盯 active server 那条不相关的连接。
+  const footerServerId = selectedSessionId
+    ? splitSessionKey(selectedSessionId).serverId
+    : serverStore.getActiveServerId()
+  const footerHealth = getHealth(footerServerId)
+  const connectionDisplay = healthToConnectionDisplay(footerHealth)
+
+  // 第一次进入时健康状态可能还没查过：补一次，避免一直停在过渡态
   useEffect(() => {
-    return subscribeToConnectionState(setConnectionState)
-  }, [])
+    if (footerHealth) return
+    void serverStore.checkHealth(footerServerId).catch(() => {})
+  }, [footerHealth, footerServerId])
 
   const { sessions, isLoading, isLoadingMore, hasMore, search, setSearch, loadMore, deleteSession, refresh } =
     useSessionContext()
@@ -1629,7 +1638,7 @@ export function SidePanel({
       {/* ===== Footer ===== */}
       <SidebarFooter
         showLabels={showLabels}
-        connectionState={connectionState?.state || 'disconnected'}
+        connectionState={connectionDisplay}
         contextLimit={contextLimit}
         onOpenSettings={onOpenSettings}
       />

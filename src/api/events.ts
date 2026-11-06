@@ -161,11 +161,15 @@ function getOrCreateConnection(serverId: string): ServerConnection {
 function updateConnectionState(serverId: string, update: Partial<ConnectionInfo>): void {
   const conn = connections.get(serverId)
   if (!conn) return
-  const becameConnected = update.state === 'connected' && conn.info.state !== 'connected'
+  const wasConnected = conn.info.state === 'connected'
+  const becameConnected = update.state === 'connected' && !wasConnected
   conn.info = { ...conn.info, ...update }
   // 设置页的健康灯和侧边栏的 SSE 状态必须收敛：连上了就把健康快照提升为
   // 在线，否则启动期失败的探测结果会一直红着（健康轮询已跳过已连接服务器）
   if (becameConnected) serverStore.noteServerConnected(serverId)
+  else if (wasConnected && update.state !== undefined && update.state !== 'connected') {
+    serverStore.noteServerDisconnected(serverId)
+  }
   connectionListeners.get(serverId)?.forEach(fn => {
     fn(conn.info)
   })
@@ -943,28 +947,6 @@ export function subscribeToServerConnectionState(serverId: string, fn: (info: Co
   fn(getServerConnectionInfo(serverId))
   return () => {
     set.delete(fn)
-  }
-}
-
-/**
- * 订阅活动服务器的连接状态变化（兼容旧 API）。
- * 跟随 active server：切换服务器时自动迁移订阅，
- * 否则状态栏会一直显示旧服务器的连接状态。
- */
-export function subscribeToConnectionState(fn: (info: ConnectionInfo) => void): () => void {
-  let currentServerId = serverStore.getActiveServerId()
-  let unsubscribe = subscribeToServerConnectionState(currentServerId, fn)
-
-  const offServerChange = serverStore.onServerChange(newServerId => {
-    if (newServerId === currentServerId) return
-    unsubscribe()
-    currentServerId = newServerId
-    unsubscribe = subscribeToServerConnectionState(currentServerId, fn)
-  })
-
-  return () => {
-    offServerChange()
-    unsubscribe()
   }
 }
 

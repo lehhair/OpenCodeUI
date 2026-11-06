@@ -16,7 +16,7 @@ import { useTranslation } from 'react-i18next'
 import { useServerStore } from '../../../hooks/useServerStore'
 import { serverStore } from '../../../store/serverStore'
 import { multiServerStore } from '../../../store/multiServerStore'
-import { subscribeToServerConnectionState, getServerConnectionInfo, type ConnectionInfo } from '../../../api/events'
+import { healthToConnectionDisplay, type ConnectionDisplayState } from '../../../utils/connectionDisplay'
 import { ExpandableSection } from '../../../components/ui'
 import { GripVerticalIcon } from '../../../components/Icons'
 import { subscribePerServerStorageVersion, getStorageVersion } from '../../../utils/perServerStorage'
@@ -52,17 +52,7 @@ interface MultiServerFolderListProps {
   onSelectChildSession?: (session: ApiSession) => void
 }
 
-function useServerConnectionState(serverId: string): ConnectionInfo {
-  const subscribe = useCallback(
-    (onStoreChange: () => void) =>
-      serverId ? subscribeToServerConnectionState(serverId, onStoreChange) : () => {},
-    [serverId],
-  )
-  const getSnapshot = useCallback(() => getServerConnectionInfo(serverId), [serverId])
-  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
-}
-
-function statusDotClass(state: ConnectionInfo['state']): string {
+function statusDotClass(state: ConnectionDisplayState): string {
   switch (state) {
     case 'connected':
       return 'bg-success-100'
@@ -115,7 +105,7 @@ const ServerFolderGroup = memo(function ServerFolderGroup({
   const { getHealth } = useServerStore()
   const server = serverStore.getServer(serverId)
   const health = getHealth(serverId)
-  const connectionState = useServerConnectionState(serverId)
+  const displayState = healthToConnectionDisplay(health)
   const [expandedProjectIds, setExpandedProjectIds] = useState<string[]>([])
 
   // 该服务器的工作区 = 该服务器 per-server storage 的 saved-directories（与单服务器模式同一套存储）
@@ -206,10 +196,10 @@ const ServerFolderGroup = memo(function ServerFolderGroup({
         >
           {/* size-5 图标位 → 连接状态点 */}
           <span className="relative size-5 shrink-0 flex items-center justify-center">
-            <span className={`h-2 w-2 rounded-full ${statusDotClass(connectionState.state)}`} />
-            {connectionState.state === 'connected' && (
+            <span className={`h-2 w-2 rounded-full ${statusDotClass(displayState)}`} />
+            {displayState === 'connected' && (
               <span
-                className={`absolute h-2 w-2 rounded-full ${statusDotClass(connectionState.state)} animate-ping opacity-50`}
+                className={`absolute h-2 w-2 rounded-full ${statusDotClass(displayState)} animate-ping opacity-50`}
               />
             )}
           </span>

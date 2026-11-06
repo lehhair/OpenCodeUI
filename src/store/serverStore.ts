@@ -334,6 +334,8 @@ class ServerStore {
   private activeServerId: string | null = null
   private healthMap = new Map<string, ServerHealth>()
   private healthCheckSeqMap = new Map<string, number>()
+  /** 当前 SSE 已连上的服务器：连上期间不允许健康探测把状态降级（见 commitHealth） */
+  private sseConnected = new Set<string>()
   private clockCalibrationMap = new Map<string, ServerClockCalibration>()
   /** 上次用服务端事件时间戳校准的本地单调时刻（calibrateFromServerTimestamp 节流用） */
   private lastClockCalibrationAt = new Map<string, number>()
@@ -1113,6 +1115,7 @@ class ServerStore {
    * 只升不降：SSE 瞬断（休眠/切网）不立刻判死，交给断连后的健康轮询。
    */
   noteServerConnected(serverId: string): void {
+    this.sseConnected.add(serverId)
     const previous = this.healthMap.get(serverId)
     if (previous?.status === 'online') return
     this.healthMap.set(serverId, {
@@ -1122,6 +1125,11 @@ class ServerStore {
       ...(previous?.latency !== undefined ? { latency: previous.latency } : {}),
     })
     this.notify()
+  }
+
+  /** SSE 断开：解除「连上期间不降级」的保护，交给健康轮询判定 */
+  noteServerDisconnected(serverId: string): void {
+    this.sseConnected.delete(serverId)
   }
 
   /**
@@ -1151,11 +1159,22 @@ class ServerStore {
 
     const commitHealth = (health: ServerHealth) => {
       if (this.healthCheckSeqMap.get(serverId) === checkSeq) {
+        // SSE 正常连着 = 服务端现在确实可达，比一次 HTTP 探测更权威。
+        // 移动端/代理环境下探测可能瞬时失败或还在用旧地址，不能因此把
+        // 状态点打灰（用户看到的是「消息正常在流、状态点却是灰的」）。
+        const effective: ServerHealth =
+          this.sseConnected.has(serverId) && health.status !== 'online'
+            ? {
+                status: 'online',
+                lastCheck: health.lastCheck,
+                ...(health.latency !== undefined ? { latency: health.latency } : {}),
+              }
+            : health
         const previous = this.healthMap.get(serverId)
-        this.healthMap.set(serverId, health)
+        this.healthMap.set(serverId, effective)
         // 静默体检只有「状态/版本/错误」变了才值得通知；延迟数字的变化
         // 下次真实通知时自然带出去
-        if (!options.silent || !sameHealth(previous, health)) this.notify()
+        if (!options.silent || !sameHealth(previous, effective)) this.notify()
       }
       return health
     }

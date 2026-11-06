@@ -9,7 +9,7 @@
 // 单服务器模式不启用本组件（保持原有 SessionList 搜索行为不变）。
 // ============================================
 
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getSessions, type ApiSession } from '../../../api'
 import { makeSessionKey } from '../../../utils/sessionKey'
@@ -19,11 +19,11 @@ import { multiServerStore, useMultiServerStore } from '../../../store/multiServe
 import { useDirectory } from '../../../contexts/useDirectory'
 import { readServerWorkspaces } from '../../../utils/serverWorkspaces'
 import { getStorageVersion, subscribePerServerStorageVersion } from '../../../utils/perServerStorage'
-import { subscribeToServerConnectionState, getServerConnectionInfo, type ConnectionInfo } from '../../../api/events'
+import { healthToConnectionDisplay, type ConnectionDisplayState } from '../../../utils/connectionDisplay'
 import { ChevronDownIcon, FolderIcon, MessageSquareIcon } from '../../../components/Icons'
 import { useServerStore } from '../../../hooks/useServerStore'
 
-function statusDotClass(state: ConnectionInfo['state']): string {
+function statusDotClass(state: ConnectionDisplayState): string {
   switch (state) {
     case 'connected':
       return 'bg-success-100'
@@ -43,16 +43,6 @@ function splitTerms(search: string): string[] {
     .toLowerCase()
     .split(/\s+/)
     .filter(Boolean)
-}
-
-function useServerConnectionState(serverId: string): ConnectionInfo {
-  const subscribe = useCallback(
-    (onStoreChange: () => void) =>
-      serverId ? subscribeToServerConnectionState(serverId, onStoreChange) : () => {},
-    [serverId],
-  )
-  const getSnapshot = useCallback(() => getServerConnectionInfo(serverId), [serverId])
-  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
 }
 
 interface ServerSearchGroupProps {
@@ -76,7 +66,7 @@ function ServerSearchGroup({
   const server = serverStore.getServer(serverId)
   const { getHealth } = useServerStore()
   const health = getHealth(serverId)
-  const connectionState = useServerConnectionState(serverId)
+  const displayState = healthToConnectionDisplay(health)
   const [expanded, setExpanded] = useState(true)
 
   // 工作区列表（本地；storage 写入时刷新）
@@ -230,7 +220,7 @@ function ServerSearchGroup({
         title={server?.url ?? serverId}
       >
         <span className="relative size-5 shrink-0 flex items-center justify-center">
-          <span className={`h-2 w-2 rounded-full ${statusDotClass(connectionState.state)}`} />
+          <span className={`h-2 w-2 rounded-full ${statusDotClass(displayState)}`} />
         </span>
         <span className="min-w-0 flex-1 truncate text-[length:var(--fs-sm)] font-medium text-text-300">
           {displayName}
