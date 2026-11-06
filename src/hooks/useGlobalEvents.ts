@@ -24,6 +24,7 @@ import { makeSessionKey, sessionKeyToServerId, splitSessionKey } from '../utils/
 import {
   subscribeToServerEvents,
   reconnectServerSSE,
+  getServerConnectionInfo,
   getSessionStatus,
   getPendingPermissions,
   getPendingForms,
@@ -265,44 +266,48 @@ function removePendingByRequestId<T extends { id: string }>(
   }
 }
 
+/**
+ * 拉取服务器级的活跃状态 + 待处理请求。
+ *
+ * v2 的 `session.active` / `permission.request.list` / `form.list` 都是
+ * **进程级全局接口**（服务端 handler 直接忽略 location 参数，见
+ * packages/server/src/handlers/permission.ts、form.ts）。
+ * 之前按「每个订阅工作区」各拉一遍，N 个收藏项目就是 3N 个完全相同的
+ * 请求——目录一变（含流式开关导致的数组重建）就再打一轮，是「网络请求
+ * 莫名其妙很多」的主要来源之一。这里只查一次，结果天然覆盖全部目录。
+ *
+ * `directories` 仍然接收：location 参数按第一个作用域传（老版本服务端
+ * 若真按目录过滤，至少保留默认位置的行为），并且它决定 pending 请求的
+ * scope 归属（见 fetchAndInitialize）。
+ */
 async function fetchActiveScopeData(directories: string[] | undefined, serverId: string) {
-  const scopes = directories && directories.length > 0 ? directories : [undefined]
-  const results = await Promise.all(
-    scopes.map(async directory => {
-      const [statusMap, permissions, questions] = await Promise.all([
-        getSessionStatus(directory, serverId).catch(() => ({}) as SessionStatusMap),
-        getPendingPermissions(undefined, directory, serverId).catch(() => []),
-        getPendingForms(undefined, directory, serverId).catch(() => []),
-      ])
-
-      return { directory, statusMap, permissions, questions }
-    }),
-  )
+  const directory = directories?.[0]
+  const [statusMap, permissions, questions] = await Promise.all([
+    getSessionStatus(directory, serverId).catch(() => ({}) as SessionStatusMap),
+    getPendingPermissions(undefined, directory, serverId).catch(() => []),
+    getPendingForms(undefined, directory, serverId).catch(() => []),
+  ])
 
   const mergedStatusMap: SessionStatusMap = {}
   const permissionMap = new Map<string, ApiPermissionRequest>()
   const questionMap = new Map<string, ApiFormInfo>()
 
-  results.forEach(({ statusMap, permissions, questions }) => {
-    // statusMap 的 key 复合化（事件/store 内部统一用 serverId::sessionId）
-    for (const [sid, status] of Object.entries(statusMap)) {
-      mergedStatusMap[makeSessionKey(serverId, sid)] = status
-    }
+  // statusMap 的 key 复合化（事件/store 内部统一用 serverId::sessionId）
+  for (const [sid, status] of Object.entries(statusMap)) {
+    mergedStatusMap[makeSessionKey(serverId, sid)] = status
+  }
 
-    // 注意：v2 的 active/permission/form 列表接口全部是**全局的、不按目录过滤**
-    // （服务端 handler 直接忽略 location 参数），因此绝不能把返回的 session
-    // 归属到当前查询的 scope 目录——曾按 scope 贴 directory 标签，导致活跃
-    // session 的 meta.directory 被最后一个订阅工作区覆盖，文件预览串到别的
-    // 工作区。session 的真实目录只来自 SSE session.updated 的 location.directory
-    // 和 getSession 的 durable 数据。
+  // 注意：这些列表接口返回的是**全局**数据，绝不能把结果归到查询时的
+  // scope 目录——曾按 scope 贴 directory 标签，导致活跃 session 的
+  // meta.directory 被覆盖，文件预览串到别的工作区。session 的真实目录
+  // 只来自 SSE session.updated 的 location.directory 和 getSession。
 
-    permissions.forEach(permission => {
-      permissionMap.set(permission.id, { ...permission, sessionID: makeSessionKey(serverId, permission.sessionID) })
-    })
+  permissions.forEach(permission => {
+    permissionMap.set(permission.id, { ...permission, sessionID: makeSessionKey(serverId, permission.sessionID) })
+  })
 
-    questions.forEach(question => {
-      questionMap.set(question.id, { ...question, sessionID: makeSessionKey(serverId, question.sessionID) })
-    })
+  questions.forEach(question => {
+    questionMap.set(question.id, { ...question, sessionID: makeSessionKey(serverId, question.sessionID) })
   })
 
   return {
@@ -387,6 +392,8 @@ export function useGlobalEvents(directories?: string[]) {
   const directoriesRef = useRef<string[] | undefined>(directories)
   const refreshRef = useRef<((strategy?: 'replace' | 'merge') => void) | null>(null)
   const initializedDirectoriesRef = useRef(false)
+  /** 上一次真正生效的目录集合（内容 key）：数组引用抖动不该触发全量刷新 */
+  const directoriesKeyRef = useRef<string | null>(null)
 
   // 活跃服务器集合：所有 pane 打开的 session 所属 server + active server
   const [activeServerIds, setActiveServerIds] = useState<string[]>(() => collectActiveServerIds())
@@ -519,8 +526,11 @@ export function useGlobalEvents(directories?: string[]) {
         })
     }
 
-    const refreshServerHealth = (serverId: string) => {
-      void serverStore.checkHealth(serverId).catch(() => {})
+    const refreshServerHealth = (serverId: string, silent = false) => {
+      const request = silent
+        ? serverStore.checkHealth(serverId, { silent: true })
+        : serverStore.checkHealth(serverId)
+      void request.catch(() => {})
     }
 
     // 目录类事件（provider/model/agent/config.updated）会触发 models/agents 重拉。
@@ -565,30 +575,29 @@ export function useGlobalEvents(directories?: string[]) {
       if (!autoApproveStore.approvePendingOnFullAuto || autoApproveStore.fullAutoMode !== 'global') return
 
       const serverIds = activeServerIdsRef.current
-      const directoriesToFetch =
-        directoriesRef.current && directoriesRef.current.length > 0 ? directoriesRef.current : [undefined]
+      // 全局接口不按 location 过滤（服务端直接忽略），查一次就覆盖所有目录。
+      // 之前按每个收藏目录各查一遍，同一批权限被回复了 N 次（靠 claim 去重）。
+      const directory = directoriesRef.current?.[0]
 
       void Promise.all(
-        serverIds.flatMap(serverId =>
-          directoriesToFetch.map(async directory => {
-            const permissions = await getPendingPermissions(undefined, directory, serverId).catch(() => [])
+        serverIds.map(async serverId => {
+          const permissions = await getPendingPermissions(undefined, directory, serverId).catch(() => [])
 
-            await Promise.all(
-              permissions.map(async request => {
-                if (!autoApproveStore.claimAutoReply(request.id)) return
+          await Promise.all(
+            permissions.map(async request => {
+              if (!autoApproveStore.claimAutoReply(request.id)) return
 
-                const dir =
-                  directory ?? activeSessionStore.getSessionMeta(makeSessionKey(serverId, request.sessionID))?.directory
-                try {
-                  await replyPermission(request.id, 'once', undefined, dir, request.sessionID, serverId)
-                  if (!disposed) markPermissionReplied(makeSessionKey(serverId, request.sessionID), request.id)
-                } catch {
-                  autoApproveStore.releaseAutoReply(request.id)
-                }
-              }),
-            )
-          }),
-        ),
+              const dir =
+                directory ?? activeSessionStore.getSessionMeta(makeSessionKey(serverId, request.sessionID))?.directory
+              try {
+                await replyPermission(request.id, 'once', undefined, dir, request.sessionID, serverId)
+                if (!disposed) markPermissionReplied(makeSessionKey(serverId, request.sessionID), request.id)
+              } catch {
+                autoApproveStore.releaseAutoReply(request.id)
+              }
+            }),
+          )
+        }),
       )
     }
 
@@ -1413,14 +1422,16 @@ export function useGlobalEvents(directories?: string[]) {
       reconnectServerSSE(changedId)
     })
 
-    // 健康检查自动轮询：接入/切换时的即时检查之外，每 10s 对订阅中的
-    // 服务器例行体检（断线的服务器能被状态栏及时反映出来）
+    // 健康检查兜底轮询：SSE 已连上的服务器跳过（连接状态本身就是活的，
+    // 再每 10s 打一次 /api/info 只是白白制造请求 + 重渲染）。断连/建连中
+    // 的服务器才需要主动探，节奏放慢到 30s——SSE 重连退避已经覆盖了恢复。
     const healthPollTimer = setInterval(() => {
       if (disposed) return
       for (const serverId of subscriptions.keys()) {
-        refreshServerHealth(serverId)
+        if (getServerConnectionInfo(serverId).state === 'connected') continue
+        refreshServerHealth(serverId, true)
       }
-    }, 10_000)
+    }, 30_000)
 
     return () => {
       disposed = true
@@ -1444,6 +1455,12 @@ export function useGlobalEvents(directories?: string[]) {
 
   useLayoutEffect(() => {
     directoriesRef.current = directories
+    // App 每次 pane 状态变化（流式开始/结束、contextLimit、目录增删）都会
+    // 重建 activeDirectories 数组。按内容比较：集合没变就不刷新——否则
+    // 每轮对话都会白打一轮 status/permission/form 查询。
+    const key = directories && directories.length > 0 ? directories.join('\n') : ''
+    if (key === directoriesKeyRef.current) return
+    directoriesKeyRef.current = key
     if (initializedDirectoriesRef.current) {
       refreshRef.current?.('merge')
       return

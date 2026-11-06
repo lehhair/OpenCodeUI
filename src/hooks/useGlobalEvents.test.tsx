@@ -123,6 +123,8 @@ vi.mock('../api', () => ({
   // 透传 serverId 作为第二参数：测试需要区分「哪个服务器建了订阅」
   subscribeToServerEvents: (serverId: string, cb: unknown) => subscribeToEventsMock(cb, serverId),
   reconnectServerSSE: (...args: unknown[]) => reconnectServerSSEMock(...args),
+  // 健康轮询会先看 SSE 连接状态；测试默认按「已连接」处理（不轮询）
+  getServerConnectionInfo: () => ({ state: 'connected' }),
   getSessionStatus: getSessionStatusMock,
   getPendingPermissions: getPendingPermissionsMock,
   getPendingForms: getPendingFormsMock,
@@ -395,6 +397,11 @@ describe('useGlobalEvents', () => {
       )
     })
 
+    // 服务器级全局接口只查一次：不再按订阅工作区各拉一遍
+    expect(getSessionStatusMock).toHaveBeenCalledTimes(1)
+    expect(getPendingPermissionsMock).toHaveBeenCalledTimes(1)
+    expect(getPendingFormsMock).toHaveBeenCalledTimes(1)
+
     // 不允许任何「按 scope 目录贴标签」的批量 meta 写入
     expect(activeSessionStoreMock.setSessionMetaBulk).not.toHaveBeenCalled()
     for (const call of activeSessionStoreMock.setSessionMeta.mock.calls) {
@@ -446,6 +453,24 @@ describe('useGlobalEvents', () => {
       { 'local::old-session': { type: 'idle' } },
       expect.anything(),
     )
+  })
+
+  it('数组引用变化但目录内容不变时不再重新拉取全局状态', async () => {
+    // App 的 activeDirectories 会随 pane 状态（流式开始/结束）重建数组。
+    // 内容没变就不该触发新请求——否则每轮对话都白打一轮 status/permission/form。
+    const { rerender } = renderHook(({ directories }) => useGlobalEvents(directories), {
+      initialProps: { directories: ['/one', '/two'] as string[] },
+    })
+
+    await waitFor(() => expect(getSessionStatusMock).toHaveBeenCalledTimes(1))
+
+    rerender({ directories: ['/one', '/two'] })
+
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(getSessionStatusMock).toHaveBeenCalledTimes(1)
+    expect(getPendingPermissionsMock).toHaveBeenCalledTimes(1)
   })
 
   it('replays pending requests that arrive while initialization is in flight', async () => {
