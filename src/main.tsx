@@ -8,7 +8,7 @@ import App from './App.tsx'
 import { DirectoryProvider, FullscreenProvider, SessionProvider } from './contexts'
 import { themeStore } from './store/themeStore'
 import { affectsBoundServer } from './store/serverChangeScope'
-import { serverStore } from './store/serverStore'
+import { LOCAL_SERVER_ID, serverStore } from './store/serverStore'
 import { startEndpointProbe } from './store/endpointProbe'
 import { autoApproveStore } from './store/autoApproveStore'
 import { serviceStore } from './store/serviceStore'
@@ -139,12 +139,43 @@ function configureNativeShell() {
 async function initializeNativeDesktopService() {
   if (!isNativeTauri || isNativeTauriMobile || !serviceStore.autoStart) return
 
+  const { invoke } = await import('@tauri-apps/api/core')
   const serverUrl = serverStore.getLocalServerUrl()
+  const localServer = serverStore.getLocalServer()
+
+  /**
+   * 页面刷新 / webview 重载：本机运行时地址已从 sessionStorage 恢复，
+   * 服务通常还活着。这里只探一次 /api/info，活着就直接复用——不调用
+   * `start_opencode_service`（探测子进程 → 认领注册表 → 必要时 spawn），
+   * 也不设 `starting`，首屏立刻能用恢复的地址发请求。
+   *
+   * 只在「有恢复地址」时走这条捷径：冷启动 / 新窗口仍然走完整流程，
+   * 保证「注册表里的托管服务优先于条目 URL 上别人跑的 serve」这一优先级
+   * 不被改掉。
+   */
+  if (serverStore.hasLocalRuntimeUrl()) {
+    const alreadyRunning = await invoke<boolean>('check_opencode_service', {
+      url: serverUrl,
+      // v2 服务端强制密码；无凭据探测会 401 误判成没在跑
+      auth: localServer?.auth ? ([localServer.auth.username, localServer.auth.password] as [string, string]) : null,
+    }).catch(() => false)
+
+    if (alreadyRunning) {
+      serviceStore.setRunning(true)
+      const byUs = await invoke<boolean>('get_service_started_by_us').catch(() => false)
+      serviceStore.setStartedByUs(byUs)
+      void invoke<boolean>('get_service_managed')
+        .then(managed => serviceStore.setManaged(managed))
+        .catch(() => {})
+      // 健康灯：探测结果落地即在线（与 SSE 连接状态收敛）
+      void serverStore.checkHealth(LOCAL_SERVER_ID).catch(() => {})
+      return
+    }
+  }
+
   serviceStore.setStarting(true)
 
   try {
-    const { invoke } = await import('@tauri-apps/api/core')
-
     try {
       const path = await invoke<string | null>('detect_opencode_binary', { envVars: serviceStore.envVarsRecord })
       serviceStore.setDetectedBinaryPath(path)
@@ -159,7 +190,10 @@ async function initializeNativeDesktopService() {
       extraArgs: serviceStore.serveArgsList,
       // 条目上已有的凭据：让「已经在跑」的探测通过 v2 的强制密码门
       auth: serverStore.getLocalServer()?.auth
-        ? ([serverStore.getLocalServer()!.auth!.username, serverStore.getLocalServer()!.auth!.password] as [string, string])
+        ? ([serverStore.getLocalServer()!.auth!.username, serverStore.getLocalServer()!.auth!.password] as [
+            string,
+            string,
+          ])
         : null,
     })
 
