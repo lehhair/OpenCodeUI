@@ -42,6 +42,10 @@ export interface UsePermissionHandlerResult {
   refreshPendingRequests: (sessionIds?: string | string[], directory?: string) => Promise<void>
   // Reset
   resetPendingRequests: () => void
+  /** 标记某个权限请求已在别处处理（事件广播 / 自动放行），防止旧快照把它复活 */
+  markPermissionResolved: (requestId: string) => void
+  /** 该请求是否已在本端确认处理过 */
+  isPermissionResolved: (requestId: string) => boolean
   // Loading state
   isReplying: boolean
 }
@@ -108,6 +112,27 @@ export function usePermissionHandler(serverId: string): UsePermissionHandlerResu
   // 防止重复回复
   const replyingIdsRef = useRef<Set<string>>(new Set())
 
+  /**
+   * 本端已经确认处理掉的请求 id。
+   *
+   * 竞态来源：开启 Full Auto 追补时，`refreshPendingRequests`（服务端快照）
+   * 和 `replyPermission`（回复）是并发的，而且刷新先发出。等 reply 成功、
+   * 本地把卡片移除后，刷新响应才落地——它带的是 reply 生效前的旧快照，
+   * 合并逻辑会把刚通过的请求重新加回列表，卡片就永远停在待批准。
+   *
+   * 这里记录「本地已经解决」的 id，合并时一律跳过；标记只在本 pane 切换会话
+   * （resetPendingRequests）时清空。id 全局唯一，不会误伤新请求。
+   */
+  const resolvedIdsRef = useRef<Set<string>>(new Set())
+
+  const markPermissionResolved = useCallback((requestId: string): void => {
+    resolvedIdsRef.current.add(requestId)
+  }, [])
+
+  const isPermissionResolved = useCallback((requestId: string): boolean => {
+    return resolvedIdsRef.current.has(requestId)
+  }, [])
+
   // serverId 是本 hook 的作用域：所有发起请求的回调都必须把它列入依赖。
   // pane 的服务器绑定会变（切会话、多服务器、WSL sidecar 就绪后切回），
   // 空依赖数组会把 serverId 冻在首次渲染的值上，回复被发到旧服务器：
@@ -133,6 +158,7 @@ export function usePermissionHandler(serverId: string): UsePermissionHandlerResu
         setPendingPermissionRequests(prev =>
           prev.some(r => r.id === requestId) ? prev.filter(r => r.id !== requestId) : prev,
         )
+        markPermissionResolved(requestId)
         activeSessionStore.resolvePendingRequest(requestId)
         return true
       } catch (error) {
@@ -141,6 +167,7 @@ export function usePermissionHandler(serverId: string): UsePermissionHandlerResu
           setPendingPermissionRequests(prev =>
             prev.some(r => r.id === requestId) ? prev.filter(r => r.id !== requestId) : prev,
           )
+          markPermissionResolved(requestId)
           activeSessionStore.resolvePendingRequest(requestId)
           return true
         }
@@ -153,7 +180,7 @@ export function usePermissionHandler(serverId: string): UsePermissionHandlerResu
         setIsReplying(false)
       }
     },
-    [serverId],
+    [markPermissionResolved, serverId],
   )
 
   /**
@@ -257,10 +284,16 @@ export function usePermissionHandler(serverId: string): UsePermissionHandlerResu
         getPendingForms(undefined, directory, serverId).catch(() => []),
       ])
 
+      // 已解决 / 正在回复的条目一律不合并：快照可能比 reply 慢一拍。
+      // tombstone 只在 reset（切会话）时清空——不能因为某次快照暂时没返回就
+      // 提前删掉，否则更早发出、更晚落地的旧快照仍会把它复活。
+      const eligiblePermission = (id: string) =>
+        !resolvedIdsRef.current.has(id) && !replyingIdsRef.current.has(id)
+
       const nextPermissions =
         familySet.size > 0
-          ? allPermissions.filter(p => matchesFamily(p.sessionID) && !replyingIdsRef.current.has(p.id))
-          : allPermissions.filter(p => !replyingIdsRef.current.has(p.id))
+          ? allPermissions.filter(p => matchesFamily(p.sessionID) && eligiblePermission(p.id))
+          : allPermissions.filter(p => eligiblePermission(p.id))
 
       // OMO background subagents can emit permission.asked over SSE before /permission
       // exposes the request for the routed instance. Refresh 时序下子 session 关系可能
@@ -268,7 +301,7 @@ export function usePermissionHandler(serverId: string): UsePermissionHandlerResu
       setPendingPermissionRequests(prev => {
         const merged = new Map(nextPermissions.map(p => [p.id, p]))
         for (const request of prev) {
-          if (replyingIdsRef.current.has(request.id)) continue
+          if (!eligiblePermission(request.id)) continue
           if (!merged.has(request.id)) merged.set(request.id, request)
         }
         return Array.from(merged.values())
@@ -294,6 +327,7 @@ export function usePermissionHandler(serverId: string): UsePermissionHandlerResu
     setPendingPermissionRequests([])
     setPendingQuestionRequests([])
     replyingIdsRef.current.clear()
+    resolvedIdsRef.current.clear()
   }, [])
 
   return {
@@ -306,6 +340,10 @@ export function usePermissionHandler(serverId: string): UsePermissionHandlerResu
     handleFormCancel,
     refreshPendingRequests,
     resetPendingRequests,
+    /** 标记某个权限请求已在别处处理（事件广播 / 自动放行），防止旧快照把它复活 */
+    markPermissionResolved,
+    /** 该请求是否已在本端确认处理过 */
+    isPermissionResolved,
     isReplying,
   }
 }

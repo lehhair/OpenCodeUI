@@ -139,6 +139,9 @@ vi.mock('../hooks', () => ({
     handleFormCancel: vi.fn(),
     refreshPendingRequests: refreshPendingRequestsMock,
     resetPendingRequests: vi.fn(),
+    // 已解决标记（防止旧快照复活已通过的权限）
+    markPermissionResolved: vi.fn(),
+    isPermissionResolved: vi.fn(() => false),
     isReplying: false,
   }),
   useMessageAnimation: () => ({

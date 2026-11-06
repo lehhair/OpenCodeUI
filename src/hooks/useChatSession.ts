@@ -295,6 +295,8 @@ export function useChatSession({
     handleFormCancel,
     refreshPendingRequests,
     resetPendingRequests,
+    markPermissionResolved,
+    isPermissionResolved,
     isReplying,
   } = usePermissionHandler(paneServerId)
 
@@ -511,6 +513,9 @@ export function useChatSession({
   const sseCallbacks = useMemo(
     () => ({
       onPermissionAsked: (request: import('../api').ApiPermissionRequest) => {
+        // 已在本端处理过的请求不再上屏：SSE 重连回放 / 旧快照补投可能重复送达
+        if (isPermissionResolved(request.id)) return
+
         // Full Auto 会话级：当前 session 的 handler 天然只处理当前 session 的请求
         const effectiveFullAutoMode = autoApproveStore.getPaneFullAutoMode(paneId)
         if (effectiveFullAutoMode === 'session') {
@@ -549,6 +554,9 @@ export function useChatSession({
         // 应用内 toast 已在 useGlobalEvents 中统一处理
       },
       onPermissionReplied: (data: { sessionID: string; requestID: string }) => {
+        // 不管是本 pane 回复还是别处（全局自动放行 / 另一个客户端）处理，
+        // 都记下来：后续 refresh 拿到的旧快照不能把它捡回来
+        markPermissionResolved(data.requestID)
         setPendingPermissionRequests(prev =>
           prev.some(r => r.id === data.requestID) ? prev.filter(r => r.id !== data.requestID) : prev,
         )
@@ -635,6 +643,8 @@ export function useChatSession({
       buildNotificationTitle,
       sendNotification,
       isWithinCurrentSession,
+      isPermissionResolved,
+      markPermissionResolved,
       loadSession,
       refreshPendingRequests,
       refetchModels,
@@ -790,10 +800,14 @@ export function useChatSession({
       // /permission can list it for this routed instance. Refresh 时序下子 session 关系
       // 可能尚未注册（family 不含子 session），因此 SSE 已知请求必须无条件保留，
       // 否则刷新后子任务的权限弹窗会被 family 过滤误删。
-      const nextPerms = allPerms.filter((p: ApiPermissionRequest) => matchesFamily(p.sessionID))
+      // 本端已经处理掉的请求不得从旧快照里复活（见 usePermissionHandler 的 resolvedIdsRef）。
+      const nextPerms = allPerms.filter(
+        (p: ApiPermissionRequest) => matchesFamily(p.sessionID) && !isPermissionResolved(p.id),
+      )
       setPendingPermissionRequests(prev => {
         const merged = new Map(nextPerms.map((p: ApiPermissionRequest) => [p.id, p]))
         for (const request of prev) {
+          if (isPermissionResolved(request.id)) continue
           if (!merged.has(request.id)) merged.set(request.id, request)
         }
         return Array.from(merged.values())
@@ -846,6 +860,7 @@ export function useChatSession({
     resetPendingRequests,
     setPendingPermissionRequests,
     setPendingQuestionRequests,
+    isPermissionResolved,
   ])
 
   const sendMessageNow = useCallback(

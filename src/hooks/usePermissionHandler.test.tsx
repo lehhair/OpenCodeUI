@@ -97,6 +97,37 @@ describe('usePermissionHandler', () => {
     expect(activeSessionStoreMock.resolvePendingRequest).toHaveBeenCalledWith('perm-stale')
   })
 
+  // 回归：开启「追补已等待权限」时，refresh 与 reply 并发，refresh 先发出。
+  // reply 成功后本地移除卡片，紧接着更早发出的快照落地，里面还带着这条权限；
+  // 旧实现会把它合回来，卡片永远停在待批准（用户看到「放行了但不刷新」）。
+  it('不会让更早发出的 refresh 快照复活已经通过的请求', async () => {
+    const permission = {
+      id: 'perm-raced',
+      sessionID: 'session-1',
+      action: 'bash',
+      resources: ['npm test'],
+      metadata: {},
+    }
+    const { result } = renderHook(() => usePermissionHandler('local'))
+
+    act(() => {
+      result.current.setPendingPermissionRequests([permission])
+    })
+
+    await act(async () => {
+      await result.current.handlePermissionReply('perm-raced', 'once', '/workspace', 'session-1')
+    })
+    expect(result.current.pendingPermissionRequests).toEqual([])
+
+    // reply 生效前的旧快照回来：不能复活
+    getPendingPermissionsMock.mockResolvedValueOnce([permission] as never)
+    await act(async () => {
+      await result.current.refreshPendingRequests(['session-1'], '/workspace')
+    })
+
+    expect(result.current.pendingPermissionRequests).toEqual([])
+  })
+
   // 核心契约：请求必须打到「当前」绑定的服务器。
   // pane 首次渲染时活动服务器可能是 local，之后切到别的服务器（多服务器 / WSL sidecar 就绪后切回），
   // 一旦回调把 serverId 冻在旧值上，回复就会发到旧服务器：旧服务器报错、真实服务器仍 pending、
