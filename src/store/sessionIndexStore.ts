@@ -80,6 +80,7 @@ interface Entry {
 
 type Mutation =
   | { type: 'upsert'; session: Session }
+  | { type: 'upsertMany'; sessions: Session[] }
   | { type: 'patch'; sessionId: string; patch: Partial<Session> }
   | { type: 'remove'; sessionId: string }
 
@@ -131,9 +132,12 @@ class SessionIndexStore {
   private directoryLoading = new Map<string, Promise<void>>()
   /** 上一次看到的服务器集合：用来发现「哪台被删了」 */
   private knownServerIds: Set<string>
+  /** 上一次处理的服务器快照（引用不变 = 没有真实变更，直接跳过） */
+  private lastServersSnapshot: ReturnType<typeof serverStore.getServers> | null = null
 
   constructor() {
     this.knownServerIds = new Set(serverStore.getServers().map(server => server.id))
+    this.lastServersSnapshot = serverStore.getServers()
     serverStore.subscribe(this.handleServerStoreChange)
   }
 
@@ -148,7 +152,12 @@ class SessionIndexStore {
    * serverKey 没变），列表会一直空着，所以宁可留着内存。
    */
   private handleServerStoreChange = (): void => {
-    const current = new Set(serverStore.getServers().map(server => server.id))
+    const servers = serverStore.getServers()
+    // serverStore 的通知也来自健康检查/时钟校准等与服务器列表无关的写入。
+    // 快照引用没变说明列表真的没动，跳过整轮 Set 构造。
+    if (servers === this.lastServersSnapshot) return
+    this.lastServersSnapshot = servers
+    const current = new Set(servers.map(server => server.id))
     for (const serverId of this.knownServerIds) {
       if (current.has(serverId) || serverId.startsWith(WSL_SERVER_PREFIX)) continue
       this.forget(serverId)
@@ -253,8 +262,9 @@ class SessionIndexStore {
           { directory: dir, parentID: null, order: 'desc', limit: DIRECTORY_LIMIT },
           serverId,
         )
-        // 走 mutate 而不是直接改：整页刷新在飞时先排队，落地后重放
-        for (const session of page.data) this.mutate(serverId, { type: 'upsert', session })
+        // 走 mutate 而不是直接改：整页刷新在飞时先排队，落地后重放。
+        // 一次合并（而不是逐条 upsert）——5000 条逐条排序会是 O(n²)。
+        this.mutate(serverId, { type: 'upsertMany', sessions: page.data })
         this.directoryFetchedAt.set(key, Date.now())
       } catch {
         // 补拉失败不记 TTL：下次挂载还有机会再试
@@ -364,6 +374,17 @@ class SessionIndexStore {
       return
     }
 
+    if (mutation.type === 'upsertMany') {
+      // 目录补拉一次 5000 条：逐条走 upsert 会对整个列表做 5000 次
+      // filter + sort + notify（O(n²)），页面直接卡住。这里合并去重后
+      // 只排一次序、只提交一次。
+      const byId = new Map<string, Session>()
+      for (const session of entry.sessions) byId.set(session.id, session)
+      for (const session of mutation.sessions) byId.set(session.id, session)
+      entry.sessions = normalize([...byId.values()])
+      return
+    }
+
     if (mutation.type === 'patch') {
       const index = entry.sessions.findIndex(session => session.id === mutation.sessionId)
       if (index === -1) return
@@ -436,10 +457,14 @@ class SessionIndexStore {
 
     entry.loading = request
     this.commit(entry)
-    void request.finally(() => {
+    // 用 then(成功, 失败) 而不是 `void request.finally(...)`：
+    // finally 会返回一个同样会 reject 的新 promise，没人接就是
+    // unhandledrejection（首屏请求失败时每次都刷一条全局错误）
+    const settle = () => {
       if (entry.loading === request) entry.loading = null
       this.commit(entry)
-    })
+    }
+    void request.then(settle, settle)
     return request
   }
 
@@ -484,9 +509,12 @@ class SessionIndexStore {
         void this.refreshSession(serverId, data.sessionID)
       },
       onServerConnected: () => {
-        // 首次连上（本地 serve 刚拉起）时补一次：启动期的重试可能已经耗尽
+        // 首次连上（本地 serve 刚拉起）时补一次：启动期的重试可能已经耗尽。
+        // 这里用 force：初始拉取可能还挂在「服务端尚未监听」的请求上，
+        // 普通 ensure 只会复用在途 promise，等它失败后没人再发起新的请求，
+        // 列表就停在失败态。force 会排队到在途请求落地后再拉一页。
         const entry = this.entries.get(serverId)
-        if (!entry?.ready || entry.error) void this.ensure(serverId)
+        if (!entry?.ready || entry.error || entry.loading) void this.ensure(serverId, { force: true })
       },
       onReconnected: reason => {
         if (reason === 'server-switch') return
