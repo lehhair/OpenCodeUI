@@ -28,6 +28,9 @@ function PanelFallback() {
   )
 }
 
+/** 面板未打开过时的占位渲染器（稳定引用，避免每次渲染换新函数） */
+const renderNothing = () => null
+
 interface RightPanelProps {
   directory?: string
   sessionId?: string | null
@@ -48,6 +51,21 @@ export const RightPanel = memo(function RightPanel({
   const { rightPanelOpen, rightPanelWidth } = useLayoutStore()
   const { interaction, layout } = useChatViewport()
   const normalizedDirectory = directory ? normalizeToForwardSlash(directory) : undefined
+
+  /**
+   * 桌面端右侧面板关闭时不再挂载内容。
+   *
+   * 面板关闭时 `ResizablePanel` 只是把宽度收成 0，children 仍会渲染：
+   * 默认 tab 是 files + changes，于是启动就拉文件树/文件状态，切会话还会
+   * 拉 session.diff——用户根本没打开面板。这里第一次打开后才挂载，之后
+   * 保持挂载（切 tab 不丢展开态和预览）。
+   */
+  const [desktopContentMounted, setDesktopContentMounted] = useState(rightPanelOpen)
+  useEffect(() => {
+    if (!rightPanelOpen) return
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 一次性挂载闸门，只从 false→true
+    setDesktopContentMounted(true)
+  }, [rightPanelOpen])
 
   // 追踪面板 resize 状态
   const [isPanelResizing, setIsPanelResizing] = useState(false)
@@ -175,6 +193,8 @@ export const RightPanel = memo(function RightPanel({
     [normalizedDirectory, sessionId, isPanelResizing, t, serverId],
   )
 
+  const renderDesktopContent = desktopContentMounted ? renderContent : renderNothing
+
   if (inline) {
     return (
       <div className="flex h-full w-full flex-col overflow-hidden bg-bg-100 [contain:layout_paint]">
@@ -210,7 +230,7 @@ export const RightPanel = memo(function RightPanel({
         onNewTerminal={handleNewTerminal}
         onCloseTerminal={handleCloseTerminal}
       >
-        {renderContent}
+        {renderDesktopContent}
       </PanelContainer>
     </ResizablePanel>
   )
