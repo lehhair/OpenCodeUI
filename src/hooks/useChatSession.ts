@@ -23,6 +23,7 @@ import { usePermissions, usePermissionHandler, useMessageAnimation, useDirectory
 import { useNotification } from './useNotification'
 import { notificationEventSettingsStore } from '../store/notificationEventSettingsStore'
 import { notificationStore } from '../store/notificationStore'
+import { shellInventoryStore } from '../store/shellInventoryStore'
 import {
   sendMessageAsync,
   getSessionMessages,
@@ -693,6 +694,14 @@ export function useChatSession({
     prefetchRootDirectory(effectiveDirectory, paneServerId).catch(() => {})
     prefetchCommands(effectiveDirectory, paneServerId).catch(() => {})
   }, [effectiveDirectory, paneServerId])
+
+  // 只有当前打开的会话目录主动水合 shell 库存（刷新后恢复后台 shell 行）。
+  // 侧边栏里其它会话只吃全局 shell 事件，不因为出现在列表里就替用户
+  // 打开那个工作区——见 shellInventoryStore 的 hydrateRefs 说明。
+  useEffect(() => {
+    if (!effectiveDirectory) return
+    return shellInventoryStore.trackDirectory(effectiveDirectory)
+  }, [effectiveDirectory])
 
   // agents 列表加载后，校验当前选中的 agent 是否存在于列表中
   // 选择值统一为 agent **id**（v2 API 用 id）；历史存储的显示名会被归一化成 id

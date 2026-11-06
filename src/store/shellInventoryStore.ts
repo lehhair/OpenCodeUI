@@ -6,10 +6,14 @@
 // 所以库存按 directory 维护，订阅者（侧边栏挂载行/活跃判定）用
 // trackDirectory 登记自己关心的目录，store 只拉登记过的目录。
 //
-// 数据节奏（对齐文件变更面板的事件驱动模式）：
-//   - 目录首次被登记 → 立即拉一次
-//   - session.shell.started / ended 事件 → 500ms 防抖重取全部登记目录
-//   - 15s 兜底轮询（事件丢失的保险）
+// 数据节奏（对齐官方 location 级懒同步）：
+//   - 只有被真正打开/展示的目录（当前会话、可见会话行）才登记并立即拉一次
+//   - 其它目录完全靠全局 shell.created/exited/deleted 事件维护内存
+//   - session.shell.started / ended 事件 → 500ms 防抖重取**已登记**目录
+//   - 15s 兜底轮询也只覆盖已登记目录
+//
+// 之前 SidePanel 把所有最近会话的目录一次性登记（200 条会话可能几十个项目），
+// 启动就是几十个 shell.list 并持续轮询，等于把用户没打开的工作区全开了。
 // v1 边界：只跟活动服务器（getSDKClient 缺省），多服务器会话行不挂 shell。
 // ============================================
 
@@ -71,7 +75,12 @@ class ShellInventoryStore {
     }
   }
 
-  /** 登记关心的目录（引用计数）。首次登记立即拉取，归零后丢弃该目录数据 */
+  /**
+   * 登记关心的目录（引用计数）。首次登记立即拉一次；归零后丢弃该目录数据。
+   *
+   * 只该被「用户真正打开的会话 / 可见的会话行」调用。把一个服务器上
+   * 最近会话涉及的所有目录一次性登记，就等于冷启动把几十个工作区全开了。
+   */
   trackDirectory = (directory: string): (() => void) => {
     const count = this.dirRefs.get(directory) ?? 0
     this.dirRefs.set(directory, count + 1)
@@ -100,15 +109,16 @@ class ShellInventoryStore {
   /**
    * shell.created 事件直写（官方客户端数据层同款实时来源）：
    * 完整 ShellInfo 就地 upsert，挂载行/活跃判定即时出现，不等重取。
-   * 只维护已登记的目录（未登记的首次登记时会全量拉）；没有目录信息时
-   * 退化为防抖重取兜底
+   *
+   * 事件是**全局**的（带 location.directory），因此不要求目录已被登记：
+   * 未登记目录只做内存维护，不参与兜底轮询——用户没打开那个工作区，
+   * 就不该为它主动发请求。没有目录信息时才退化为防抖重取兜底。
    */
   applyShellCreated = (directory: string | undefined, info: ShellInfo) => {
     if (!directory) {
       this.requestRefresh()
       return
     }
-    if (!this.dirRefs.has(directory)) return
     const list = this.shellsByDir.get(directory) ?? []
     const idx = list.findIndex(shell => shell.id === info.id)
     if (idx >= 0 && sameShellList([list[idx]], [info])) return
@@ -135,10 +145,14 @@ class ShellInventoryStore {
       ...(exit !== undefined ? { exit } : {}),
       time: { ...prev.time, completed: prev.time.completed ?? Date.now() },
     }
-    this.shellsByDir.set(
-      directory,
-      list.map((shell, i) => (i === idx ? updated : shell)),
-    )
+    const next = list.map((shell, i) => (i === idx ? updated : shell))
+    // 事件发现但没人打开的工作区：最后一个 running shell 退出后就丢掉，
+    // 否则仅靠事件见过的目录会无限累积在内存里
+    if (!this.dirRefs.has(directory) && next.every(shell => shell.status !== 'running')) {
+      this.shellsByDir.delete(directory)
+    } else {
+      this.shellsByDir.set(directory, next)
+    }
     this.bump()
   }
 
@@ -150,10 +164,9 @@ class ShellInventoryStore {
     }
     const list = this.shellsByDir.get(directory)
     if (!list || !list.some(shell => shell.id === id)) return
-    this.shellsByDir.set(
-      directory,
-      list.filter(shell => shell.id !== id),
-    )
+    const next = list.filter(shell => shell.id !== id)
+    if (next.length === 0 && !this.dirRefs.has(directory)) this.shellsByDir.delete(directory)
+    else this.shellsByDir.set(directory, next)
     this.bump()
   }
 

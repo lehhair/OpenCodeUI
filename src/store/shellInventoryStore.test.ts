@@ -184,12 +184,19 @@ describe('shellInventoryStore（按目录登记 + 事件驱动 + 兜底轮询）
     shellInventoryStore.applyShellDeleted(DIR, 'sh-2')
     expect(shellInventoryStore.getShellsForDir(DIR).map(s => s.id)).toEqual(['sh-1'])
 
-    // 未登记目录的事件不维护（登记时会全量拉）；无目录退化为防抖重取
+    // 未登记目录：事件照样维护内存（全局事件发现），但不触发 listShells
+    const callsBeforeUntracked = listShellsMock.mock.calls.length
     shellInventoryStore.applyShellCreated('/not-tracked', makeShell('sh-9', 's9'))
+    expect(shellInventoryStore.getShellsForDir('/not-tracked').map(s => s.id)).toEqual(['sh-9'])
+    // 最后一个 running shell 退出后丢掉未登记目录，避免事件目录无限增长
+    shellInventoryStore.applyShellExited('/not-tracked', 'sh-9', 'exited', 0)
     expect(shellInventoryStore.getShellsForDir('/not-tracked')).toEqual([])
+    expect(listShellsMock.mock.calls.length).toBe(callsBeforeUntracked)
+
+    // 无目录退化为防抖重取
     shellInventoryStore.applyShellCreated(undefined, makeShell('sh-9', 's9'))
     await vi.advanceTimersByTimeAsync(600)
-    expect(listShellsMock.mock.calls.length).toBeGreaterThan(callsBefore)
+    expect(listShellsMock.mock.calls.length).toBeGreaterThan(callsBeforeUntracked)
 
     untrack()
     unsubscribe()

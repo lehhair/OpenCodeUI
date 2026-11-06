@@ -342,22 +342,28 @@ export function SidePanel({
     return map
   }, [sessions, fetchedSessions])
 
-  // 活跃 tab 要发现「idle 但后台 shell 在跑」的会话：库存按目录隔离且只拉
-  // 登记过的目录，挂载行只登记自己可见的——这里把所有已知会话的目录都登记上，
-  // 否则那些目录的库存根本不会出现（先有鸡先有蛋）
-  const sessionDirectoriesKey = useMemo(() => {
+  // 活跃 tab 要发现「idle 但后台 shell 在跑」的会话：只给「正在跑的会话」目录
+  // 做一次库存水合，其余目录靠全局 shell.created/exited 事件维护。
+  //
+  // 原来这里会把最近会话索引里出现的所有目录（200 条会话可能横跨几十个项目）
+  // 一次性 trackDirectory：每个目录立刻 listShells，之后每 15s 再轮询全部——
+  // 等于冷启动就把用户没打开的工作区全开了。当前会话 / 可见会话行的目录
+  // 由各自组件按需登记。
+  const busyDirectoriesKey = useMemo(() => {
     const dirs = new Set<string>()
-    for (const session of sessionLookup.values()) {
-      const dir = session.location?.directory
-      if (dir) dirs.add(dir)
+    const activeServerId = serverStore.getActiveServerId()
+    for (const entry of busySessions) {
+      // shell 库存只跟活动服务器（v1 边界），别的服务器的目录登记了也只会拉错数据
+      if (splitSessionKey(entry.sessionId).serverId !== activeServerId) continue
+      if (entry.directory) dirs.add(entry.directory)
     }
     return [...dirs].sort().join('\n')
-  }, [sessionLookup])
+  }, [busySessions])
   useEffect(() => {
-    if (!sessionDirectoriesKey) return
-    const untracks = sessionDirectoriesKey.split('\n').map(dir => shellInventoryStore.trackDirectory(dir))
+    if (!busyDirectoriesKey) return
+    const untracks = busyDirectoriesKey.split('\n').map(dir => shellInventoryStore.trackDirectory(dir))
     return () => untracks.forEach(untrack => untrack())
-  }, [sessionDirectoriesKey])
+  }, [busyDirectoriesKey])
 
   // 后台 shell 在跑但不在 busy 名单里的会话 → 合成活跃条目（backgroundOnly）。
   // 会话对象必须能从 lookup 解析（否则标题/目录都没有，挂出来也是死行）
