@@ -679,3 +679,88 @@ describe('serverStore.isLocalServer', () => {
     expect(serverStore.isLocalServer('server-does-not-exist')).toBe(false)
   })
 })
+
+describe('serverStore 本机运行时地址（窗口刷新）', () => {
+  beforeEach(() => {
+    vi.resetModules()
+    localStorage.clear()
+    sessionStorage.clear()
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('设置运行时地址时写入 sessionStorage', async () => {
+    const { serverStore } = await import('./serverStore')
+
+    expect(serverStore.setLocalServerRuntimeUrl('http://127.0.0.1:49374')).toBe(true)
+    expect(sessionStorage.getItem('opencode-local-runtime-url')).toBe('http://127.0.0.1:49374')
+  })
+
+  it('窗口刷新后恢复运行时地址，首屏不必等重新认领', async () => {
+    // 模拟刷新：上一次会话把实际端口写进了 sessionStorage
+    sessionStorage.setItem('opencode-local-runtime-url', 'http://127.0.0.1:49374')
+
+    const { serverStore } = await import('./serverStore')
+
+    expect(serverStore.getLocalServerUrl()).toBe('http://127.0.0.1:49374')
+    expect(serverStore.getActiveBaseUrl()).toBe('http://127.0.0.1:49374')
+  })
+
+  it('脏数据不参与恢复', async () => {
+    sessionStorage.setItem('opencode-local-runtime-url', 'not a url')
+
+    const { serverStore } = await import('./serverStore')
+
+    expect(serverStore.getLocalServerUrl()).not.toBe('not a url')
+  })
+})
+
+describe('serverStore SSE 连接与健康状态收敛', () => {
+  beforeEach(() => {
+    vi.resetModules()
+    localStorage.clear()
+    sessionStorage.clear()
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('SSE 连上后把启动期失败的离线状态提升为在线', async () => {
+    // 启动早于服务就绪：健康探测失败
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockRejectedValue(new TypeError('fetch failed')),
+    )
+    const { serverStore } = await import('./serverStore')
+
+    const health = await serverStore.checkHealth('local')
+    expect(health.status).toBe('offline')
+    expect(serverStore.getHealth('local')?.status).toBe('offline')
+
+    // 服务起来、SSE 连上：设置页的健康灯必须跟着变绿
+    serverStore.noteServerConnected('local')
+    expect(serverStore.getHealth('local')?.status).toBe('online')
+  })
+
+  it('已经在线时不再重复通知订阅方', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        jsonResponse({ version: '2.0.14', pid: 1234, urls: [], paths: { tmp: '/tmp' } }),
+      ),
+    )
+    const { serverStore } = await import('./serverStore')
+
+    await serverStore.checkHealth('local')
+    expect(serverStore.getHealth('local')?.status).toBe('online')
+
+    const listener = vi.fn()
+    serverStore.subscribe(listener)
+    serverStore.noteServerConnected('local')
+
+    expect(listener).not.toHaveBeenCalled()
+  })
+})

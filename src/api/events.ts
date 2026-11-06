@@ -161,9 +161,30 @@ function getOrCreateConnection(serverId: string): ServerConnection {
 function updateConnectionState(serverId: string, update: Partial<ConnectionInfo>): void {
   const conn = connections.get(serverId)
   if (!conn) return
+  const becameConnected = update.state === 'connected' && conn.info.state !== 'connected'
   conn.info = { ...conn.info, ...update }
+  // 设置页的健康灯和侧边栏的 SSE 状态必须收敛：连上了就把健康快照提升为
+  // 在线，否则启动期失败的探测结果会一直红着（健康轮询已跳过已连接服务器）
+  if (becameConnected) serverStore.noteServerConnected(serverId)
   connectionListeners.get(serverId)?.forEach(fn => {
     fn(conn.info)
+  })
+}
+
+/**
+ * 逐个通知订阅者；单个订阅者抛错不能中断其余订阅者。
+ *
+ * 重连补偿 / server.connected 这类通知后面挂着「重新拉取状态、补消息」，
+ * 一个 pane 的回调炸掉会让后面的 pane 全部错过补偿，表现为部分界面一直
+ * 停在断线前的状态。
+ */
+function notifySubscribers(conn: ServerConnection, invoke: (callbacks: EventCallbacks) => void): void {
+  conn.subscribers.forEach(callbacks => {
+    try {
+      invoke(callbacks)
+    } catch (error) {
+      callbacks.onError?.(error instanceof Error ? error : new Error(String(error)))
+    }
   })
 }
 
@@ -173,9 +194,7 @@ function broadcastReconnected(conn: ServerConnection, reason: 'network' | 'serve
     return
   }
   conn.lastReconnectedBroadcast = now
-  conn.subscribers.forEach(cb => {
-    cb.onReconnected?.(reason)
-  })
+  notifySubscribers(conn, callbacks => callbacks.onReconnected?.(reason))
 }
 
 function getReconnectDelay(attempt: number): number {
@@ -631,7 +650,7 @@ async function connectServer(serverId: string): Promise<void> {
       // 通知只在**这一处**发：之前上面那个分支里也发过一次，导致首次连接时
       // 每个订阅者被触发两遍。
       if (event.type === 'server.connected') {
-        conn.subscribers.forEach(cb => cb.onServerConnected?.())
+        notifySubscribers(conn, callbacks => callbacks.onServerConnected?.())
         continue
       }
 

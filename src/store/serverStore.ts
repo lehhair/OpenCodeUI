@@ -246,6 +246,16 @@ const ACTIVE_SERVER_KEY = 'opencode-active-server'
 /** 启动默认服务器偏好（官方 defaultKey 等价物）：决定下次启动优先连谁 */
 const DEFAULT_SERVER_KEY = 'opencode-default-server'
 /**
+ * 本机服务的运行时地址（sessionStorage）。
+ *
+ * 服务实际监听的端口可能是注册表里配置的（不一定等于条目 URL），而且
+ * 只有运行时才知道。之前它只存在内存里，webview 一刷新就丢：首屏先打
+ * 默认地址失败，再等 start_opencode_service 重新认领/回写地址——观感上
+ * 就像「刷新把服务重启了一次」。
+ * sessionStorage 只在当前窗口的刷新间保留，语义正好（新窗口走注册表认领）。
+ */
+const LOCAL_RUNTIME_URL_KEY = 'opencode-local-runtime-url'
+/**
  * WSL 服务器 id 前缀（单一事实源，wslStore 以 `wsl:<distro>` 生成稳定 id）。
  * WSL 服务器端口/密码每次启动都变（一次性凭据），由后端全权管理，前端从不持久化其连接信息。
  */
@@ -287,6 +297,34 @@ function emptyEndpointRuntime(): EndpointRuntime {
   return { activeUrl: null, lockedUrl: null, lastSwitchAt: 0 }
 }
 
+/** 元素引用逐一相同（快照 diff 用；数组都很小） */
+function sameArrayRefs<T>(next: readonly T[], previous: readonly T[]): boolean {
+  if (next.length !== previous.length) return false
+  for (let i = 0; i < next.length; i++) {
+    if (next[i] !== previous[i]) return false
+  }
+  return true
+}
+
+/** key/value 引用逐一相同（快照 diff 用） */
+function sameMapEntries<T>(next: ReadonlyMap<string, T>, previous: ReadonlyMap<string, T>): boolean {
+  if (next.size !== previous.size) return false
+  for (const [key, value] of next) {
+    if (previous.get(key) !== value) return false
+  }
+  return true
+}
+
+/** 健康结果是否有「值得通知 UI」的变化（延迟/检查时间不算） */
+function sameHealth(previous: ServerHealth | undefined, next: ServerHealth): boolean {
+  if (!previous) return false
+  return (
+    previous.status === next.status &&
+    previous.version === next.version &&
+    previous.error === next.error
+  )
+}
+
 /**
  * Server Store
  * 管理多个 OpenCode 后端服务器配置
@@ -301,6 +339,8 @@ class ServerStore {
   private lastClockCalibrationAt = new Map<string, number>()
   private listeners: Set<Listener> = new Set()
   private localServerUrlOverride: string | null = null
+  /** local override 的派生对象缓存：notify 每次都走 updateSnapshots，不能每次造新对象 */
+  private localServerView: { base: ServerConfig; url: string; view: ServerConfig } | null = null
   /** 多地址运行时状态（按 serverId）；见 EndpointRuntime 注释 */
   private endpointRuntime = new Map<string, EndpointRuntime>()
   // 上次关闭时用户停留的 WSL 服务器 id（wslStore 就绪后据此恢复 active）
@@ -391,6 +431,14 @@ class ServerStore {
         // 默认选中第一个
         this.activeServerId = this.servers[0]?.id ?? null
       }
+
+      // 恢复窗口刷新前的本机服务地址（sessionStorage：刷新保留、新窗口不继承）。
+      // 校验一下：脏数据 / 用户手动改过地址时宁可当成未知，让启动流程重新认领。
+      const persistedRuntimeUrl = sessionStorage.getItem(LOCAL_RUNTIME_URL_KEY)
+      if (persistedRuntimeUrl) {
+        const normalized = normalizeConnectableUrl(persistedRuntimeUrl).replace(/\/+$/, '')
+        if (/^https?:\/\//i.test(normalized)) this.localServerUrlOverride = normalized
+      }
     } catch {
       // 初始化默认值
       this.servers = [
@@ -457,23 +505,38 @@ class ServerStore {
 
   /**
    * 更新快照缓存
+   *
+   * 关键点：只有真正变化的数据才换新引用。useSyncExternalStore 用引用判等，
+   * 每次 notify 都重建全部快照（哪怕只是某台服务器的延迟数字变了）会让
+   * 所有订阅方（ChatPane / SidePanel）整体重渲染——健康检查每 10s、
+   * 时钟校准每 60s 都在触发这种无意义渲染。
    */
   private updateSnapshots(): void {
-    this._serversSnapshot = this.servers.map(server => this.withRuntimeServerUrl(server))
-    this._activeServerSnapshot = this._serversSnapshot.find(s => s.id === this.activeServerId) ?? null
-    this._healthMapSnapshot = new Map(this.healthMap)
-    // 运行时地址状态（生效/锁定）也要有快照：UI 靠它决定「使用中」「已锁定」标记。
-    // 复制成新 Map，保证 useSyncExternalStore 能看出变化
-    this._endpointStateSnapshot = new Map(
+    const servers = this.servers.map(server => this.withRuntimeServerUrl(server))
+    if (!sameArrayRefs(servers, this._serversSnapshot)) this._serversSnapshot = servers
+
+    const activeServer = this._serversSnapshot.find(server => server.id === this.activeServerId) ?? null
+    if (activeServer !== this._activeServerSnapshot) this._activeServerSnapshot = activeServer
+
+    // 复制成新 Map，保证 useSyncExternalStore 能看出变化；内容没变就沿用旧快照
+    if (!sameMapEntries(this.healthMap, this._healthMapSnapshot)) {
+      this._healthMapSnapshot = new Map(this.healthMap)
+    }
+    const endpointStates = new Map(
       this.servers.map(server => [server.id, this.endpointRuntime.get(server.id) ?? emptyEndpointRuntime()]),
     )
+    if (!sameMapEntries(endpointStates, this._endpointStateSnapshot)) {
+      this._endpointStateSnapshot = endpointStates
+    }
   }
 
   private withRuntimeServerUrl(server: ServerConfig): ServerConfig {
-    if (server.id === this.DEFAULT_SERVER_ID && this.localServerUrlOverride) {
-      return { ...server, url: this.localServerUrlOverride }
-    }
-    return server
+    if (server.id !== this.DEFAULT_SERVER_ID || !this.localServerUrlOverride) return server
+    const cached = this.localServerView
+    if (cached && cached.base === server && cached.url === this.localServerUrlOverride) return cached.view
+    const view = { ...server, url: this.localServerUrlOverride }
+    this.localServerView = { base: server, url: this.localServerUrlOverride, view }
+    return view
   }
 
   // ============================================
@@ -786,7 +849,7 @@ class ServerStore {
       endpoints: nextEndpoints,
     }
     if (id === this.DEFAULT_SERVER_ID && nextUrl !== server.url) {
-      this.localServerUrlOverride = null
+      this.clearLocalRuntimeUrl()
     }
     // 地址集变了：已有的生效地址 / 锁定地址可能已不存在，必须回收，
     // 否则 getServerBaseUrl 会一直返回一个用户已经删掉的地址。
@@ -902,11 +965,37 @@ class ServerStore {
     if (this.localServerUrlOverride === normalizedUrl) return false
 
     this.localServerUrlOverride = normalizedUrl
+    this.persistLocalRuntimeUrl(normalizedUrl)
     this.notify()
     if (this.isActiveLocalServer()) {
       this.notifyServerChange(this.DEFAULT_SERVER_ID, 'local-runtime-url')
     }
     return true
+  }
+
+  /** 清掉运行时地址覆盖（用户改条目地址 / 服务换了地址时） */
+  private clearLocalRuntimeUrl(): void {
+    if (this.localServerUrlOverride === null) {
+      this.persistLocalRuntimeUrl(null)
+      return
+    }
+    this.localServerUrlOverride = null
+    this.persistLocalRuntimeUrl(null)
+  }
+
+  /** 从 sessionStorage 恢复了本机运行时地址（窗口刷新场景） */
+  hasLocalRuntimeUrl(): boolean {
+    return this.localServerUrlOverride !== null
+  }
+
+  /** 运行时地址写 sessionStorage：窗口刷新后首屏能直接连对地址 */
+  private persistLocalRuntimeUrl(url: string | null): void {
+    try {
+      if (url) sessionStorage.setItem(LOCAL_RUNTIME_URL_KEY, url)
+      else sessionStorage.removeItem(LOCAL_RUNTIME_URL_KEY)
+    } catch {
+      // 隐私模式 / 存储不可用：功能不受影响，只是刷新后要重新认领
+    }
   }
 
   /**
@@ -992,7 +1081,11 @@ class ServerStore {
    *
    * SSE 每个事件（除 server.connected）都带服务端 `created`：它 + 本地
    * 接收时刻（performance.now）就是一组可靠的 服务器时钟↔本地单调时钟
-   * 锚点。时钟漂移是慢变量，60s 内重复校准没有意义，还会触发无谓 notify。
+   * 锚点。时钟漂移是慢变量，60s 内重复校准没有意义。
+   *
+   * 这里**不 notify**：校准值只被渲染时按需读取（getActiveCalibratedNow），
+   * 不在任何 useSyncExternalStore 快照里；之前每 60s 通知一次只会让
+   * 所有订阅 serverStore 的组件白重渲染。
    */
   calibrateFromServerTimestamp(serverId: string, serverTimestamp: number, minIntervalMs = 60_000): void {
     const now = performance.now()
@@ -1003,7 +1096,6 @@ class ServerStore {
       serverTimestamp,
       calibratedAtMonotonic: now,
     })
-    this.notify()
   }
 
   // ============================================
@@ -1011,9 +1103,35 @@ class ServerStore {
   // ============================================
 
   /**
-   * 检查服务器健康状态
+   * SSE 已连上：把健康快照提升为在线，不额外发请求。
+   *
+   * 设置页的健康灯读 healthMap（HTTP 探测），侧边栏读 SSE 连接状态。
+   * 启动时健康探测常常早于本地服务就绪而失败；之后 SSE 连上了，健康灯却
+   * 还红着——而健康轮询现在会跳过已连接的服务器，这个「红叉 + 实际能用」
+   * 就会一直挂着。这里是两条链路的汇合点。
+   *
+   * 只升不降：SSE 瞬断（休眠/切网）不立刻判死，交给断连后的健康轮询。
    */
-  async checkHealth(serverId: string): Promise<ServerHealth> {
+  noteServerConnected(serverId: string): void {
+    const previous = this.healthMap.get(serverId)
+    if (previous?.status === 'online') return
+    this.healthMap.set(serverId, {
+      status: 'online',
+      lastCheck: Date.now(),
+      ...(previous?.version ? { version: previous.version } : {}),
+      ...(previous?.latency !== undefined ? { latency: previous.latency } : {}),
+    })
+    this.notify()
+  }
+
+  /**
+   * 检查服务器健康状态
+   *
+   * @param options.silent 后台例行体检用：不显示 "checking" 中间态，
+   *   且状态没变化时不 notify。SSE 已连接时的轮询属于这种——
+   *   每 10s 让整个 ChatPane 重渲染一次没有任何信息增量。
+   */
+  async checkHealth(serverId: string, options: { silent?: boolean } = {}): Promise<ServerHealth> {
     const storedServer = this.servers.find(s => s.id === serverId)
     if (!storedServer) {
       return { status: 'error', error: 'Server not found' }
@@ -1033,15 +1151,20 @@ class ServerStore {
 
     const commitHealth = (health: ServerHealth) => {
       if (this.healthCheckSeqMap.get(serverId) === checkSeq) {
+        const previous = this.healthMap.get(serverId)
         this.healthMap.set(serverId, health)
-        this.notify()
+        // 静默体检只有「状态/版本/错误」变了才值得通知；延迟数字的变化
+        // 下次真实通知时自然带出去
+        if (!options.silent || !sameHealth(previous, health)) this.notify()
       }
       return health
     }
 
-    // 标记为检查中
-    this.healthMap.set(serverId, { status: 'checking' })
-    this.notify()
+    // 标记为检查中（仅手动/首次检查；后台轮询不闪这一下）
+    if (!options.silent) {
+      this.healthMap.set(serverId, { status: 'checking' })
+      this.notify()
+    }
 
     const startTime = Date.now()
     const controller = new AbortController()

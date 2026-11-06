@@ -21,7 +21,7 @@
 // ============================================
 
 import { serverStore, type ServerEndpoint, type ServerAuth } from './serverStore'
-import { subscribeToServerConnectionState } from '../api/events'
+import { getServerConnectionInfo, subscribeToServerConnectionState } from '../api/events'
 import { logger } from '../utils/logger'
 
 /** 探测周期。多地址服务器才探测，单地址零成本 */
@@ -307,7 +307,26 @@ const observedServers = new Set<string>()
 /** 每个已观察服务器的退订函数。服务器删除时必须调用，否则 connectionListeners 只增不减 */
 const observedUnsubscribes = new Map<string, () => void>()
 
+/** 上次注册观察者时的服务器面（id + 地址集 + 凭据）。未变化直接跳过 */
+let observedSignature: string | null = null
+
+function serverObservationSignature(): string {
+  return serverStore
+    .getStoredServers()
+    .map(server => {
+      const endpoints = server.endpoints?.map(endpoint => endpoint.url).join(',') ?? server.url
+      return `${server.id}\0${endpoints}\0${server.auth?.username ?? ''}:${server.auth?.password ?? ''}`
+    })
+    .join('|')
+}
+
 function registerConnectionObservers(): void {
+  // serverStore 的通知也来自健康检查（15s/10s 级），与「哪些服务器需要观察」
+  // 无关。签名没变就不重建 Set / 不重复比对，避免每次体检都白跑一遍。
+  const signature = serverObservationSignature()
+  if (signature === observedSignature) return
+  observedSignature = signature
+
   const liveIds = new Set<string>()
   for (const server of serverStore.getStoredServers()) {
     const serverId = server.id
@@ -344,8 +363,24 @@ async function runProbeRound(): Promise<void> {
   if (typeof navigator !== 'undefined' && navigator.onLine === false) return
   if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
   const servers = serverStore.getStoredServers()
+  // 只探「值得探」的服务器：
+  //   - 单地址：没得选
+  //   - 已锁地址：本模块完全让位
+  //   - 正停在最高优先级地址且 SSE 已连上：当前入口就是事实可用，周期性
+  //     探测只会每 15s 白打 N 个请求（双地址 = 8 次/分钟）。真挂了会先表现为
+  //     SSE 断开 → handleTransportFailure 立刻快探，用不着常态轮询。
+  //   - 已降级（停在低优先级地址）：交给 3s 的 recoveryTimer 加密探测
+  const targets = servers.filter(server => {
+    if (!server.endpoints || server.endpoints.length < 2) return false
+    const runtime = serverStore.getEndpointRuntime(server.id)
+    if (runtime.lockedUrl) return false
+    const active = runtime.activeUrl ?? server.endpoints[0].url
+    if (active !== server.endpoints[0].url) return false
+    return getServerConnectionInfo(server.id).state !== 'connected'
+  })
+  if (targets.length === 0) return
   // 逐台快照：probeServerOnce 内部已按 serverId 去重，这里不需要全局闸门
-  await Promise.allSettled(servers.map(server => probeServerOnce(server.id)))
+  await Promise.allSettled(targets.map(server => probeServerOnce(server.id)))
 }
 
 /**
@@ -453,6 +488,7 @@ export function stopEndpointProbe(): void {
   observedUnsubscribes.clear()
   observedServers.clear()
   observedConnectionStates.clear()
+  observedSignature = null
   // 全局监听同样回收，允许 stop 之后重新 start
   for (const dispose of listenerDisposers) dispose()
   listenerDisposers.length = 0
