@@ -1,7 +1,7 @@
 export { TextPartView } from './TextPartView'
 export { ReasoningPartView } from './ReasoningPartView'
 export { ToolPartView } from './ToolPartView'
-export { FilePartView, AgentPartView, SkillPartView } from './AttachmentPartViews'
+export { FilePartView, AgentPartView, SkillPartView, PathReferencePartView } from './AttachmentPartViews'
 export { StepFinishPartView } from './StepFinishPartView'
 export type { StepFinishInfo } from './StepFinishPartView'
 export { RetryPartView, CompactionPartView } from './SystemPartViews'

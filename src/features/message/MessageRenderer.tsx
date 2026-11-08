@@ -22,6 +22,7 @@ import {
   FilePartView,
   AgentPartView,
   SkillPartView,
+  PathReferencePartView,
   StepFinishPartView,
   RetryPartView,
   CompactionPartView,
@@ -38,6 +39,7 @@ import { ForkActionButton, UndoActionButton, useMessageActionBarClass } from './
 import { MSG_SPACING } from './messageSpacing'
 import { MessageExpandPanel, useMessageExpandRender } from './messageExpand'
 import type { AssistantContent, AssistantMessage, SessionMessageInfo, UserMessage } from '../../types/api/message'
+import { readPromptAttachments } from '../../api/message'
 import type { JsonValue } from '@opencode/client/promise'
 import { contentEntries, hasVisibleText, idleMessageError, userMessageText, type ContentEntry } from '../../types/api/message'
 import { currentToolFailed } from '../../types/api/toolState'
@@ -572,6 +574,9 @@ const UserMessageView = memo(function UserMessageView({
   const files = message.files ?? []
   const agents = message.agents ?? []
   const skills = message.skills ?? []
+  // 路径引用（二进制 / 超 20MB / 拖入的本机文件）不在 files[] 里，只存在
+  // metadata.attachments。不渲染的话就是「输入框有胶囊、发出去没了」。
+  const pathReferences = useMemo(() => readPromptAttachments(message.metadata), [message.metadata])
   const hasUserHtmlArtifact = renderUserMarkdown && USER_HTML_ARTIFACT_PATTERN.test(messageText)
 
   return (
@@ -592,10 +597,13 @@ const UserMessageView = memo(function UserMessageView({
         )}
 
         {/* 用户附件 */}
-        {(files.length > 0 || agents.length > 0 || skills.length > 0) && (
+        {(files.length > 0 || agents.length > 0 || skills.length > 0 || pathReferences.length > 0) && (
           <div className="mt-1 flex max-w-full min-w-0 flex-wrap gap-2 justify-end">
             {files.map((file, index) => (
               <FilePartView key={`file:${index}`} file={file} index={index} />
+            ))}
+            {pathReferences.map((reference, index) => (
+              <PathReferencePartView key={`path:${index}`} reference={reference} index={index} />
             ))}
             {agents.map((agent, index) => (
               <AgentPartView key={`agent:${index}`} agent={agent} index={index} />

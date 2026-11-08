@@ -359,6 +359,34 @@ describe('sendMessage — 路径型附件的文本引用', () => {
     expect(payload.text).toBe('看下这个\nAttached file: `/proj/src/foo.ts`')
   })
 
+  it('二进制的 path 引用即使正文里有 @path 也补绝对路径（官方 path 部件无条件补）', async () => {
+    await sendMessage({
+      ...baseParams(),
+      text: '@E:/Downloads/tool.exe 看下',
+      attachments: [
+        {
+          id: 'a1',
+          type: 'file',
+          displayName: 'tool.exe',
+          url: 'file:///E:/Downloads/tool.exe',
+          mime: 'application/x-msdownload',
+          pathOnly: true,
+          // 拖入时插入的芯片文本仍在正文里
+          textRange: { value: '@E:/Downloads/tool.exe', start: 0, end: 22 },
+        },
+      ] as never,
+    })
+
+    const payload = lastPromptPayload()
+    // 不进 files[]，不受服务端 20MB 读取上限影响
+    expect(payload.files).toBeUndefined()
+    // 但绝对路径必须给到模型（@ 相对路径不能保证模型读得到）
+    expect(payload.text).toBe('@E:/Downloads/tool.exe 看下\nAttached file: `E:/Downloads/tool.exe`')
+    expect(payload.metadata?.attachments).toEqual([
+      { name: 'tool.exe', mime: 'application/x-msdownload', path: 'E:/Downloads/tool.exe' },
+    ])
+  })
+
   it('revert 回填的文本里已有同一引用时不重复追加', async () => {
     const path = '/tmp/opencode/uploads/u1/report.zip'
     await sendMessage({

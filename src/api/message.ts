@@ -141,26 +141,20 @@ export function extractUserMessageContent(message: UserMessage): RevertedMessage
     })
   }
 
-  // 只作路径引用的附件（超 20MB 未进 files[]）不在 message.files 里，
+  // 只作路径引用的附件（二进制 / 超 20MB / 拖入的本机文件）不在 message.files 里，
   // 只能从 metadata.attachments 还原——否则回填后模型拿不到这个文件。
-  const metadata = message.metadata as Record<string, unknown> | undefined
-  const references = Array.isArray(metadata?.['attachments']) ? metadata['attachments'] : []
-  for (const reference of references) {
-    if (!reference || typeof reference !== 'object') continue
-    const { name, mime, path } = reference as { name?: unknown; mime?: unknown; path?: unknown }
-    if (typeof path !== 'string' || !path) continue
-
-    const url = absolutePathToFileUrl(path)
+  for (const reference of readPromptAttachments(message.metadata)) {
+    const url = absolutePathToFileUrl(reference.path)
     if (seenPaths.has(url)) continue
     seenPaths.add(url)
 
     attachments.push({
       id: crypto.randomUUID(),
-      type: 'file',
-      displayName: typeof name === 'string' && name ? name : fileBaseName(path),
+      type: reference.mime === 'application/x-directory' ? 'folder' : 'file',
+      displayName: reference.name,
       url,
-      mime: typeof mime === 'string' ? mime : undefined,
-      relativePath: path,
+      mime: reference.mime,
+      relativePath: reference.path,
       pathOnly: true,
     })
   }
@@ -176,6 +170,7 @@ export function extractUserMessageContent(message: UserMessage): RevertedMessage
 
   // 回填用户原始输入（不含我们追加的路径引用行）：再次发送时由
   // applyAttachmentReferences 依据附件重新生成，不会丢也不会重复。
+  const metadata = message.metadata as Record<string, unknown> | undefined
   const displayText = metadata?.['displayText']
   const text = typeof displayText === 'string' ? displayText : message.text ?? ''
 
@@ -305,17 +300,44 @@ export function fileUrlToAbsolutePath(url: string): string | undefined {
 }
 
 /**
+ * 从消息 metadata 里读路径引用。
+ *
+ * 这些附件不进 `files[]`（二进制 / 超 20MB / 拖入的本机文件），模型看到的是
+ * prompt 文本里的 `Attached file:` 行；用户消息气泡靠这份数据还原胶囊。
+ * 之前只有 revert 回填在读它，气泡完全没渲染。
+ */
+export function readPromptAttachments(metadata: unknown): PromptAttachmentReference[] {
+  const record = metadata as Record<string, unknown> | undefined
+  const raw = record?.['attachments']
+  if (!Array.isArray(raw)) return []
+
+  const result: PromptAttachmentReference[] = []
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue
+    const { name, mime, path } = item as { name?: unknown; mime?: unknown; path?: unknown }
+    if (typeof path !== 'string' || !path) continue
+    result.push({
+      name: typeof name === 'string' && name ? name : fileBaseName(path),
+      mime: typeof mime === 'string' && mime ? mime : 'text/plain',
+      path,
+    })
+  }
+  return result
+}
+
+/**
  * 路径型附件：`file://` 引用。
  *
- * 带 mention 的附件（`@` 提及、拖入）路径已经在文本里，不再补一行引用
- * ——官方也是这么区分的（path 部件 vs file 部件）。
+ * pathOnly 附件不会进 `prompt.files[]`，文本是模型看到它的唯一途径。
+ * 官方对 path 部件**无条件**补一行绝对路径，即使正文里已经有 `@path`
+ *（`@` 是相对路径，模型不一定知道绝对位置）。
  *
- * 但 pathOnly 附件不会进 `prompt.files[]`，文本是模型看到它的唯一途径。
- * 如果用户把 `@path` 那段删掉了（chip 还在），这里必须补回去，
- * 否则模型完全看不到这个附件。
+ * 非 pathOnly 的附件走 `files[]`，路径已经随 attachment 交给服务端，
+ * 不再补行（官方 FileAttachmentPart 同款）。
  */
 export function isPathReferenceAttachment(attachment: Attachment, text?: string): boolean {
   if (attachment.type !== 'file' && attachment.type !== 'folder') return false
+  if (attachment.pathOnly) return true
   if (attachment.textRange) {
     return text !== undefined && !text.includes(attachment.textRange.value)
   }

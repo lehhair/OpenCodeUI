@@ -75,6 +75,9 @@ vi.mock('./parts', () => ({
   ),
   AgentPartView: ({ agent }: { agent: { name: string } }) => <div data-testid="agent-part">{agent.name}</div>,
   SkillPartView: ({ skill }: { skill: { name: string } }) => <div data-testid="skill-part">{skill.name}</div>,
+  PathReferencePartView: ({ reference }: { reference: { name: string } }) => (
+    <div data-testid="path-part">{reference.name}</div>
+  ),
   StepFinishPartView: () => null,
   RetryPartView: () => null,
   CompactionPartView: ({ message }: { message: { status?: string } }) =>
@@ -173,6 +176,19 @@ describe('MessageRenderer assistant fork', () => {
     render(<MessageRenderer message={message} />)
 
     expect(screen.getByTestId('file-part')).toHaveTextContent('notes.txt')
+  })
+
+  it('renders path references from metadata.attachments (dropped local files)', () => {
+    const message: UserMessage = {
+      ...createUserTextMessage('@E:/Downloads/tool.exe 看下'),
+      metadata: {
+        attachments: [{ name: 'tool.exe', mime: 'application/x-msdownload', path: 'E:/Downloads/tool.exe' }],
+      } as never,
+    }
+
+    render(<MessageRenderer message={message} />)
+
+    expect(screen.getByTestId('path-part')).toHaveTextContent('tool.exe')
   })
 
   it('renders agent mentions from the native agents array', () => {
