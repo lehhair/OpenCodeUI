@@ -163,6 +163,15 @@ body,
   top: calc(var(--desktop-titlebar-height, 0px) + var(--app-safe-top, 0px) + var(--safe-area-inset-top, 0px));
 }
 
+/* 同样的原因：全屏查看器（ModalShell）也 portal 到 body。
+ * `--app-safe-top` 只在 `.tauri-app` 下有值，浏览器/PWA 下是 0，
+ * 内容区会从视口顶部开始 —— 标题栏被 iOS 状态栏盖住。
+ * 非 Tauri 场景显式让开 safe-area，Tauri 仍走 --app-safe-top / 原生 padding。 */
+:root:not(.tauri-app) .modal-shell-safe-content {
+  height: calc(100% - var(--safe-area-inset-top, 0px));
+  margin-top: var(--safe-area-inset-top, 0px);
+}
+
 .settings-search-highlight {
   border-radius: 0.5rem;
   animation: settings-search-highlight 1.8s ease-out;
