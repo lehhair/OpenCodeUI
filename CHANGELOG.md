@@ -1,5 +1,16 @@
 # Changelog
 
+## [v0.7.27] - 2026-11-08
+
+- fix(ui): 全屏查看器在 iOS 状态栏下让开 safe-area (39e3c2c2)
+- fix(attachment): 路径引用在时间线可见，文本/图片预览修复 (c90acd39)
+- feat(attachment): 按类型和大小分流，二进制只给路径 (9d717a8d)
+- feat(mention): @ 菜单兼容反斜杠路径 (946e574e)
+- fix(attachment): @ 提及回到 files[]，对齐官方 file/path 两种部件 (f7bc62e8)
+- fix(sidebar): 连接状态点改用服务器健康状态，与设置页同源 (7d313a13)
+- fix(models): 模型列表未使用模型按名称首字母排序 (e7951497)
+- fix(slash-command): 斜杠命令匹配改为打分式模糊排序 (59f84120)
+
 ## [v0.7.26] - 2026-11-06
 
 - perf(react): 稳定 useSyncExternalStore 订阅引用，避免每次渲染重绑 (35154609)
