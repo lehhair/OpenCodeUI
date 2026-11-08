@@ -68,6 +68,29 @@ export function getMimeFromPath(path: string): string {
   return extToMime(ext)
 }
 
+/**
+ * 模型能直接消费的 mime。
+ *
+ * 服务端 `to-llm-message` 只把 `text/plain`、图片、PDF、目录转进上下文，
+ * 其余（可执行文件、压缩包、二进制）整段丢弃。这类文件进 `files[]`
+ * 既占内存又可能撞服务端 20MB 读取上限，不如直接走路径引用。
+ *
+ * 注意：服务端对 `file://` 文件会按内容 `Mime.detect`，所以源码/配置等
+ * 文本类型最终都会变成 `text/plain`。客户端按扩展名先把它们划进可读，
+ * 二进制类直接排除。
+ */
+export function isModelReadableMime(mime: string): boolean {
+  if (!mime) return false
+  if (mime.startsWith('text/')) return true
+  if (mime.startsWith('image/')) return true
+  if (mime === 'application/pdf') return true
+  if (mime === 'application/x-directory') return true
+  // 结构化文本：服务端嗅探后就是 text/plain
+  if (mime === 'application/json') return true
+  if (mime === 'application/xml' || mime === 'application/xhtml+xml') return true
+  return false
+}
+
 export function bytesToDataUrl(bytes: Uint8Array, mime: string): string {
   const chunkSize = 0x8000
   let binary = ''
@@ -149,13 +172,17 @@ export function routeAttachment(input: {
     return { kind: 'inline' }
   }
 
+  // 模型读不了的类型（可执行文件、压缩包、二进制）或超过服务端读取上限：
+  // 只给路径，不进 files[]。文件引用本来就没必要把整份内容塞进上下文。
+  const pathOnly = !isModelReadableMime(input.mime) || input.size > MAX_INLINE_BYTES
+
   if (input.nativePath && input.serverIsLocal) {
-    return { kind: 'reference', path: input.nativePath, pathOnly: input.size > MAX_INLINE_BYTES }
+    return { kind: 'reference', path: input.nativePath, pathOnly }
   }
 
   if (input.size > MAX_UPLOAD_BYTES) {
     return { kind: 'reject', reason: 'too-large' }
   }
 
-  return { kind: 'upload', pathOnly: input.size > MAX_INLINE_BYTES }
+  return { kind: 'upload', pathOnly }
 }

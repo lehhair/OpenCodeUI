@@ -23,9 +23,15 @@ describe('routeAttachment', () => {
     )
   })
 
-  it('白名单外（zip 等）→ 上传，且不是 pathOnly', () => {
+  it('白名单外（zip 等）→ 上传，且只作路径引用（二进制不进上下文）', () => {
     expect(
       routeAttachment({ mime: 'application/zip', size: 1024, caps: allCaps, serverIsLocal: false }),
+    ).toEqual({ kind: 'upload', pathOnly: true })
+  })
+
+  it('文本小文件 → 上传，可以进 files[]（模型能直接读）', () => {
+    expect(
+      routeAttachment({ mime: 'text/plain', size: 1024, caps: allCaps, serverIsLocal: false }),
     ).toEqual({ kind: 'upload', pathOnly: false })
   })
 
@@ -49,7 +55,7 @@ describe('routeAttachment', () => {
     ).toEqual({ kind: 'reject', reason: 'too-large' })
   })
 
-  it('服务端同机 + 有原生路径 → 直引（需求二），超限时同样只作路径引用', () => {
+  it('服务端同机 + 有原生路径 → 直引（需求二）；二进制或超限只作路径引用', () => {
     expect(
       routeAttachment({
         mime: 'application/zip',
@@ -58,7 +64,17 @@ describe('routeAttachment', () => {
         serverIsLocal: true,
         nativePath: 'C:/data/report.zip',
       }),
-    ).toEqual({ kind: 'reference', path: 'C:/data/report.zip', pathOnly: false })
+    ).toEqual({ kind: 'reference', path: 'C:/data/report.zip', pathOnly: true })
+
+    expect(
+      routeAttachment({
+        mime: 'text/plain',
+        size: 1024,
+        caps: allCaps,
+        serverIsLocal: true,
+        nativePath: 'C:/data/notes.txt',
+      }),
+    ).toEqual({ kind: 'reference', path: 'C:/data/notes.txt', pathOnly: false })
 
     expect(
       routeAttachment({
@@ -80,6 +96,6 @@ describe('routeAttachment', () => {
         serverIsLocal: false,
         nativePath: 'C:/data/report.zip',
       }),
-    ).toEqual({ kind: 'upload', pathOnly: false })
+    ).toEqual({ kind: 'upload', pathOnly: true })
   })
 })

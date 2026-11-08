@@ -25,7 +25,7 @@ describe('decideNativeFileRoute', () => {
     ).toEqual({ kind: 'inline' })
   })
 
-  it('同机 + 白名单外（zip）→ 走原有的 @ 引用，不上传', () => {
+  it('同机 + 白名单外（zip）→ 走 @ 引用，但只给路径（二进制不进上下文）', () => {
     expect(
       decideNativeFileRoute({
         mime: 'application/zip',
@@ -34,10 +34,22 @@ describe('decideNativeFileRoute', () => {
         serverIsLocal: true,
         nativePath: 'C:/dl/piui-source.zip',
       }),
-    ).toEqual({ kind: 'mention' })
+    ).toEqual({ kind: 'mention', pathOnly: true })
   })
 
-  it('同机 + 原生媒体但超过内联上限 → 也是 @ 引用（不上传）', () => {
+  it('同机 + 小文本文件 → @ 引用且进 files[]（模型能直接读）', () => {
+    expect(
+      decideNativeFileRoute({
+        mime: 'text/plain',
+        size: 1024,
+        caps: allCaps,
+        serverIsLocal: true,
+        nativePath: 'C:/proj/notes.txt',
+      }),
+    ).toEqual({ kind: 'mention', pathOnly: false })
+  })
+
+  it('同机 + 原生媒体但超过内联上限 → 只给路径（不进 files[]）', () => {
     expect(
       decideNativeFileRoute({
         mime: 'image/png',
@@ -46,7 +58,7 @@ describe('decideNativeFileRoute', () => {
         serverIsLocal: true,
         nativePath: 'C:/pics/huge.png',
       }),
-    ).toEqual({ kind: 'mention' })
+    ).toEqual({ kind: 'mention', pathOnly: true })
   })
 
   it('同机 + 超大文件也不拒绝（根本不上传，没有上限问题）', () => {
@@ -58,10 +70,10 @@ describe('decideNativeFileRoute', () => {
         serverIsLocal: true,
         nativePath: 'C:/dl/huge.zip',
       }),
-    ).toEqual({ kind: 'mention' })
+    ).toEqual({ kind: 'mention', pathOnly: true })
   })
 
-  it('远端 + 白名单外 → 上传', () => {
+  it('远端 + 白名单外 → 上传，但只作路径引用', () => {
     expect(
       decideNativeFileRoute({
         mime: 'application/zip',
@@ -70,7 +82,7 @@ describe('decideNativeFileRoute', () => {
         serverIsLocal: false,
         nativePath: 'C:/dl/piui-source.zip',
       }),
-    ).toEqual({ kind: 'upload', pathOnly: false })
+    ).toEqual({ kind: 'upload', pathOnly: true })
   })
 
   it('远端 + 超过 20MB → 上传但只作路径引用', () => {

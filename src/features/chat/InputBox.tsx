@@ -30,6 +30,7 @@ import {
   detectSlashTrigger,
   ensureFileMime,
   getMimeFromPath,
+  isModelReadableMime,
   readFileAsDataUrl,
   routeAttachment,
 } from './input/inputUtils'
@@ -81,6 +82,8 @@ interface DraggedFileInfo {
   path: string
   absolute: string
   name: string
+  /** 只写路径、不进 files[]（二进制 / 超 20MB）；缺省时按类型临时判断 */
+  pathOnly?: boolean
 }
 
 const TEXTAREA_MIN_HEIGHT = 24
@@ -1058,10 +1061,11 @@ function InputBoxComponent({
             return
           }
           case 'ArrowLeft': {
-            // 返回上一级
-            if (mentionQuery.includes('/')) {
+            // 返回上一级（反斜杠路径先规范成 `/`）
+            const normalizedQuery = normalizePath(mentionQuery)
+            if (normalizedQuery.includes('/')) {
               e.preventDefault()
-              const parts = mentionQuery.replace(/\/$/, '').split('/')
+              const parts = normalizedQuery.replace(/\/$/, '').split('/')
               // 记住当前目录名，返回后定位到它
               const folderName = parts[parts.length - 1]
               if (folderName) {
@@ -1237,18 +1241,25 @@ function InputBoxComponent({
       // 裸绝对路径 `E:/...` 会被解析成 `e:` 协议直接 400——侧边栏拖入走 toFileUrl 所以没事，
       // 这里对齐官方 request.ts:109 的 `file://${encodeFilePath(path)}`）
       const attachType = item.type === 'reference' ? 'folder' : item.type
+      // 类型决定发送形态：模型能直接读的（文本 / 图片 / PDF / 目录）进 files[]；
+      // 可执行文件、压缩包、二进制只给路径，服务端不读内容、也不会撞 20MB 上限。
+      const mime =
+        attachType === 'folder'
+          ? 'application/x-directory'
+          : attachType === 'file'
+            ? getMimeFromPath(item.value)
+            : undefined
+      const pathOnly = attachType === 'file' && !isModelReadableMime(mime ?? '')
       const attachment: Attachment = {
         id: crypto.randomUUID(),
         type: attachType,
         displayName: item.displayName,
         relativePath: item.type === 'reference' ? item.value : item.relativePath,
         url: item.type !== 'agent' && item.type !== 'skill' ? toFileUrl(item.value) : undefined,
-        mime: item.type === 'reference' ? 'application/x-directory' : item.type !== 'agent' ? 'text/plain' : undefined,
+        mime,
         agentName: item.type === 'agent' ? item.displayName : undefined,
         skillId: item.type === 'skill' ? item.value : undefined,
-        // @ 提及走 `files[]`（官方 FileAttachmentPart 同款）：服务端自己按 uri
-        // 读文件——文本/图片/pdf/目录都能进上下文，二进制的 `@path` 也还在文本里。
-        // 之前这里一刀切 pathOnly，只有 `Attached file:` 一行文本，等于把附件降级没了。
+        ...(pathOnly ? { pathOnly: true } : {}),
         textRange: {
           value: mentionText,
           start: mentionStartIndex,
@@ -1478,14 +1489,13 @@ function InputBoxComponent({
   }, [])
 
   /**
-   * 将拖入的文件信息插入为 @mention 附件。
+   * 将拖入的文件信息插入为 `@path` 芯片。
    *
-   * `pathOnly`：只把路径写进 prompt 文本，不进 `prompt.files[]`。外部拖入的本机
-   * 文件走这条（对齐官方 composer 的 `path` 部件）：服务端不必把整份文件读进内存、
-   * 也不会撞上 20MB 上限，模型按需用工具读。侧边栏内部拖拽仍传 files[]。
+   * `pathOnly` 由每个文件自己决定（`DraggedFileInfo.pathOnly`）：二进制 /
+   * 超 20MB 只写路径、不进 `files[]`；模型能直接读的类型进 `files[]`。
    */
   const insertDraggedFiles = useCallback(
-    (fileInfos: DraggedFileInfo[], options: { pathOnly?: boolean } = {}) => {
+    (fileInfos: DraggedFileInfo[]) => {
       if (fileInfos.length === 0) return
 
       const currentText = textareaRef.current?.value ?? text
@@ -1516,8 +1526,8 @@ function InputBoxComponent({
           displayName: fileInfo.name,
           relativePath,
           url: toFileUrl(fileInfo.absolute),
-          mime: fileInfo.type === 'file' ? 'text/plain' : undefined,
-          ...(options.pathOnly ? { pathOnly: true } : {}),
+          mime: fileInfo.type === 'file' ? getMimeFromPath(fileInfo.absolute) : 'application/x-directory',
+          ...(fileInfo.pathOnly ? { pathOnly: true } : {}),
           textRange: {
             value: mentionText,
             start,
@@ -1539,7 +1549,15 @@ function InputBoxComponent({
     [text],
   )
 
-  const insertDraggedFile = useCallback((fileInfo: DraggedFileInfo) => insertDraggedFiles([fileInfo]), [insertDraggedFiles])
+  const insertDraggedFile = useCallback(
+    (fileInfo: DraggedFileInfo) => {
+      const mime = fileInfo.type === 'file' ? getMimeFromPath(fileInfo.absolute) : 'application/x-directory'
+      insertDraggedFiles([
+        { ...fileInfo, pathOnly: fileInfo.type === 'file' && !isModelReadableMime(mime) },
+      ])
+    },
+    [insertDraggedFiles],
+  )
 
   useEffect(() => {
     const updateInternalFileDragState = () => {
@@ -1564,12 +1582,17 @@ function InputBoxComponent({
   }, [insertDraggedFile])
 
   const buildDraggedFileInfo = useCallback(
-    (fileInfo: DroppedPathInfo): DraggedFileInfo => ({
-      type: fileInfo.type,
-      path: getMentionPathForDroppedPath(fileInfo.path, rootPath),
-      absolute: fileInfo.path,
-      name: fileInfo.name || getFileName(fileInfo.path),
-    }),
+    (fileInfo: DroppedPathInfo): DraggedFileInfo => {
+      const mime = fileInfo.type === 'file' ? getMimeFromPath(fileInfo.path) : 'application/x-directory'
+      return {
+        type: fileInfo.type,
+        path: getMentionPathForDroppedPath(fileInfo.path, rootPath),
+        absolute: fileInfo.path,
+        name: fileInfo.name || getFileName(fileInfo.path),
+        // 默认按类型判断；走判定链时调用方会用真实大小覆盖
+        pathOnly: fileInfo.type === 'file' && !isModelReadableMime(mime),
+      }
+    },
     [rootPath],
   )
 
@@ -1581,7 +1604,9 @@ function InputBoxComponent({
    * data URL 内联；其余 → 上传到服务端临时目录后作路径附件（Issue #182）。
    */
   const createUploadAttachmentFromDroppedPath = useCallback(
-    async (fileInfo: DroppedPathInfo): Promise<Attachment | 'skip' | null> => {
+    async (
+      fileInfo: DroppedPathInfo,
+    ): Promise<Attachment | 'skip' | { mention: true; pathOnly: boolean } | null> => {
       if (fileInfo.type !== 'file') return null
 
       const name = fileInfo.name || getFileName(fileInfo.path)
@@ -1646,8 +1671,8 @@ function InputBoxComponent({
 
         if (size >= 0) {
           const route = await resolveRoute(size)
-          // 'mention' = 服务端读得到这个本机路径 → 交回调用方退化成 @ 引用（原行为）
-          if (route.kind === 'mention') return null
+          // 'mention' = 服务端读得到这个本机路径 → 交回调用方退化成 @ 引用
+          if (route.kind === 'mention') return { mention: true, pathOnly: route.pathOnly }
           if (route.kind === 'reject') return rejectTooLarge()
           if (route.kind === 'inline') return inlineAttachment(await readFile(fileInfo.path), size)
         }
@@ -1656,7 +1681,7 @@ function InputBoxComponent({
         size = size >= 0 ? size : bytes.byteLength
 
         const route = await resolveRoute(size)
-        if (route.kind === 'mention') return null
+        if (route.kind === 'mention') return { mention: true, pathOnly: route.pathOnly }
         if (route.kind === 'reject') return rejectTooLarge()
         if (route.kind === 'inline') return inlineAttachment(bytes, size)
 
@@ -1718,6 +1743,11 @@ function InputBoxComponent({
             //    （服务端在远端时那个本机路径读不到）
             continue
           }
+          if (result && 'mention' in result) {
+            // 服务端读得到本机路径：沿用 @ 引用；pathOnly 由类型 + 大小决定
+            mentionFiles.push({ ...buildDraggedFileInfo(info), pathOnly: result.pathOnly })
+            continue
+          }
           if (result) {
             uploadAttachments.push(result)
           } else if (info.type === "folder") {
@@ -1747,10 +1777,8 @@ function InputBoxComponent({
           setAttachments(prev => [...prev, ...uploadAttachments])
         }
 
-        // 外部拖入的本机文件只作路径引用（官方 composer 的 `path` 部件）：
-        // 路径已经在 prompt 文本里，再进 files[] 会让服务端把整份文件读进内存，
-        // 超过 20MB 还会让整条 prompt 以 AttachmentError 失败。
-        insertDraggedFiles(mentionFiles, { pathOnly: true })
+        // 每个文件的 pathOnly 已经由类型 + 大小算好，这里只负责插入芯片。
+        insertDraggedFiles(mentionFiles)
       } catch (err) {
         console.warn('[InputBox] Failed to process dropped paths:', err)
       }

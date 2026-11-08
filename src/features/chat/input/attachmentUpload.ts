@@ -87,8 +87,11 @@ export function buildPathAttachment(input: {
 export type NativeFileDecision =
   /** 原生媒体：读本机字节内联成 data URL（浏览器/桌面都走这条） */
   | { kind: 'inline' }
-  /** 服务端同机：交给原有的 `@` 引用，**不上传**（需求二） */
-  | { kind: 'mention' }
+  /**
+   * 服务端同机：交给原有的 `@` 引用，**不上传**（需求二）。
+   * `pathOnly` 为 true 时只给路径（二进制 / 超 20MB），不进 `files[]`。
+   */
+  | { kind: 'mention'; pathOnly: boolean }
   /** 服务端在远端：必须上传 */
   | { kind: 'upload'; pathOnly: boolean }
   /** 超过上传上限 */
@@ -114,7 +117,7 @@ export function decideNativeFileRoute(input: {
     case 'inline':
       return { kind: 'inline' }
     case 'reference':
-      return { kind: 'mention' }
+      return { kind: 'mention', pathOnly: route.pathOnly }
     case 'reject':
       return { kind: 'reject' }
     default:
