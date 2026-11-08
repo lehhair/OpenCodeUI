@@ -191,7 +191,7 @@ export type ModelSortMode = 'frequency' | 'alphabetical' | 'provider'
  * 根据使用频率排序模型
  * - 最近使用的优先
  * - 使用次数多的优先
- * - 未使用过的按原始顺序
+ * - 未使用过的按模型 name 首字母排序
  */
 export function sortModelsByFrequency(models: Model[]): Model[] {
   const stats = getModelUsageStats()
@@ -202,18 +202,22 @@ export function sortModelsByFrequency(models: Model[]): Model[] {
     const statsA = stats[keyA]
     const statsB = stats[keyB]
 
-    // 都没使用过，保持原始顺序
-    if (!statsA && !statsB) return 0
+    // 都没使用过，按模型 name 首字母排序
+    if (!statsA && !statsB) return a.name.localeCompare(b.name)
 
     // 只有一个使用过，使用过的排前面
     if (!statsA) return 1
     if (!statsB) return -1
 
-    // 都使用过，按使用次数排序，次数相同按最近使用时间
+    // 都使用过，按使用次数排序，次数相同按最近使用时间，
+    // 再相同则按模型 name 首字母排序以保证顺序稳定
     if (statsA.count !== statsB.count) {
       return statsB.count - statsA.count
     }
-    return statsB.lastUsed - statsA.lastUsed
+    if (statsA.lastUsed !== statsB.lastUsed) {
+      return statsB.lastUsed - statsA.lastUsed
+    }
+    return a.name.localeCompare(b.name)
   })
 }
 
