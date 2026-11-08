@@ -165,4 +165,26 @@ describe('MentionMenu', () => {
     fireEvent.click(screen.getByTitle('Go back'))
     expect(onNavigate).toHaveBeenCalledWith('src/')
   })
+
+  it('反斜杠路径先规范成 `/` 再解析（Windows 手输/粘贴）', async () => {
+    render(
+      <div>
+        <MentionMenu
+          isOpen={true}
+          query={'src\\components\\'}
+          agents={[]}
+          rootPath="/workspace/project"
+          onSelect={vi.fn()}
+          onClose={vi.fn()}
+        />
+      </div>,
+    )
+
+    await act(async () => {
+      vi.advanceTimersByTime(32)
+      await Promise.resolve()
+    })
+
+    expect(listDirectory).toHaveBeenCalledWith('src/components', '/workspace/project')
+  })
 })

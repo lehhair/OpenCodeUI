@@ -94,8 +94,9 @@ export const MentionMenu = forwardRef<MentionMenuHandle, MentionMenuProps>(funct
   }, [isOpen, rootPath])
   const [dynamicMaxHeight, setDynamicMaxHeight] = useState<number | undefined>(undefined)
   const currentPath = useMemo(() => {
-    const lastSlashIndex = query.lastIndexOf('/')
-    return lastSlashIndex >= 0 ? query.slice(0, lastSlashIndex) || '.' : '.'
+    const normalizedQuery = normalizePath(query)
+    const lastSlashIndex = normalizedQuery.lastIndexOf('/')
+    return lastSlashIndex >= 0 ? normalizedQuery.slice(0, lastSlashIndex) || '.' : '.'
   }, [query])
 
   // 动态计算菜单最大高度，防止在小屏幕上被 header 遮挡
@@ -298,16 +299,18 @@ export const MentionMenu = forwardRef<MentionMenuHandle, MentionMenuProps>(funct
     if (!isOpen) return
 
     const frameId = requestAnimationFrame(() => {
-      const lastSlashIndex = query.lastIndexOf('/')
+      // 反斜杠路径（Windows 直接粘贴/手输 `E:\dir\file`）先规范成 `/` 再解析
+      const normalizedQuery = normalizePath(query)
+      const lastSlashIndex = normalizedQuery.lastIndexOf('/')
 
       if (lastSlashIndex >= 0) {
-        const dirPath = query.slice(0, lastSlashIndex) || '.'
-        const filter = query.slice(lastSlashIndex + 1)
+        const dirPath = normalizedQuery.slice(0, lastSlashIndex) || '.'
+        const filter = normalizedQuery.slice(lastSlashIndex + 1)
         loadDirectory(dirPath, filter)
         return
       }
 
-      if (query === '') {
+      if (normalizedQuery === '') {
         loadDirectory('.', '')
         return
       }
@@ -315,7 +318,7 @@ export const MentionMenu = forwardRef<MentionMenuHandle, MentionMenuProps>(funct
       const requestId = ++requestIdRef.current
       setLoading(true)
 
-      searchFiles(query, { limit: 20, directory: rootPath })
+      searchFiles(normalizedQuery, { limit: 20, directory: rootPath })
         .then(paths => {
           if (requestId !== requestIdRef.current) return
 
