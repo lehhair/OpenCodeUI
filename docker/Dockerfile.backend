@@ -14,6 +14,9 @@ ARG APT_SECURITY_MIRROR=http://mirrors.tuna.tsinghua.edu.cn/debian-security
 ARG NPM_CONFIG_REGISTRY=https://registry.npmmirror.com
 ARG NODEJS_ORG_MIRROR=https://npmmirror.com/mirrors/node
 ARG MISE_INSTALL_URL=https://mise.run
+# 留空表示装清单里的最新 v2；填版本号时与清单校验，不一致直接失败。
+ARG OPENCODE_VERSION=
+ARG OPENCODE_MANIFEST_URL=https://opencode.ai/update/api/latest/cli/opencode
 
 ENV DEBIAN_FRONTEND=noninteractive \
     LANG=C.UTF-8 \
@@ -89,21 +92,42 @@ RUN case "${TARGETARCH}" in \
       | MISE_INSTALL_PATH=/usr/local/bin/mise MISE_INSTALL_FROM_GITHUB=1 MISE_INSTALL_ARCH="${MISE_ARCH}" sh \
     && mise --version
 
-# 安装 opencode。直接从 GitHub Releases 拉 tarball 解压，绕开 opencode.ai/install 脚本：
-# 该脚本为拼一个版本号字符串去调 api.github.com（未鉴权，60 次/小时/IP），
-# GitHub Actions 共享 runner IP 极易触发限流而 exit 1；而 releases/latest/download
-# 本身是 302 跳转，不需要版本号。tarball 内仅含单个 opencode 二进制。
-RUN case "${TARGETARCH}" in \
+# 安装 opencode。不能再用 GitHub 的 releases/latest：那条线停在 v1.19.x，
+# 而前端 SDK 已经换成 v2（@opencode/client 2.x，接口都以 /api 开头）。
+# 装 v1 二进制会导致 UI 连不上。改用 opencode.ai 的 CLI 分发清单，它返回
+# 当前 v2 版本号、各平台 tarball 地址和 sha256，且不经过 api.github.com
+# （GitHub Actions 共享 IP 会被限流）。
+# tarball 内仅含单个 opencode 二进制。
+RUN set -eux; \
+    case "${TARGETARCH}" in \
       amd64) OC_ARCH=x64 ;; \
       arm64) OC_ARCH=arm64 ;; \
       *) echo "unsupported arch: ${TARGETARCH}" >&2; exit 1 ;; \
-    esac \
-    && curl -fsSL -o /tmp/opencode.tar.gz \
-      "https://github.com/anomalyco/opencode/releases/latest/download/opencode-linux-${OC_ARCH}.tar.gz" \
-    && tar -xzf /tmp/opencode.tar.gz -C /usr/local/bin opencode \
-    && rm -f /tmp/opencode.tar.gz \
-    && chmod +x /usr/local/bin/opencode \
-    && opencode --version
+    esac; \
+    curl -fsSL --retry 3 --retry-delay 2 --retry-connrefused -o /tmp/opencode-release.json "${OPENCODE_MANIFEST_URL}"; \
+    MANIFEST_VERSION="$(jq -r '.version' /tmp/opencode-release.json)"; \
+    if [ -n "${OPENCODE_VERSION}" ] && [ "v${OPENCODE_VERSION#v}" != "v${MANIFEST_VERSION}" ]; then \
+      echo "opencode manifest version ${MANIFEST_VERSION} does not match requested ${OPENCODE_VERSION}" >&2; \
+      exit 1; \
+    fi; \
+    OC_FILE="opencode-linux-${OC_ARCH}.tar.gz"; \
+    OC_URL="$(jq -r --arg f "${OC_FILE}" '.metadata.files[$f].url // empty' /tmp/opencode-release.json)"; \
+    OC_SHA="$(jq -r --arg f "${OC_FILE}" '.metadata.files[$f].sha256 // empty' /tmp/opencode-release.json)"; \
+    if [ -z "${OC_URL}" ] || [ -z "${OC_SHA}" ]; then \
+      echo "no ${OC_FILE} entry in opencode manifest" >&2; \
+      exit 1; \
+    fi; \
+    case "${OC_URL}" in \
+      http*) ;; \
+      *) OC_URL="https://opencode.ai${OC_URL}" ;; \
+    esac; \
+    curl -fsSL --retry 3 --retry-delay 2 --retry-connrefused -o /tmp/opencode.tar.gz "${OC_URL}"; \
+    echo "${OC_SHA}  /tmp/opencode.tar.gz" | sha256sum -c -; \
+    tar -xzf /tmp/opencode.tar.gz -C /usr/local/bin opencode; \
+    rm -f /tmp/opencode.tar.gz /tmp/opencode-release.json; \
+    chmod +x /usr/local/bin/opencode; \
+    opencode --version; \
+    test "$(opencode --version | head -n1 | sed 's/^[^0-9]*//' | cut -d. -f1)" -ge 2
 
 # 工作目录
 RUN mkdir -p /workspace

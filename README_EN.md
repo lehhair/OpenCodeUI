@@ -55,6 +55,8 @@ Then open https://lehhair.github.io/OpenCodeUI/
 
 For scenarios where `opencode serve` is already running, you only need a frontend UI container to connect to the existing backend.
 
+> The frontend is built against the OpenCode v2 SDK, so the backend must be **opencode v2** (`opencode --version` reports 2.x). The v1 binary behind GitHub's `releases/latest` will not connect.
+
 ```bash
 git clone https://github.com/lehhair/OpenCodeUI.git
 cd OpenCodeUI
@@ -181,7 +183,9 @@ PREVIEW_PORT=6659
 # Working directory (mounted to /workspace in the container)
 WORKSPACE=./workspace
 
-# Must be set for public deployment
+# Must be set for public deployment (opencode v2: the username is always
+# `opencode`; the password can be OPENCODE_PASSWORD, the legacy
+# OPENCODE_SERVER_PASSWORD is still accepted)
 OPENCODE_SERVER_USERNAME=opencode
 OPENCODE_SERVER_PASSWORD=your-strong-password
 

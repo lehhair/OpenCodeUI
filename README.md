@@ -55,6 +55,8 @@ opencode serve --cors "https://lehhair.github.io"
 
 适用于已有 `opencode serve` 在运行的场景，只需一个前端 UI 容器连接到现有后端。
 
+> 前端已经切到 OpenCode v2 SDK，后端必须是 **opencode v2**（`opencode --version` 显示 2.x）。v1 的 `releases/latest` 二进制连不上。
+
 ```bash
 git clone https://github.com/lehhair/OpenCodeUI.git
 cd OpenCodeUI
@@ -228,7 +230,8 @@ PREVIEW_PORT=6659
 # 工作目录（挂载到容器 /workspace）
 WORKSPACE=./workspace
 
-# 公网部署务必设置
+# 公网部署务必设置（opencode v2：用户名固定 opencode，密码可用
+# OPENCODE_PASSWORD，旧名 OPENCODE_SERVER_PASSWORD 也认）
 OPENCODE_SERVER_USERNAME=opencode
 OPENCODE_SERVER_PASSWORD=your-strong-password
 

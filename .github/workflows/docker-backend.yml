@@ -44,6 +44,18 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # 版本号进 build-arg，既能锁住本次构建装的是哪个 opencode，
+      # 也让 BuildKit 在发新版时丢掉旧的二进制层（否则层缓存会一直
+      # 复用第一次装的那版，日志看着每天重组，实际纹丝不动）。
+      - name: Resolve OpenCode version
+        id: opencode
+        run: |
+          version="$(curl -fsSL --retry 3 --retry-delay 2 \
+            https://opencode.ai/update/api/latest/cli/opencode | jq -r '.version')"
+          test -n "$version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "OpenCode $version"
+
       - name: Docker metadata
         id: meta
         uses: docker/metadata-action@v5
@@ -63,5 +75,7 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            OPENCODE_VERSION=${{ steps.opencode.outputs.version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
