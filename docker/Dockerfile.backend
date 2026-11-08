@@ -79,18 +79,31 @@ COPY --from=docker-cli /usr/local/libexec/docker/cli-plugins/docker-buildx /usr/
 # Debian 的 fd 二进制叫 fdfind，补一个常见命令名。
 RUN ln -sf /usr/bin/fdfind /usr/local/bin/fd
 
-# 安装 mise。走 mise.run 安装脚本但强制从 GitHub Releases 下载（MISE_INSTALL_FROM_GITHUB=1），
-# 避开 mise.jdx.dev CDN 与每日版本号不同步导致的下载 404 / 校验失败。
+# 安装 mise。直接跑 mise.run 的安装脚本会踩两个坑：
+#   1. 脚本默认装「24 小时前发布」的版本，那个版本没有内置校验和，得现去
+#      GitHub Releases 拉 SHASUMS256.txt；这条链路在 Actions 上时不时 504，
+#      构建就卡死在这里（2026-11-08 连续两次）。
+#   2. 强制 MISE_INSTALL_FROM_GITHUB=1 又让 tarball 也走同一条不稳的路径。
+# 做法：从脚本里取出它内置的当前版本号，用 MISE_VERSION 钉住这个版本。
+# 这样校验和直接用脚本里写死的那份，tarball 走 mise.jdx.dev（CDN 只保留
+# 当前版本，正好对得上），装的时候完全不碰 GitHub。
 # arm64 的 gnu 二进制需要 GLIBC_2.38+，但 bookworm-slim 只有 2.36，故 arm64 改用静态链接的
 # musl 变体（MISE_INSTALL_ARCH 覆盖脚本的 ldd 探测）。用 MISE_INSTALL_PATH 直接落位，免去 find/cp。
-RUN case "${TARGETARCH}" in \
+RUN set -eux; \
+    curl -fsSL --retry 3 --retry-delay 2 --retry-connrefused -o /tmp/mise-install.sh "${MISE_INSTALL_URL}"; \
+    MISE_PIN="$(sed -n 's/^[[:space:]]*current_version="v\{0,1\}\([0-9][0-9.]*\)".*$/\1/p' /tmp/mise-install.sh | head -n1)"; \
+    case "${TARGETARCH}" in \
       amd64) MISE_ARCH=x64 ;; \
       arm64) MISE_ARCH=arm64-musl ;; \
       *) echo "unsupported arch: ${TARGETARCH}" >&2; exit 1 ;; \
-    esac \
-    && curl -fsSL "${MISE_INSTALL_URL}" \
-      | MISE_INSTALL_PATH=/usr/local/bin/mise MISE_INSTALL_FROM_GITHUB=1 MISE_INSTALL_ARCH="${MISE_ARCH}" sh \
-    && mise --version
+    esac; \
+    if [ -n "${MISE_PIN}" ]; then \
+      MISE_INSTALL_PATH=/usr/local/bin/mise MISE_INSTALL_ARCH="${MISE_ARCH}" MISE_VERSION="${MISE_PIN}" sh /tmp/mise-install.sh; \
+    else \
+      MISE_INSTALL_PATH=/usr/local/bin/mise MISE_INSTALL_FROM_GITHUB=1 MISE_INSTALL_ARCH="${MISE_ARCH}" sh /tmp/mise-install.sh; \
+    fi; \
+    rm -f /tmp/mise-install.sh; \
+    mise --version
 
 # 安装 opencode。不能再用 GitHub 的 releases/latest：那条线停在 v1.19.x，
 # 而前端 SDK 已经换成 v2（@opencode/client 2.x，接口都以 /api 开头）。

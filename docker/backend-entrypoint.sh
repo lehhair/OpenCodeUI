@@ -13,8 +13,19 @@ ensure_mise() {
     *) echo "unsupported arch: $(uname -m)" >&2; exit 1 ;;
   esac
 
-  curl -fsSL "${MISE_INSTALL_URL:-https://mise.run}" \
-    | MISE_INSTALL_PATH=/usr/local/bin/mise MISE_INSTALL_FROM_GITHUB=1 MISE_INSTALL_ARCH="${MISE_ARCH}" sh
+  # 用脚本内置的当前版本号钉住版本：校验和写在脚本里，tarball 走
+  # mise.jdx.dev，避免去 GitHub Releases 现拉 SHASUMS256.txt（容易 504）。
+  local installer=/tmp/mise-install.sh
+  curl -fsSL --retry 3 --retry-delay 2 --retry-connrefused -o "$installer" "${MISE_INSTALL_URL:-https://mise.run}"
+  local pin
+  pin="$(sed -n 's/^[[:space:]]*current_version="v\{0,1\}\([0-9][0-9.]*\)".*$/\1/p' "$installer" | head -n1)"
+
+  if [ -n "$pin" ]; then
+    MISE_INSTALL_PATH=/usr/local/bin/mise MISE_INSTALL_ARCH="${MISE_ARCH}" MISE_VERSION="$pin" sh "$installer"
+  else
+    MISE_INSTALL_PATH=/usr/local/bin/mise MISE_INSTALL_FROM_GITHUB=1 MISE_INSTALL_ARCH="${MISE_ARCH}" sh "$installer"
+  fi
+  rm -f "$installer"
 }
 
 ensure_opencode() {
