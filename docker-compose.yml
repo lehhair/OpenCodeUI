@@ -40,7 +40,8 @@ services:
       - PUBLIC_BASE_URL=${PUBLIC_BASE_URL:-}
       - PREVIEW_DOMAIN=${PREVIEW_DOMAIN:-}
       - ROUTER_USERNAME=opencode
-      - ROUTER_PASSWORD=${OPENCODE_PASSWORD:-${OPENCODE_SERVER_PASSWORD:?Set OPENCODE_PASSWORD or OPENCODE_SERVER_PASSWORD to a non-empty password}}
+      # Compose v2 eagerly expands nested required values; entrypoints reject empty passwords.
+      - ROUTER_PASSWORD=${OPENCODE_PASSWORD:-${OPENCODE_SERVER_PASSWORD:-}}
     networks:
       - opencode-net
 
@@ -74,7 +75,7 @@ services:
       - MISTRAL_API_KEY=${MISTRAL_API_KEY:-}
       - XAI_API_KEY=${XAI_API_KEY:-}
       # 与 gateway 使用同一优先级：新变量非空时优先，否则回退旧变量
-      - OPENCODE_PASSWORD=${OPENCODE_PASSWORD:-${OPENCODE_SERVER_PASSWORD:?Set OPENCODE_PASSWORD or OPENCODE_SERVER_PASSWORD to a non-empty password}}
+      - OPENCODE_PASSWORD=${OPENCODE_PASSWORD:-${OPENCODE_SERVER_PASSWORD:-}}
       - DOCKER_API_VERSION=${DOCKER_API_VERSION:-1.40}
       - NPM_CONFIG_REGISTRY=${NPM_CONFIG_REGISTRY:-https://registry.npmmirror.com}
       - NODEJS_ORG_MIRROR=${NODEJS_ORG_MIRROR:-https://npmmirror.com/mirrors/node}

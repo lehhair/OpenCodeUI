@@ -35,12 +35,21 @@ PASSWORD_CASES = [
     ("both", {"OPENCODE_PASSWORD": "new-test", "OPENCODE_SERVER_PASSWORD": "legacy-test"}, "new-test"),
     ("empty new", {"OPENCODE_PASSWORD": "", "OPENCODE_SERVER_PASSWORD": "legacy-test"}, "legacy-test"),
 ]
+EMPTY_PASSWORD_CASES = [
+    {}, {"OPENCODE_PASSWORD": ""}, {"OPENCODE_SERVER_PASSWORD": ""},
+    {"OPENCODE_PASSWORD": "", "OPENCODE_SERVER_PASSWORD": ""},
+]
 
 
 def run(*args, env=None, check=True, timeout=60):
-    return subprocess.run(
-        args, cwd=ROOT, env=env, check=check, timeout=timeout, capture_output=True, text=True,
-    )
+    try:
+        return subprocess.run(
+            args, cwd=ROOT, env=env, check=check, timeout=timeout, capture_output=True, text=True,
+        )
+    except subprocess.CalledProcessError as error:
+        # unittest otherwise hides the captured diagnostic (e.g. Compose interpolation errors).
+        print(error.stderr, file=sys.stderr)
+        raise
 
 
 def docker(*args, **kwargs):
@@ -71,11 +80,15 @@ class ComposePasswordTests(unittest.TestCase):
                     if build:
                         self.assertEqual(services["backend"]["build"]["args"]["OPENCODE_MANIFEST_BASE64"], "e30=")
 
-    def test_empty_passwords_are_rejected(self):
-        for values in [{}, {"OPENCODE_PASSWORD": ""}, {"OPENCODE_PASSWORD": "", "OPENCODE_SERVER_PASSWORD": ""}]:
-            with self.subTest(values=values), self.assertRaises(subprocess.CalledProcessError) as error:
-                compose(values)
-            self.assertIn("non-empty password", error.exception.stderr)
+    def test_empty_passwords_are_passed_to_startup_checks(self):
+        # Compose v2 eagerly expands nested :? expressions, even when the new password is set.
+        # Expand defaults here; DockerAuthTests verifies both containers fail closed at startup.
+        for build in [False, True]:
+            for values in EMPTY_PASSWORD_CASES:
+                with self.subTest(build=build, values=values):
+                    services = compose(values, build)
+                    self.assertEqual(services["gateway"]["environment"]["ROUTER_PASSWORD"], "")
+                    self.assertEqual(services["backend"]["environment"]["OPENCODE_PASSWORD"], "")
 
 
 class ReleaseSnapshotTests(unittest.TestCase):
@@ -256,14 +269,34 @@ class DockerAuthTests(unittest.TestCase):
             return error.code, error.read()
 
     def test_containers_reject_empty_password_at_startup(self):
-        for image, entrypoint in [(BACKEND, None), (GATEWAY, None), (GATEWAY, "opencodeui-router")]:
-            with self.subTest(image=image, entrypoint=entrypoint):
-                args = ["run", "--rm", "--network", "none"]
-                if entrypoint:
-                    args += ["--entrypoint", entrypoint]
-                result = docker(*args, image, check=False, timeout=30)
-                self.assertNotEqual(result.returncode, 0)
-                self.assertIn("non-empty password", result.stderr)
+        for values in EMPTY_PASSWORD_CASES:
+            services = compose(values)
+            for service, image, entrypoint in [
+                ("backend", BACKEND, None), ("gateway", GATEWAY, None),
+                ("gateway", GATEWAY, "opencodeui-router"),
+            ]:
+                with self.subTest(values=values, image=image, entrypoint=entrypoint):
+                    args = ["run", "--rm", "--network", "none"]
+                    if entrypoint:
+                        args += ["--entrypoint", entrypoint]
+                    for key, value in services[service]["environment"].items():
+                        args += ["-e", f"{key}={value}"]
+                    result = docker(*args, image, check=False, timeout=30)
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertIn("non-empty password", result.stderr)
+
+    def test_gateway_rejects_missing_or_empty_username_at_startup(self):
+        for username in [None, ""]:
+            for entrypoint in [None, "opencodeui-router"]:
+                with self.subTest(username=username, entrypoint=entrypoint):
+                    args = ["run", "--rm", "--network", "none", "-e", "ROUTER_PASSWORD=username-test"]
+                    if username is not None:
+                        args += ["-e", f"ROUTER_USERNAME={username}"]
+                    if entrypoint:
+                        args += ["--entrypoint", entrypoint]
+                    result = docker(*args, GATEWAY, check=False, timeout=30)
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertIn("non-empty username", result.stderr)
 
     def test_real_backend_and_preview_api_share_credentials(self):
         for name, values, password in PASSWORD_CASES:
@@ -302,7 +335,7 @@ class DockerAuthTests(unittest.TestCase):
 
             for path in ["/api/api/info", "/routes?format=json", "/preview/status", "/preview/set"]:
                 port = 8080 if path == "/preview/set" else None
-                rejected = [None, "opencode:wrong", f"old-user:{password}"]
+                rejected = [None, "opencode:wrong", f"old-user:{password}", f":{password}"]
                 if values.get("OPENCODE_SERVER_PASSWORD") and values["OPENCODE_SERVER_PASSWORD"] != password:
                     rejected.append("opencode:" + values["OPENCODE_SERVER_PASSWORD"])
                 for auth in rejected:

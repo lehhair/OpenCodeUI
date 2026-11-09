@@ -146,7 +146,7 @@ cp .env.example .env
 docker compose up -d
 ```
 
-访问 `http://localhost:6658`。完整 Compose 部署的用户名固定为 `opencode`，必须设置非空的 `OPENCODE_PASSWORD`（优先）或旧变量 `OPENCODE_SERVER_PASSWORD`；两者都为空时拒绝启动。
+访问 `http://localhost:6658`。完整 Compose 部署的用户名固定为 `opencode`，必须设置非空的 `OPENCODE_PASSWORD`（优先）或旧变量 `OPENCODE_SERVER_PASSWORD`；两者都为空时 gateway/backend 容器拒绝启动。`docker compose config` 仅展开配置，密码由容器入口校验；兼容 Compose v2 和 v5。独立运行 gateway 或路由进程时，还必须设置非空的 `ROUTER_USERNAME` 和 `ROUTER_PASSWORD`。
 
 如果你的环境没有 `curl`，也可以直接从 GitHub 下载 `docker-compose.yml` 和 `.env.example` 放到同一个目录。
 
