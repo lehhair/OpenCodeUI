@@ -1,0 +1,70 @@
+name: Docker Validation
+
+on:
+  pull_request:
+    paths:
+      - 'docker/**'
+      - 'docker-compose*.yml'
+      - '.env.example'
+      - 'src-router/**'
+      - 'scripts/test-docker*.py'
+      - '.github/workflows/docker-*.yml'
+  push:
+    branches: [main, dev]
+    paths:
+      - 'docker/**'
+      - 'docker-compose*.yml'
+      - '.env.example'
+      - 'src-router/**'
+      - 'scripts/test-docker*.py'
+      - '.github/workflows/docker-*.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docker-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Test configuration and release installation
+        run: python3 scripts/test-docker.py
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Resolve OpenCode release
+        id: opencode
+        run: bash docker/resolve-opencode-release.sh >> "$GITHUB_OUTPUT"
+
+      - name: Build backend for integration tests
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile.backend
+          load: true
+          tags: opencodeui-backend:auth-test
+          build-args: |
+            OPENCODE_VERSION=${{ steps.opencode.outputs.version }}
+            OPENCODE_MANIFEST_BASE64=${{ steps.opencode.outputs.manifest }}
+          cache-from: type=gha,scope=docker-tests-backend
+          cache-to: type=gha,mode=max,scope=docker-tests-backend
+
+      - name: Build gateway for integration tests
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile.gateway
+          load: true
+          tags: opencodeui-gateway:auth-test
+          cache-from: type=gha,scope=docker-tests-gateway
+          cache-to: type=gha,mode=max,scope=docker-tests-gateway
+
+      - name: Test real backend and gateway authentication
+        run: python3 scripts/test-docker.py --integration
