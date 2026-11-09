@@ -194,7 +194,7 @@ docker compose -f docker-compose.yml -f docker-compose.build.yml -f docker-compo
 
 默认后端只保留一个核心持久化卷：`opencode-home`（挂载到 `/root`）。
 
-后端入口脚本会在启动时自动校验并补齐 `opencode` / `mise`，并在首次启动时写入 npm / pip 镜像配置。语言运行时不预装，按需用 `mise` 安装到持久化的 `/root`。
+后端入口脚本会在启动时自动校验并补齐 `opencode` / `mise`，并在首次启动时写入 npm / pip 镜像配置。服务及补装均使用镜像锁定的 OpenCode 版本，升级时需更新后端镜像。语言运行时不预装，按需用 `mise` 安装到持久化的 `/root`。
 
 - OpenCode 配置与会话缓存
 - npm / cargo / pip 等用户态缓存

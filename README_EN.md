@@ -147,7 +147,7 @@ Visit `http://localhost:6658`. Full Compose deployments use username `opencode` 
 
 The backend now retains only one core persistent volume: `opencode-home` (mounted at `/root`).
 
-The backend entry script automatically verifies and supplements `opencode` / `mise` on startup to prevent toolchain loss after container rebuilds.
+The backend entry script verifies and restores `opencode` / `mise` on startup. The server and any repair use the OpenCode version pinned in the image; update the backend image to upgrade it.
 
 - OpenCode configuration and session cache
 - npm / cargo / pip and other user-space caches

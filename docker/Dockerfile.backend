@@ -140,4 +140,4 @@ RUN chmod +x /usr/local/bin/backend-entrypoint.sh
 EXPOSE 4096
 
 ENTRYPOINT ["tini", "--", "/usr/local/bin/backend-entrypoint.sh"]
-CMD ["opencode", "serve", "--port", "4096", "--hostname", "0.0.0.0"]
+CMD ["/usr/local/bin/opencode", "serve", "--port", "4096", "--hostname", "0.0.0.0"]
