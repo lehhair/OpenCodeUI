@@ -134,14 +134,14 @@ Port `6659` is used to access dev services inside the container. The Router auto
 git clone https://github.com/lehhair/OpenCodeUI.git
 cd OpenCodeUI
 
-# Copy and edit environment variables, fill in at least one LLM API Key
+# Copy and edit environment variables; set OPENCODE_PASSWORD and at least one LLM API Key
 cp .env.example .env
 
 # Start
 docker compose up -d
 ```
 
-Visit `http://localhost:6658`.
+Visit `http://localhost:6658`. Full Compose deployments use username `opencode` and require a non-empty `OPENCODE_PASSWORD`, falling back to `OPENCODE_SERVER_PASSWORD`. Startup is rejected if both are empty.
 
 ### Environment Persistence (Simplified)
 
@@ -183,11 +183,9 @@ PREVIEW_PORT=6659
 # Working directory (mounted to /workspace in the container)
 WORKSPACE=./workspace
 
-# Must be set for public deployment (opencode v2: the username is always
-# `opencode`; the password can be OPENCODE_PASSWORD, the legacy
-# OPENCODE_SERVER_PASSWORD is still accepted)
-OPENCODE_SERVER_USERNAME=opencode
-OPENCODE_SERVER_PASSWORD=your-strong-password
+# Required for Docker deployment; both services use username opencode.
+# A non-empty new variable takes precedence over OPENCODE_SERVER_PASSWORD.
+OPENCODE_PASSWORD=your-strong-password
 
 # Router service
 ROUTER_SCAN_INTERVAL=5

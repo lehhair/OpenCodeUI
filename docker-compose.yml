@@ -9,7 +9,7 @@
 #   backend  (opencode):4096 -> opencode serve (GitHub Actions 预构建镜像)
 #
 # 使用方法:
-#   cp .env.example .env    # 填写 API Key
+#   cp .env.example .env    # 填写 API Key 和 OPENCODE_PASSWORD
 #   docker compose up -d    # 启动
 #
 # 本地构建全部服务 (可选):
@@ -39,8 +39,8 @@ services:
       - ROUTER_EXCLUDE_PORTS=${ROUTER_EXCLUDE_PORTS:-4096}
       - PUBLIC_BASE_URL=${PUBLIC_BASE_URL:-}
       - PREVIEW_DOMAIN=${PREVIEW_DOMAIN:-}
-      - ROUTER_USERNAME=${OPENCODE_SERVER_USERNAME:-opencode}
-      - ROUTER_PASSWORD=${OPENCODE_SERVER_PASSWORD:-}
+      - ROUTER_USERNAME=opencode
+      - ROUTER_PASSWORD=${OPENCODE_PASSWORD:-${OPENCODE_SERVER_PASSWORD:?Set OPENCODE_PASSWORD or OPENCODE_SERVER_PASSWORD to a non-empty password}}
     networks:
       - opencode-net
 
@@ -73,11 +73,8 @@ services:
       - GROQ_API_KEY=${GROQ_API_KEY:-}
       - MISTRAL_API_KEY=${MISTRAL_API_KEY:-}
       - XAI_API_KEY=${XAI_API_KEY:-}
-      # v2 认 OPENCODE_PASSWORD，旧名 OPENCODE_SERVER_PASSWORD 仍兼容
-      - OPENCODE_PASSWORD=${OPENCODE_PASSWORD:-}
-      - OPENCODE_SERVER_PASSWORD=${OPENCODE_SERVER_PASSWORD:-}
-      # v2 的用户名固定是 opencode，这个变量只保留给 gateway 的预览路由用
-      - OPENCODE_SERVER_USERNAME=${OPENCODE_SERVER_USERNAME:-opencode}
+      # 与 gateway 使用同一优先级：新变量非空时优先，否则回退旧变量
+      - OPENCODE_PASSWORD=${OPENCODE_PASSWORD:-${OPENCODE_SERVER_PASSWORD:?Set OPENCODE_PASSWORD or OPENCODE_SERVER_PASSWORD to a non-empty password}}
       - DOCKER_API_VERSION=${DOCKER_API_VERSION:-1.40}
       - NPM_CONFIG_REGISTRY=${NPM_CONFIG_REGISTRY:-https://registry.npmmirror.com}
       - NODEJS_ORG_MIRROR=${NODEJS_ORG_MIRROR:-https://npmmirror.com/mirrors/node}

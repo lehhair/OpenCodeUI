@@ -85,12 +85,21 @@ EOF
   fi
 }
 
-ensure_mise
-ensure_opencode
-ensure_package_mirrors
-
 if [ "$#" -eq 0 ]; then
   set -- opencode serve --port 4096 --hostname 0.0.0.0
 fi
+
+case "$1" in
+  opencode|/usr/local/bin/opencode)
+    if [ "${2:-}" = serve ]; then
+      export OPENCODE_PASSWORD="${OPENCODE_PASSWORD:-${OPENCODE_SERVER_PASSWORD:-}}"
+      : "${OPENCODE_PASSWORD:?Set OPENCODE_PASSWORD or OPENCODE_SERVER_PASSWORD to a non-empty password}"
+    fi
+    ;;
+esac
+
+ensure_mise
+ensure_opencode
+ensure_package_mirrors
 
 exec "$@"
