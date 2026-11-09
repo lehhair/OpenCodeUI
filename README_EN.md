@@ -141,7 +141,7 @@ cp .env.example .env
 docker compose up -d
 ```
 
-Visit `http://localhost:6658`. Full Compose deployments use username `opencode` and require a non-empty `OPENCODE_PASSWORD`, falling back to `OPENCODE_SERVER_PASSWORD`. Startup is rejected if both are empty.
+Visit `http://localhost:6658`. Full Compose deployments use username `opencode` and require a non-empty `OPENCODE_PASSWORD`, falling back to `OPENCODE_SERVER_PASSWORD`. The gateway/backend containers refuse to start if both are empty. `docker compose config` only expands configuration; container entrypoints validate passwords, supporting Compose v2 and v5. Running the gateway or router process directly also requires non-empty `ROUTER_USERNAME` and `ROUTER_PASSWORD` values.
 
 ### Environment Persistence (Simplified)
 
