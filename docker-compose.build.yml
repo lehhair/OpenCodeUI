@@ -30,3 +30,4 @@ services:
         MISE_INSTALL_URL: ${MISE_INSTALL_URL:-https://mise.run}
         OPENCODE_VERSION: ${OPENCODE_VERSION:-}
         OPENCODE_MANIFEST_URL: ${OPENCODE_MANIFEST_URL:-https://opencode.ai/update/api/latest/cli/opencode}
+        OPENCODE_MANIFEST_BASE64: ${OPENCODE_MANIFEST_BASE64:-}

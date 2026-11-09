@@ -134,20 +134,20 @@ Port `6659` is used to access dev services inside the container. The Router auto
 git clone https://github.com/lehhair/OpenCodeUI.git
 cd OpenCodeUI
 
-# Copy and edit environment variables, fill in at least one LLM API Key
+# Copy and edit environment variables; set OPENCODE_PASSWORD and at least one LLM API Key
 cp .env.example .env
 
 # Start
 docker compose up -d
 ```
 
-Visit `http://localhost:6658`.
+Visit `http://localhost:6658`. Full Compose deployments use username `opencode` and require a non-empty `OPENCODE_PASSWORD`, falling back to `OPENCODE_SERVER_PASSWORD`. The gateway/backend containers refuse to start if both are empty. `docker compose config` only expands configuration; container entrypoints validate passwords, supporting Compose v2 and v5. Running the gateway or router process directly also requires non-empty `ROUTER_USERNAME` and `ROUTER_PASSWORD` values.
 
 ### Environment Persistence (Simplified)
 
 The backend now retains only one core persistent volume: `opencode-home` (mounted at `/root`).
 
-The backend entry script automatically verifies and supplements `opencode` / `mise` on startup to prevent toolchain loss after container rebuilds.
+The backend entry script verifies and restores `opencode` / `mise` on startup. The server and any repair use the OpenCode version pinned in the image; update the backend image to upgrade it.
 
 - OpenCode configuration and session cache
 - npm / cargo / pip and other user-space caches
@@ -183,11 +183,9 @@ PREVIEW_PORT=6659
 # Working directory (mounted to /workspace in the container)
 WORKSPACE=./workspace
 
-# Must be set for public deployment (opencode v2: the username is always
-# `opencode`; the password can be OPENCODE_PASSWORD, the legacy
-# OPENCODE_SERVER_PASSWORD is still accepted)
-OPENCODE_SERVER_USERNAME=opencode
-OPENCODE_SERVER_PASSWORD=your-strong-password
+# Required for Docker deployment; both services use username opencode.
+# A non-empty new variable takes precedence over OPENCODE_SERVER_PASSWORD.
+OPENCODE_PASSWORD=your-strong-password
 
 # Router service
 ROUTER_SCAN_INTERVAL=5
