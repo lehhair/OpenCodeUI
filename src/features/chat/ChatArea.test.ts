@@ -639,6 +639,32 @@ describe('buildProcessTimeline', () => {
     contentOf(message).some(p => p.type === 'tool' || p.type === 'reasoning')
   const hasFinal = (message: SessionMessageInfo) => contentOf(message).some(p => p.type === 'text')
 
+  const compactionMessage = (
+    id: string,
+    created: number,
+    status: 'running' | 'completed' = 'completed',
+  ): SessionMessageInfo =>
+    ({
+      id,
+      type: 'compaction',
+      status,
+      reason: 'auto',
+      summary: status === 'running' ? '' : '压缩完成',
+      time: { created },
+    }) as SessionMessageInfo
+
+  const timelineOf = (
+    messages: SessionMessageInfo[],
+    options: { sessionIsStreaming?: boolean; isUserEntryReady?: (id: string) => boolean } = {},
+  ) =>
+    buildProcessTimeline(messages, {
+      turnDurationMap: new Map(),
+      sessionIsStreaming: options.sessionIsStreaming ?? false,
+      messageHasProcess: hasProcess,
+      messageHasFinal: hasFinal,
+      isUserEntryReady: options.isUserEntryReady,
+    })
+
   it('delays empty Working shell until entry-ready gate opens', () => {
     const messages = [createUserMessage('user-1', 1000)]
     // ChatArea 会在 user 入场完成后再额外 delay，再把 id 放进 ready 集合
@@ -782,6 +808,79 @@ describe('buildProcessTimeline', () => {
     if (shell?.kind === 'process-shell') {
       expect(shell.children.some(child => child.message.id === 'compaction-1')).toBe(false)
     }
+  })
+
+  it('压缩打断回合后，压缩前的过程壳不再保持 Working', () => {
+    // 回归 #191：压缩后的续写曾经被时间线提前到最前面（看起来落进了压缩前的消息里）。
+    const messages = [
+      createUserMessage('user-1', 1000),
+      createAssistantMessage('assistant-before', [createToolPart('tool-1', 'assistant-before')], 1001, 1002),
+      compactionMessage('compaction-1', 1003),
+      createAssistantMessage('assistant-after', [createToolPart('tool-2', 'assistant-after')], 1004),
+    ]
+    const timeline = timelineOf(messages, { sessionIsStreaming: true })
+
+    expect(timeline.map(item => item.key)).toEqual([
+      'user-1',
+      'process-shell:user-1',
+      'compaction-1',
+      'assistant-after',
+    ])
+    const shell = timeline.find(item => item.kind === 'process-shell')
+    expect(shell?.kind === 'process-shell' && shell.isActive).toBe(false)
+  })
+
+  it('压缩前还没有助手输出时，不留下空的 Working 壳', () => {
+    const messages = [createUserMessage('user-1', 1000), compactionMessage('compaction-1', 1001, 'running')]
+    const timeline = timelineOf(messages, { sessionIsStreaming: true, isUserEntryReady: () => true })
+
+    expect(timeline.map(item => item.key)).toEqual(['user-1', 'compaction-1'])
+  })
+
+  it('连续两次压缩：压缩行和续写都保持原顺序', () => {
+    const messages = [
+      createUserMessage('user-1', 1000),
+      createAssistantMessage('assistant-1', [createToolPart('tool-1', 'assistant-1')], 1001, 1002),
+      compactionMessage('compaction-1', 1003),
+      createAssistantMessage('assistant-2', [createToolPart('tool-2', 'assistant-2')], 1004, 1005),
+      compactionMessage('compaction-2', 1006),
+      createAssistantMessage('assistant-3', [createToolPart('tool-3', 'assistant-3')], 1007),
+    ]
+
+    expect(timelineOf(messages, { sessionIsStreaming: true }).map(item => item.key)).toEqual([
+      'user-1',
+      'process-shell:user-1',
+      'compaction-1',
+      'assistant-2',
+      'compaction-2',
+      'assistant-3',
+    ])
+  })
+
+  it('压缩后的提示行保持原位置，不被挪到续写最后', () => {
+    const notice = {
+      id: 'agent-switch',
+      type: 'agent-switched',
+      agent: 'plan',
+      time: { created: 1006 },
+    } as SessionMessageInfo
+    const messages = [
+      createUserMessage('user-1', 1000),
+      createAssistantMessage('assistant-1', [createToolPart('tool-1', 'assistant-1')], 1001, 1002),
+      compactionMessage('compaction-1', 1003),
+      createAssistantMessage('assistant-2', [createToolPart('tool-2', 'assistant-2')], 1004, 1005),
+      notice,
+      createAssistantMessage('assistant-3', [createToolPart('tool-3', 'assistant-3')], 1007, 1008),
+    ]
+
+    expect(timelineOf(messages).map(item => item.key)).toEqual([
+      'user-1',
+      'process-shell:user-1',
+      'compaction-1',
+      'assistant-2',
+      'agent-switch',
+      'assistant-3',
+    ])
   })
 
   it('does not duplicate the error card when the last assistant already shows it', () => {

@@ -803,6 +803,40 @@ describe('messageStore（原生 v2 消息）', () => {
         message: 'boom',
       })
     })
+
+    it('压缩后的续写 step 追加在压缩消息之后，不并进上一条助手消息', () => {
+      // core runner 在压缩完成后用新的 assistantMessageID continue（llm.ts），
+      // 所以续写是一条新消息，位置必须在压缩消息之后。
+      messageStore.setMessages(SESSION, [
+        createUserMessage('user-1', 1),
+        createAssistantMessage('message-1', textContent('before compaction'), 2),
+      ])
+
+      messageStore.handleCompactionStarted(
+        { sessionID: SESSION, reason: 'auto', recent: '' },
+        { id: 'evt_compact', created: 3 },
+      )
+      messageStore.handleCompactionEnded(
+        { sessionID: SESSION, reason: 'auto', text: 'summary', recent: '' },
+        { id: 'evt_compact_end', created: 4 },
+      )
+
+      messageStore.handleStepStarted(stepStartedData('message-2', 5))
+      messageStore.handleTextStarted(textStartedData(0, 'message-2'))
+      messageStore.handleTextDelta(textDeltaData('after compaction', 0, 'message-2'))
+      messageStore.handleTextEnded({
+        sessionID: SESSION,
+        assistantMessageID: 'message-2',
+        ordinal: 0,
+        text: 'after compaction',
+      })
+      flushFrames()
+
+      expect(messageIds(SESSION)).toEqual(['user-1', 'message-1', 'msg_compact', 'message-2'])
+      // 压缩前的助手消息内容不能被续写污染
+      expect(textAt(SESSION, 1, 0)).toBe('before compaction')
+      expect(textAt(SESSION, 3, 0)).toBe('after compaction')
+    })
   })
 
   // ============================================

@@ -993,24 +993,36 @@ export function buildProcessTimeline(
      * 不结束回合分组（重试的后续 assistant 仍归本回合），回合转换时追加成错误卡片。
      */
     failedIdle?: SessionMessageInfo
+    /**
+     * 这个袋子被独立行（压缩 / shell 命令）打断。
+     * 被打断的回合不能再挂「进行中」——后面接着的输出已经不属于它了。
+     */
+    terminatedByStandalone?: boolean
   }
 
   const turns: TurnBag[] = []
   let current: TurnBag | null = null
+  const flushTurn = () => {
+    if (!current) return
+    turns.push(current)
+    current = null
+  }
+  const ensureTurn = (): TurnBag => {
+    if (!current) current = { user: null, assistants: [], notices: [] }
+    return current
+  }
 
   for (const message of visibleMessages) {
     if (isUserMessage(message)) {
-      if (current) turns.push(current)
+      flushTurn()
       current = { user: message, assistants: [], notices: [] }
       continue
     }
     // shell 命令消息独立成行（官方 projection.ts:188：shell 是独立 timeline 行），
     // 并结束当前回合的分组
     if (message.type === 'shell') {
-      if (current) {
-        turns.push(current)
-        current = null
-      }
+      if (current) current.terminatedByStandalone = true
+      flushTurn()
       turns.push({ user: null, assistants: [], notices: [], standalone: message })
       continue
     }
@@ -1018,35 +1030,29 @@ export function buildProcessTimeline(
     // 并结束当前回合，避免压缩摘要被算进上一回合的过程壳。
     // 漏掉这个分支会让压缩消息直接掉出时间线——压缩了但 UI 什么都不显示。
     if (message.type === 'compaction') {
-      if (current) {
-        turns.push(current)
-        current = null
-      }
+      if (current) current.terminatedByStandalone = true
+      flushTurn()
       turns.push({ user: null, assistants: [], notices: [], standalone: message })
       continue
     }
-    // 提示行：跟当前回合走（官方放进 turn 的 entries），没有回合就独立平铺
+    // 提示行：跟当前回合走（官方放进 turn 的 entries），没有回合就开一个平铺段
     if (isNoticeMessage(message)) {
-      if (current) current.notices.push({ at: current.assistants.length, message })
-      else items.push({ kind: 'message', key: message.id, message })
+      const turn = ensureTurn()
+      turn.notices.push({ at: turn.assistants.length, message })
       continue
     }
     // 失败的 idle 标记：会话级错误（如 prompt 没能提升成 assistant 工作）只在这条
-    // 标记里，跳过它错误就永远不渲染。记到当前回合（没有就独立平铺），转换时追加。
+    // 标记里，跳过它错误就永远不渲染。记到当前回合（没有就平铺），转换时追加。
     if (isFailedIdleMessage(message)) {
-      if (current) current.failedIdle = message
-      else items.push({ kind: 'message', key: message.id, message })
+      ensureTurn().failedIdle = message
       continue
     }
     if (!isAssistantMessage(message)) continue
-    if (!current) {
-      // 历史续段 / 页首无 user：直接平铺，不挂壳
-      items.push({ kind: 'message', key: message.id, message })
-      continue
-    }
-    current.assistants.push(message)
+    // 历史续段 / 页首无 user / 压缩后的续写：归到一个无 user 的平铺段，
+    // 必须留在原位置输出，不能提前塞进 items（否则会跑到所有回合壳前面）。
+    ensureTurn().assistants.push(message)
   }
-  if (current) turns.push(current)
+  flushTurn()
 
   // 只关心带 user 的回合（过程壳的锚点）
   const userTurns = turns.filter((t): t is TurnBag & { user: UserMessage } => t.user != null)
@@ -1071,6 +1077,9 @@ export function buildProcessTimeline(
     // 后面 SSE live → 前面 Worked（须最先判断；前轮 completed 常晚到）
     if (laterHasLive(index)) return true
     if (assistants.some(assistantHasLiveWork)) return false
+    // 被压缩 / shell 命令打断：后续输出已经不在这个回合里，
+    // 不能再因为「会话还在 streaming」把它挂在 Working 状态。
+    if (turn.terminatedByStandalone) return assistants.every(m => m.time.completed != null)
     if (assistants.length === 0) {
       // 空回合：idle 结束；或后面已有 assistant（被跳过）
       return !sessionIsStreaming || laterHasAssistant(index)
@@ -1134,13 +1143,21 @@ export function buildProcessTimeline(
       continue
     }
 
-    // 无 user 的续段：平铺
+    // 无 user 的续段：按原位置平铺（压缩后的续写、页首历史）。
+    // 这里不能再「壳前/壳后」二分，否则夹在两条助手消息之间的提示行会被挪到最后。
     if (!turn.user) {
-      emitNotices(turn, true)
-      for (const m of assistants) {
-        items.push({ kind: 'message', key: m.id, message: m })
+      const pushNoticesAt = (at: number) => {
+        for (const notice of turn.notices) {
+          if (notice.at === at) {
+            items.push({ kind: 'message', key: notice.message.id, message: notice.message })
+          }
+        }
       }
-      emitNotices(turn, false)
+      pushNoticesAt(0)
+      assistants.forEach((m, index) => {
+        items.push({ kind: 'message', key: m.id, message: m })
+        pushNoticesAt(index + 1)
+      })
       appendFailedIdle(turn)
       continue
     }
