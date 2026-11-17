@@ -15,9 +15,12 @@ export const COMPOSITOR_GRID_TRANSITION = EXPAND_MOTION.gridTransition
  * - Expand: instant layout open (paint-safe), visual height via max-height on DOM.
  * - Collapse: original grid-rows transition (content already painted).
  * - Desktop: original grid-rows both ways.
+ *
+ * `animate=false` 用于几十条命令的大工具组：Android 的 max-height 补间要对整棵
+ * 子树逐帧量高，组里工具越多越贵，直接瞬时展开。
  */
-export function useCompositorExpand(open: boolean) {
-  const enabled = isAndroid()
+export function useCompositorExpand(open: boolean, animate = true) {
+  const enabled = isAndroid() && animate
   const contentRef = useRef<HTMLDivElement | null>(null)
   const [layoutOpen, setLayoutOpen] = useState(open)
   const [useGridTransition, setUseGridTransition] = useState(!enabled)

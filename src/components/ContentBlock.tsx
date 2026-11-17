@@ -9,19 +9,24 @@
 
 import { memo, useState, useMemo, useEffect, useId, type ReactNode, type TransitionEvent } from 'react'
 import { useTranslation } from 'react-i18next'
-import { diffLines } from 'diff'
 import { ChevronDownIcon, ChevronRightIcon, MaximizeIcon } from './Icons'
-import { CopyButton } from './ui'
+import { CopyButton, TruncatedNote } from './ui'
 import { DiffViewer, useDiffViewerData, type ViewMode } from './DiffViewer'
 import { CodePreview } from './CodePreview'
 import { detectLanguage } from '../utils/languageUtils'
 import { ViewModeSwitch } from './FullscreenViewer'
-import { extractContentFromUnifiedDiff, reconstructBeforeAfterFromPatch } from '../utils/diffUtils'
+import {
+  extractContentFromUnifiedDiff,
+  reconstructBeforeAfterFromPatch,
+  diffLineStats,
+  MAX_DIFF_DETAIL_CHARS,
+} from '../utils/diffUtils'
 import { useCompositorExpand } from '../hooks/useCompositorExpand'
 import { useDelayedRender } from '../hooks/useDelayedRender'
 import { useResponsiveMaxHeight } from '../hooks/useResponsiveMaxHeight'
 import { useFullscreenLayer } from '../contexts'
 import { useUiDisclosureState } from '../utils/uiDisclosureState'
+import { cropContent } from '../utils/contentBudget'
 
 // ============================================
 // Types
@@ -121,6 +126,9 @@ export const ContentBlock = memo(function ContentBlock({
   const maxHeight = maxHeightProp ?? responsiveMaxHeight
   const isDiff = !!diff
   const hasContent = !!content?.trim() || isDiff || stats?.exit !== undefined
+  // 内联只铺头尾，完整内容留给复制和全屏。手机上一次展开几十个工具卡时，
+  // 几 MB 文本的排版就是崩溃的源头。
+  const croppedContent = useMemo(() => cropContent(content ?? ''), [content])
   const canCollapse = !compact && collapsible && hasContent
   const lang = language || (filePath ? detectLanguage(filePath) : 'text')
   const fileName = filePath ? (showFullPath ? filePath : filePath.split(/[/\\]/).pop()) : undefined
@@ -133,15 +141,11 @@ export const ContentBlock = memo(function ContentBlock({
     if (providedDiffStats) return providedDiffStats
 
     if (typeof diff === 'object') {
-      const changes = diffLines(diff.before, diff.after)
-      let additions = 0,
-        deletions = 0
-      for (const c of changes) {
-        if (c.added) additions += c.count || 0
-        if (c.removed) deletions += c.count || 0
-      }
-      return { additions, deletions }
+      // 大文件返回 null（不显示统计），别用 0/0 冒充「没有改动」
+      return diffLineStats(diff.before, diff.after)
     }
+
+    if ((diff as string).length > MAX_DIFF_DETAIL_CHARS) return null
 
     const lines = (diff as string).split('\n')
     let additions = 0,
@@ -162,7 +166,25 @@ export const ContentBlock = memo(function ContentBlock({
     // 失败（非标准 patch、超大等）退回片段提取（行号从 1 开始）
     return reconstructBeforeAfterFromPatch(diff) ?? extractContentFromUnifiedDiff(diff)
   }, [diff])
-  const diffViewerData = useDiffViewerData(resolvedDiff?.before ?? '', resolvedDiff?.after ?? '', lang, false, isDiff)
+  // 超大 diff 不走逐行视图：computePairedLines/unified 会把整份文件摊成对象
+  const diffTooLarge = !!resolvedDiff && resolvedDiff.before.length + resolvedDiff.after.length > MAX_DIFF_DETAIL_CHARS
+  const diffPreviewText = resolvedDiff
+    ? resolvedDiff.after.trim()
+      ? resolvedDiff.after
+      : resolvedDiff.before
+    : ''
+  const diffViewerData = useDiffViewerData(
+    resolvedDiff?.before ?? '',
+    resolvedDiff?.after ?? '',
+    lang,
+    false,
+    isDiff && !diffTooLarge,
+  )
+  const croppedDiffText = useMemo(
+    () => (diffTooLarge && resolvedDiff ? cropContent(diffPreviewText, { marker: '…' }) : null),
+    [diffPreviewText, diffTooLarge, resolvedDiff],
+  )
+  const truncatedInfo = isDiff ? (diffTooLarge ? croppedDiffText : null) : croppedContent
 
   const fullscreenTitleExtra = useMemo(
     () =>
@@ -176,17 +198,20 @@ export const ContentBlock = memo(function ContentBlock({
   )
 
   const fullscreenHeaderRight = useMemo(() => {
-    if (isDiff && resolvedDiff) {
+    if (isDiff && resolvedDiff && !diffTooLarge) {
       return <ViewModeSwitch viewMode={fullscreenDiffViewMode} onChange={setFullscreenDiffViewMode} />
+    }
+    if (isDiff && resolvedDiff && diffTooLarge) {
+      return <CopyButton text={diffPreviewText} position="static" />
     }
     if (content?.trim()) {
       return <CopyButton text={content} position="static" />
     }
     return undefined
-  }, [content, fullscreenDiffViewMode, isDiff, resolvedDiff])
+  }, [content, diffPreviewText, diffTooLarge, fullscreenDiffViewMode, isDiff, resolvedDiff])
 
   const fullscreenContent = useMemo(() => {
-    if (isDiff && resolvedDiff) {
+    if (isDiff && resolvedDiff && !diffTooLarge) {
       return (
         <DiffViewer
           before={resolvedDiff.before}
@@ -198,11 +223,14 @@ export const ContentBlock = memo(function ContentBlock({
         />
       )
     }
+    if (isDiff && resolvedDiff && diffTooLarge) {
+      return <CodePreview code={diffPreviewText} language={lang} />
+    }
     if (content?.trim()) {
       return <CodePreview code={content} language={lang} />
     }
     return null
-  }, [content, diffViewerData, fullscreenDiffViewMode, isDiff, lang, resolvedDiff, stateKey])
+  }, [content, diffPreviewText, diffTooLarge, diffViewerData, fullscreenDiffViewMode, isDiff, lang, resolvedDiff, stateKey])
 
   const fullscreenLayer = useMemo(() => {
     if (!fullscreenContent) return null
@@ -363,9 +391,7 @@ export const ContentBlock = memo(function ContentBlock({
       <div
         data-content-block-body
         onTransitionEnd={handleBodyTransitionEnd}
-        className={`grid ${panelClassName} ${
-          layoutOpen ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
-        }`}
+        className={`grid ${panelClassName} ${layoutOpen ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}
       >
         <div className="overflow-hidden min-h-0">
           {shouldRenderContent && hasContent && (
@@ -373,24 +399,46 @@ export const ContentBlock = memo(function ContentBlock({
               {content && <CopyButton text={content} position="absolute" groupName="content" />}
 
               {isDiff && resolvedDiff ? (
-                <DiffViewer
-                  before={resolvedDiff.before}
-                  after={resolvedDiff.after}
-                  language={lang}
-                  viewMode={diffViewMode}
-                  maxHeight={maxHeight}
-                  data={diffViewerData}
-                  stateKey={stateKey ? `${stateKey}:diff` : undefined}
-                />
+                diffTooLarge ? (
+                  <CodePreview
+                    code={croppedDiffText?.text ?? ''}
+                    language={lang}
+                    maxHeight={maxHeight}
+                    isVisible={layoutOpen}
+                    layoutVersion={contentLayoutVersion}
+                  />
+                ) : (
+                  <DiffViewer
+                    before={resolvedDiff.before}
+                    after={resolvedDiff.after}
+                    language={lang}
+                    viewMode={diffViewMode}
+                    maxHeight={maxHeight}
+                    data={diffViewerData}
+                    stateKey={stateKey ? `${stateKey}:diff` : undefined}
+                  />
+                )
               ) : content?.trim() ? (
                 <CodePreview
-                  code={content}
+                  code={croppedContent.text}
                   language={lang}
                   maxHeight={maxHeight}
                   isVisible={layoutOpen}
                   layoutVersion={contentLayoutVersion}
                 />
               ) : null}
+              {diffTooLarge && (
+                <div className="border-t border-border-200/40 bg-bg-200/40 px-3 py-1.5 text-[length:var(--fs-xxs)] text-text-500">
+                  {t('contentBlock.diffFallback')}
+                </div>
+              )}
+              {truncatedInfo?.cropped && (
+                <TruncatedNote
+                  className="border-t border-border-200/40 bg-bg-200/40 px-3 py-1.5 text-[length:var(--fs-xxs)] text-text-500"
+                  omittedLines={truncatedInfo.omittedLines}
+                  omittedChars={truncatedInfo.omittedChars}
+                />
+              )}
             </div>
           )}
         </div>

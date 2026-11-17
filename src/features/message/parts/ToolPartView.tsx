@@ -1,8 +1,9 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { diffLines } from 'diff'
 import { ChevronDownIcon, ChevronRightIcon } from '../../../components/Icons'
 import { useCompositorExpand, useDisclosureScrollLock } from '../../../hooks'
+import { getResponsiveMaxHeight } from '../../../hooks/useResponsiveMaxHeight'
+import { useNearViewport } from '../../../hooks/useInView'
 import { useNow } from '../../../hooks/useNow'
 import { serverStore } from '../../../store/serverStore'
 import { useTheme } from '../../../hooks/useTheme'
@@ -27,6 +28,7 @@ import {
   type ToolViewContext,
 } from '../tools'
 import { currentToolFailed, currentToolInput, currentToolMetadata } from '../../../types/api/toolState'
+import { diffLineStats } from '../../../utils/diffUtils'
 import { resolveTaskChildSessionRef } from '../../../utils/taskChildBinding'
 import { executeSubCallSummary, parseCodeModeToolCalls } from './executeSubCallSummary'
 import { MSG_SPACING } from '../messageSpacing'
@@ -50,6 +52,11 @@ interface ToolPartViewProps {
   descriptive?: boolean
   /** Parent assistant message is still streaming. */
   isStreaming?: boolean
+  /**
+   * 大工具组（几十条命令）里只挂视口附近的 body。
+   * 小工具组保持原来的「展开即挂」行为，别为了性能牺牲可读性和可访问性。
+   */
+  lazyBody?: boolean
 }
 
 export const ToolPartView = memo(function ToolPartView({
@@ -60,6 +67,7 @@ export const ToolPartView = memo(function ToolPartView({
   compact = false,
   descriptive = false,
   isStreaming = false,
+  lazyBody = false,
 }: ToolPartViewProps) {
   const { t } = useTranslation('message')
   const { state, name: toolName } = part
@@ -155,7 +163,18 @@ export const ToolPartView = memo(function ToolPartView({
   const hasAutoExpandedReadableRef = useRef(shouldStartExpanded && immersiveMode && descriptive && isReadable)
   const [isChildFullscreen, setIsChildFullscreen] = useState(false)
   const { rootRef, headerRef, withScrollLock } = useDisclosureScrollLock()
-  const effectiveExpanded = expanded || hasPendingInteraction || permissionResolved || isChildFullscreen
+  // 长工具组（几十上百条命令）展开时，body 只挂视口附近的：
+  // 93 张卡同时挂 100KB 输出会让渲染进程直接卡死/崩溃。
+  const { ref: nearRef, near } = useNearViewport('1000px 0px', lazyBody)
+  const setRootRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      rootRef(node)
+      nearRef(node)
+    },
+    [nearRef, rootRef],
+  )
+  const forcedExpanded = hasPendingInteraction || permissionResolved || isChildFullscreen
+  const effectiveExpanded = expanded || forcedExpanded
   // Android expand: instant layout + max-height fake; collapse: original grid-rows.
   const {
     contentRef: expandContentRef,
@@ -163,8 +182,23 @@ export const ToolPartView = memo(function ToolPartView({
     keepMounted,
     panelClassName,
   } = useCompositorExpand(effectiveExpanded)
-  // 展开即挂 body：默认展开的工具 header/body 同帧，不再先 header 后 body
-  const shouldRenderBody = useMessageExpandRender(keepMounted)
+  // 展开即挂 body：默认展开的工具 header/body 同帧，不再先 header 后 body。
+  // 只有大组才按视口门控；权限/全屏这类必须保持挂载。
+  const shouldRenderBody = useMessageExpandRender(keepMounted && (!lazyBody || near || forcedExpanded))
+  // 离屏卸载后留一个等高占位，避免长列表高度抖动
+  const bodyRef = useRef<HTMLDivElement | null>(null)
+  const [bodyHeight, setBodyHeight] = useState<number | null>(null)
+  useEffect(() => {
+    if (!lazyBody || !shouldRenderBody) return
+    const node = bodyRef.current
+    if (!node) return
+    const measure = () => setBodyHeight(node.offsetHeight)
+    measure()
+    if (typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(measure)
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [lazyBody, shouldRenderBody])
   const toggleExpanded = useCallback(() => {
     withScrollLock(() => setExpanded(!expanded))
   }, [expanded, setExpanded, withScrollLock])
@@ -224,6 +258,21 @@ export const ToolPartView = memo(function ToolPartView({
   // Memoize once — shared by both the descriptive header (diffStats) and ToolBody.
   const toolData = useMemo(() => extractToolData(part), [part])
 
+  // 还没量过的展开卡给一个估计高度：大多数工具输出都会被 maxHeight 截住，
+  // 用 0 会让列表先塌成 header、IO 一次命中一大片，反而一锅端挂载。
+  const placeholderHeight = useMemo(() => {
+    if (!lazyBody || !effectiveExpanded) return 0
+    // null = 还没量过；0 是量过的真实高度（例如 todowrite / skill 这类没有 body 的卡）
+    if (bodyHeight !== null) return bodyHeight
+    const capped = getResponsiveMaxHeight() + 50
+    // diff 类 body 基本都是 maxHeight 量级
+    if (toolData.files?.length || toolData.diff) return capped
+    const outputChars = toolData.output?.length ?? 0
+    if (outputChars <= 0) return 110
+    if (outputChars > 600) return capped
+    return Math.min(capped, Math.ceil(outputChars / 80) * 19 + 90)
+  }, [bodyHeight, effectiveExpanded, lazyBody, toolData.diff, toolData.files, toolData.output])
+
   const handleFullscreenChange = useCallback((isFullscreen: boolean) => {
     setIsChildFullscreen(isFullscreen)
   }, [])
@@ -265,7 +314,11 @@ export const ToolPartView = memo(function ToolPartView({
       innerClassName="overflow-hidden min-h-0"
       contentClassName={padClass}
     >
-      {shouldRenderBody && bodyContent}
+      {shouldRenderBody ? (
+        <div ref={bodyRef}>{bodyContent}</div>
+      ) : placeholderHeight > 0 ? (
+        <div style={{ height: placeholderHeight }} aria-hidden />
+      ) : null}
     </MessageExpandPanel>
   )
 
@@ -275,7 +328,7 @@ export const ToolPartView = memo(function ToolPartView({
     const diffStats = toolData.diffStats || computeDiffStatsFromData(toolData)
 
     return (
-      <div ref={rootRef} className={`group ${MSG_SPACING.item}`}>
+      <div ref={setRootRef} className={`group ${MSG_SPACING.item}`}>
         <button
           type="button"
           ref={headerRef}
@@ -335,7 +388,7 @@ export const ToolPartView = memo(function ToolPartView({
   if (compact) {
     return (
       <div
-        ref={rootRef}
+        ref={setRootRef}
         className={`group relative grid grid-cols-[14px_minmax(0,1fr)] gap-x-1.5 items-start ${MSG_SPACING.item}`}
       >
         {/* Icon column — fixed, outside of interactive area */}
@@ -410,7 +463,7 @@ export const ToolPartView = memo(function ToolPartView({
   // ── Timeline layout (multi-tool groups) ──
   // 根节点不加垂直 padding，连接线要贴 icon
   return (
-    <div ref={rootRef} className="group relative flex min-w-0">
+    <div ref={setRootRef} className="group relative flex min-w-0">
       {/* Timeline Column */}
       <div className="w-8 shrink-0 relative">
         {/* Top connector — 留 4px gap 到 icon */}
@@ -504,7 +557,19 @@ function isReadableTool(toolName: string): boolean {
 }
 
 /** 从 diff 数据计算 diffStats（当 metadata 没给 diffStats 时用） */
+const diffStatsCache = new WeakMap<object, { additions: number; deletions: number } | undefined>()
+
 function computeDiffStatsFromData(data: {
+  diff?: { before: string; after: string } | string
+  files?: Array<{ before?: string; after?: string; additions?: number; deletions?: number }>
+}): { additions: number; deletions: number } | undefined {
+  if (diffStatsCache.has(data)) return diffStatsCache.get(data)
+  const stats = computeDiffStatsUncached(data)
+  diffStatsCache.set(data, stats)
+  return stats
+}
+
+function computeDiffStatsUncached(data: {
   diff?: { before: string; after: string } | string
   files?: Array<{ before?: string; after?: string; additions?: number; deletions?: number }>
 }): { additions: number; deletions: number } | undefined {
@@ -516,9 +581,11 @@ function computeDiffStatsFromData(data: {
       if (f.additions !== undefined) additions += f.additions
       if (f.deletions !== undefined) deletions += f.deletions
       if (f.additions === undefined && f.before !== undefined && f.after !== undefined) {
-        const s = computeDiffPair(f.before, f.after)
-        additions += s.additions
-        deletions += s.deletions
+        const s = diffLineStats(f.before, f.after)
+        if (s) {
+          additions += s.additions
+          deletions += s.deletions
+        }
       }
     }
     return additions || deletions ? { additions, deletions } : undefined
@@ -526,22 +593,11 @@ function computeDiffStatsFromData(data: {
 
   // 单个 diff
   if (data.diff && typeof data.diff === 'object') {
-    const s = computeDiffPair(data.diff.before, data.diff.after)
-    return s.additions || s.deletions ? s : undefined
+    const s = diffLineStats(data.diff.before, data.diff.after)
+    return s && (s.additions || s.deletions) ? s : undefined
   }
 
   return undefined
-}
-
-function computeDiffPair(before: string, after: string): { additions: number; deletions: number } {
-  const changes = diffLines(before, after)
-  let additions = 0,
-    deletions = 0
-  for (const c of changes) {
-    if (c.added) additions += c.count || 0
-    if (c.removed) deletions += c.count || 0
-  }
-  return { additions, deletions }
 }
 
 // ============================================

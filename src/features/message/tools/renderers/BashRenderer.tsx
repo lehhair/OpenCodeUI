@@ -8,7 +8,7 @@
  * - exit code 内联在输出末尾
  */
 
-import { useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { MaximizeIcon, MinimizeIcon } from '../../../../components/Icons'
 import { useFullscreen } from '../../../../contexts'
@@ -20,6 +20,8 @@ import { parseAnsi, type AnsiSegment } from '../../../../utils/ansiUtils'
 import { currentToolMetadata } from '../../../../types/api'
 import { followShellOutput } from '../../shellOutput'
 import { copyTextToClipboard, clipboardErrorHandler } from '../../../../utils'
+import { cropContent } from '../../../../utils/contentBudget'
+import { TruncatedNote } from '../../../../components/ui'
 import type { ToolRendererProps } from '../types'
 
 // ============================================
@@ -71,14 +73,21 @@ export function BashRenderer({ part, data, onFullscreenChange }: ToolRendererPro
     }
   }, [fullscreenOpen, onFullscreenChange])
 
-  // 解析 ANSI
+  // 解析 ANSI（内联只铺头尾，完整输出留给全屏）
+  const croppedOutput = useMemo(() => cropContent(output ?? ''), [output])
   const outputSegments = useMemo(() => {
-    if (!output) return null
-    return parseAnsi(output)
-  }, [output])
+    if (!croppedOutput.text) return null
+    // 裁剪可能切在 ANSI 序列中间，前后补一个 reset 防止颜色漏出去
+    return parseAnsi(croppedOutput.cropped ? `\u001b[0m${croppedOutput.text}\u001b[0m` : croppedOutput.text)
+  }, [croppedOutput])
 
   const hasOutput = !!(outputSegments && outputSegments.length > 0)
   const isDone = !isActive
+  // 运行中只是 64KB 尾部窗口，全屏也拿不到更早的内容，别提示「全屏看完整输出」
+  const truncatedNote =
+    !isActive && croppedOutput.cropped ? (
+      <TruncatedNote omittedLines={croppedOutput.omittedLines} omittedChars={croppedOutput.omittedChars} />
+    ) : undefined
 
   const handleCloseFullscreen = useCallback(() => {
     closeFullscreen(fullscreenId)
@@ -87,38 +96,22 @@ export function BashRenderer({ part, data, onFullscreenChange }: ToolRendererPro
   const fullscreenContent = useMemo(
     () => (
       <div className="h-full p-4">
-        <TerminalSurface
+        <FullscreenTerminal
           command={command}
           cwd={cwd}
-          outputSegments={outputSegments}
+          output={output ?? ''}
           isActive={isActive}
-          hasOutput={hasOutput}
           hasError={hasError}
           error={data.error}
           isDone={isDone}
           exitCode={exitCode}
           outputKey={output ?? ''}
-          fullHeight
-          isFullscreen
           onToggleFullscreen={handleCloseFullscreen}
           exitCodeLabel={exitCode !== undefined ? t('contentBlock.exitCode', { code: exitCode }) : undefined}
         />
       </div>
     ),
-    [
-      command,
-      cwd,
-      data.error,
-      exitCode,
-      handleCloseFullscreen,
-      hasError,
-      hasOutput,
-      isActive,
-      isDone,
-      output,
-      outputSegments,
-      t,
-    ],
+    [command, cwd, data.error, exitCode, handleCloseFullscreen, hasError, isActive, isDone, output, t],
   )
 
   const handleToggleFullscreen = useCallback(() => {
@@ -152,6 +145,7 @@ export function BashRenderer({ part, data, onFullscreenChange }: ToolRendererPro
       isFullscreen={isFullscreen}
       onToggleFullscreen={handleToggleFullscreen}
       exitCodeLabel={exitCode !== undefined ? t('contentBlock.exitCode', { code: exitCode }) : undefined}
+      footerNote={truncatedNote}
     />
   )
 
@@ -179,6 +173,7 @@ function TerminalSurface({
   isFullscreen = false,
   onToggleFullscreen,
   exitCodeLabel,
+  footerNote,
 }: {
   command?: string
   cwd?: string
@@ -195,6 +190,8 @@ function TerminalSurface({
   isFullscreen?: boolean
   onToggleFullscreen?: () => void
   exitCodeLabel?: string
+  /** 内联裁剪提示（全屏不传，全屏看的是完整输出） */
+  footerNote?: ReactNode
 }) {
   const fullscreenLabel = isFullscreen ? 'Exit fullscreen' : 'Fullscreen'
 
@@ -272,8 +269,32 @@ function TerminalSurface({
             {exitCodeLabel}
           </div>
         )}
+
+        {footerNote && <div className="mt-1 text-[length:var(--fs-xxs)] leading-4 text-text-500">{footerNote}</div>}
       </div>
     </div>
+  )
+}
+
+/**
+ * 全屏输出：完整文本在这里才做 ANSI 解析。
+ * 内联只铺裁剪后的头尾，避免一条几 MB 的输出在消息流里直接排版。
+ */
+function FullscreenTerminal({
+  output,
+  ...rest
+}: Omit<Parameters<typeof TerminalSurface>[0], 'outputSegments' | 'hasOutput' | 'footerNote'> & {
+  output: string
+}) {
+  const segments = useMemo(() => (output ? parseAnsi(output) : null), [output])
+  return (
+    <TerminalSurface
+      {...rest}
+      outputSegments={segments}
+      hasOutput={!!segments && segments.length > 0}
+      fullHeight
+      isFullscreen
+    />
   )
 }
 

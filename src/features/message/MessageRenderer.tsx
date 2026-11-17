@@ -1,6 +1,5 @@
 import { memo, useState, useRef, useEffect, useLayoutEffect, useMemo, useCallback, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { diffLines } from 'diff'
 import { animate } from 'motion/mini'
 import { ChevronDownIcon, ChevronRightIcon } from '../../components/Icons'
 import { CopyButton, SmoothHeight } from '../../components/ui'
@@ -44,6 +43,7 @@ import type { JsonValue } from '@opencode/client/promise'
 import { contentEntries, hasVisibleText, idleMessageError, userMessageText, type ContentEntry } from '../../types/api/message'
 import { currentToolFailed } from '../../types/api/toolState'
 import { resolveTaskChildSessionRef } from '../../utils/taskChildBinding'
+import { diffLineStats } from '../../utils/diffUtils'
 import { expandCodeModeSubCalls } from './parts/executeSubCallSummary'
 import {
   ENTRY_GROW_DURATION_MS,
@@ -869,6 +869,9 @@ function isReadableTool(toolName: string): boolean {
   return READABLE_TOOL_PATTERNS.test(toolName.toLowerCase())
 }
 
+/** 工具数超过这个值：组内 body 按视口挂载，且不做 grid-rows 过渡 */
+const LARGE_TOOL_GROUP_SIZE = 20
+
 const ToolGroup = memo(function ToolGroup({ tools, messageContext, isStreaming }: ToolGroupProps) {
   const { t } = useTranslation('message')
   const { descriptiveToolSteps, inlineToolRequests, immersiveMode, processCollapseEnabled } = useTheme()
@@ -885,9 +888,14 @@ const ToolGroup = memo(function ToolGroup({ tools, messageContext, isStreaming }
 
   const doneCount = tools.filter(tool => !isToolPartActive(tool.content) && !currentToolFailed(tool.content)).length
   const totalCount = tools.length
+  /** 工具数超过这个值：组内 body 按视口挂载，且不做展开动画 */
+  const isLargeGroup = totalCount > LARGE_TOOL_GROUP_SIZE
   const isAllDone = !tools.some(tool => isToolPartActive(tool.content))
   const hasActiveTools = tools.some(tool => isToolPartActive(tool.content))
-  const stepsSummary = descriptiveToolSteps ? buildDescriptiveToolStepsSummary(tools, t) : undefined
+  const stepsSummary = useMemo(
+    () => (descriptiveToolSteps ? buildDescriptiveToolStepsSummary(tools, t) : undefined),
+    [descriptiveToolSteps, tools, t],
+  )
 
   // 汇总所有成功完成的工具的 diff stats（失败的不算）
   const totalDiffStats = useMemo(() => {
@@ -976,7 +984,7 @@ const ToolGroup = memo(function ToolGroup({ tools, messageContext, isStreaming }
     layoutOpen: stepsLayoutOpen,
     keepMounted: stepsKeepMounted,
     panelClassName: stepsPanelClassName,
-  } = useCompositorExpand(effectiveExpanded)
+  } = useCompositorExpand(effectiveExpanded, !isLargeGroup)
   // 展开即挂工具行：默认展开时 header 与 body 同帧
   const shouldRenderBody = useMessageExpandRender(stepsKeepMounted)
 
@@ -999,6 +1007,7 @@ const ToolGroup = memo(function ToolGroup({ tools, messageContext, isStreaming }
             compact={isSingleCompact}
             descriptive={descriptiveToolSteps}
             isStreaming={isStreaming}
+            lazyBody={isLargeGroup}
           />
         ))
       : null
@@ -1064,6 +1073,9 @@ const ToolGroup = memo(function ToolGroup({ tools, messageContext, isStreaming }
           panelClassName={stepsPanelClassName}
           contentRef={stepsExpandContentRef}
           clip
+          // 工具很多的组不做 grid-rows 过渡：每一帧都要重排整棵子树，
+          // 几十条命令的展开会直接卡死主线程
+          animate={!isLargeGroup}
           innerClassName="flex flex-col min-h-0 min-w-0 overflow-hidden"
         >
           {toolParts}
@@ -1292,9 +1304,21 @@ function isToolPartActive(tool: Extract<AssistantContent, { type: 'tool' }>): bo
   return tool.state.status === 'running' || tool.state.status === 'streaming'
 }
 
-/** 原生工具 content → 渲染层工具条目（补上所属 messageID） */
+/**
+ * 原生工具 content → 渲染层工具条目（补上所属 messageID）。
+ *
+ * 按 content 对象缓存：流式期间只有真正变化的那一条会换引用，
+ * 其余工具必须复用同一个 part，否则 ToolPartView 的 memo / useMemo 全部失效，
+ * 一帧要重算几十次 input 的 JSON 和 diff。
+ */
+const toolRenderPartCache = new WeakMap<Extract<AssistantContent, { type: 'tool' }>, ToolViewPart>()
+
 function toToolRenderPart(tool: Extract<AssistantContent, { type: 'tool' }>, messageID: string): ToolViewPart {
-  return { ...tool, messageID }
+  const cached = toolRenderPartCache.get(tool)
+  if (cached && cached.messageID === messageID) return cached
+  const part = { ...tool, messageID }
+  toolRenderPartCache.set(tool, part)
+  return part
 }
 
 /** task/subagent 工具派出的子 session：metadata 权威值 + 早期绑定表兜底（服务器以 pane 绑定的 serverId 为权威） */
@@ -1306,7 +1330,20 @@ function getTaskChildSessionRef(
 }
 
 /** 从 extractToolData 的结果计算 diff stats（当 metadata 没给 diffStats 时） */
+/** 结果按 toolData 缓存：流式每帧重算几十条 diff 是纯浪费 */
+const partDiffStatsCache = new WeakMap<object, { additions: number; deletions: number } | undefined>()
+
 function computePartDiffStats(data: {
+  diff?: { before: string; after: string } | string
+  files?: Array<{ before?: string; after?: string; additions?: number; deletions?: number }>
+}): { additions: number; deletions: number } | undefined {
+  if (partDiffStatsCache.has(data)) return partDiffStatsCache.get(data)
+  const stats = computePartDiffStatsUncached(data)
+  partDiffStatsCache.set(data, stats)
+  return stats
+}
+
+function computePartDiffStatsUncached(data: {
   diff?: { before: string; after: string } | string
   files?: Array<{ before?: string; after?: string; additions?: number; deletions?: number }>
 }): { additions: number; deletions: number } | undefined {
@@ -1317,29 +1354,20 @@ function computePartDiffStats(data: {
       if (f.additions !== undefined) a += f.additions
       if (f.deletions !== undefined) d += f.deletions
       if (f.additions === undefined && f.before !== undefined && f.after !== undefined) {
-        const s = diffPairStats(f.before, f.after)
-        a += s.additions
-        d += s.deletions
+        const s = diffLineStats(f.before, f.after)
+        if (s) {
+          a += s.additions
+          d += s.deletions
+        }
       }
     }
     return a || d ? { additions: a, deletions: d } : undefined
   }
   if (data.diff && typeof data.diff === 'object') {
-    const s = diffPairStats(data.diff.before, data.diff.after)
-    return s.additions || s.deletions ? s : undefined
+    const s = diffLineStats(data.diff.before, data.diff.after)
+    return s && (s.additions || s.deletions) ? s : undefined
   }
   return undefined
-}
-
-function diffPairStats(before: string, after: string): { additions: number; deletions: number } {
-  const changes = diffLines(before, after)
-  let additions = 0,
-    deletions = 0
-  for (const c of changes) {
-    if (c.added) additions += c.count || 0
-    if (c.removed) deletions += c.count || 0
-  }
-  return { additions, deletions }
 }
 
 // ============================================

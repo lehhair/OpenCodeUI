@@ -519,6 +519,9 @@ function CollapsedBar({
 // Main Component
 // ============================================
 
+/** 词级 diff 是「每对改动行一次」，文本一多就是几百毫秒；超过这个量只保留行级 */
+const WORD_DIFF_MAX_CHARS = 64 * 1024
+
 // eslint-disable-next-line react-refresh/only-export-components -- DiffViewer consumers share this data with fullscreen instances.
 export function useDiffViewerData(before: string, after: string, language = 'text', isResizing = false, enabled = true): DiffViewerData {
   const shouldHighlight = enabled && !isResizing && language !== 'text'
@@ -532,7 +535,7 @@ export function useDiffViewerData(before: string, after: string, language = 'tex
     mode: 'tokens',
     enabled: shouldHighlight,
   })
-  const skipWordDiff = isResizing
+  const skipWordDiff = isResizing || before.length + after.length > WORD_DIFF_MAX_CHARS
   const pairedLines = useMemo(() => (enabled ? computePairedLines(before, after, skipWordDiff) : []), [before, after, enabled, skipWordDiff])
   const unifiedLines = useMemo(() => (enabled ? computeUnifiedLines(before, after) : []), [before, after, enabled])
   const lineNumberWidth = useDiffLineNumberWidth(enabled ? before : '', enabled ? after : '')

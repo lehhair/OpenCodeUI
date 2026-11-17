@@ -19,7 +19,19 @@ let workerReadyPromiseReject: ((error: unknown) => void) | null = null
 let nextId = 1
 
 const pendingRequests = new Map<number, PendingRequest>()
+/** 每个代码块实例一个 key；长会话里会一直累积，给个上限（只用于丢弃过期请求） */
 const latestRequestByKey = new Map<string, number>()
+const MAX_LATEST_REQUEST_KEYS = 800
+
+function rememberLatestRequest(key: string, id: number) {
+  latestRequestByKey.delete(key)
+  latestRequestByKey.set(key, id)
+  while (latestRequestByKey.size > MAX_LATEST_REQUEST_KEYS) {
+    const oldest = latestRequestByKey.keys().next().value
+    if (oldest === undefined) break
+    latestRequestByKey.delete(oldest)
+  }
+}
 
 function getWorker(): Worker {
   if (worker) return worker
@@ -134,7 +146,7 @@ async function workerHighlight(params: {
 
   const id = nextId++
   const w = getWorker()
-  latestRequestByKey.set(params.key, id)
+  rememberLatestRequest(params.key, id)
 
   return new Promise<Extract<WorkerResponse, { type: 'highlight' }>>((resolve, reject) => {
     pendingRequests.set(id, {
@@ -153,7 +165,7 @@ export async function highlightTokensInWorker(params: {
   complete?: boolean
 }): Promise<{ id: number; code: string; tokens: HighlightTokens }> {
   const result = await workerHighlight({ ...params, mode: 'tokens' })
-  if (result.id !== latestRequestByKey.get(params.key)) throw new Error('superseded')
+  if (isSuperseded(params.key, result.id)) throw new Error('superseded')
   return {
     id: result.id,
     code: result.code,
@@ -168,8 +180,17 @@ export async function highlightHtmlInWorker(params: {
   theme: BundledTheme
 }): Promise<{ id: number; html: string }> {
   const result = await workerHighlight({ ...params, mode: 'html', complete: true })
-  if (result.id !== latestRequestByKey.get(params.key)) throw new Error('superseded')
+  if (isSuperseded(params.key, result.id)) throw new Error('superseded')
   return { id: result.id, html: result.html ?? '' }
+}
+
+/**
+ * 键被 LRU 淘汰（`get` 为 undefined）时不能判成过期：
+ * 那只是「这张表不记得了」，请求本身仍然有效。
+ */
+function isSuperseded(key: string, id: number): boolean {
+  const latest = latestRequestByKey.get(key)
+  return latest !== undefined && latest !== id
 }
 
 export function disposeShikiWorkerKey(key: string) {

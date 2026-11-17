@@ -1,12 +1,19 @@
 import { memo, useState, useMemo, useEffect, useId } from 'react'
 import { useTranslation } from 'react-i18next'
-import { diffLines } from 'diff'
 import { ChevronDownIcon, MaximizeIcon } from './Icons'
 import { clsx } from 'clsx'
 import { detectLanguage } from '../utils/languageUtils'
-import { extractContentFromUnifiedDiff, reconstructBeforeAfterFromPatch } from '../utils/diffUtils'
+import {
+  diffLineStats,
+  extractContentFromUnifiedDiff,
+  MAX_DIFF_DETAIL_CHARS,
+  reconstructBeforeAfterFromPatch,
+} from '../utils/diffUtils'
+import { cropContent } from '../utils/contentBudget'
 import { ViewModeSwitch } from './FullscreenViewer'
 import { DiffViewer, useDiffViewerData, type ViewMode } from './DiffViewer'
+import { CodePreview } from './CodePreview'
+import { CopyButton, TruncatedNote } from './ui'
 import { useFullscreenLayer } from '../contexts'
 
 interface DiffViewProps {
@@ -28,17 +35,9 @@ interface DiffViewProps {
   bare?: boolean
 }
 
-/** 轻量统计 additions/deletions，不做高亮 */
+/** 轻量统计 additions/deletions，不做高亮（超限返回 null） */
 function computeDiffStats(before: string, after: string) {
-  const changes = diffLines(before, after)
-  let additions = 0
-  let deletions = 0
-  for (const change of changes) {
-    const count = change.count || 0
-    if (change.added) additions += count
-    else if (change.removed) deletions += count
-  }
-  return { additions, deletions }
+  return diffLineStats(before, after)
 }
 
 export const DiffView = memo(function DiffView({
@@ -75,10 +74,26 @@ export const DiffView = memo(function DiffView({
     return explicitLanguage || detectLanguage(filePath)
   }, [filePath, explicitLanguage])
 
-  const diffViewerData = useDiffViewerData(content?.before ?? '', content?.after ?? '', language)
+  // 大 diff 不走逐行视图：`useDiffViewerData` 会把整份文件摊成行对象，
+  // 权限确认弹窗里打开一个几 MB 的编辑照样会卡死。
+  const contentTooLarge =
+    !!content && content.before.length + content.after.length > MAX_DIFF_DETAIL_CHARS
+  const previewText = content ? (content.after.trim() ? content.after : content.before) : ''
+  const croppedPreview = useMemo(
+    () => (contentTooLarge ? cropContent(previewText) : null),
+    [contentTooLarge, previewText],
+  )
+
+  const diffViewerData = useDiffViewerData(
+    content?.before ?? '',
+    content?.after ?? '',
+    language,
+    false,
+    !contentTooLarge,
+  )
 
   const stats = useMemo(() => {
-    if (!content) return { additions: 0, deletions: 0 }
+    if (!content) return null
     return computeDiffStats(content.before, content.after)
   }, [content])
   const fileName = filePath ? filePath.split(/[/\\]/).pop() : undefined
@@ -88,15 +103,21 @@ export const DiffView = memo(function DiffView({
         ? {
             id: `diff-view:${generatedFullscreenId}`,
             title: fileName,
-            titleExtra: (
+            titleExtra: stats ? (
               <div className="flex items-center gap-1.5 text-[length:var(--fs-xs)] font-mono tabular-nums shrink-0">
                 {stats.additions > 0 && <span className="text-success-100">+{stats.additions}</span>}
                 {stats.deletions > 0 && <span className="text-danger-100">-{stats.deletions}</span>}
               </div>
+            ) : undefined,
+            headerRight: contentTooLarge ? (
+              <CopyButton text={previewText} position="static" />
+            ) : (
+              <ViewModeSwitch viewMode={fullscreenViewMode} onChange={setFullscreenViewMode} />
             ),
-            headerRight: <ViewModeSwitch viewMode={fullscreenViewMode} onChange={setFullscreenViewMode} />,
             deferContent: true,
-            content: (
+            content: contentTooLarge ? (
+              <CodePreview code={previewText} language={language} />
+            ) : (
               <DiffViewer
                 before={content.before}
                 after={content.after}
@@ -109,13 +130,14 @@ export const DiffView = memo(function DiffView({
         : null,
     [
       content,
+      contentTooLarge,
       diffViewerData,
       fileName,
       fullscreenViewMode,
       generatedFullscreenId,
       language,
-      stats.additions,
-      stats.deletions,
+      previewText,
+      stats,
     ],
   )
   const { isOpen: fullscreenOpen, open: openFullscreen } = useFullscreenLayer(fullscreenLayer)
@@ -137,15 +159,31 @@ export const DiffView = memo(function DiffView({
     }
     return (
       <div className="overflow-hidden font-mono text-[length:var(--fs-code)]">
-        <DiffViewer
-          before={content.before}
-          after={content.after}
-          language={language}
-          viewMode="unified"
-          maxHeight={maxHeight}
-          data={diffViewerData}
-          stateKey={`${generatedFullscreenId}:bare`}
-        />
+        {contentTooLarge ? (
+          <div>
+            <CodePreview code={croppedPreview?.text ?? ''} language={language} maxHeight={maxHeight} />
+            <div className="border-t border-border-200/40 px-3 py-1.5 text-[length:var(--fs-xxs)] text-text-500">
+              {t('contentBlock.diffFallback')}
+            </div>
+            {croppedPreview?.cropped && (
+              <TruncatedNote
+                className="border-t border-border-200/40 px-3 py-1.5 text-[length:var(--fs-xxs)] text-text-500"
+                omittedLines={croppedPreview.omittedLines}
+                omittedChars={croppedPreview.omittedChars}
+              />
+            )}
+          </div>
+        ) : (
+          <DiffViewer
+            before={content.before}
+            after={content.after}
+            language={language}
+            viewMode="unified"
+            maxHeight={maxHeight}
+            data={diffViewerData}
+            stateKey={`${generatedFullscreenId}:bare`}
+          />
+        )}
       </div>
     )
   }
@@ -175,9 +213,9 @@ export const DiffView = memo(function DiffView({
           {fileName && <span className="text-text-200 font-medium truncate flex-1 min-w-0">{fileName}</span>}
         </div>
         <div className="flex items-center gap-3 tabular-nums font-medium shrink-0 whitespace-nowrap">
-          {stats.additions > 0 && <span className="text-success-100">+{stats.additions}</span>}
-          {stats.deletions > 0 && <span className="text-danger-100">-{stats.deletions}</span>}
-          {stats.additions === 0 && stats.deletions === 0 && (
+          {stats && stats.additions > 0 && <span className="text-success-100">+{stats.additions}</span>}
+          {stats && stats.deletions > 0 && <span className="text-danger-100">-{stats.deletions}</span>}
+          {stats && stats.additions === 0 && stats.deletions === 0 && (
             <span className="text-text-400">{t('common:noChanges')}</span>
           )}
 
@@ -203,14 +241,30 @@ export const DiffView = memo(function DiffView({
         )}
       >
         <div className="overflow-hidden">
-          <DiffViewer
-            before={content.before}
-            after={content.after}
-            language={language}
-            viewMode="unified"
-            maxHeight={maxHeight ?? 300}
-            data={diffViewerData}
-          />
+          {contentTooLarge ? (
+            <div>
+              <CodePreview code={croppedPreview?.text ?? ''} language={language} maxHeight={maxHeight ?? 300} />
+              <div className="border-t border-border-200/40 px-3 py-1.5 text-[length:var(--fs-xxs)] text-text-500">
+                {t('contentBlock.diffFallback')}
+              </div>
+              {croppedPreview?.cropped && (
+                <TruncatedNote
+                  className="border-t border-border-200/40 px-3 py-1.5 text-[length:var(--fs-xxs)] text-text-500"
+                  omittedLines={croppedPreview.omittedLines}
+                  omittedChars={croppedPreview.omittedChars}
+                />
+              )}
+            </div>
+          ) : (
+            <DiffViewer
+              before={content.before}
+              after={content.after}
+              language={language}
+              viewMode="unified"
+              maxHeight={maxHeight ?? 300}
+              data={diffViewerData}
+            />
+          )}
         </div>
       </div>
     </div>

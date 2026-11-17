@@ -39,3 +39,11 @@ export function useResponsiveMaxHeight(ratio = 0.3, min = 120, max = 300): numbe
   const vh = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot)
   return Math.max(min, Math.min(max, Math.floor(vh * ratio)))
 }
+
+/**
+ * 不订阅窗口变化的版本：给「估算占位高度」这类一次性计算用，
+ * 避免几十上百张卡片各自挂一个 useSyncExternalStore。
+ */
+export function getResponsiveMaxHeight(ratio = 0.3, min = 120, max = 300): number {
+  return Math.max(min, Math.min(max, Math.floor(currentHeight * ratio)))
+}

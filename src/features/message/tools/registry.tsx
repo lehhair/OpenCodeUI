@@ -43,6 +43,25 @@ const exact =
 
 type JsonObject = Record<string, unknown>
 
+/** 输入预览里单个字符串的上限：write 工具的 content 可能是整份文件 */
+const INPUT_STRING_PREVIEW_LIMIT = 8 * 1024
+
+function compactInputForDisplay(value: unknown, depth = 0): unknown {
+  if (typeof value === 'string') {
+    return value.length > INPUT_STRING_PREVIEW_LIMIT ? `${value.slice(0, INPUT_STRING_PREVIEW_LIMIT)}\n…` : value
+  }
+  if (depth >= 2) return value
+  if (Array.isArray(value)) return value.slice(0, 100).map(item => compactInputForDisplay(item, depth + 1))
+  if (value && typeof value === 'object') {
+    const result: Record<string, unknown> = {}
+    for (const [key, item] of Object.entries(value as JsonObject)) {
+      result[key] = compactInputForDisplay(item, depth + 1)
+    }
+    return result
+  }
+  return value
+}
+
 function isJsonObject(value: unknown): value is JsonObject {
   return !!value && typeof value === 'object' && !Array.isArray(value)
 }
@@ -88,7 +107,7 @@ export function defaultExtractData(part: ToolViewPart): ExtractedToolData {
       result.inputLang = 'json'
     }
   } else if (Object.keys(input).length > 0) {
-    result.input = JSON.stringify(input, null, 2)
+    result.input = JSON.stringify(compactInputForDisplay(input), null, 2)
     result.inputLang = 'json'
   }
 
@@ -433,11 +452,18 @@ export function getToolIcon(toolName: string): ReactNode {
 
 /**
  * 提取工具数据
+ *
+ * 结果按 part 缓存：part 引用稳定（见 MessageRenderer.toToolRenderPart），
+ * 流式期间不会每帧把几十个工具的 input 重新 JSON 一遍。
  */
+const toolDataCache = new WeakMap<ToolViewPart, ExtractedToolData>()
+
 export function extractToolData(part: ToolViewPart): ExtractedToolData {
+  const cached = toolDataCache.get(part)
+  if (cached) return cached
+
   const config = getToolConfig(part.name)
-  if (config?.extractData) {
-    return config.extractData(part)
-  }
-  return defaultExtractData(part)
+  const data = config?.extractData ? config.extractData(part) : defaultExtractData(part)
+  toolDataCache.set(part, data)
+  return data
 }

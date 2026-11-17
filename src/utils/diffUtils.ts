@@ -1,7 +1,27 @@
-import { parsePatch } from 'diff'
+import { diffLines, parsePatch } from 'diff'
 
 /** 重建行数上限：超出则退回片段提取，避免超大文件的 diff/高亮开销 */
 const MAX_RECONSTRUCTED_LINES = 20000
+
+/**
+ * 超过这个体量就不再跑同步行级 diff，也不铺逐行 diff 视图。
+ *
+ * jsdiff 与 `computePairedLines/unified` 都是同步的，几百 KB 的文件就能让主线程
+ * 卡几百毫秒；调用方拿 null 表示「不给统计」，不要用 0/0 冒充「没有改动」。
+ */
+export const MAX_DIFF_DETAIL_CHARS = 192 * 1024
+
+export function diffLineStats(before: string, after: string): { additions: number; deletions: number } | null {
+  if (before.length + after.length > MAX_DIFF_DETAIL_CHARS) return null
+  const changes = diffLines(before, after)
+  let additions = 0
+  let deletions = 0
+  for (const change of changes) {
+    if (change.added) additions += change.count || 0
+    if (change.removed) deletions += change.count || 0
+  }
+  return { additions, deletions }
+}
 
 /**
  * 占位行的标记内容：私有使用区字符，真实代码行不可能恰好是它。
@@ -14,14 +34,18 @@ export function isSyntheticPadLine(content: string): boolean {
   return content === SYNTHETIC_PAD_LINE
 }
 
+/** 超大 patch 不做完整还原（parsePatch + join 是同步的），调用方退回片段提取 */
+const MAX_PATCH_CHARS = 1024 * 1024
+
 /**
  * 把 unified diff（带 `@@ -oldStart,n +newStart,n @@` 绝对行号）还原成"完整" before/after：
  * hunk 之间未变化的行用空行占位补齐，使后续 diffLines 重算后变更落在真实行号上，
  * 且折叠/高亮/行号宽度全部沿用现有管线，无需改渲染组件。
  *
- * 解析失败、hunk 乱序/重叠、或超出行数上限时返回 null，调用方退回 extractContentFromUnifiedDiff。
+ * 解析失败、hunk 乱序/重叠、或超出行数/字节上限时返回 null，调用方退回 extractContentFromUnifiedDiff。
  */
 export function reconstructBeforeAfterFromPatch(patch: string): { before: string; after: string } | null {
+  if (patch.length > MAX_PATCH_CHARS) return null
   let files
   try {
     files = parsePatch(patch)

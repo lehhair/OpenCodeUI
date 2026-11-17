@@ -23,7 +23,8 @@
     "warningsCount": "{{count}} warning",
     "warningsCount_other": "{{count}} warnings",
     "result": "Result",
-    "nameResult": "{{name}} Result"
+    "nameResult": "{{name}} Result",
+    "showAllFiles": "显示其余 {{count}} 个文件"
   },
   "reasoning": {
     "thinking": "Thinking...",

@@ -1,6 +1,6 @@
 import { createTwoFilesPatch, diffLines } from 'diff'
 import { describe, expect, it } from 'vitest'
-import { reconstructBeforeAfterFromPatch } from './diffUtils'
+import { diffLineStats, MAX_DIFF_DETAIL_CHARS, reconstructBeforeAfterFromPatch } from './diffUtils'
 
 /** 构造 n 行文件，changes 里指定某些行的内容 */
 function makeFile(lineCount: number, changes: Record<number, string> = {}): string {
@@ -81,5 +81,21 @@ describe('reconstructBeforeAfterFromPatch', () => {
 
   it('无 hunk 的 patch 返回 null', () => {
     expect(reconstructBeforeAfterFromPatch('--- a.ts\n+++ a.ts\n')).toBeNull()
+  })
+})
+
+describe('diffLineStats', () => {
+  it('统计新增与删除行数', () => {
+    expect(diffLineStats('a\n', 'a\nb\n')).toEqual({ additions: 1, deletions: 0 })
+    expect(diffLineStats('a\nb\n', 'a\n')).toEqual({ additions: 0, deletions: 1 })
+  })
+
+  it('相同内容返回 0/0（不是 null）', () => {
+    expect(diffLineStats('same\nlines', 'same\nlines')).toEqual({ additions: 0, deletions: 0 })
+  })
+
+  it('超过体量上限返回 null，调用方不显示统计', () => {
+    const huge = 'x'.repeat(MAX_DIFF_DETAIL_CHARS)
+    expect(diffLineStats(huge, 'y')).toBeNull()
   })
 })

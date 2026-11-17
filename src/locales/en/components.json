@@ -212,7 +212,10 @@
   },
   "contentBlock": {
     "fullscreen": "Fullscreen",
-    "exitCode": "exit {{code}}"
+    "exitCode": "exit {{code}}",
+    "truncated": "… {{lines}} lines / {{size}} hidden. Open fullscreen to see the full output.",
+    "truncatedBytes": "… {{size}} hidden. Open fullscreen to see the full output.",
+    "diffFallback": "Diff is too large — showing one side of the file only."
   },
   "diffView": {
     "fullscreenView": "Fullscreen"

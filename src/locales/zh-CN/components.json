@@ -209,7 +209,10 @@
   },
   "contentBlock": {
     "fullscreen": "全屏",
-    "exitCode": "exit {{code}}"
+    "exitCode": "exit {{code}}",
+    "truncated": "… 已省略 {{lines}} 行（{{size}}），点全屏查看完整内容",
+    "truncatedBytes": "… 已省略 {{size}}，点全屏查看完整内容",
+    "diffFallback": "改动过大，这里只显示单侧文件内容"
   },
   "diffView": {
     "fullscreenView": "全屏查看"

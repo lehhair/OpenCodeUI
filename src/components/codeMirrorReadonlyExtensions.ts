@@ -177,8 +177,13 @@ const targetLineDecorationsField = StateField.define<DecorationSet>({
   provide: field => EditorView.decorations.from(field),
 })
 
+/** 单个文档最多铺多少个着色 range：再多一点就是几十万个对象的开销 */
+const MAX_SHIKI_DECORATION_RANGES = 20_000
+
 function buildShikiDecorations(state: EditorState, tokens: HighlightTokens | null): DecorationSet {
   if (!tokens) return Decoration.none
+  // 超大文档直接放弃着色：token 数组本身可能已经几十万项
+  if (state.doc.length > 400_000) return Decoration.none
 
   const ranges = []
   for (let lineIndex = 0; lineIndex < tokens.length && lineIndex < state.doc.lines; lineIndex++) {
@@ -191,6 +196,7 @@ function buildShikiDecorations(state: EditorState, tokens: HighlightTokens | nul
       offset += token.content.length
       if (!token.color || from >= to) continue
       ranges.push(Decoration.mark({ attributes: { style: `color: ${token.color}` } }).range(from, to))
+      if (ranges.length >= MAX_SHIKI_DECORATION_RANGES) return Decoration.set(ranges, true)
     }
   }
 

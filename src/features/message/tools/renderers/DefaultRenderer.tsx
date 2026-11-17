@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from 'react'
+import { useState, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ContentBlock } from '../../../../components'
 import { AlertCircleIcon } from '../../../../components/Icons'
@@ -75,6 +75,9 @@ export function DefaultRenderer({ part, data, onFullscreenChange }: ToolRenderer
 // Output Block
 // ============================================
 
+/** 一张卡里同时铺多少个文件 diff：多文件 patch 一次改几十个文件时收着点 */
+const MAX_INLINE_DIFF_FILES = 8
+
 interface OutputBlockProps {
   tool: string
   data: ExtractedToolData
@@ -99,6 +102,8 @@ function OutputBlock({
   stateBaseKey,
 }: OutputBlockProps) {
   const { t } = useTranslation('message')
+  // 一次改几十个文件的 patch 工具：不要把所有 diff 都同时挂上
+  const [showAllFiles, setShowAllFiles] = useState(false)
 
   // 1. Error 优先
   if (hasError) {
@@ -140,10 +145,12 @@ function OutputBlock({
 
     // Multiple files with diff
     if (data.files) {
+      const visibleFiles = showAllFiles ? data.files : data.files.slice(0, MAX_INLINE_DIFF_FILES)
+      const hiddenCount = data.files.length - visibleFiles.length
       return (
         <div className="flex flex-col gap-2">
           {fileMedia}
-          {data.files.map((file, idx) => (
+          {visibleFiles.map((file, idx) => (
             <ContentBlock
               key={idx}
               stateKey={`${stateBaseKey}:file:${file.filePath || idx}`}
@@ -164,6 +171,15 @@ function OutputBlock({
               fullscreenId={`${fullscreenBaseId}:file:${file.filePath || idx}`}
             />
           ))}
+          {hiddenCount > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowAllFiles(true)}
+              className="self-start rounded-md border border-border-200/50 px-2 py-1 text-[length:var(--fs-xs)] text-text-400 transition-colors hover:bg-bg-200/60 hover:text-text-200"
+            >
+              {t('defaultRenderer.showAllFiles', { count: hiddenCount })}
+            </button>
+          )}
         </div>
       )
     }

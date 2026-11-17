@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Tool Group Perf Harness</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script>
+      // 固定成生产默认值：浏览器里遗留的个性化设置会让基准数字漂移
+      //（尤其 process-collapse-enabled，会把工具组变成默认收起）。
+      try {
+        localStorage.setItem('descriptive-tool-steps', 'true')
+        localStorage.setItem('immersive-mode', 'true')
+        localStorage.setItem('process-collapse-enabled', 'false')
+      } catch {}
+    </script>
+    <script type="module" src="/src/preview/perfMain.tsx"></script>
+  </body>
+</html>
