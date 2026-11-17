@@ -1,5 +1,13 @@
 # Changelog
 
+## [v0.7.28] - 2026-11-17
+
+- fix(chat): 压缩后的续写继续挂过程壳 (ea362092)
+- fix(chat): 压缩后的续写按原位置渲染 (38455654)
+- perf(message): 大工具组按视口挂载并裁剪内联输出 (7d893dbe)
+- fix(docker): mise 安装锁定脚本内置版本，绕开 GitHub checksum 504 (0403071f)
+- fix(docker): 后端镜像改装 opencode v2，并让版本变化能破层缓存 (045b30c0)
+
 ## [v0.7.27] - 2026-11-08
 
 - fix(ui): 全屏查看器在 iOS 状态栏下让开 safe-area (39e3c2c2)
