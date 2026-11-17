@@ -998,17 +998,36 @@ export function buildProcessTimeline(
      * 被打断的回合不能再挂「进行中」——后面接着的输出已经不属于它了。
      */
     terminatedByStandalone?: boolean
+    /**
+     * 压缩之后重新开始的续写段。
+     * 压缩是回合内的一个事件，不是回合终点：后面的输出仍然要挂过程壳，
+     * 只是从压缩行下面重新开一段。
+     */
+    continuation?: boolean
+    /** 续写段所属的 user 回合（回合级文件变更要跨压缩聚合） */
+    continuationOf?: TurnBag
   }
 
   const turns: TurnBag[] = []
   let current: TurnBag | null = null
+  let lastUserTurn: TurnBag | null = null
+  /** 下一次创建无 user 袋子时，是否接在压缩行后面（续写段） */
+  let expectContinuation = false
   const flushTurn = () => {
     if (!current) return
     turns.push(current)
     current = null
   }
-  const ensureTurn = (): TurnBag => {
-    if (!current) current = { user: null, assistants: [], notices: [] }
+  const ensureTurn = (continuation = false): TurnBag => {
+    if (!current) {
+      current = {
+        user: null,
+        assistants: [],
+        notices: [],
+        continuation,
+        continuationOf: continuation ? (lastUserTurn ?? undefined) : undefined,
+      }
+    }
     return current
   }
 
@@ -1016,6 +1035,8 @@ export function buildProcessTimeline(
     if (isUserMessage(message)) {
       flushTurn()
       current = { user: message, assistants: [], notices: [] }
+      lastUserTurn = current
+      expectContinuation = false
       continue
     }
     // shell 命令消息独立成行（官方 projection.ts:188：shell 是独立 timeline 行），
@@ -1024,33 +1045,40 @@ export function buildProcessTimeline(
       if (current) current.terminatedByStandalone = true
       flushTurn()
       turns.push({ user: null, assistants: [], notices: [], standalone: message })
+      expectContinuation = false
       continue
     }
     // 压缩消息独立成行（官方 projection：compaction 是独立 timeline entry），
-    // 并结束当前回合，避免压缩摘要被算进上一回合的过程壳。
+    // 并打断当前回合；压缩之后的输出从新的一段过程壳继续。
     // 漏掉这个分支会让压缩消息直接掉出时间线——压缩了但 UI 什么都不显示。
     if (message.type === 'compaction') {
       if (current) current.terminatedByStandalone = true
       flushTurn()
       turns.push({ user: null, assistants: [], notices: [], standalone: message })
+      expectContinuation = true
       continue
     }
     // 提示行：跟当前回合走（官方放进 turn 的 entries），没有回合就开一个平铺段
     if (isNoticeMessage(message)) {
-      const turn = ensureTurn()
+      const turn = ensureTurn(expectContinuation)
+      expectContinuation = false
       turn.notices.push({ at: turn.assistants.length, message })
       continue
     }
     // 失败的 idle 标记：会话级错误（如 prompt 没能提升成 assistant 工作）只在这条
     // 标记里，跳过它错误就永远不渲染。记到当前回合（没有就平铺），转换时追加。
     if (isFailedIdleMessage(message)) {
-      ensureTurn().failedIdle = message
+      const turn = ensureTurn(expectContinuation)
+      expectContinuation = false
+      turn.failedIdle = message
       continue
     }
     if (!isAssistantMessage(message)) continue
-    // 历史续段 / 页首无 user / 压缩后的续写：归到一个无 user 的平铺段，
+    // 历史续段 / 页首无 user / 压缩后的续写：归到一个无 user 段。
     // 必须留在原位置输出，不能提前塞进 items（否则会跑到所有回合壳前面）。
-    ensureTurn().assistants.push(message)
+    const turn = ensureTurn(expectContinuation)
+    expectContinuation = false
+    turn.assistants.push(message)
   }
   flushTurn()
 
@@ -1127,7 +1155,52 @@ export function buildProcessTimeline(
     }
   }
 
+  /** 压缩续写段 → 所属 user 回合的全部续写 assistant（回合级文件变更加总用） */
+  const continuationAssistants = new Map<TurnBag, AssistantMessage[]>()
+  /** user 回合 → 该回合最后一个带内容的续写段（文件变更行挂在这里，避免落在压缩行前面） */
+  const lastContinuationByTurn = new Map<TurnBag, TurnBag>()
   for (const turn of turns) {
+    if (!turn.continuationOf || turn.assistants.length === 0) continue
+    const list = continuationAssistants.get(turn.continuationOf) ?? []
+    list.push(...turn.assistants)
+    continuationAssistants.set(turn.continuationOf, list)
+    lastContinuationByTurn.set(turn.continuationOf, turn)
+  }
+  /** user 回合 → 已算好的文件变更（等最后一个续写段输出时再挂） */
+  const groupTurnDiff = new Map<TurnBag, TurnDiffInfo | undefined>()
+
+  const hasLaterTurn = (fromIndex: number, predicate: (turn: TurnBag) => boolean): boolean => {
+    for (let i = fromIndex + 1; i < turns.length; i++) {
+      if (predicate(turns[i])) return true
+    }
+    return false
+  }
+
+  /** 一段过程壳的 children：进行中全进壳，结束后末尾只留 process（正文挂在壳外） */
+  const segmentChildren = (
+    segmentAssistants: AssistantMessage[],
+    active: boolean,
+  ): Array<{ message: SessionMessageInfo; processContentScope: 'process' | 'inline' }> => {
+    const lastId = segmentAssistants[segmentAssistants.length - 1].id
+    const children: Array<{ message: SessionMessageInfo; processContentScope: 'process' | 'inline' }> = []
+    if (active) {
+      for (const m of segmentAssistants) {
+        children.push({ message: m, processContentScope: m.id === lastId ? 'process' : 'inline' })
+      }
+      return children
+    }
+    for (const m of segmentAssistants) {
+      if (m.id === lastId) {
+        if (messageHasProcess(m)) children.push({ message: m, processContentScope: 'process' })
+      } else {
+        children.push({ message: m, processContentScope: 'inline' })
+      }
+    }
+    return children
+  }
+
+  for (let turnIndex = 0; turnIndex < turns.length; turnIndex++) {
+    const turn = turns[turnIndex]
     if (turn.standalone) {
       items.push({ kind: 'message', key: turn.standalone.id, message: turn.standalone })
       continue
@@ -1143,7 +1216,41 @@ export function buildProcessTimeline(
       continue
     }
 
-    // 无 user 的续段：按原位置平铺（压缩后的续写、页首历史）。
+    // 压缩后的续写段：仍然按过程壳分组，只是从压缩行下面重新开一段。
+    // 这样压缩只切分过程，不会让后续所有输出都变成没有折叠块的平铺消息。
+    if (!turn.user && turn.continuation) {
+      const laterHasUserTurn = hasLaterTurn(turnIndex, item => item.user != null)
+      const laterHasAssistant = hasLaterTurn(turnIndex, item => item.assistants.length > 0)
+      const hasLiveWork = assistants.some(assistantHasLiveWork)
+      const segmentIsActive =
+        hasLiveWork || (sessionIsStreaming && !turn.terminatedByStandalone && !laterHasUserTurn && !laterHasAssistant)
+
+      const finalAssistant = assistants[assistants.length - 1]
+      const startedAt = assistants[0].time.created
+      const durationMs = segmentIsActive ? undefined : resolveTurnDurationMs(assistants, startedAt, turnDurationMap)
+      const finalOutside = !segmentIsActive && messageHasFinal(finalAssistant) ? finalAssistant : undefined
+      const owner = turn.continuationOf
+      const segmentTurnDiff =
+        owner && lastContinuationByTurn.get(owner) === turn ? groupTurnDiff.get(owner) : undefined
+
+      emitNotices(turn, true)
+      items.push({
+        kind: 'process-shell',
+        key: `process-shell:${assistants[0].id}`,
+        userMessageId: null,
+        startedAt,
+        durationMs,
+        isActive: segmentIsActive,
+        children: segmentChildren(assistants, segmentIsActive),
+        finalMessage: finalOutside,
+        turnDiff: segmentTurnDiff,
+      })
+      emitNotices(turn, false)
+      appendFailedIdle(turn)
+      continue
+    }
+
+    // 无 user 的续段：按原位置平铺（页首历史）。
     // 这里不能再「壳前/壳后」二分，否则夹在两条助手消息之间的提示行会被挪到最后。
     if (!turn.user) {
       const pushNoticesAt = (at: number) => {
@@ -1168,35 +1275,31 @@ export function buildProcessTimeline(
     const turnIsActive = activeUserId != null && userId === activeUserId
 
     const finalAssistant = assistants.length > 0 ? assistants[assistants.length - 1] : null
-    const finalId = finalAssistant?.id ?? null
     const startedAt = turn.user.time.created
     const durationMs = turnIsActive ? undefined : resolveTurnDurationMs(assistants, startedAt, turnDurationMap)
 
     // 进行中：全部进壳；结束：中间全进 + 末尾仅 process
-    const children: Array<{ message: SessionMessageInfo; processContentScope: 'process' | 'inline' }> = []
-    if (turnIsActive) {
-      for (const m of assistants) {
-        children.push({
-          message: m,
-          processContentScope: m.id === finalId ? 'process' : 'inline',
-        })
-      }
-    } else {
-      for (const m of assistants) {
-        if (m.id === finalId) {
-          if (messageHasProcess(m)) {
-            children.push({ message: m, processContentScope: 'process' })
-          }
-        } else {
-          children.push({ message: m, processContentScope: 'inline' })
-        }
-      }
-    }
+    const children = assistants.length > 0 ? segmentChildren(assistants, turnIsActive) : []
 
     const finalOutside = !turnIsActive && finalAssistant && messageHasFinal(finalAssistant) ? finalAssistant : undefined
 
-    const files = !turnIsActive && turnDiff ? collectTurnFiles(assistants) : []
+    // 回合级文件变更：把压缩续写段的 assistant 也算进来；
+    // 整轮还没结束（仍有 live，或会话还在 streaming 且这是最后一组）时先不显示。
+    const continuationList = continuationAssistants.get(turn) ?? []
+    const groupHasLiveWork = assistants.some(assistantHasLiveWork) || continuationList.some(assistantHasLiveWork)
+    // 本回合的续写段不算「后面的回合」；只有更晚的 user 回合 / 非续写内容才算
+    const groupIsLast = !hasLaterTurn(
+      turnIndex,
+      item => item.continuationOf !== turn && (item.user != null || item.assistants.length > 0),
+    )
+    const files =
+      turnDiff && !groupHasLiveWork && !(sessionIsStreaming && groupIsLast)
+        ? collectTurnFiles([...assistants, ...continuationList])
+        : []
     const turnDiffInfo: TurnDiffInfo | undefined = files.length > 0 ? { from: userId, files } : undefined
+    // 有续写段时，文件变更行挂到最后一个续写段，避免落在压缩行前面
+    const turnDiffForThisTurn = continuationList.length > 0 ? undefined : turnDiffInfo
+    groupTurnDiff.set(turn, turnDiffInfo)
 
     // 进行中或有过程内容 → 挂壳
     // 更晚的空 pending 回合：turnIsActive=false 且无 children → 不挂壳（只显示 user）
@@ -1211,14 +1314,14 @@ export function buildProcessTimeline(
         isActive: turnIsActive,
         children,
         finalMessage: finalOutside,
-        turnDiff: turnDiffInfo,
+        turnDiff: turnDiffForThisTurn,
       })
     } else if (finalOutside) {
       items.push({
         kind: 'message',
         key: finalOutside.id,
         message: finalOutside,
-        turnDiff: turnDiffInfo,
+        turnDiff: turnDiffForThisTurn,
       })
     } else {
       assistants.forEach((m, index) => {
@@ -1226,7 +1329,7 @@ export function buildProcessTimeline(
           kind: 'message',
           key: m.id,
           message: m,
-          turnDiff: index === assistants.length - 1 ? turnDiffInfo : undefined,
+          turnDiff: index === assistants.length - 1 ? turnDiffForThisTurn : undefined,
         })
       })
     }
