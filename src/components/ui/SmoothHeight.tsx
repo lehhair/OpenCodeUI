@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { prefersReducedMotion } from '../../utils/motion'
 
 /**
  * SmoothHeight - 内容高度变化时平滑过渡
@@ -25,7 +26,7 @@ export function SmoothHeight({
   useEffect(() => {
     const outer = outerRef.current
     const inner = innerRef.current
-    if (!outer || !inner || !isActive) {
+    if (!outer || !inner || !isActive || prefersReducedMotion()) {
       if (outer) {
         outer.style.height = ''
         outer.style.clipPath = ''

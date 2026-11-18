@@ -268,6 +268,16 @@ $$
     expect(items[1]).not.toHaveClass('task-list-item')
   })
 
+  it('styles code blocks nested inside lists and quotes', () => {
+    const md = '- item\n\n  ```ts\n  const x = 1\n  ```\n'
+    const { container } = render(<MarkdownRenderer content={md} />)
+
+    const pre = container.querySelector('pre.markdown-nested-code')
+    expect(pre).toBeInTheDocument()
+    expect(pre).toHaveAttribute('data-language', 'ts')
+    expect(pre).toHaveTextContent('const x = 1')
+  })
+
   it('emphasizes CJK runs that close after punctuation right before a CJK character', () => {
     const content = '**重点：**正文，**第二点。**继续，*斜体：*结尾，**（括号）**收尾'
     const { container } = render(<MarkdownRenderer content={content} />)

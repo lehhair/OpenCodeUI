@@ -59,6 +59,7 @@ import {
 } from '../../utils/formatUtils'
 import { lockScrollAroundAnchor } from '../../utils/scrollUtils'
 import { useUiDisclosureState } from '../../utils/uiDisclosureState'
+import { prefersReducedMotion } from '../../utils/motion'
 
 /**
  * 过程折叠 header：进行中自己走表，只有这一行因计时更新；children 不跟时钟走。
@@ -501,7 +502,7 @@ function useEntryGrowAnimation(
     }
 
     // 过程壳内消息禁止入场生长：会连着虚拟行反复 measure，造成整列高度抽搐
-    if (!enabled || !el) {
+    if (!enabled || !el || prefersReducedMotion()) {
       finish()
       return
     }

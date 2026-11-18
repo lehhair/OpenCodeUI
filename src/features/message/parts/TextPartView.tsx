@@ -9,7 +9,8 @@ interface TextPartViewProps {
 }
 
 /**
- * TextPartView - 直接渲染后端推送的文本，无缓冲延迟
+ * TextPartView - 直接渲染后端推送的文本；数据层不做缓冲，
+ * 显示节奏由 MarkdownRenderer 负责
  */
 export const TextPartView = memo(function TextPartView({ part, isStreaming = false }: TextPartViewProps) {
   const displayText = part.text || ''

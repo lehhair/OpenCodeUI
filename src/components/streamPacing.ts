@@ -8,6 +8,7 @@
  * 纯函数部分与 React 解耦，方便单独验证节奏曲线。
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { prefersReducedMotion } from '../utils/motion'
 
 export interface StreamPacingConfig {
   /** 目标：把当前积压揭示完的时间 */
@@ -105,12 +106,6 @@ export function safeRevealIndex(text: string, index: number): number {
     if (previous >= 0xd800 && previous <= 0xdbff) return index - 1
   }
   return index
-}
-
-/** 系统开启「减少动态效果」时不做逐字揭示 */
-export function prefersReducedMotion(): boolean {
-  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false
-  return window.matchMedia('(prefers-reduced-motion: reduce)').matches
 }
 
 /**

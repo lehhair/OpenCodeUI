@@ -390,6 +390,13 @@ function createMarkdownHtmlRenderer(isReasoning: boolean, renderHtml: boolean) {
     return renderSegmentsToHtml(scanTextSegments(text), isReasoning)
   }
 
+  // 嵌在列表 / 引用里的代码块（顶层围栏由 CodeBlock / 流式块接管）
+  renderer.code = ({ text, lang }) => {
+    const language = lang?.trim().split(/\s+/, 1)[0]
+    const languageAttr = language ? ` data-language="${escapeAttribute(language)}"` : ''
+    return `<pre class="markdown-nested-code"${languageAttr}><code>${escapeHtml(text)}</code></pre>`
+  }
+
   renderer.codespan = ({ text }) => {
     // 内联代码 chip。要点：
     //  1) **文字颜色继承正文**，不自己指定：正文是 text-text-200，给主题色或更亮的

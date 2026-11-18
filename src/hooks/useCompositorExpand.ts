@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import { EXPAND_MOTION } from '../constants/expandMotion'
+import { prefersReducedMotion } from '../utils/motion'
 
 function isAndroid(): boolean {
   return typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent)
@@ -20,7 +21,7 @@ export const COMPOSITOR_GRID_TRANSITION = EXPAND_MOTION.gridTransition
  * 子树逐帧量高，组里工具越多越贵，直接瞬时展开。
  */
 export function useCompositorExpand(open: boolean, animate = true) {
-  const enabled = isAndroid() && animate
+  const enabled = isAndroid() && animate && !prefersReducedMotion()
   const contentRef = useRef<HTMLDivElement | null>(null)
   const [layoutOpen, setLayoutOpen] = useState(open)
   const [useGridTransition, setUseGridTransition] = useState(!enabled)

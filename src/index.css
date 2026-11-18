@@ -584,6 +584,29 @@ body {
   list-style: none;
 }
 
+/* 嵌在引用 / 列表里的代码块（顶层围栏走 CodeBlock，不经过这里） */
+.markdown-content .markdown-nested-code {
+  margin: 1rem 0;
+  padding: 0.75rem 0.875rem;
+  overflow-x: auto;
+  border: 1px solid hsl(var(--border-200) / 0.4);
+  border-radius: 6px;
+  background: hsl(var(--bg-200) / 0.4);
+  color: hsl(var(--text-200));
+  font-family: var(--font-mono);
+  font-size: var(--fs-code);
+  line-height: var(--fs-code-line-height);
+  white-space: pre;
+}
+
+.markdown-content .markdown-nested-code:first-child {
+  margin-top: 0;
+}
+
+.markdown-content .markdown-nested-code:last-child {
+  margin-bottom: 0;
+}
+
 /* Sanitized rich HTML keeps native semantics while matching the Markdown surface. */
 .markdown-content .markdown-html-table-scroll {
   max-width: 100%;
