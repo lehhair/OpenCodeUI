@@ -68,6 +68,31 @@ type PinchGesture = {
 
 let mermaidRenderCounter = 0
 const markdownProjectionCache = new Map<string, MarkdownStreamProjection>()
+/** 非流式消息的分块结果：虚拟列表来回挂载时避免整段重新 lex */
+const staticProjectionCache = new Map<string, MarkdownStreamProjection>()
+const STATIC_PROJECTION_CACHE_MAX = 64
+const STATIC_PROJECTION_CACHE_MAX_CHARS = 4 * 1024 * 1024
+let staticProjectionChars = 0
+
+function getStaticProjection(content: string): MarkdownStreamProjection {
+  const cached = staticProjectionCache.get(content)
+  if (cached) {
+    staticProjectionCache.delete(content)
+    staticProjectionCache.set(content, cached)
+    return cached
+  }
+  const projection = projectMarkdownStream(undefined, content, false)
+  staticProjectionCache.set(content, projection)
+  staticProjectionChars += content.length
+  while (staticProjectionCache.size > STATIC_PROJECTION_CACHE_MAX || staticProjectionChars > STATIC_PROJECTION_CACHE_MAX_CHARS) {
+    const oldestKey = staticProjectionCache.keys().next().value
+    if (oldestKey === undefined) break
+    staticProjectionCache.delete(oldestKey)
+    staticProjectionChars -= oldestKey.length
+    if (oldestKey === content) break
+  }
+  return projection
+}
 
 const htmlCache = new Map<string, string>()
 const HTML_CACHE_MAX = 256
@@ -1555,7 +1580,8 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
   const smoothedContent = usePacedStreamContent(content, isStreaming && !renderHtmlImmediately)
   const renderedContent = isStreaming ? smoothedContent : content
   const streamBlocks = useMemo(() => {
-    const projection = projectMarkdownStream(markdownProjectionCache.get(projectionKey), renderedContent, isStreaming)
+    if (!isStreaming) return getStaticProjection(renderedContent).blocks
+    const projection = projectMarkdownStream(markdownProjectionCache.get(projectionKey), renderedContent, true)
     markdownProjectionCache.set(projectionKey, projection)
     return projection.blocks
   }, [projectionKey, renderedContent, isStreaming])
