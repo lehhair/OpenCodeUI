@@ -484,12 +484,13 @@ function createMarkdownHtmlRenderer(isReasoning: boolean, renderHtml: boolean) {
     return `<${tag}${startAttr} class="${className}">${itemsHtml}</${tag}>`
   }
 
-  renderer.listitem = function ({ tokens }) {
+  renderer.listitem = function ({ tokens, task }) {
     const className = isReasoning
       ? 'text-[length:var(--fs-sm)] text-text-400 pl-1 leading-5'
       : 'text-text-200 pl-1 leading-7'
     const content = tokens ? this.parser.parse(tokens) : ''
-    return `<li class="${className}">${content}</li>`
+    // GFM 任务项不显示列表符号，只留勾选框
+    return `<li class="${className}${task ? ' task-list-item' : ''}">${content}</li>`
   }
 
   // 任务列表勾选框只在这里出一份：marked 会把 `- [x]` 的方括号切成独立的 checkbox token，
@@ -777,14 +778,18 @@ export function renderMarkdownToHtml(src: string, isReasoning: boolean, renderHt
   const renderer = getRenderer(isReasoning, renderHtml)
   const { body, definitions } = extractFootnoteDefinitions(src)
   if (!definitions.length) {
-    return sanitizeHtml(marked.parse(src, { renderer, async: false }) as string)
+    const html = marked.parse(src, { renderer, async: false }) as string
+    // 关闭 HTML 渲染时，裸 HTML 已在 renderer.html 里转义，输出完全由本地渲染器构造；
+    // 再跑一遍 DOMPurify 只会让流式每帧多一次整棵 DOM 的遍历。
+    return renderHtml ? sanitizeHtml(html) : html
   }
   const bodyHtml = body.trim() ? (marked.parse(body, { renderer, async: false }) as string) : ''
-  return sanitizeHtml(`${bodyHtml}${renderFootnoteSectionHtml(definitions, isReasoning, renderHtml)}`)
+  const html = `${bodyHtml}${renderFootnoteSectionHtml(definitions, isReasoning, renderHtml)}`
+  return renderHtml ? sanitizeHtml(html) : html
 }
 
 export function renderMarkdownInlineToHtml(src: string, isReasoning: boolean, renderHtml = true): string {
   const renderer = getRenderer(isReasoning, renderHtml)
   const html = marked.parseInline(src, { renderer }) as string
-  return sanitizeHtml(html)
+  return renderHtml ? sanitizeHtml(html) : html
 }

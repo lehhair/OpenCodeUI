@@ -21,6 +21,7 @@ import { isTauri } from '../utils/tauri'
 import { marked } from 'marked'
 import type { Tokens } from 'marked'
 import { isMarkupPreviewLanguage, projectMarkdownStream, stripLeadingHtmlComments, type MarkdownStreamProjection } from './markdownStream'
+import { usePacedStreamContent } from './streamPacing'
 import { renderMarkdownToHtml, renderKatexHtml } from './markdownHtmlRenderer'
 import { getFootnoteId, scanTextSegments } from './markdownSegments'
 import { themeStore } from '../store/themeStore'
@@ -581,18 +582,21 @@ function MarkdownTableCell({
   children,
   isHeader,
   isReasoning,
+  align,
 }: {
   children: React.ReactNode
   isHeader: boolean
   isReasoning: boolean
+  align?: 'left' | 'center' | 'right' | null
 }) {
+  const alignClass = align === 'center' ? 'text-center' : align === 'right' ? 'text-right' : 'text-left'
   if (isHeader) {
     return (
       <th
-        className={isReasoning
-          ? 'px-3 py-1.5 text-left text-[length:var(--fs-sm)] font-medium whitespace-nowrap border-b border-border-200/32'
-          : 'relative px-3 py-2.5 text-left text-[length:var(--fs-md)] font-semibold whitespace-nowrap border-b border-border-200/38'
-        }
+        className={`${isReasoning
+          ? 'px-3 py-1.5 text-[length:var(--fs-sm)] font-medium whitespace-nowrap border-b border-border-200/32'
+          : 'relative px-3 py-2.5 text-[length:var(--fs-md)] font-semibold whitespace-nowrap border-b border-border-200/38'
+        } ${alignClass}`}
       >
         {children}
       </th>
@@ -600,10 +604,10 @@ function MarkdownTableCell({
   }
   return (
     <td
-      className={isReasoning
+      className={`${isReasoning
         ? 'px-3 py-1.5 text-[length:var(--fs-sm)] text-text-300 w-max border-b border-border-200/18'
         : 'px-3 py-2 text-[length:var(--fs-md)] text-text-300 leading-[1.55] w-max border-b border-border-200/14'
-      }
+      } ${alignClass}`}
     >
       {children}
     </td>
@@ -642,7 +646,7 @@ function renderTableFromSrc(src: string, isReasoning: boolean): React.ReactNode 
           {tableToken.header.map((cell, i) => {
             const isLastHeader = i === tableToken.header.length - 1
             return (
-              <MarkdownTableCell key={i} isHeader isReasoning={isReasoning}>
+              <MarkdownTableCell key={i} isHeader isReasoning={isReasoning} align={cell.align}>
                 {isLastHeader && copyText && !isReasoning ? (
                   <>
                     <span className="block pr-8">
@@ -670,7 +674,7 @@ function renderTableFromSrc(src: string, isReasoning: boolean): React.ReactNode 
         {tableToken.rows.map((row, rowIndex) => (
           <MarkdownTableRow key={rowIndex} isReasoning={isReasoning}>
             {row.map((cell, cellIndex) => (
-              <MarkdownTableCell key={cellIndex} isHeader={false} isReasoning={isReasoning}>
+              <MarkdownTableCell key={cellIndex} isHeader={false} isReasoning={isReasoning} align={cell.align}>
                 {cell.tokens ? renderInlineTokensToReact(cell.tokens, isReasoning) : cell.text}
               </MarkdownTableCell>
             ))}
@@ -1271,8 +1275,8 @@ const MarkdownDomBlock = memo(function MarkdownDomBlock({
   const rootRef = useRef<HTMLDivElement | null>(null)
   const appliedHtmlRef = useRef<string | null>(null)
   const appliedSrcRef = useRef<string | null>(null)
-  // useSmoothMarkdownStream 上游已做 rAF 平滑，这里不再叠 useDeferredValue：
-  // 双重延迟会让 React 18 concurrent 每帧跑两轮协调（紧急+deferred），流式帧时长翻倍。
+  // 上游已按节奏揭示文本，这里不再叠 useDeferredValue：
+  // 双重延迟会让 React concurrent 每帧跑两轮协调（紧急+deferred），流式帧时长翻倍。
   const renderSrc = src
 
   useEffect(() => {
@@ -1513,45 +1517,6 @@ const MarkdownStreamBlock = memo(function MarkdownStreamBlock({
 
 // ─── Smooth stream ──────────────────────────────────────────────
 
-function useSmoothMarkdownStream(content: string, enabled: boolean) {
-  const [displayedContent, setDisplayedContent] = useState(content)
-  const displayedRef = useRef(content)
-  const targetRef = useRef(content)
-  const rafRef = useRef<number | null>(null)
-
-  const stop = useCallback(() => {
-    if (rafRef.current !== null) cancelAnimationFrame(rafRef.current)
-    rafRef.current = null
-  }, [])
-
-  useEffect(() => {
-    if (!enabled) {
-      stop()
-      if (displayedRef.current !== content) {
-        displayedRef.current = content
-        setDisplayedContent(content)
-      }
-      return
-    }
-
-    targetRef.current = content
-    if (content === displayedRef.current) return
-
-    if (rafRef.current !== null) return
-
-    rafRef.current = requestAnimationFrame(() => {
-      rafRef.current = null
-      const target = targetRef.current
-      if (target === displayedRef.current) return
-      displayedRef.current = target
-      setDisplayedContent(target)
-    })
-    return stop
-  }, [content, enabled, stop])
-
-  return displayedContent
-}
-
 // ─── Main Renderer ──────────────────────────────────────────────
 
 export const MarkdownRenderer = memo(function MarkdownRenderer({
@@ -1564,8 +1529,8 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
   const projectionKey = useId()
   const renderHtml = useRenderHtmlContent()
   const renderHtmlImmediately = isStreaming && renderHtml && STREAMING_HTML_CONTENT_PATTERN.test(content)
-  const smoothedContent = useSmoothMarkdownStream(content, isStreaming && !renderHtmlImmediately)
-  const renderedContent = renderHtmlImmediately ? content : isStreaming ? smoothedContent : content
+  const smoothedContent = usePacedStreamContent(content, isStreaming && !renderHtmlImmediately)
+  const renderedContent = isStreaming ? smoothedContent : content
   const streamBlocks = useMemo(() => {
     const projection = projectMarkdownStream(markdownProjectionCache.get(projectionKey), renderedContent, isStreaming)
     markdownProjectionCache.set(projectionKey, projection)

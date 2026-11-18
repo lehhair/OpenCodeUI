@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef, useId, useSyncExternalStore } from 'react'
+import { useState, useEffect, useMemo, useRef, useId, useSyncExternalStore, useCallback } from 'react'
 import type { ShikiThemeInput } from '../lib/shikiTheme'
 import { getShikiTheme, useIsDarkMode } from '../lib/shikiTheme'
 import { disposeShikiWorkerKey, highlightHtmlInWorker, highlightTokensInWorker } from '../lib/shikiWorkerClient'
@@ -121,6 +121,8 @@ const tokensCache = new LRUCache<HighlightTokens>(80, 8 * 1024 * 1024, tokens =>
 const MAX_HIGHLIGHT_CHARS = 160 * 1024
 /** 超过这个长度的结果不进缓存：一两条大文件就能把 LRU 撑成几百 MB */
 const MAX_CACHED_HIGHLIGHT_CHARS = 64 * 1024
+/** 流式高亮的合并窗口：窗口内只把最新文本送给 worker */
+const STREAMING_HIGHLIGHT_INTERVAL_MS = 48
 
 const highlightQueue: HighlightTask[] = []
 let highlightQueueRunning = false
@@ -268,34 +270,48 @@ export function useStreamingSyntaxHighlight(
   const [outputState, setOutputState] = useState<{ code: string; tokens: HighlightTokens } | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const workerKeyRef = useRef('')
-  const codeRef = useRef(code)
-  codeRef.current = code
 
   const key = `${instanceId}:${normalizedLang}:${resolvedTheme.key}`
 
+  // 流式高亮不必跟满帧：worker 侧是 latest-only，主线程如果每帧都 postMessage，
+  // 只会反复结构化拷贝整段代码。这里固定一个合并窗口，窗口内只保留最后一次。
+  const latestRef = useRef({
+    code,
+    enabled,
+    key,
+    language: normalizedLang,
+    theme: resolvedTheme.theme,
+  })
+  const timerRef = useRef<number | null>(null)
+  const lastRequestAtRef = useRef(0)
+  const runRequestRef = useRef<() => void>(() => {})
+
+  const scheduleRequest = useCallback(() => {
+    if (timerRef.current !== null) return
+    const wait = Math.max(0, STREAMING_HIGHLIGHT_INTERVAL_MS - (performance.now() - lastRequestAtRef.current))
+    timerRef.current = window.setTimeout(() => runRequestRef.current(), wait)
+  }, [])
+
   useEffect(() => {
-    if (!enabled) {
-      if (workerKeyRef.current) {
-        disposeShikiWorkerKey(workerKeyRef.current)
-        workerKeyRef.current = ''
+    latestRef.current = { code, enabled, key, language: normalizedLang, theme: resolvedTheme.theme }
+
+    runRequestRef.current = () => {
+      timerRef.current = null
+      const request = latestRef.current
+      if (!request.enabled) {
+        setIsLoading(false)
+        return
       }
-      setIsLoading(false)
-      return
-    }
-
-    let cancelled = false
-    const previousKey = workerKeyRef.current
-    if (previousKey && previousKey !== key) disposeShikiWorkerKey(previousKey)
-    workerKeyRef.current = key
-
-    // 同帧多次 code 变更只打一次 worker（读 codeRef 拿最新文本）
-    const frame = requestAnimationFrame(() => {
-      if (cancelled) return
-      const text = codeRef.current
+      lastRequestAtRef.current = performance.now()
       setIsLoading(true)
-      void highlightTokensInWorker({ key, text, language: normalizedLang, theme: resolvedTheme.theme })
+      void highlightTokensInWorker({
+        key: request.key,
+        text: request.code,
+        language: request.language,
+        theme: request.theme,
+      })
         .then(result => {
-          if (cancelled) return
+          if (latestRef.current.key !== request.key || !latestRef.current.enabled) return
           setOutputState(prev => (prev?.code === result.code ? prev : { code: result.code, tokens: result.tokens }))
         })
         .catch(err => {
@@ -304,18 +320,39 @@ export function useStreamingSyntaxHighlight(
           }
         })
         .finally(() => {
-          if (!cancelled) setIsLoading(false)
+          if (latestRef.current.key !== request.key || !latestRef.current.enabled) return
+          setIsLoading(false)
         })
-    })
-
-    return () => {
-      cancelled = true
-      cancelAnimationFrame(frame)
     }
-  }, [code, enabled, key, normalizedLang, resolvedTheme.theme])
+
+    if (!enabled) {
+      if (timerRef.current !== null) {
+        window.clearTimeout(timerRef.current)
+        timerRef.current = null
+      }
+      if (workerKeyRef.current) {
+        disposeShikiWorkerKey(workerKeyRef.current)
+        workerKeyRef.current = ''
+      }
+      return
+    }
+
+    const previousKey = workerKeyRef.current
+    if (previousKey && previousKey !== key) {
+      disposeShikiWorkerKey(previousKey)
+      // 换语言/主题后旧 token 的颜色和语法都不对，先清掉等新结果
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- 与 worker 的旧输出解耦，属于外部状态同步
+      setOutputState(null)
+      lastRequestAtRef.current = 0
+    }
+    workerKeyRef.current = key
+    scheduleRequest()
+  }, [code, enabled, key, normalizedLang, resolvedTheme.theme, scheduleRequest])
 
   useEffect(() => {
     return () => {
+      if (timerRef.current !== null) window.clearTimeout(timerRef.current)
+      timerRef.current = null
       if (workerKeyRef.current) disposeShikiWorkerKey(workerKeyRef.current)
     }
   }, [])

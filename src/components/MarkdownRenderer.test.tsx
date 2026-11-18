@@ -260,6 +260,14 @@ $$
     expect(container.querySelector('li input[type="checkbox"][checked]')).toBeInTheDocument()
   })
 
+  it('marks GFM task items so the list marker does not double up with the checkbox', () => {
+    const { container } = render(<MarkdownRenderer content={'- [ ] todo\n- plain item'} />)
+
+    const items = Array.from(container.querySelectorAll('li'))
+    expect(items[0]).toHaveClass('task-list-item')
+    expect(items[1]).not.toHaveClass('task-list-item')
+  })
+
   it('emphasizes CJK runs that close after punctuation right before a CJK character', () => {
     const content = '**重点：**正文，**第二点。**继续，*斜体：*结尾，**（括号）**收尾'
     const { container } = render(<MarkdownRenderer content={content} />)
@@ -1489,21 +1497,31 @@ $$`
     expect(copyButton.closest('tr')).toHaveClass('hover:bg-bg-200/12')
   })
 
-  it('keeps table text cells unwrapped and ignores alignment styles like the old renderer', () => {
-    const md = '| 类别 | 数量 |\n|:---|---:|\n| 代码块 | 7 |\n| 表格 | 2 |'
+  it('keeps table text cells unwrapped and applies column alignment', () => {
+    const md = '| 类别 | 数量 | 说明 |\n|:---|:---:|---:|\n| 代码块 | 7 | 多行 |\n| 表格 | 2 | 对齐 |'
     const { container } = render(<MarkdownRenderer content={md} />)
 
     const cells = Array.from(container.querySelectorAll('th, td'))
-    expect(cells).toHaveLength(6)
+    expect(cells).toHaveLength(9)
     for (const cell of cells) {
       expect(cell).not.toHaveAttribute('style')
     }
+
+    const headers = Array.from(container.querySelectorAll('thead th'))
+    expect(headers[0]).toHaveClass('text-left')
+    expect(headers[1]).toHaveClass('text-center')
+    expect(headers[2]).toHaveClass('text-right')
+
+    const firstRow = Array.from(container.querySelectorAll('tbody tr:first-child td'))
+    expect(firstRow[0]).toHaveClass('text-left')
+    expect(firstRow[1]).toHaveClass('text-center')
+    expect(firstRow[2]).toHaveClass('text-right')
 
     expect(container.querySelector('thead th:first-child span')).not.toBeInTheDocument()
     expect(container.querySelector('tbody td span')).not.toBeInTheDocument()
 
     const lastHeaderText = container.querySelector('thead th:last-child .pr-8')
-    expect(lastHeaderText).toHaveTextContent('数量')
+    expect(lastHeaderText).toHaveTextContent('说明')
     expect(lastHeaderText?.querySelector('span')).not.toBeInTheDocument()
   })
 
