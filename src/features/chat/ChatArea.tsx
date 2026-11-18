@@ -64,6 +64,8 @@ const PROCESS_SHELL_HEADER = 36
 const EMPTY_WORKING_SHELL_EXTRA_DELAY_MS = 500
 const DEFAULT_BOTTOM_SPACER = 256
 const SESSION_CACHE_LIMIT = 16
+/** 每个会话最多保留这么多条真实高度：长会话只缓存靠底部的一段 */
+const SESSION_MEASUREMENT_LIMIT = 3000
 const EMPTY_QUEUE: QueuedUserPrompt[] = []
 const EMPTY_COMPACTIONS: QueuedCompaction[] = []
 
@@ -172,12 +174,18 @@ const MessageBody = memo(function MessageBody({
   onEntryGrowComplete,
 }: MessageBodyProps) {
   const messageId = message.id
+  const registerNode = useCallback(
+    (node: HTMLDivElement | null) => {
+      registerMessage?.(messageId, node)
+    },
+    [messageId, registerMessage],
+  )
   const isUser = isUserMessage(message)
   // undo 边界：用户消息，或 v2 的独立压缩消息（revert.stage 接受任意 messageID）
   const undoable = isUser || message.type === 'compaction'
   return (
     <div
-      ref={node => registerMessage?.(messageId, node as HTMLDivElement | null)}
+      ref={registerNode}
       data-message-id={messageId}
       data-anchor-source-id={forkMessageId ?? messageId}
     >
@@ -569,6 +577,13 @@ export const ChatArea = memo(
       // cache key 必须带过程折叠模式：flat 与 process 的 item key/高度完全不同
       const cacheKey = sessionId ? sessionCacheKey(sessionId, processCollapseEnabled) : null
       const initialCacheRef = useRef(cacheKey ? sessionCache.get(cacheKey)?.measurements : undefined)
+      const cachedSizeByKey = useMemo(() => {
+        const measurements = initialCacheRef.current
+        if (!measurements?.length) return null
+        return new Map(measurements.map(item => [item.key, item.size]))
+        // 只在 mount 读一次
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+      }, [])
       const coldBottomMount = !initialCacheRef.current?.length
       const [renderOverscan, setRenderOverscan] = useState(initialCacheRef.current?.length || coldBottomMount ? 6 : 15)
       const resizePinnedRef = useRef<number[]>([])
@@ -578,16 +593,33 @@ export const ChatArea = memo(
       const hotPinnedRef = useRef<number[]>([])
       hotPinnedRef.current = getStreamingHotIndexes(timeline.length, isStreaming)
 
-      // 冷启动估在底部：有 cache 用 cache 总高，否则 estimate*count + paddingEnd。
+      // 恢复上一次会话测量值时按当前 timeline 的 key 重新取：
+      // 消息追加/删除后，旧快照里的绝对 start/end 已经不可信，只有 key→size 还有效。
+      const initialMeasurementsCache = useMemo(() => {
+        if (!cachedSizeByKey || timeline.length === 0) return undefined
+        const restored: VirtualItem[] = []
+        let start = 0
+        for (let index = 0; index < timeline.length; index += 1) {
+          const item = timeline[index]
+          const size = cachedSizeByKey.get(item.key)
+          if (size == null) continue
+          restored.push({ index, key: item.key, size, start, end: start + size, lane: 0 })
+          start += size
+        }
+        return restored.length > 0 ? restored : undefined
+        // 只在 mount 恢复一次
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+      }, [])
+
+      // 冷启动估在底部：已知 key 用真实高度，新消息用估算值重新累加。
+      // 直接用缓存最后一条的 end 会在「缓存之后又来了新消息」时把初始位置算低。
       // 不用 MAX_SAFE_INTEGER（单列 range 不会向前扩，只会渲染最后一项）。
       const estimatedBottomOffset = useMemo(() => {
-        const cached = initialCacheRef.current
-        if (cached?.length) {
-          const last = cached[cached.length - 1]
-          return Math.max(0, (last?.end ?? 0) + spacerHeight - 600)
+        let total = 0
+        for (const item of timeline) {
+          total += cachedSizeByKey?.get(item.key) ?? estimateTimelineItemSize(item)
         }
-        const estimatedTotal = timeline.reduce((sum, item) => sum + estimateTimelineItemSize(item), 0)
-        return Math.max(0, estimatedTotal + spacerHeight - 600)
+        return Math.max(0, total + spacerHeight - 600)
         // 只在 mount 用初始 count 估一次
         // eslint-disable-next-line react-hooks/exhaustive-deps
       }, [])
@@ -596,7 +628,7 @@ export const ChatArea = memo(
         count: timeline.length,
         getScrollElement: () => scrollRef.current,
         initialOffset: estimatedBottomOffset,
-        initialMeasurementsCache: initialCacheRef.current,
+        initialMeasurementsCache,
         estimateSize: index => estimateTimelineItemSize(timeline[index]),
         getItemKey: i => timeline[i]?.key ?? `removed:${i}`,
         // 关键修复：同步重测（ref / layoutEffect，无 RO entry）必须读真实 DOM 高度。
@@ -640,12 +672,14 @@ export const ChatArea = memo(
           const root = scrollRef.current
           if (root && prev !== undefined && Math.abs(size - prev) > root.clientHeight) {
             const view = root.getBoundingClientRect()
-            resizePinnedRef.current = [...root.querySelectorAll<HTMLElement>('[data-index]')]
-              .filter(el => {
-                const r = el.getBoundingClientRect()
-                return r.bottom > view.top && r.top < view.bottom
+            const container = contentRef.current
+            resizePinnedRef.current = Array.from(container?.children ?? [])
+              .filter((node): node is HTMLElement => node instanceof HTMLElement && node.hasAttribute('data-index'))
+              .filter(element => {
+                const rect = element.getBoundingClientRect()
+                return rect.bottom > view.top && rect.top < view.bottom
               })
-              .map(el => Number(el.dataset.index))
+              .map(element => Number(element.dataset.index))
             if (resizePinFrame.current !== undefined) cancelAnimationFrame(resizePinFrame.current)
             resizePinFrame.current = requestAnimationFrame(() => {
               resizePinFrame.current = requestAnimationFrame(() => {
@@ -959,8 +993,13 @@ export const ChatArea = memo(
           if (resizePinFrame.current !== undefined) cancelAnimationFrame(resizePinFrame.current)
           clearPrepend()
           if (!key) return
+          const snapshot = virtualizer.takeSnapshot()
+          // 只留靠底部的一段：长会话滚一通下来 itemSizeCache 可能有几万条，
+          // 恢复时底部才是第一屏真正需要的；尺寸按 key 生效，截断安全。
+          const measurements =
+            snapshot.length > SESSION_MEASUREMENT_LIMIT ? snapshot.slice(-SESSION_MEASUREMENT_LIMIT) : snapshot
           sessionCache.delete(key)
-          sessionCache.set(key, { measurements: virtualizer.takeSnapshot() })
+          sessionCache.set(key, { measurements })
           while (sessionCache.size > SESSION_CACHE_LIMIT) {
             sessionCache.delete(sessionCache.keys().next().value!)
           }
@@ -978,11 +1017,19 @@ export const ChatArea = memo(
         [items, timeline],
       )
 
-      // Outline 可见消息：跟随虚拟行挂载变化
+      // Outline 可见消息：observer 只建一次，虚拟范围变化时只补/撤观察目标。
+      // 以前每次虚拟范围变化都新建 observer 并重新 observe 全部行，快速滚动时每帧都在重建。
+      const outlineObserverRef = useRef<{
+        observer: IntersectionObserver
+        visible: Set<string>
+        targets: Set<Element>
+      } | null>(null)
+
       useEffect(() => {
         const root = scrollRef.current
-        if (!root) return
+        if (!root || typeof IntersectionObserver === 'undefined') return
         const visible = new Set<string>()
+        const targets = new Set<Element>()
         const observer = new IntersectionObserver(
           entries => {
             let changed = false
@@ -1003,8 +1050,34 @@ export const ChatArea = memo(
           },
           { root, rootMargin: '100% 0px' },
         )
-        root.querySelectorAll<HTMLElement>('[data-message-id]').forEach(el => observer.observe(el))
-        return () => observer.disconnect()
+        const state = { observer, visible, targets }
+        outlineObserverRef.current = state
+        return () => {
+          observer.disconnect()
+          targets.clear()
+          if (outlineObserverRef.current === state) outlineObserverRef.current = null
+        }
+      }, [])
+
+      useEffect(() => {
+        const state = outlineObserverRef.current
+        const root = scrollRef.current
+        if (!state || !root) return
+        const current = new Set<Element>(root.querySelectorAll<HTMLElement>('[data-message-id]'))
+        let changed = false
+        for (const element of state.targets) {
+          if (current.has(element)) continue
+          state.observer.unobserve(element)
+          state.targets.delete(element)
+          const id = element.getAttribute('data-message-id')
+          if (id && state.visible.delete(id)) changed = true
+        }
+        for (const element of current) {
+          if (state.targets.has(element)) continue
+          state.targets.add(element)
+          state.observer.observe(element)
+        }
+        if (changed) onVisibleIdsRef.current?.(Array.from(state.visible))
       }, [mountedMessageIdsKey])
 
       // ── 命令式接口 ──
