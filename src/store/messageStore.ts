@@ -104,6 +104,8 @@ type CompactionFailed = Extract<SessionMessage, { type: 'compaction'; status: 'f
 type ShellMessage = Extract<SessionMessage, { type: 'shell' }>
 
 const MAX_CACHED_SESSIONS = 10
+/** 乱序进度暂存上限（正常会在 called 时立即取走） */
+const PENDING_TOOL_PROGRESS_LIMIT = 2048
 
 /**
  * 由事件 id 派生消息 id。
@@ -240,6 +242,13 @@ class MessageStore {
     metadata: ToolPayload<'session.tool.progress'>['metadata'],
   ) {
     this.pendingToolProgress.set(MessageStore.toolProgressKey(sessionID, assistantMessageID, partId), metadata)
+    // 只服务于乱序/回放；正常路径 called 会立刻取走。给个上限，
+    // 防止长期运行里永远等不到 called 的孤儿进度一直堆着
+    while (this.pendingToolProgress.size > PENDING_TOOL_PROGRESS_LIMIT) {
+      const oldest = this.pendingToolProgress.keys().next().value
+      if (oldest === undefined) break
+      this.pendingToolProgress.delete(oldest)
+    }
   }
 
   private takePendingToolProgress(
@@ -533,6 +542,9 @@ class MessageStore {
       this.sessions.delete(oldestId)
       this.sessionAccessTime.delete(oldestId)
       this.dirtyContentBySession.delete(oldestId)
+      for (const key of this.pendingToolProgress.keys()) {
+        if (key.startsWith(`${oldestId}:`)) this.pendingToolProgress.delete(key)
+      }
     }
   }
 

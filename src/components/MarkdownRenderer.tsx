@@ -70,7 +70,11 @@ let mermaidRenderCounter = 0
 const markdownProjectionCache = new Map<string, MarkdownStreamProjection>()
 
 const htmlCache = new Map<string, string>()
-const HTML_CACHE_MAX = 64
+const HTML_CACHE_MAX = 256
+const HTML_CACHE_MAX_CHARS = 4 * 1024 * 1024
+/** 单块过大不进缓存：一个几百 KB 的表格/长段会挤掉几十个正常块 */
+const HTML_CACHE_MAX_ENTRY_CHARS = 512 * 1024
+let htmlCacheChars = 0
 const MARKDOWN_BLOCK_CONTENT_CLASS = 'space-y-4 whitespace-normal [&>*:first-child]:mt-0 [&>*:last-child]:mb-0'
 const MARKDOWN_USER_STATE_ATTRIBUTE = 'data-markdown-user-state'
 const HTML_SOURCE_BUTTON_CLASS = 'absolute right-2 top-2 z-10 inline-flex h-8 w-8 items-center justify-center rounded-md bg-bg-300/70 p-2 text-accent-main-100 opacity-0 shadow-sm backdrop-blur-md transition-all hover:bg-bg-300/90 hover:text-accent-main-100 group-hover/html-preview:opacity-100 group-focus-within/html-preview:opacity-100'
@@ -82,13 +86,25 @@ const STREAMING_HTML_CONTENT_PATTERN = /(?:```(?:html|htm|xhtml|xml|svg)\b|<(?:a
 function getCachedHtml(src: string, isReasoning: boolean, renderHtml: boolean): string {
   const key = `${isReasoning ? 'r' : 'd'}:${renderHtml ? 'h' : 'x'}:${src}`
   const cached = htmlCache.get(key)
-  if (cached !== undefined) return cached
-  const html = renderMarkdownToHtml(src, isReasoning, renderHtml)
-  if (htmlCache.size >= HTML_CACHE_MAX) {
-    const firstKey = htmlCache.keys().next().value
-    if (firstKey !== undefined) htmlCache.delete(firstKey)
+  if (cached !== undefined) {
+    // 命中即移到队尾，真正的 LRU
+    htmlCache.delete(key)
+    htmlCache.set(key, cached)
+    return cached
   }
-  htmlCache.set(key, html)
+  const html = renderMarkdownToHtml(src, isReasoning, renderHtml)
+  if (html.length <= HTML_CACHE_MAX_ENTRY_CHARS) {
+    htmlCache.set(key, html)
+    htmlCacheChars += html.length
+    while (htmlCache.size > HTML_CACHE_MAX || htmlCacheChars > HTML_CACHE_MAX_CHARS) {
+      const oldestKey = htmlCache.keys().next().value
+      if (oldestKey === undefined) break
+      const oldestValue = htmlCache.get(oldestKey)
+      htmlCache.delete(oldestKey)
+      if (oldestValue !== undefined) htmlCacheChars -= oldestValue.length
+      if (oldestKey === key) break
+    }
+  }
   return html
 }
 
@@ -114,13 +130,18 @@ function canAppendIntoTextNode(textNode: Text): boolean {
 }
 
 /** 把纯文本后缀接到 root 内最后一个 Text 节点；失败返回 false */
-function tryAppendLiveText(root: HTMLElement, suffix: string): boolean {
-  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
-  let last: Text | null = null
-  let node = walker.nextNode()
-  while (node) {
-    last = node as Text
-    node = walker.nextNode()
+function tryAppendLiveText(root: HTMLElement, suffix: string, cached: { node: Text | null }): boolean {
+  // 连续追加时复用上一次的节点：长段落里逐字揭示不必每拍遍历整棵 DOM
+  let last = cached.node
+  if (!last || !root.contains(last) || !canAppendIntoTextNode(last)) {
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
+    last = null
+    let node = walker.nextNode()
+    while (node) {
+      last = node as Text
+      node = walker.nextNode()
+    }
+    cached.node = last
   }
   if (!last || !canAppendIntoTextNode(last)) return false
   last.textContent = `${last.textContent ?? ''}${suffix}`
@@ -1275,6 +1296,7 @@ const MarkdownDomBlock = memo(function MarkdownDomBlock({
   const rootRef = useRef<HTMLDivElement | null>(null)
   const appliedHtmlRef = useRef<string | null>(null)
   const appliedSrcRef = useRef<string | null>(null)
+  const lastLiveTextRef = useRef<{ node: Text | null }>({ node: null })
   // 上游已按节奏揭示文本，这里不再叠 useDeferredValue：
   // 双重延迟会让 React concurrent 每帧跑两轮协调（紧急+deferred），流式帧时长翻倍。
   const renderSrc = src
@@ -1308,7 +1330,7 @@ const MarkdownDomBlock = memo(function MarkdownDomBlock({
       renderSrc.startsWith(prevSrc)
     ) {
       const suffix = renderSrc.slice(prevSrc.length)
-      if (canAppendLiveMarkdownSuffix(suffix) && tryAppendLiveText(root, suffix)) {
+      if (canAppendLiveMarkdownSuffix(suffix) && tryAppendLiveText(root, suffix, lastLiveTextRef.current)) {
         appliedSrcRef.current = renderSrc
         // 文本已偏离开 html 快照，强制后续全量路径重算
         appliedHtmlRef.current = null
@@ -1326,6 +1348,7 @@ const MarkdownDomBlock = memo(function MarkdownDomBlock({
     }
     appliedHtmlRef.current = html
     appliedSrcRef.current = renderSrc
+    lastLiveTextRef.current.node = null
     applyMarkdownHtml(root, html)
   }, [renderSrc, isReasoning, isLive, renderHtml])
 

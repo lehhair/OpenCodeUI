@@ -21,6 +21,18 @@ export const USER_HTML_ARTIFACT_PATTERN =
 
 // 折叠状态缓存：消息是否溢出
 const overflowStateCache = new Map<string, boolean>()
+/** 长会话里每条用户消息都会留一个 key，给个上限避免跨会话无限增长 */
+const OVERFLOW_CACHE_LIMIT = 2000
+
+function rememberOverflow(key: string, value: boolean) {
+  overflowStateCache.delete(key)
+  overflowStateCache.set(key, value)
+  while (overflowStateCache.size > OVERFLOW_CACHE_LIMIT) {
+    const oldest = overflowStateCache.keys().next().value
+    if (oldest === undefined) break
+    overflowStateCache.delete(oldest)
+  }
+}
 
 export interface CollapsibleUserTextProps {
   text: string
@@ -66,7 +78,7 @@ export const CollapsibleUserText = memo(function CollapsibleUserText({
       if (!Number.isFinite(fsBase) || fsBase <= 0) return
       const collapsedHeight = fsBase * LEADING_RELAXED * COLLAPSE_PREVIEW_LINES
       const next = el.scrollHeight > collapsedHeight + 1
-      overflowStateCache.set(overflowCacheKey, next)
+      rememberOverflow(overflowCacheKey, next)
       setIsOverflow(prev => (prev === next ? prev : next))
     }
 
