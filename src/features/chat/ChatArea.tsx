@@ -25,7 +25,7 @@ import { useTranslation } from 'react-i18next'
 import { MessageRenderer, ProcessCollapseBlock, messageHasFinalContent, messageHasProcessContent } from '../message'
 import { MessageErrorView } from '../message/parts'
 import type { SessionMessageInfo } from '../../types/api/message'
-import { isAssistantMessage, isUserMessage } from '../../types/api/message'
+import { isAssistantMessage, isUserMessage, userMessageText } from '../../types/api/message'
 import type { APIError } from '../../types/api/common'
 import { RetryStatusInline, type RetryStatusInlineData } from './RetryStatusInline'
 import { CompactionQueuedView, TurnDiffPartView } from '../message/parts'
@@ -71,16 +71,65 @@ const EMPTY_COMPACTIONS: QueuedCompaction[] = []
 
 const bottomSpacerHeight = (bottomPadding: number) => (bottomPadding > 0 ? bottomPadding + 48 : DEFAULT_BOTTOM_SPACER)
 
+/** 文本高度粗估：大致每行 56 字符，行高 24；上限避免单条异常长消息把估算拉爆 */
+function estimateTextHeight(text: string): number {
+  if (!text) return 0
+  return Math.min(2000, 24 + Math.ceil(text.length / 56) * 24)
+}
+
+const messageHeightCache = new WeakMap<SessionMessageInfo, number>()
+
+/**
+ * 单条消息的初始高度估算。
+ *
+ * 只在消息还没被真实测量过时使用；历史消息的 reasoning 默认折叠，
+ * 按 header 高度算，不能按全文长度算（否则初始位置会被大幅高估）。
+ */
+function estimateMessageHeight(message: SessionMessageInfo): number {
+  const cached = messageHeightCache.get(message)
+  if (cached != null) return cached
+
+  let height: number
+  if (isAssistantMessage(message)) {
+    height = 64
+    for (const content of message.content) {
+      if (content.type === 'reasoning') height += 44
+      else if (content.type === 'text') height += estimateTextHeight(content.text)
+      else if (content.type === 'tool') height += 64
+    }
+    height = Math.min(2400, height)
+  } else if (isUserMessage(message)) {
+    // 用户消息默认折叠到 8 行预览
+    height = 80 + Math.min(8, Math.ceil(userMessageText(message).length / 48)) * 24
+  } else {
+    height = ROW_ESTIMATE
+  }
+
+  messageHeightCache.set(message, height)
+  return height
+}
+
+const timelineItemHeightCache = new WeakMap<ProcessTimelineItem, number>()
+
 function estimateTimelineItemSize(item: ProcessTimelineItem | undefined): number {
   if (!item) return ROW_ESTIMATE
-  if (item.kind === 'message') return ROW_ESTIMATE
-  // 进行中默认展开：header + 壳内消息（空回合至少占 header）
-  if (item.isActive) {
-    const body = Math.max(item.children.length, 1) * ROW_ESTIMATE
-    return PROCESS_SHELL_HEADER + body
+  const cached = timelineItemHeightCache.get(item)
+  if (cached != null) return cached
+
+  let size: number
+  if (item.kind === 'message') {
+    size = estimateMessageHeight(item.message)
+  } else if (item.isActive) {
+    // 进行中默认展开：header + 壳内消息
+    const body = item.children.reduce((total, child) => total + estimateMessageHeight(child.message), 0)
+    size = PROCESS_SHELL_HEADER + Math.max(body, ROW_ESTIMATE)
+  } else {
+    // 结束后默认折叠：只估 header + 壳外 final
+    size = PROCESS_SHELL_HEADER + (item.finalMessage ? estimateMessageHeight(item.finalMessage) : 0)
   }
-  // 结束后默认折叠：只估 header + 壳外 final，避免刷新时 120→36 的假高度再回弹
-  return PROCESS_SHELL_HEADER + (item.finalMessage ? ROW_ESTIMATE : 0)
+
+  timelineItemHeightCache.set(item, size)
+  return size
 }
 
 function sessionCacheKey(sessionId: string, processCollapseEnabled: boolean): string {
