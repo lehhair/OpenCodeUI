@@ -67,6 +67,9 @@ interface ChatPaneProps {
   navigatePaneHome: (paneId: string) => void
 }
 
+const EMPTY_STRING_ARRAY: string[] = []
+const EMPTY_BACKGROUND_TASKS: never[] = []
+
 // ============================================
 // Compact viewport shell for split panes.
 // Layout/presentation stay fixed; enableCollapsedInputDock is inherited from the
@@ -389,7 +392,7 @@ export const ChatPane = memo(function ChatPane({
   }, [routeSessionId, currentTurnStartedAt])
 
   const blockingBackgroundTasks = useMemo(() => {
-    if (!isStreaming || !routeSessionId) return []
+    if (!isStreaming || !routeSessionId) return EMPTY_BACKGROUND_TASKS
     const { sessionId: rawSessionId } = splitSessionKey(routeSessionId)
     const merged = mergeRunningShells(
       findBlockingBackgroundTasks(messages),
@@ -397,11 +400,13 @@ export const ChatPane = memo(function ChatPane({
       rawSessionId ?? routeSessionId,
       { notBefore: currentTurnStartedAt },
     )
+    if (merged.length === 0) return EMPTY_BACKGROUND_TASKS
     if (movedBackgroundKeys.size === 0) return merged
-    return merged.filter(
+    const filtered = merged.filter(
       task =>
         !movedBackgroundKeys.has(`${task.type}:${task.id}`) && !movedBackgroundKeys.has(`label:${task.label}`),
     )
+    return filtered.length === 0 ? EMPTY_BACKGROUND_TASKS : filtered
   }, [isStreaming, routeSessionId, messages, runningShells, currentTurnStartedAt, movedBackgroundKeys])
 
   const [backgroundMoving, setBackgroundMoving] = useState(false)
@@ -1023,12 +1028,16 @@ export const ChatPane = memo(function ChatPane({
     ],
   )
 
-  const revertedMessage = inputRestoreContent
-    ? {
-        text: inputRestoreContent.text,
-        attachments: inputRestoreContent.attachments as Attachment[],
-      }
-    : undefined
+  const revertedMessage = useMemo(
+    () =>
+      inputRestoreContent
+        ? {
+            text: inputRestoreContent.text,
+            attachments: inputRestoreContent.attachments as Attachment[],
+          }
+        : undefined,
+    [inputRestoreContent],
+  )
   const fileCapabilities = useMemo(
     () =>
       currentModel
@@ -1040,6 +1049,49 @@ export const ChatPane = memo(function ChatPane({
           }
         : undefined,
     [currentModel],
+  )
+  const modelVariants = useMemo(
+    () => currentModel?.variants?.map(variant => variant.id) ?? EMPTY_STRING_ARRAY,
+    [currentModel],
+  )
+  const handleMoveToBackgroundClick = useCallback(() => {
+    void handleMoveToBackground()
+  }, [handleMoveToBackground])
+  // 这几块是 InputBox 的 props：对象每帧新建会让整个输入区跟着流失效 memo
+  const collapsedPermission = useMemo(
+    () =>
+      visiblePermissionRequests.length > 0 && permissionCollapsed
+        ? {
+            label: t('chat:permissionDialog.permission', {
+              permission: visiblePermissionRequests[0].action,
+            }),
+            queueLength: visiblePermissionRequests.length,
+            onExpand: () => setPermissionCollapsed(false),
+          }
+        : undefined,
+    [permissionCollapsed, t, visiblePermissionRequests],
+  )
+  const collapsedQuestion = useMemo(
+    () =>
+      visiblePermissionRequests.length === 0 && visibleQuestionRequests.length > 0 && questionCollapsed
+        ? {
+            label: t('chat:questionDialog.title'),
+            queueLength: visibleQuestionRequests.length,
+            onExpand: () => setQuestionCollapsed(false),
+          }
+        : undefined,
+    [questionCollapsed, t, visiblePermissionRequests.length, visibleQuestionRequests],
+  )
+  const collapsedWebsearch = useMemo(
+    () =>
+      visibleWebsearchRequest && websearchCollapsed
+        ? {
+            label: t('chat:websearch.title'),
+            queueLength: 1,
+            onExpand: () => setWebsearchCollapsed(false),
+          }
+        : undefined,
+    [t, visibleWebsearchRequest, websearchCollapsed],
   )
   const handleScrollToBottom = useCallback(() => {
     chatAreaRef.current?.scrollToBottom()
@@ -1159,7 +1211,7 @@ export const ChatPane = memo(function ChatPane({
           agents={agents}
           selectedAgent={selectedAgent}
           onAgentChange={handleAgentChange}
-          variants={currentModel?.variants?.map(variant => variant.id) ?? []}
+          variants={modelVariants}
           selectedVariant={selectedVariant}
           onVariantChange={handleVariantChange}
           fileCapabilities={fileCapabilities}
@@ -1178,7 +1230,7 @@ export const ChatPane = memo(function ChatPane({
           busyDelivery={busyDelivery}
           onBusyDeliveryChange={setBusyDelivery}
           backgroundTasks={blockingBackgroundTasks}
-          onMoveToBackground={() => void handleMoveToBackground()}
+          onMoveToBackground={handleMoveToBackgroundClick}
           backgroundMoving={backgroundMoving}
           canRedo={canRedo}
           revertSteps={redoSteps}
@@ -1189,35 +1241,9 @@ export const ChatPane = memo(function ChatPane({
           isAtBottom={isAtBottom}
           showScrollToBottom={!isAtBottom}
           onScrollToBottom={handleScrollToBottom}
-          collapsedPermission={
-            visiblePermissionRequests.length > 0 && permissionCollapsed
-              ? {
-                  label: t('chat:permissionDialog.permission', {
-                    permission: visiblePermissionRequests[0].action,
-                  }),
-                  queueLength: visiblePermissionRequests.length,
-                  onExpand: () => setPermissionCollapsed(false),
-                }
-              : undefined
-          }
-          collapsedQuestion={
-            visiblePermissionRequests.length === 0 && visibleQuestionRequests.length > 0 && questionCollapsed
-              ? {
-                  label: t('chat:questionDialog.title'),
-                  queueLength: visibleQuestionRequests.length,
-                  onExpand: () => setQuestionCollapsed(false),
-                }
-              : undefined
-          }
-          collapsedWebsearch={
-            visibleWebsearchRequest && websearchCollapsed
-              ? {
-                  label: t('chat:websearch.title'),
-                  queueLength: 1,
-                  onExpand: () => setWebsearchCollapsed(false),
-                }
-              : undefined
-          }
+          collapsedPermission={collapsedPermission}
+          collapsedQuestion={collapsedQuestion}
+          collapsedWebsearch={collapsedWebsearch}
         />
         {/* 输入框左缘拖拽把手（与对话列把手独立，各调各的宽度） */}
         {canAdjustChatWidth && paneWidth > 0 && (

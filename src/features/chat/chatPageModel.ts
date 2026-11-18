@@ -910,12 +910,20 @@ export function buildFlatTimeline(
   return items
 }
 
+const assistantLiveWorkCache = new WeakMap<AssistantMessage, boolean>()
+
 function assistantHasLiveWork(message: AssistantMessage): boolean {
+  const cached = assistantLiveWorkCache.get(message)
+  if (cached !== undefined) return cached
   // completed == null 即旧模型的 message.isStreaming
-  if (message.time.completed == null) return true
-  return message.content.some(
-    content => content.type === 'tool' && (content.state.status === 'running' || content.state.status === 'streaming'),
-  )
+  const live =
+    message.time.completed == null
+      ? true
+      : message.content.some(
+          content => content.type === 'tool' && (content.state.status === 'running' || content.state.status === 'streaming'),
+        )
+  assistantLiveWorkCache.set(message, live)
+  return live
 }
 
 function resolveTurnDurationMs(
@@ -924,8 +932,8 @@ function resolveTurnDurationMs(
   turnDurationMap: Map<string, number>,
 ): number | undefined {
   if (userStart == null) return undefined
-  for (const m of [...assistants].reverse()) {
-    const mapped = turnDurationMap.get(m.id)
+  for (let index = assistants.length - 1; index >= 0; index -= 1) {
+    const mapped = turnDurationMap.get(assistants[index].id)
     if (mapped != null && mapped > 0) return mapped
   }
   let latestEnd: number | undefined
@@ -1085,20 +1093,19 @@ export function buildProcessTimeline(
   // 只关心带 user 的回合（过程壳的锚点）
   const userTurns = turns.filter((t): t is TurnBag & { user: UserMessage } => t.user != null)
 
-  const laterHasAssistant = (fromIndex: number) => {
-    for (let j = fromIndex + 1; j < userTurns.length; j++) {
-      if (userTurns[j].assistants.length > 0) return true
-    }
-    return false
+  // 后缀聚合：否则每个回合都往后扫一遍，长会话是 O(回合数²)
+  const laterAssistantSuffix = new Array<boolean>(userTurns.length + 1).fill(false)
+  const laterLiveSuffix = new Array<boolean>(userTurns.length + 1).fill(false)
+  for (let index = userTurns.length - 1; index >= 0; index -= 1) {
+    const turn = userTurns[index]
+    laterAssistantSuffix[index] = laterAssistantSuffix[index + 1] || turn.assistants.length > 0
+    laterLiveSuffix[index] = laterLiveSuffix[index + 1] || turn.assistants.some(assistantHasLiveWork)
   }
 
+  const laterHasAssistant = (fromIndex: number) => laterAssistantSuffix[fromIndex + 1] ?? false
+
   /** 更晚回合是否已有 live 助手——SSE 挂 Working 的绝对条件 */
-  const laterHasLive = (fromIndex: number) => {
-    for (let j = fromIndex + 1; j < userTurns.length; j++) {
-      if (userTurns[j].assistants.some(assistantHasLiveWork)) return true
-    }
-    return false
-  }
+  const laterHasLive = (fromIndex: number) => laterLiveSuffix[fromIndex + 1] ?? false
 
   const isTurnSettled = (turn: TurnBag & { user: UserMessage }, index: number): boolean => {
     const assistants = turn.assistants

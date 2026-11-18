@@ -76,6 +76,34 @@ describe('contentEntries — 内容 id 派生', () => {
 
     expect(entries[0].content).toBe(content)
   })
+
+  it('同一消息对象复用派生结果，原地改文本不需要重建', () => {
+    const content = { type: 'text' as const, text: 'a' }
+    const message = assistant({ content: [content] })
+
+    const first = contentEntries(message)
+    content.text = 'ab'
+    const second = contentEntries(message)
+
+    expect(second).toBe(first)
+    expect(second[0].content).toBe(content)
+    expect((second[0].content as { text: string }).text).toBe('ab')
+  })
+
+  it('追加内容（push）或整体替换数组后重建派生结果', () => {
+    const message = assistant({ content: [{ type: 'text', text: 'a' }] })
+    const first = contentEntries(message)
+
+    message.content.push({ type: 'reasoning', text: 'r' })
+    const afterPush = contentEntries(message)
+    expect(afterPush).not.toBe(first)
+    expect(afterPush.map(entry => entry.id)).toEqual(['msg_1:text:0', 'msg_1:reasoning:0'])
+
+    message.content = [{ type: 'text', text: 'b' }]
+    const afterReplace = contentEntries(message)
+    expect(afterReplace).not.toBe(afterPush)
+    expect(afterReplace.map(entry => entry.id)).toEqual(['msg_1:text:0'])
+  })
 })
 
 describe('resolveContent — 按 id 反查', () => {
@@ -104,6 +132,14 @@ describe('判别与文本辅助', () => {
     expect(isAssistantMessage(user())).toBe(false)
     expect(isAssistantMessage(assistant())).toBe(true)
     expect(isUserMessage(assistant())).toBe(false)
+  })
+
+  it('hasVisibleText 在文本原地增长后重新判断', () => {
+    const content = { type: 'text' as const, text: '   ' }
+    expect(hasVisibleText(content)).toBe(false)
+
+    content.text = '  有内容'
+    expect(hasVisibleText(content)).toBe(true)
   })
 
   it('assistantText 拼接全部 text 片段（忽略 reasoning / tool）', () => {

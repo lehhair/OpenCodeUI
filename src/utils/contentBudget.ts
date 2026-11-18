@@ -39,11 +39,12 @@ export interface CroppedContent {
 
 const EMPTY: CroppedContent = { text: '', cropped: false, omittedChars: 0, omittedLines: 0 }
 
-function countNewlines(text: string): number {
+function countNewlines(text: string, limit = Number.POSITIVE_INFINITY): number {
   let count = 0
   let index = text.indexOf('\n')
   while (index !== -1) {
     count += 1
+    if (count >= limit) return count
     index = text.indexOf('\n', index + 1)
   }
   return count
@@ -81,10 +82,13 @@ export function cropContent(text: string, options: CropOptions = {}): CroppedCon
   const headRatio = Math.min(0.9, Math.max(0.2, options.headRatio ?? 0.6))
   const marker = options.marker ?? '…'
 
-  const lineCount = countNewlines(text) + 1
-  if (text.length <= maxChars && lineCount <= maxLines) {
+  // 先只数到行数上限：大块输出通常在 900 行内就够判断，
+  // 没必要为了一个「没超预算」的结论把整段文本扫两遍。
+  const probedNewlines = countNewlines(text, maxLines + 1)
+  if (text.length <= maxChars && probedNewlines <= maxLines) {
     return { text, cropped: false, omittedChars: 0, omittedLines: 0 }
   }
+  const totalLineCount = probedNewlines > maxLines ? countNewlines(text) + 1 : probedNewlines + 1
 
   const headBudget = Math.floor(maxChars * headRatio)
   const tailBudget = Math.floor(maxChars * 0.3)
@@ -93,11 +97,11 @@ export function cropContent(text: string, options: CropOptions = {}): CroppedCon
   let tailStart = cutAtNextNewline(text, Math.max(headEnd, text.length - tailBudget))
 
   // 行数超限：按行切，再用字符预算收紧（单行超长文本走字符预算）
-  if (lineCount > maxLines) {
+  if (totalLineCount > maxLines) {
     const headLines = Math.max(1, Math.floor(maxLines * headRatio))
     const tailLines = Math.max(1, Math.floor(maxLines * 0.3))
     headEnd = lineStartOffset(text, headLines)
-    tailStart = lineStartOffset(text, Math.max(headLines + 1, lineCount - tailLines))
+    tailStart = lineStartOffset(text, Math.max(headLines + 1, totalLineCount - tailLines))
     if (headEnd > headBudget) headEnd = cutAfterNewline(text, headBudget)
     if (text.length - tailStart > tailBudget) tailStart = cutAtNextNewline(text, text.length - tailBudget)
   }
@@ -112,7 +116,7 @@ export function cropContent(text: string, options: CropOptions = {}): CroppedCon
   // 头/尾都从行边界切；末尾没有换行时最后一行也算一行
   const headLines = countNewlines(head) + (head.endsWith('\n') ? 0 : 1)
   const tailLines = countNewlines(tail) + (tail.endsWith('\n') ? 0 : 1)
-  const omittedLines = Math.max(0, lineCount - headLines - tailLines)
+  const omittedLines = Math.max(0, totalLineCount - headLines - tailLines)
   const omittedChars = Math.max(0, text.length - head.length - tail.length)
 
   return {

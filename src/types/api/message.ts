@@ -191,12 +191,25 @@ export type ContentEntry<T extends AssistantContent = AssistantContent> = {
 }
 
 /** 给助手消息的 content 数组补齐稳定 id（与官方算法一致） */
+const contentEntriesCache = new WeakMap<
+  AssistantMessage,
+  { source: AssistantContent[]; length: number; entries: Array<ContentEntry> }
+>()
+
 export function contentEntries(message: AssistantMessage): Array<ContentEntry> {
+  const cached = contentEntriesCache.get(message)
+  // 流式期间 text/reasoning 是原地改字段，content 数组与长度都不变，缓存仍然有效；
+  // 追加内容（push）会改长度，整体替换会换数组引用，两种情况都重建。
+  if (cached && cached.source === message.content && cached.length === message.content.length) {
+    return cached.entries
+  }
   const ordinals = { text: 0, reasoning: 0 }
-  return message.content.map(content => ({
+  const entries = message.content.map(content => ({
     id: content.type === 'tool' ? content.id : `${message.id}:${content.type}:${ordinals[content.type]++}`,
     content,
   }))
+  contentEntriesCache.set(message, { source: message.content, length: message.content.length, entries })
+  return entries
 }
 
 /** 按派生 id 反查内容条目（与官方 resolveContent 同一算法，单次遍历） */
@@ -211,8 +224,17 @@ export function resolveContent(message: SessionMessage | undefined, partID: stri
 }
 
 /** 文本类内容（text / reasoning）是否为「可见正文」（非空白） */
+const visibleTextCache = new WeakMap<AssistantContent, { text: string; visible: boolean }>()
+
 export function hasVisibleText(content: AssistantContent): boolean {
-  return content.type === 'text' || content.type === 'reasoning' ? content.text.trim().length > 0 : false
+  if (content.type !== 'text' && content.type !== 'reasoning') return false
+  const cached = visibleTextCache.get(content)
+  // 流式增量是给 text 换新字符串：引用/值变了才重新 trim，
+  // 稳定消息与未改动的片段直接命中，避免每帧扫描整段正文
+  if (cached && cached.text === content.text) return cached.visible
+  const visible = content.text.trim().length > 0
+  visibleTextCache.set(content, { text: content.text, visible })
+  return visible
 }
 
 /**

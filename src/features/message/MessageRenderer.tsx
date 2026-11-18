@@ -258,14 +258,14 @@ export function messageStillStreamingProcess(message: SessionMessageInfo): boole
 export function messageHasProcessContent(message: SessionMessageInfo): boolean {
   if (message.type !== 'assistant') return false
   if (messageStillStreamingProcess(message)) return true
-  return splitProcessRenderItems(groupContentForRender(message)).hasProcess
+  return getProcessSplit(message).hasProcess
 }
 
 /** 是否有应留在折叠块外的最终 text（仅消息已结束后才拆） */
 export function messageHasFinalContent(message: SessionMessageInfo): boolean {
   if (message.type !== 'assistant') return false
   if (messageStillStreamingProcess(message)) return false
-  return splitProcessRenderItems(groupContentForRender(message)).hasFinal
+  return getProcessSplit(message).hasFinal
 }
 
 interface MessageRendererProps {
@@ -679,7 +679,7 @@ const AssistantMessageView = memo(function AssistantMessageView({
     if (message.time.completed == null) {
       return processContentScope === 'process' ? items : []
     }
-    const split = splitProcessRenderItems(items)
+    const split = getProcessSplit(message)
     if (processContentScope === 'process') return split.processItems
     if (processContentScope === 'final') return split.finalItems
     return items
@@ -696,16 +696,19 @@ const AssistantMessageView = memo(function AssistantMessageView({
     return ended
   }, [message])
 
-  // 计算完整文本用于复制（缓存：content 引用未变时复用，避免流式每帧重算字符串拼接）
-  const fullText = useMemo(
-    () =>
+  // 复制内容按需拼接：流式每帧把整段正文 join 一遍是纯浪费
+  const getCopyText = useMemo(
+    () => () =>
       message.content
         .filter(entry => entry.type === 'text')
         .map(entry => entry.text)
         .join(''),
     [message],
   )
-  const hasCopyableText = fullText.trim().length > 0
+  const hasCopyableText = useMemo(
+    () => message.content.some(entry => entry.type === 'text' && hasVisibleText(entry)),
+    [message],
+  )
 
   // 检查消息级别错误（v2 是结构化对象）
   const messageError = message.error
@@ -714,6 +717,13 @@ const AssistantMessageView = memo(function AssistantMessageView({
   const { created } = message.time
   const completed = message.time.completed ?? message.time.streamed
   const duration = message.time.completed != null ? message.time.completed - created : undefined
+
+  // 工具组上下文对象保持稳定，ToolPartView / ToolGroup 的 memo 才能命中，
+  // 流式时不会把整组已完成工具重渲染一遍
+  const toolMessageContext = useMemo(
+    () => ({ messageID: message.id, created, completed }),
+    [message.id, created, completed],
+  )
 
   // agent / model（仅 assistant 消息）
   const agent = message.agent || undefined
@@ -766,7 +776,7 @@ const AssistantMessageView = memo(function AssistantMessageView({
                 <ToolGroup
                   key={item.tools[0].id}
                   tools={item.tools}
-                  messageContext={{ messageID: message.id, created, completed }}
+                  messageContext={toolMessageContext}
                   isStreaming={isStreaming}
                 />
               )
@@ -846,7 +856,7 @@ const AssistantMessageView = memo(function AssistantMessageView({
       {showMessageActions && hasCopyableText && (
         <div className={actionBarClass}>
           <ForkActionButton message={message} onFork={onFork} forkMessageId={forkMessageId} />
-          <CopyButton text={fullText} position="static" />
+          <CopyButton text={getCopyText} position="static" />
         </div>
       )}
     </div>
@@ -1086,6 +1096,24 @@ const ToolGroup = memo(function ToolGroup({ tools, messageContext, isStreaming }
       )}
     </div>
   )
+}, (prev, next) => {
+  if (prev.isStreaming !== next.isStreaming) return false
+  const previousContext = prev.messageContext
+  const nextContext = next.messageContext
+  if (
+    previousContext.messageID !== nextContext.messageID ||
+    previousContext.created !== nextContext.created ||
+    previousContext.completed !== nextContext.completed
+  ) {
+    return false
+  }
+  if (prev.tools.length !== next.tools.length) return false
+  for (let index = 0; index < prev.tools.length; index += 1) {
+    const left = prev.tools[index]
+    const right = next.tools[index]
+    if (left.id !== right.id || left.content !== right.content) return false
+  }
+  return true
 })
 
 // ============================================
@@ -1396,7 +1424,22 @@ function isRenderableContent(content: AssistantContent, isStreaming: boolean): b
  * group（`toolGroupType`），这里沿用本仓库既有的「连续 tool 合并成一组」
  * 规则，视觉与交互保持不变。
  */
+/** 按消息快照缓存内容分组：长会话里每个 assistant 每帧重算一遍分组纯属浪费 */
+const renderGroupCache = new WeakMap<
+  AssistantMessage,
+  { source: AssistantContent[]; length: number; completed: number | undefined; items: RenderItem[] }
+>()
+
 function groupContentForRender(message: AssistantMessage): RenderItem[] {
+  const cached = renderGroupCache.get(message)
+  if (
+    cached &&
+    cached.source === message.content &&
+    cached.length === message.content.length &&
+    cached.completed === message.time.completed
+  ) {
+    return cached.items
+  }
   const isStreaming = message.time.completed == null
   const result: RenderItem[] = []
   let toolGroup: ToolEntry[] = []
@@ -1422,5 +1465,22 @@ function groupContentForRender(message: AssistantMessage): RenderItem[] {
   }
 
   flushToolGroup()
+  renderGroupCache.set(message, {
+    source: message.content,
+    length: message.content.length,
+    completed: message.time.completed,
+    items: result,
+  })
   return result
+}
+
+const processSplitCache = new WeakMap<RenderItem[], ProcessSplit>()
+
+function getProcessSplit(message: AssistantMessage): ProcessSplit {
+  const items = groupContentForRender(message)
+  const cached = processSplitCache.get(items)
+  if (cached) return cached
+  const split = splitProcessRenderItems(items)
+  processSplitCache.set(items, split)
+  return split
 }

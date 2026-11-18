@@ -47,10 +47,16 @@ export const ReasoningPartView = memo(function ReasoningPartView({
     withScrollLock(() => setExpanded(!expanded))
   }, [expanded, setExpanded, withScrollLock])
 
-  const collapsedPreview = useMemo(() => (displayText || '').replace(/\s+/g, ' ').trim(), [displayText])
+  const collapsedPreview = useMemo(() => {
+    // header 是单行省略号，只需要开头足够长的片段；
+    // 对整段思考做 trim/空白折叠会在流式时每帧复制一遍长文本
+    const source = displayText.length > 1200 ? displayText.slice(0, 1200) : displayText
+    return source.replace(/\s+/g, ' ').trim()
+  }, [displayText])
   // markdown 折叠只取第一行，避免整段压扁后末尾硬切
   const collapsedMarkdownPreview = useMemo(() => {
-    const firstLine = (displayText || '').split(/\r?\n/, 1)[0] ?? ''
+    const head = displayText.length > 1200 ? displayText.slice(0, 1200) : displayText
+    const firstLine = head.split(/\r?\n/, 1)[0] ?? ''
     return firstLine.trim() || collapsedPreview
   }, [displayText, collapsedPreview])
   const thoughtDurationLabel = useMemo(() => {

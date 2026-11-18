@@ -4,7 +4,8 @@ import { clsx } from 'clsx'
 import { clipboardErrorHandler, copyTextToClipboard } from '../../utils'
 
 interface CopyButtonProps {
-  text: string
+  /** 字符串，或点击时才取值的 getter（流式长消息避免每帧拼接全文） */
+  text: string | (() => string)
   className?: string
   position?: 'absolute' | 'static'
   /** 用于指定 group 名称，默认响应任意父级 group */
@@ -28,7 +29,7 @@ export function CopyButton({ text, className, position = 'absolute', groupName }
     async (e: React.MouseEvent) => {
       e.stopPropagation() // Prevent triggering parent clicks
       try {
-        await copyTextToClipboard(text)
+        await copyTextToClipboard(typeof text === 'function' ? text() : text)
         setCopied(true)
         // 清理之前的 timeout
         if (timeoutRef.current) {

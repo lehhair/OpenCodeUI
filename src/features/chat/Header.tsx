@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { memo, useState, useRef, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   PanelRightIcon,
@@ -198,7 +198,7 @@ function SessionTitleControl({
   )
 }
 
-export function Header({
+export const Header = memo(function Header({
   models,
   providers,
   modelsLoading,
@@ -392,4 +392,4 @@ export function Header({
       />
     </div>
   )
-}
+})

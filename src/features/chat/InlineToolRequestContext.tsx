@@ -166,6 +166,11 @@ export function findQuestionRequestForTool(
  * rootSessionKey 提供时，未认领组只保留当前 session family 的请求——
  * 别的会话的 pending 不该弹在这个 pane 上。
  */
+const EMPTY_UNCLAIMED = {
+  permissions: [] as ApiPermissionRequest[],
+  questions: [] as ApiFormInfo[],
+}
+
 export function partitionUnclaimedRequests(
   messages: SessionMessageInfo[],
   pendingPermissions: ApiPermissionRequest[],
@@ -173,6 +178,9 @@ export function partitionUnclaimedRequests(
   serverId: string,
   rootSessionKey?: string,
 ): { permissions: ApiPermissionRequest[]; questions: ApiFormInfo[] } {
+  // 没有待处理请求时不必扫全部消息与工具内容（流式每帧都会走到这里）
+  if (pendingPermissions.length === 0 && pendingQuestions.length === 0) return EMPTY_UNCLAIMED
+
   const claimedPermissions = new Set<string>()
   const claimedQuestions = new Set<string>()
 

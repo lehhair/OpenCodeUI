@@ -293,8 +293,26 @@ describe('buildChatPageViewModel', () => {
     expect(next.visibleMessages[1]).toBe(first.visibleMessages[1])
     expect(next.visibleMessages.at(-1)).not.toBe(first.visibleMessages.at(-1))
     expect(next.pageRecords[1]).toBe(first.pageRecords[1])
+    expect(next.outlineSourceEntries).toBe(first.outlineSourceEntries)
+    expect(next.outlineOwnerByMessageId).toBe(first.outlineOwnerByMessageId)
     expect(next.forkTargetIdMap).toBe(first.forkTargetIdMap)
     expect(next.turnDurationMap).toBe(first.turnDurationMap)
+  })
+
+  it('rebuilds the outline only when user text changes', () => {
+    const user = { ...createUserMessage('user-1', 1), text: 'first prompt' }
+    const assistant = createAssistantMessage('assistant-1', [createTextPart('text-1', 'assistant-1', 'answer')], 2, 3)
+    const first = buildChatPageViewModel([user, assistant])
+
+    const restreamed = buildChatPageViewModel(
+      [user, createAssistantMessage('assistant-1', [createTextPart('text-1', 'assistant-1', 'answer more')], 2, 3)],
+      first,
+    )
+    expect(restreamed.outlineSourceEntries).toBe(first.outlineSourceEntries)
+
+    const edited = buildChatPageViewModel([{ ...user, text: 'edited prompt' }, assistant], restreamed)
+    expect(edited.outlineSourceEntries).not.toBe(first.outlineSourceEntries)
+    expect(edited.outlineSourceEntries[0].title).toBe('edited prompt')
   })
 
   it('keeps existing page keys stable when appending a new turn', () => {
