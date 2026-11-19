@@ -927,6 +927,26 @@ export const ChatArea = memo(
         if (max - el.scrollTop >= 2) el.scrollTop = max
       }, [autoMarkAuto])
 
+      // 流式期间每帧兜底：高度可能来自工具卡、输出文本、图片、展开面板……
+      // 只靠某条 resizeItem 路径会漏；用户没离底时按绝对位置贴住，
+      // 离底后立刻停手，不会把人拽回去。
+      useEffect(() => {
+        if (!isStreaming) return
+        let frame = 0
+        const tick = () => {
+          const el = scrollRef.current
+          // 先判断意图再读高度：用户离底后连布局都不碰。
+          // 只有真的需要补位才调 pinToBottom（它内部会 markAuto + 写 scrollTop）。
+          if (el && !userScrolledRef.current) {
+            const max = Math.max(0, el.scrollHeight - el.clientHeight)
+            if (max - el.scrollTop >= 2) pinToBottom()
+          }
+          frame = requestAnimationFrame(tick)
+        }
+        frame = requestAnimationFrame(tick)
+        return () => cancelAnimationFrame(frame)
+      }, [isStreaming, pinToBottom])
+
       // ── 事件处理 ──
       const onScroll = useCallback(() => {
         if (prependLoading.current) updatePrependAnchor()
