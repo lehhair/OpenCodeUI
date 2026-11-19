@@ -28,6 +28,7 @@ import {
   type ToolViewContext,
 } from '../tools'
 import { currentToolFailed, currentToolInput, currentToolMetadata } from '../../../types/api/toolState'
+import { useCardEnter } from '../streamCardEnter'
 import { diffLineStats } from '../../../utils/diffUtils'
 import { resolveTaskChildSessionRef } from '../../../utils/taskChildBinding'
 import { executeSubCallSummary, parseCodeModeToolCalls } from './executeSubCallSummary'
@@ -57,6 +58,8 @@ interface ToolPartViewProps {
    * 小工具组保持原来的「展开即挂」行为，别为了性能牺牲可读性和可访问性。
    */
   lazyBody?: boolean
+  /** 组级入场已经负责这段高度，卡片自己不再播一遍 */
+  skipEnter?: boolean
 }
 
 export const ToolPartView = memo(function ToolPartView({
@@ -68,6 +71,7 @@ export const ToolPartView = memo(function ToolPartView({
   descriptive = false,
   isStreaming = false,
   lazyBody = false,
+  skipEnter = false,
 }: ToolPartViewProps) {
   const { t } = useTranslation('message')
   const { state, name: toolName } = part
@@ -167,12 +171,19 @@ export const ToolPartView = memo(function ToolPartView({
   // 93 张卡同时挂 100KB 输出会让渲染进程直接卡死/崩溃。
   // 提前量取 2 屏，和虚拟列表预渲染窗口对齐，滚到时输出已经挂好了。
   const { ref: nearRef, near } = useNearViewport('200% 0px', lazyBody)
+  // 流式中新到的卡片：高度 0 → 实际 + 淡入，和文字一样是长出来的
+  const cardEnter = useCardEnter({
+    id: part.id,
+    created: part.time.created,
+    enabled: isStreaming && !skipEnter,
+  })
   const setRootRef = useCallback(
     (node: HTMLDivElement | null) => {
+      cardEnter.ref(node)
       rootRef(node)
       nearRef(node)
     },
-    [nearRef, rootRef],
+    [cardEnter.ref, nearRef, rootRef],
   )
   const forcedExpanded = hasPendingInteraction || permissionResolved || isChildFullscreen
   const effectiveExpanded = expanded || forcedExpanded

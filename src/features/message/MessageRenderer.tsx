@@ -43,6 +43,7 @@ import type { JsonValue } from '@opencode/client/promise'
 import { contentEntries, hasVisibleText, idleMessageError, userMessageText } from '../../types/api/message'
 import { currentToolFailed } from '../../types/api/toolState'
 import { buildDescriptiveToolStepsSummary, isToolPartActive, type ToolEntry } from './toolSummary'
+import { useCardEnter } from './streamCardEnter'
 import {
   getProcessSplit,
   groupContentForRender,
@@ -814,6 +815,8 @@ const LARGE_TOOL_GROUP_SIZE = 20
 
 const ToolGroup = memo(function ToolGroup({ tools, messageContext, isStreaming }: ToolGroupProps) {
   const { t } = useTranslation('message')
+  // 组初次挂载时的工具数：这批由组级入场带出来，之后新增的卡自己播
+  const initialToolCountRef = useRef(tools.length)
   const { descriptiveToolSteps, inlineToolRequests, immersiveMode, processCollapseEnabled } = useTheme()
   const { serverId, pendingPermissions, pendingQuestions } = useInlineToolRequests()
   const hasPendingInteraction =
@@ -934,6 +937,22 @@ const ToolGroup = memo(function ToolGroup({ tools, messageContext, isStreaming }
   // steps header: 多工具始终显示；描述型 steps 模式下，单工具也显示
   const showStepsHeader = totalCount > 1 || descriptiveToolSteps
 
+  // 组级入场：header 和第一张卡一起长出来，避免 header 先蹦、卡片再长。
+  // 之后新加进来的卡自己播入场（idx >= 初始数量）。
+  const groupEnter = useCardEnter({
+    id: `group:${tools[0]?.id ?? 'empty'}`,
+    created: tools[0]?.content.time.created ?? 0,
+    enabled: !!isStreaming && showStepsHeader,
+  })
+  const setGroupRootRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      groupEnter.ref(node)
+      stepsRootRef(node)
+    },
+    [groupEnter.ref, stepsRootRef],
+  )
+  const initialToolCount = initialToolCountRef.current
+
   // 只 map 一次：有 header 时受 expand mount 控制，无 header 时始终挂载
   const toolParts =
     !showStepsHeader || shouldRenderBody
@@ -948,6 +967,7 @@ const ToolGroup = memo(function ToolGroup({ tools, messageContext, isStreaming }
             descriptive={descriptiveToolSteps}
             isStreaming={isStreaming}
             lazyBody={isLargeGroup}
+            skipEnter={groupEnter.willAnimate && idx < initialToolCount}
           />
         ))
       : null
@@ -955,7 +975,7 @@ const ToolGroup = memo(function ToolGroup({ tools, messageContext, isStreaming }
   // 统一容器结构 — ToolPartView 始终在同一 React 树位置，
   // streaming→idle / 1→N 工具切换时不 remount，expanded 状态不丢失
   return (
-    <div ref={stepsRootRef} className="flex flex-col">
+    <div ref={setGroupRootRef} className="flex flex-col">
       {showStepsHeader &&
         (descriptiveToolSteps ? (
           <button
