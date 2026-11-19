@@ -6,8 +6,11 @@ import { shouldPlayEntryGrow } from '../../utils/entryGrow'
 /**
  * 流式工具卡的入场。
  *
- * 和消息入场、尾部淡入用同一套数字：200ms / easeOut，只有高度和透明度，
- * 不做位移动画。同一批到达的卡各自在同一次 commit 里开始，不排序、不加延迟。
+ * 和参考实现同类：列表项入场只做**透明度淡入**（Compose `animateItem()` 的
+ * enterTransition 也是 fadeIn），高度一挂载就是最终值，不逐帧改行高。
+ *
+ * 为什么不插值高度：卡片的高度变化会驱动虚拟行重测量，和贴底、上方补偿互相
+ * 抢帧；200ms 的布局动画足以让跟随掉队。高度交给布局，动画只做透明度。
  *
  * 只对「流式中新到的卡」生效：
  * - 历史消息挂载、滚动复用（同 id 见过）不播
@@ -89,23 +92,14 @@ export function useCardEnter(options: CardEnterOptions): CardEnterHandle {
     }
     rememberEntered(options.id)
 
-    const targetHeight = el.scrollHeight
-    el.style.height = '0px'
+    // 只在透明度上做文章：不动 height、不动 transform，行高一次到位
     el.style.opacity = '0'
-    // 只裁垂直方向，水平留空间，和消息入场一致
-    el.style.clipPath = 'inset(0 -100% 0 -100%)'
 
     const clear = () => {
-      el.style.height = ''
       el.style.opacity = ''
-      el.style.clipPath = ''
     }
 
-    const controls = animate(
-      el,
-      { height: `${targetHeight}px`, opacity: 1 },
-      { duration: CARD_ENTER_DURATION_MS / 1000, ease: 'easeOut' },
-    )
+    const controls = animate(el, { opacity: 1 }, { duration: CARD_ENTER_DURATION_MS / 1000, ease: 'easeOut' })
     controls.then(clear)
 
     return () => {

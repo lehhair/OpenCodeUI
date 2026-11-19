@@ -656,13 +656,6 @@ export const ChatArea = memo(
           if (box) {
             return Math.round(instance.options.horizontal ? box.inlineSize : box.blockSize)
           }
-          // 向上滚动时不重读 DOM：读尺寸会触发重排和位置补偿，是「向上滚一顿一顿」
-          // 的常见来源（TanStack virtual #659）。条目已经量过，直接回退缓存值。
-          if (instance.scrollDirection === 'backward') {
-            const key = el.dataset.timelineKey
-            const cached = key ? (instance as unknown as { itemSizeCache?: Map<string, number> }).itemSizeCache?.get(key) : undefined
-            if (typeof cached === 'number') return cached
-          }
           return instance.options.horizontal ? el.offsetWidth : el.offsetHeight
         },
         // 输入框占位放在消息区外（retry/error 之后），避免重试提示被压到输入框下面
