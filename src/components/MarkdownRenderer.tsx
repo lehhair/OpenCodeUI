@@ -22,6 +22,7 @@ import { marked } from 'marked'
 import type { Tokens } from 'marked'
 import { isMarkupPreviewLanguage, projectMarkdownStream, stripLeadingHtmlComments, type MarkdownStreamProjection } from './markdownStream'
 import { usePacedStreamContent } from './streamPacing'
+import { appendStreamingTextWithFade, createStreamFadeState, resetStreamFade } from './streamFade'
 import { BoundedCache } from '../utils/boundedCache'
 import { measurePerf } from '../utils/perfTrace'
 import { renderMarkdownToHtml, renderKatexHtml } from './markdownHtmlRenderer'
@@ -935,6 +936,7 @@ const MarkdownDomBlock = memo(function MarkdownDomBlock({
   const appliedHtmlRef = useRef<string | null>(null)
   const appliedSrcRef = useRef<string | null>(null)
   const lastLiveTextRef = useRef<{ node: Text | null }>({ node: null })
+  const fadeStateRef = useRef(createStreamFadeState())
   const lastFullParseAtRef = useRef(0)
   // 上游已按节奏揭示文本，这里不再叠 useDeferredValue：
   // 双重延迟会让 React concurrent 每帧跑两轮协调（紧急+deferred），流式帧时长翻倍。
@@ -956,6 +958,8 @@ const MarkdownDomBlock = memo(function MarkdownDomBlock({
     }
   }, [])
 
+  useEffect(() => () => resetStreamFade(fadeStateRef.current), [])
+
   useLayoutEffect(() => {
     const root = rootRef.current
     if (!root) return
@@ -969,11 +973,20 @@ const MarkdownDomBlock = memo(function MarkdownDomBlock({
       renderSrc.startsWith(prevSrc)
     ) {
       const suffix = renderSrc.slice(prevSrc.length)
-      if (canAppendLiveMarkdownSuffix(suffix) && tryAppendLiveText(root, suffix, lastLiveTextRef.current)) {
-        appliedSrcRef.current = renderSrc
-        // 文本已偏离开 html 快照，强制后续全量路径重算
-        appliedHtmlRef.current = null
-        return
+      if (canAppendLiveMarkdownSuffix(suffix)) {
+        // 优先做尾部淡入（每个节拍一个短命 span）；环境不支持时退回纯文本追加
+        if (appendStreamingTextWithFade(root, suffix, fadeStateRef.current)) {
+          appliedSrcRef.current = renderSrc
+          appliedHtmlRef.current = null
+          lastLiveTextRef.current.node = null
+          return
+        }
+        if (tryAppendLiveText(root, suffix, lastLiveTextRef.current)) {
+          appliedSrcRef.current = renderSrc
+          // 文本已偏离开 html 快照，强制后续全量路径重算
+          appliedHtmlRef.current = null
+          return
+        }
       }
     }
 
@@ -986,6 +999,9 @@ const MarkdownDomBlock = memo(function MarkdownDomBlock({
       if (now - lastFullParseAtRef.current < interval) return
       lastFullParseAtRef.current = now
     }
+
+    // 全量 parse 会替换整个子树，先取消还没结算的淡入 span
+    resetStreamFade(fadeStateRef.current)
 
     // live 中间态不进 htmlCache（避免 64 槽被流式碎片挤爆）；稳定块才缓存
     const html = isLive
