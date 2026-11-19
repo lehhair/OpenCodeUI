@@ -1189,3 +1189,52 @@ describe('inbox 物化与投递（官方 materializeInboxMessage / inbox.deliver
     expect(messageStore.getSessionState(SESSION)?.messages.map(m => m.id)).toEqual(['msg-a1'])
   })
 })
+
+describe('会话持有量与闲置回收', () => {
+  beforeEach(() => {
+    messageStore.clearAll()
+  })
+
+  it('getHeldChatSize 按正文量统计，并按体积排序', () => {
+    messageStore.setMessages('s-small', [createUserMessage('u1')])
+    messageStore.setMessages('s-big', [
+      createUserMessage('u1'),
+      createAssistantMessage('a1', textContent('xxxxx'), 1),
+    ])
+
+    const held = messageStore.getHeldChatSize()
+
+    expect(held.totalMessages).toBe(3)
+    expect(held.sessions[0]).toEqual({ sessionId: 's-big', messages: 2, chars: 'u1'.length + 5 })
+    expect(held.sessions[1]).toEqual({ sessionId: 's-small', messages: 1, chars: 'u1'.length })
+  })
+
+  it('trimIdleSessions 只保留最近使用的会话', () => {
+    messageStore.setMessages('s-a', [createUserMessage('a')])
+    messageStore.setMessages('s-b', [createUserMessage('b')])
+    messageStore.setMessages('s-c', [createUserMessage('c')])
+
+    expect(messageStore.trimIdleSessions(1).sort()).toEqual(['s-a', 's-b'])
+    expect(messageStore.getSessionState('s-c')).toBeDefined()
+    expect(messageStore.getSessionState('s-a')).toBeUndefined()
+  })
+
+  it('正在流式和受分屏保护的会话不会被回收', () => {
+    // time.completed 缺省 = 仍在流式
+    messageStore.setMessages('s-stream', [createAssistantMessage('a1', textContent('x'))])
+    messageStore.setMessages('s-keep', [createUserMessage('k')])
+    messageStore.protectSession('s-keep')
+    messageStore.setMessages('s-old', [createUserMessage('o')])
+
+    expect(messageStore.trimIdleSessions(0)).toEqual(['s-old'])
+    expect(messageStore.getSessionState('s-stream')).toBeDefined()
+    expect(messageStore.getSessionState('s-keep')).toBeDefined()
+
+    messageStore.unprotectSession('s-keep')
+  })
+
+  it('没有超出保留数时不做任何事', () => {
+    messageStore.setMessages('s-a', [createUserMessage('a')])
+    expect(messageStore.trimIdleSessions(2)).toEqual([])
+  })
+})

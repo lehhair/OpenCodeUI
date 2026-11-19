@@ -152,3 +152,11 @@ export function estimateTimelineTotalHeight(
 export function clearTimelineSessionCache(): void {
   sessionCache.clear()
 }
+
+/** 释放单个会话的高度测量缓存（会话被回收时调用） */
+export function clearSessionMeasurements(sessionId: string): void {
+  const prefix = `${sessionId}:`
+  for (const key of sessionCache.keys()) {
+    if (key.startsWith(prefix)) sessionCache.delete(key)
+  }
+}

@@ -15,6 +15,7 @@ import { useSessionContext } from './contexts/useSessionContext'
 import { useViewportHeight } from './hooks/useViewportHeight'
 import { useCloseServiceDialog } from './hooks/useCloseServiceDialog'
 import { useWakeLock } from './hooks/useWakeLock'
+import { useIdleSessionTrim } from './hooks/useIdleSessionTrim'
 import type { KeybindingHandlers } from './hooks/useKeybindings'
 import { keybindingStore } from './store/keybindingStore'
 import {
@@ -124,6 +125,7 @@ function App() {
 
   useViewportHeight()
   useWakeLock(wakeLock)
+  useIdleSessionTrim()
 
   const activeDirectories = useMemo(
     () =>

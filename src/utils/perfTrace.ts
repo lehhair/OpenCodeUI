@@ -28,3 +28,9 @@ export function measurePerf<T>(label: string, fn: () => T, warnAfterMs = 8, deta
     finishPerf(label, startedAt, warnAfterMs, detail)
   }
 }
+
+/** 一次性事件打点：不以耗时为单位，比如「这个块到底有多大」 */
+export function notePerf(label: string, detail: string): void {
+  if (!ENABLED) return
+  console.warn(`[perf] ${label} ${detail}`)
+}

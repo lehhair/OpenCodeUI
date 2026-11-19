@@ -37,6 +37,7 @@ import type { GlobalEvent, SessionMessageInfo } from '../types/api/event'
 import type { SessionInboxInfo } from '@opencode/client/promise'
 import type { SessionRevert } from '../types/api/session'
 import { contentEntries, isUserMessage, userMessageText } from '../types/api/message'
+import { estimateMessageChars } from '../utils/messageSize'
 import type { Attachment } from '../types/ui'
 import type { APIError } from '../types/api/common'
 import { logger } from '../utils/logger'
@@ -104,6 +105,12 @@ type CompactionFailed = Extract<SessionMessage, { type: 'compaction'; status: 'f
 type ShellMessage = Extract<SessionMessage, { type: 'shell' }>
 
 const MAX_CACHED_SESSIONS = 10
+/** 会话持有量诊断用 */
+export type HeldSessionSize = {
+  sessionId: string
+  messages: number
+  chars: number
+}
 /** 乱序进度暂存上限（正常会在 called 时立即取走） */
 const PENDING_TOOL_PROGRESS_LIMIT = 2048
 
@@ -820,6 +827,59 @@ class MessageStore {
       if (key.startsWith(`${sessionId}:`)) this.pendingToolProgress.delete(key)
     }
     this.notify([sessionId])
+  }
+
+  /**
+   * 统计当前持有的会话数据量。
+   *
+   * 只给诊断用：长会话到底占多少内存，靠猜没用。字符数是正文量的下界估算，
+   * 不含工具入参和 DOM，但足以看出「是不是这个会话特别肥」。
+   */
+  getHeldChatSize(): { sessions: HeldSessionSize[]; totalMessages: number; totalChars: number } {
+    const sessions: HeldSessionSize[] = []
+    let totalMessages = 0
+    let totalChars = 0
+    for (const [sessionId, state] of this.sessions) {
+      let chars = 0
+      for (const message of state.messages) chars += estimateMessageChars(message)
+      sessions.push({ sessionId, messages: state.messages.length, chars })
+      totalMessages += state.messages.length
+      totalChars += chars
+    }
+    sessions.sort((a, b) => b.chars - a.chars)
+    return { sessions, totalMessages, totalChars }
+  }
+
+  /**
+   * 释放不活跃会话，只保留最近使用的 `keep` 个。
+   *
+   * 正在流式、或被分屏 pane 保护的会话不动。被释放的会话下次打开时会重新从
+   * 服务端拉最近一页（滚动位置和已加载历史会重置），这是有意的取舍：
+   * 后台闲置时把内存让出来，比留着一堆没人看的会话更划算。
+   */
+  trimIdleSessions(keep: number): string[] {
+    if (this.sessions.size <= keep) return []
+
+    // Date.now() 同毫秒内插入的会话时间相同，用 Map 的插入顺序兜底，结果才稳定
+    const candidates = Array.from(this.sessionAccessTime.entries())
+      .map(([id, time], index) => ({ id, time, index }))
+      .filter(({ id }) => !this.protectedSessions.has(id) && !this.sessions.get(id)?.isStreaming)
+      .sort((a, b) => b.time - a.time || b.index - a.index)
+
+    const evicted: string[] = []
+    for (const { id } of candidates.slice(Math.max(0, keep))) {
+      this.sessions.delete(id)
+      this.sessionAccessTime.delete(id)
+      this.dirtyContentBySession.delete(id)
+      this.sessionVersions.delete(id)
+      for (const key of this.pendingToolProgress.keys()) {
+        if (key.startsWith(`${id}:`)) this.pendingToolProgress.delete(key)
+      }
+      evicted.push(id)
+    }
+
+    if (evicted.length) this.notify(evicted)
+    return evicted
   }
 
   /**

@@ -19,6 +19,7 @@ import { takeSessionMessagesPrefetch } from '../api/messagePrefetch'
 import { sessionErrorHandler } from '../utils'
 import { isSessionNotFoundError } from '../utils/sessionErrors'
 import { INITIAL_MESSAGE_LIMIT, HISTORY_LOAD_BATCH_SIZE } from '../constants'
+import { derivePageLimit } from '../utils/pageBudget'
 import { isUserMessage } from '../types/api/message'
 import type { APIError } from '../types/api/common'
 import type { SessionMessageInfo } from '../types/api/message'
@@ -110,6 +111,8 @@ export function useSessionManager({
   const loadSequenceRef = useRef<Map<string, number>>(new Map())
   /** 每个 session 的历史翻页 in-flight 守卫（官方 messageLoads 同款，防止并发翻页） */
   const historyLoadsRef = useRef<Map<string, Promise<boolean>>>(new Map())
+  /** 按上一页体积推导出的下一页条数（内容特别肥的会话自动缩小页） */
+  const nextPageLimitRef = useRef<Map<string, number>>(new Map())
   const loadSessionRef = useRef<(sid: string, options?: { force?: boolean }) => Promise<void>>(async () => {})
   // 桌面端本地 serve 的拉起 / registry 地址回写状态（main.tsx 的
   // initializeNativeDesktopService 期间为 true）。此刻本地地址未就绪，
@@ -131,7 +134,9 @@ export function useSessionManager({
       if (cursor === null) return false
 
       const serverId = sessionKeyToServerId(sid)
-      const page = await getSessionMessagesPage(sid, { limit: HISTORY_LOAD_BATCH_SIZE, cursor }, serverId)
+      const pageLimit = nextPageLimitRef.current.get(sid) ?? HISTORY_LOAD_BATCH_SIZE
+      const page = await getSessionMessagesPage(sid, { limit: pageLimit, cursor }, serverId)
+      nextPageLimitRef.current.set(sid, derivePageLimit(page.messages, HISTORY_LOAD_BATCH_SIZE))
       const latestState = messageStore.getSessionState(sid)
       if (!latestState) return false
 
@@ -257,6 +262,8 @@ export function useSessionManager({
 
         const apiMessages = firstPage.messages
         const nextCursor = firstPage.nextCursor
+        // 首屏只拉固定条数；如果这一页特别肥，后续翻页自动缩小
+        nextPageLimitRef.current.set(sid, derivePageLimit(apiMessages, HISTORY_LOAD_BATCH_SIZE))
 
         // 再次检查：加载期间 SSE 可能已经推送了更多消息
         // force 模式下（重连）始终用服务器数据覆盖，因为本地数据可能不完整
