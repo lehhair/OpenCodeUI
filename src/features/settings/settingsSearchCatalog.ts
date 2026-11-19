@@ -56,6 +56,7 @@ export const SETTINGS_SEARCH_DEFINITIONS: SettingsSearchDefinition[] = [
     'chat.collapseLongMessages',
     'chat.renderUserMarkdown',
     'chat.renderHtmlContent',
+    'chat.markdownCodeFold',
     'chat.streamRendering',
     'chat.streamPacing',
     'chat.streamFade',

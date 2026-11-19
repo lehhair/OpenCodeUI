@@ -40,6 +40,8 @@ export function ChatSettings() {
     setStreamPacingEnabled,
     streamFadeEnabled,
     setStreamFadeEnabled,
+    markdownCodeFoldEnabled,
+    setMarkdownCodeFoldEnabled,
   } = useTheme()
   const [collapseUserMessages, setCollapseUserMessages] = useState(themeStore.collapseUserMessages)
   const [stepFinishDisplay, setStepFinishDisplay] = useState(themeStore.stepFinishDisplay)
@@ -121,6 +123,17 @@ export function ChatSettings() {
           onClick={() => setRenderHtmlContent(!renderHtmlContent)}
         >
           <Toggle enabled={renderHtmlContent} onChange={() => setRenderHtmlContent(!renderHtmlContent)} />
+        </SettingRow>
+
+        <SettingRow
+          label={t('chat.markdownCodeFold')}
+          description={t('chat.markdownCodeFoldDesc')}
+          onClick={() => setMarkdownCodeFoldEnabled(!markdownCodeFoldEnabled)}
+        >
+          <Toggle
+            enabled={markdownCodeFoldEnabled}
+            onChange={() => setMarkdownCodeFoldEnabled(!markdownCodeFoldEnabled)}
+          />
         </SettingRow>
 
         <SettingRow

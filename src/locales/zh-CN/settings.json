@@ -202,6 +202,8 @@
     "renderUserMarkdownDesc": "开启后，用户发送的消息会按 Markdown 渲染；关闭时保持纯文本显示",
     "renderHtmlContent": "渲染 HTML 内容",
     "renderHtmlContentDesc": "开启时将 AI 输出中的 HTML 渲染为实时预览，关闭后一律按源码展示",
+    "markdownCodeFold": "折叠长代码块",
+    "markdownCodeFoldDesc": "回复里的长代码块默认收起为可滚动区域，可随时展开查看全文",
     "streamRendering": "流式输出",
     "streamRenderingDesc": "助手文字到达时如何在屏幕上呈现",
     "streamPacing": "逐字节奏",

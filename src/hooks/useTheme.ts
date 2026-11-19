@@ -205,6 +205,10 @@ export function useTheme() {
     themeStore.setStreamFadeEnabled(enabled)
   }, [])
 
+  const setMarkdownCodeFoldEnabled = useCallback((enabled: boolean) => {
+    themeStore.setMarkdownCodeFoldEnabled(enabled)
+  }, [])
+
   // ---- Font Scale ----
 
   const setUIFontScale = useCallback((scale: number) => {
@@ -353,6 +357,8 @@ export function useTheme() {
     setStreamPacingEnabled,
     streamFadeEnabled: state.streamFadeEnabled,
     setStreamFadeEnabled,
+    markdownCodeFoldEnabled: state.markdownCodeFoldEnabled,
+    setMarkdownCodeFoldEnabled,
 
     // 界面字号偏移
     uiFontScale: state.uiFontScale,

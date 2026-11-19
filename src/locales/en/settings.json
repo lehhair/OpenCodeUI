@@ -202,6 +202,8 @@
     "renderUserMarkdownDesc": "Render sent user messages as Markdown when enabled; keep plain text when disabled",
     "renderHtmlContent": "Render HTML Content",
     "renderHtmlContentDesc": "Render HTML in AI output as live preview; show HTML as source code when disabled",
+    "markdownCodeFold": "Fold Long Code Blocks",
+    "markdownCodeFoldDesc": "Long code blocks in replies start collapsed with their own scrollbar; expand anytime to read the whole block",
     "streamRendering": "Streaming",
     "streamRenderingDesc": "How assistant text is revealed while it arrives",
     "streamPacing": "Character pacing",

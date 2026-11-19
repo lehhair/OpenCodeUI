@@ -48,6 +48,11 @@ function useStreamPacingEnabled(): boolean {
 function useStreamFadeEnabled(): boolean {
   return useSyncExternalStore(themeStore.subscribe, () => themeStore.streamFadeEnabled)
 }
+
+/** 只订阅长代码块折叠开关 */
+function useMarkdownCodeFoldEnabled(): boolean {
+  return useSyncExternalStore(themeStore.subscribe, () => themeStore.markdownCodeFoldEnabled)
+}
 import type { MarkdownSegment } from './markdownSegments'
 import {
   buildHtmlSandboxThemeCss,
@@ -1198,10 +1203,12 @@ const MarkdownStreamBlock = memo(function MarkdownStreamBlock({
 
   const { t } = useTranslation('common')
   const responsiveMaxHeight = useResponsiveMaxHeight()
+  const markdownCodeFoldEnabled = useMarkdownCodeFoldEnabled()
   const isMermaidCode = language?.toLowerCase() === 'mermaid'
   const isHtmlCode = renderHtml && isMarkupPreviewLanguage(language)
   // 长代码块折叠：可见高度沿用工具块的响应式上限，超过两倍才折
-  const foldable = mode === 'code' && !isReasoning && !streamActive && !isMermaidCode && !isHtmlCode
+  const foldable =
+    markdownCodeFoldEnabled && mode === 'code' && !isReasoning && !streamActive && !isMermaidCode && !isHtmlCode
   const lineCount = useMemo(() => (foldable ? src.split('\n').length : 0), [foldable, src])
   const foldThreshold = Math.max(20, Math.floor(responsiveMaxHeight / 24) * 2)
   const canFold = foldable && lineCount > foldThreshold

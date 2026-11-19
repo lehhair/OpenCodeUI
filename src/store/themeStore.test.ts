@@ -23,6 +23,22 @@ describe('themeStore · 流式输出设置', () => {
   })
 })
 
+describe('themeStore · 长代码块折叠', () => {
+  it('默认开启', () => {
+    expect(themeStore.markdownCodeFoldEnabled).toBe(true)
+  })
+
+  it('开关会持久化', () => {
+    themeStore.setMarkdownCodeFoldEnabled(false)
+    expect(themeStore.markdownCodeFoldEnabled).toBe(false)
+    expect(localStorage.getItem('markdown-code-fold-enabled')).toBe('false')
+
+    themeStore.setMarkdownCodeFoldEnabled(true)
+    expect(themeStore.markdownCodeFoldEnabled).toBe(true)
+    expect(localStorage.getItem('markdown-code-fold-enabled')).toBe('true')
+  })
+})
+
 describe('themeStore · 对话列/输入框自定义宽度（chatContentWidth / chatInputWidth）', () => {
   beforeEach(() => {
     localStorage.clear()
