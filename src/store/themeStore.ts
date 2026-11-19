@@ -158,6 +158,10 @@ const DEFAULT_RENDER_USER_MARKDOWN = false
 // 默认不渲染：AI 输出里的 HTML 一律按源码展示（要活预览可在设置里显式打开）。
 // HTML 活渲染是个有副作用的开关（iframe / 脚本），默认开的风险大于收益。
 const DEFAULT_RENDER_HTML_CONTENT = false
+/** 流式文本按节奏揭示（可关闭以回到「数据到达即整段显示」） */
+const DEFAULT_STREAM_PACING_ENABLED = true
+/** 新出现的尾部文字做淡入 */
+const DEFAULT_STREAM_FADE_ENABLED = true
 const DEFAULT_DIFF_STYLE: DiffStyle = 'markers'
 const DEFAULT_DESCRIPTIVE_TOOL_STEPS = true
 const DEFAULT_INLINE_TOOL_REQUESTS = true
@@ -267,6 +271,10 @@ export interface ThemeState {
   renderUserMarkdown: boolean
   /** 是否渲染 AI 输出中的 HTML（关闭后 HTML 一律按源码展示） */
   renderHtmlContent: boolean
+  /** 流式文本按节奏揭示 */
+  streamPacingEnabled: boolean
+  /** 流式文本尾部淡入 */
+  streamFadeEnabled: boolean
   /** step-finish 信息栏显示开关 */
   stepFinishDisplay: StepFinishDisplay
   /** 完成时刻显示格式 */
@@ -369,6 +377,8 @@ const STORAGE_KEY_ACTIVE_CUSTOM_CSS_SNIPPET_ID = 'theme-active-custom-css-snippe
 const STORAGE_KEY_COLLAPSE_USER_MESSAGES = 'collapse-user-messages'
 const STORAGE_KEY_RENDER_USER_MARKDOWN = 'render-user-markdown'
 const STORAGE_KEY_RENDER_HTML_CONTENT = 'render-html-content'
+const STORAGE_KEY_STREAM_PACING_ENABLED = 'stream-pacing-enabled'
+const STORAGE_KEY_STREAM_FADE_ENABLED = 'stream-fade-enabled'
 const STORAGE_KEY_STEP_FINISH_DISPLAY = 'step-finish-display'
 const STORAGE_KEY_COMPLETED_AT_FORMAT = 'completed-at-format'
 const STORAGE_KEY_REASONING_DISPLAY_MODE = 'reasoning-display-mode'
@@ -473,6 +483,11 @@ class ThemeStore {
     const savedRenderHtmlContent = localStorage.getItem(STORAGE_KEY_RENDER_HTML_CONTENT)
     const renderHtmlContent =
       savedRenderHtmlContent === null ? DEFAULT_RENDER_HTML_CONTENT : savedRenderHtmlContent === 'true'
+    const savedStreamPacing = localStorage.getItem(STORAGE_KEY_STREAM_PACING_ENABLED)
+    const streamPacingEnabled =
+      savedStreamPacing === null ? DEFAULT_STREAM_PACING_ENABLED : savedStreamPacing === 'true'
+    const savedStreamFade = localStorage.getItem(STORAGE_KEY_STREAM_FADE_ENABLED)
+    const streamFadeEnabled = savedStreamFade === null ? DEFAULT_STREAM_FADE_ENABLED : savedStreamFade === 'true'
     const savedReasoningDisplay = localStorage.getItem(STORAGE_KEY_REASONING_DISPLAY_MODE)
     const reasoningDisplayMode: ReasoningDisplayMode =
       savedReasoningDisplay === 'italic' || savedReasoningDisplay === 'markdown'
@@ -643,6 +658,8 @@ class ThemeStore {
       collapseUserMessages,
       renderUserMarkdown,
       renderHtmlContent,
+      streamPacingEnabled,
+      streamFadeEnabled,
       stepFinishDisplay,
       completedAtFormat,
       reasoningDisplayMode,
@@ -718,6 +735,12 @@ class ThemeStore {
   }
   get renderHtmlContent() {
     return this.state.renderHtmlContent
+  }
+  get streamPacingEnabled() {
+    return this.state.streamPacingEnabled
+  }
+  get streamFadeEnabled() {
+    return this.state.streamFadeEnabled
   }
   get stepFinishDisplay() {
     return this.state.stepFinishDisplay
@@ -1053,6 +1076,20 @@ class ThemeStore {
     if (this.state.renderHtmlContent === enabled) return
     this.state = { ...this.state, renderHtmlContent: enabled }
     localStorage.setItem(STORAGE_KEY_RENDER_HTML_CONTENT, String(enabled))
+    this.emit()
+  }
+
+  setStreamPacingEnabled(enabled: boolean) {
+    if (this.state.streamPacingEnabled === enabled) return
+    this.state = { ...this.state, streamPacingEnabled: enabled }
+    localStorage.setItem(STORAGE_KEY_STREAM_PACING_ENABLED, String(enabled))
+    this.emit()
+  }
+
+  setStreamFadeEnabled(enabled: boolean) {
+    if (this.state.streamFadeEnabled === enabled) return
+    this.state = { ...this.state, streamFadeEnabled: enabled }
+    localStorage.setItem(STORAGE_KEY_STREAM_FADE_ENABLED, String(enabled))
     this.emit()
   }
 
@@ -1728,6 +1765,10 @@ function normalizeThemeBackup(raw: unknown): ThemeBackup {
       typeof parsed?.renderUserMarkdown === 'boolean' ? parsed.renderUserMarkdown : DEFAULT_RENDER_USER_MARKDOWN,
     renderHtmlContent:
       typeof parsed?.renderHtmlContent === 'boolean' ? parsed.renderHtmlContent : DEFAULT_RENDER_HTML_CONTENT,
+    streamPacingEnabled:
+      typeof parsed?.streamPacingEnabled === 'boolean' ? parsed.streamPacingEnabled : DEFAULT_STREAM_PACING_ENABLED,
+    streamFadeEnabled:
+      typeof parsed?.streamFadeEnabled === 'boolean' ? parsed.streamFadeEnabled : DEFAULT_STREAM_FADE_ENABLED,
     stepFinishDisplay:
       parsed?.stepFinishDisplay && typeof parsed.stepFinishDisplay === 'object'
         ? { ...DEFAULT_STEP_FINISH_DISPLAY, ...(parsed.stepFinishDisplay as Partial<StepFinishDisplay>) }
@@ -1856,6 +1897,9 @@ export function importThemeBackup(raw: unknown): void {
   }
   localStorage.setItem(STORAGE_KEY_COLLAPSE_USER_MESSAGES, String(backup.collapseUserMessages))
   localStorage.setItem(STORAGE_KEY_RENDER_USER_MARKDOWN, String(backup.renderUserMarkdown))
+  localStorage.setItem(STORAGE_KEY_RENDER_HTML_CONTENT, String(backup.renderHtmlContent))
+  localStorage.setItem(STORAGE_KEY_STREAM_PACING_ENABLED, String(backup.streamPacingEnabled))
+  localStorage.setItem(STORAGE_KEY_STREAM_FADE_ENABLED, String(backup.streamFadeEnabled))
   localStorage.setItem(STORAGE_KEY_STEP_FINISH_DISPLAY, JSON.stringify(backup.stepFinishDisplay))
   localStorage.setItem(STORAGE_KEY_COMPLETED_AT_FORMAT, backup.completedAtFormat)
   localStorage.setItem(STORAGE_KEY_REASONING_DISPLAY_MODE, backup.reasoningDisplayMode)

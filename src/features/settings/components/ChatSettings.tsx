@@ -36,6 +36,10 @@ export function ChatSettings() {
     setRenderHtmlContent,
     composerSelectorStyle,
     setComposerSelectorStyle,
+    streamPacingEnabled,
+    setStreamPacingEnabled,
+    streamFadeEnabled,
+    setStreamFadeEnabled,
   } = useTheme()
   const [collapseUserMessages, setCollapseUserMessages] = useState(themeStore.collapseUserMessages)
   const [stepFinishDisplay, setStepFinishDisplay] = useState(themeStore.stepFinishDisplay)
@@ -181,6 +185,24 @@ export function ChatSettings() {
             />
           </div>
         </SettingField>
+      </SettingsSection>
+
+      <SettingsSection title={t('chat.streamRendering')} description={t('chat.streamRenderingDesc')}>
+        <SettingRow
+          label={t('chat.streamPacing')}
+          description={t('chat.streamPacingDesc')}
+          onClick={() => setStreamPacingEnabled(!streamPacingEnabled)}
+        >
+          <Toggle enabled={streamPacingEnabled} onChange={() => setStreamPacingEnabled(!streamPacingEnabled)} />
+        </SettingRow>
+
+        <SettingRow
+          label={t('chat.streamFade')}
+          description={t('chat.streamFadeDesc')}
+          onClick={() => setStreamFadeEnabled(!streamFadeEnabled)}
+        >
+          <Toggle enabled={streamFadeEnabled} onChange={() => setStreamFadeEnabled(!streamFadeEnabled)} />
+        </SettingRow>
       </SettingsSection>
 
       <SettingsSection title={t('chat.stepFinishInfo')}>

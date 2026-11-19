@@ -33,6 +33,16 @@ import { themeStore } from '../store/themeStore'
 function useRenderHtmlContent(): boolean {
   return useSyncExternalStore(themeStore.subscribe, () => themeStore.renderHtmlContent)
 }
+
+/** 只订阅流式节奏开关 */
+function useStreamPacingEnabled(): boolean {
+  return useSyncExternalStore(themeStore.subscribe, () => themeStore.streamPacingEnabled)
+}
+
+/** 只订阅尾部淡入开关 */
+function useStreamFadeEnabled(): boolean {
+  return useSyncExternalStore(themeStore.subscribe, () => themeStore.streamFadeEnabled)
+}
 import type { MarkdownSegment } from './markdownSegments'
 import {
   buildHtmlSandboxThemeCss,
@@ -926,11 +936,13 @@ const MarkdownDomBlock = memo(function MarkdownDomBlock({
   isReasoning,
   isLive,
   renderHtml,
+  enableFade = true,
 }: {
   src: string
   isReasoning: boolean
   isLive?: boolean
   renderHtml: boolean
+  enableFade?: boolean
 }) {
   const rootRef = useRef<HTMLDivElement | null>(null)
   const appliedHtmlRef = useRef<string | null>(null)
@@ -975,7 +987,7 @@ const MarkdownDomBlock = memo(function MarkdownDomBlock({
       const suffix = renderSrc.slice(prevSrc.length)
       if (canAppendLiveMarkdownSuffix(suffix)) {
         // 优先做尾部淡入（每个节拍一个短命 span）；环境不支持时退回纯文本追加
-        if (appendStreamingTextWithFade(root, suffix, fadeStateRef.current)) {
+        if (enableFade && appendStreamingTextWithFade(root, suffix, fadeStateRef.current)) {
           appliedSrcRef.current = renderSrc
           appliedHtmlRef.current = null
           lastLiveTextRef.current.node = null
@@ -1103,6 +1115,7 @@ const MarkdownStreamBlock = memo(function MarkdownStreamBlock({
   isReasoning,
   isStreaming,
   renderHtml,
+  enableFade,
 }: {
   src: string
   mode: 'full' | 'live' | 'code' | 'table'
@@ -1111,6 +1124,7 @@ const MarkdownStreamBlock = memo(function MarkdownStreamBlock({
   isReasoning: boolean
   isStreaming: boolean
   renderHtml: boolean
+  enableFade: boolean
 }) {
   // 流式高亮/未完成态只对「未闭合 code」或 live 有意义；稳定 full 块 isStreaming 恒 false 以冻 memo
   const streamActive = isStreaming && (mode === 'live' || (mode === 'code' && !complete))
@@ -1203,7 +1217,13 @@ const MarkdownStreamBlock = memo(function MarkdownStreamBlock({
 
   return (
     <div className="markdown-stream-block">
-      <MarkdownDomBlock src={src} isReasoning={isReasoning} isLive={mode === 'live'} renderHtml={renderHtml} />
+      <MarkdownDomBlock
+        src={src}
+        isReasoning={isReasoning}
+        isLive={mode === 'live'}
+        renderHtml={renderHtml}
+        enableFade={enableFade}
+      />
     </div>
   )
 })
@@ -1221,8 +1241,13 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
   const isReasoning = variant === 'reasoning'
   const projectionKey = useId()
   const renderHtml = useRenderHtmlContent()
+  const streamPacingEnabled = useStreamPacingEnabled()
+  const streamFadeEnabled = useStreamFadeEnabled()
   const renderHtmlImmediately = isStreaming && renderHtml && STREAMING_HTML_CONTENT_PATTERN.test(content)
-  const smoothedContent = usePacedStreamContent(content, isStreaming && !renderHtmlImmediately)
+  const smoothedContent = usePacedStreamContent(
+    content,
+    isStreaming && !renderHtmlImmediately && streamPacingEnabled,
+  )
   const renderedContent = isStreaming ? smoothedContent : content
   const streamBlocks = useMemo(() => {
     if (!isStreaming) return getStaticProjection(renderedContent).blocks
@@ -1250,6 +1275,7 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
           complete={block.complete}
           isReasoning={isReasoning}
           renderHtml={renderHtml}
+          enableFade={streamFadeEnabled}
           isStreaming={
             isStreaming && (block.mode === 'live' || (block.mode === 'code' && !block.complete))
           }

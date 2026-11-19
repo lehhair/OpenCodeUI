@@ -1,6 +1,28 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { themeStore } from './themeStore'
 
+describe('themeStore · 流式输出设置', () => {
+  it('默认开启逐字节奏与尾部淡入', () => {
+    expect(themeStore.streamPacingEnabled).toBe(true)
+    expect(themeStore.streamFadeEnabled).toBe(true)
+  })
+
+  it('开关会持久化，便于还原为无淡入的原版观感', () => {
+    themeStore.setStreamFadeEnabled(false)
+    expect(themeStore.streamFadeEnabled).toBe(false)
+    expect(localStorage.getItem('stream-fade-enabled')).toBe('false')
+
+    themeStore.setStreamPacingEnabled(false)
+    expect(themeStore.streamPacingEnabled).toBe(false)
+    expect(localStorage.getItem('stream-pacing-enabled')).toBe('false')
+
+    themeStore.setStreamPacingEnabled(true)
+    themeStore.setStreamFadeEnabled(true)
+    expect(localStorage.getItem('stream-pacing-enabled')).toBe('true')
+    expect(localStorage.getItem('stream-fade-enabled')).toBe('true')
+  })
+})
+
 describe('themeStore · 对话列/输入框自定义宽度（chatContentWidth / chatInputWidth）', () => {
   beforeEach(() => {
     localStorage.clear()
