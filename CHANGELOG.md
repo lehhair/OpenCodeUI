@@ -1,5 +1,41 @@
 # Changelog
 
+## [v0.7.29] - 2026-11-19
+
+- perf(markdown): 尾部增量解析与诊断补强 (f017ebae)
+- fix(markdown): 增量渲染按块边界判断，不再猜后缀 (21a813a6)
+- feat(settings): 长代码块折叠可开关，默认开启 (b7914064)
+- fix(markdown): 围栏语言没写完时不做增量追加 (1d494d96)
+- fix(markdown): 折叠改为限高可滚动，按钮并入操作区 (5cf3c607)
+- perf(highlight): 语法失败按语言冷却 (f603e368)
+- feat(markdown): 行内前瞻与长代码块折叠 (579ef298)
+- style(markdown): 去掉 Mermaid 块文件末尾多余空行 (660613b6)
+- fix(chat): 流式期间每帧兜底贴底 (704adc39)
+- fix(stream): 工具卡入场只做淡入，不再插值高度 (adec7c1e)
+- feat(stream): 工具卡按流式节奏生长入场 (36825403)
+- perf(chat): 预渲染窗口改为按像素计算，高亮提前到可见之前 (1ec869cd)
+- feat(memory): 会话持有量统计、按体积分页与闲置回收 (525fa20e)
+- fix(chat): 翻页锚点让位于用户滚动，跳屏渲染延后到真实布局 (30add1a7)
+- refactor(message): 拆出工具摘要与内容分组 (bea8de26)
+- perf(render): 长消息块级窗口化与流式掉帧采样 (95cd1397)
+- perf(markdown): 大块解析移到 Worker (871c9354)
+- perf(highlight): 流式高亮改为增量协议 (794327ed)
+- feat(settings): 流式逐字节奏与尾部淡入可单独开关 (8346b778)
+- fix(stream): 块结束后立即补齐前面的流式文字 (e97cce46)
+- feat(stream): 流式文本尾部淡入 (38863554)
+- refactor(markdown): 抽出 Mermaid 渲染块 (02599e58)
+- refactor(chat): 抽出时间线高度估算与会话测量缓存 (16cd1deb)
+- refactor(render): 统一有上限缓存，补开发期耗时打点 (a6b6b934)
+- perf(markdown): 合并稳定块组并给超大 live 块限频完整解析 (56357531)
+- fix(markdown): 补齐标题层级、嵌套表格、HTML 注释与列表/链接样式 (a1803a38)
+- perf(virtual): 冷启动按消息内容估算行高 (a68fb37c)
+- perf(virtual): 会话恢复按 key 取高度，滚动时不再重建 observer (c3e5af2f)
+- perf(markdown): 缓存非流式消息的分块结果 (e35598a6)
+- perf(cache): 给消息渲染相关缓存加上体积上限 (aa779904)
+- perf(chat): 长会话下避免逐帧重算与无效重渲染 (3cfc89bd)
+- fix(render): 补齐嵌套代码块样式并让自定义动画遵从减少动效 (2188219c)
+- perf(render): 流式文本按节奏揭示并减轻 Markdown/高亮渲染负担 (e90d65ea)
+
 ## [v0.7.28] - 2026-11-17
 
 - fix(chat): 压缩后的续写继续挂过程壳 (ea362092)
