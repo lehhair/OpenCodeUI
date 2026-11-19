@@ -685,13 +685,15 @@ const AssistantMessageView = memo(function AssistantMessageView({
     return items
   }, [message, processContentScope])
 
-  // 判断哪些 reasoning 内容已经结束（后面出现了任何其他 kind 的内容）
-  const endedReasoningIds = useMemo(() => {
+  // 哪些文本 / 推理块已经结束：后面出现了别的 content。
+  // 平滑只属于仍处于「打开」状态的最后一块；块一旦结束就直接显示完整内容，
+  // 避免后面的工具卡先出现、前面的文字还在追。
+  const endedBlockIds = useMemo(() => {
     const ended = new Set<string>()
     const entries = contentEntries(message)
-    for (let i = 0; i < entries.length; i++) {
-      if (entries[i].content.type !== 'reasoning') continue
-      if (i + 1 < entries.length) ended.add(entries[i].id)
+    for (let i = 0; i < entries.length - 1; i += 1) {
+      const type = entries[i].content.type
+      if (type === 'text' || type === 'reasoning') ended.add(entries[i].id)
     }
     return ended
   }, [message])
@@ -785,9 +787,15 @@ const AssistantMessageView = memo(function AssistantMessageView({
             const content = item.content
             switch (content.type) {
               case 'text':
-                return <TextPartView key={item.id} part={content} isStreaming={isStreaming} />
+                return (
+                  <TextPartView
+                    key={item.id}
+                    part={content}
+                    isStreaming={isStreaming && !endedBlockIds.has(item.id)}
+                  />
+                )
               case 'reasoning': {
-                const reasoningDone = endedReasoningIds.has(item.id)
+                const reasoningDone = endedBlockIds.has(item.id)
                 return (
                   <ReasoningPartView
                     key={item.id}

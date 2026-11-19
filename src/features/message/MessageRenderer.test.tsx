@@ -24,6 +24,12 @@ vi.mock('motion/mini', () => ({
 
 vi.mock('../../hooks', () => ({
   useDelayedRender: (show: boolean) => show,
+  useCompositorExpand: () => ({
+    contentRef: { current: null },
+    layoutOpen: true,
+    keepMounted: true,
+    panelClassName: '',
+  }),
   useDisclosureScrollLock: () => ({
     rootRef: () => undefined,
     headerRef: () => undefined,
@@ -67,7 +73,11 @@ vi.mock('../../components/ui', () => ({
 }))
 
 vi.mock('./parts', () => ({
-  TextPartView: ({ part }: { part: { text: string } }) => <div>{part.text}</div>,
+  TextPartView: ({ part, isStreaming }: { part: { text: string }; isStreaming?: boolean }) => (
+    <div data-testid="text-part" data-streaming={isStreaming ? 'true' : 'false'}>
+      {part.text}
+    </div>
+  ),
   ReasoningPartView: () => null,
   ToolPartView: () => null,
   FilePartView: ({ file }: { file: { name?: string; mime: string } }) => (
@@ -260,6 +270,27 @@ describe('process content split', () => {
 
     expect(messageHasProcessContent(streaming)).toBe(true)
     expect(messageHasFinalContent(streaming)).toBe(false)
+  })
+
+  it('stops text pacing once a later content block exists', () => {
+    const tool: AssistantContent = {
+      type: 'tool',
+      id: 'tool-1',
+      name: 'bash',
+      state: { status: 'running', input: { command: 'ls' }, metadata: {} },
+      time: { created: 2 },
+    }
+    const message = createAssistantMessage([textContent('before tool'), tool])
+    render(<MessageRenderer message={message} />)
+
+    expect(screen.getByTestId('text-part')).toHaveAttribute('data-streaming', 'false')
+  })
+
+  it('keeps the last text block streaming while it is still open', () => {
+    const message = createAssistantMessage([textContent('still typing')])
+    render(<MessageRenderer message={message} />)
+
+    expect(screen.getByTestId('text-part')).toHaveAttribute('data-streaming', 'true')
   })
 
   it('splits completed tool+text into process and final', () => {
