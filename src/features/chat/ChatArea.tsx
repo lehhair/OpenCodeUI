@@ -25,7 +25,7 @@ import { useTranslation } from 'react-i18next'
 import { MessageRenderer, ProcessCollapseBlock, messageHasFinalContent, messageHasProcessContent } from '../message'
 import { MessageErrorView } from '../message/parts'
 import type { SessionMessageInfo } from '../../types/api/message'
-import { isAssistantMessage, isUserMessage, userMessageText } from '../../types/api/message'
+import { isAssistantMessage, isUserMessage } from '../../types/api/message'
 import type { APIError } from '../../types/api/common'
 import { RetryStatusInline, type RetryStatusInlineData } from './RetryStatusInline'
 import { CompactionQueuedView, TurnDiffPartView } from '../message/parts'
@@ -48,7 +48,17 @@ import {
   type TurnDiffInfo,
 } from './chatPageModel'
 import { useTheme } from '../../hooks/useTheme'
+import { measurePerf } from '../../utils/perfTrace'
 import { getStreamingHotIndexes, getTimelineRowYClass, mergeVirtualRangeIndexes } from './chatAreaUtils'
+import {
+  buildCachedSizeMap,
+  estimateTimelineItemSize,
+  estimateTimelineTotalHeight,
+  readSessionMeasurements,
+  restoreMeasurements,
+  sessionCacheKey,
+  writeSessionMeasurements,
+} from './timelineMetrics'
 import { useAutoScroll } from './virtual/useAutoScroll'
 import { useEmptyWorkingShellGate } from './virtual/useEmptyWorkingShellGate'
 
@@ -57,84 +67,13 @@ function isAssistantStreaming(message: SessionMessageInfo): boolean {
   return isAssistantMessage(message) && message.time.completed == null
 }
 
-const ROW_ESTIMATE = 60
-/** 过程壳 header 行高（Working / Worked 一行） */
-const PROCESS_SHELL_HEADER = 36
 /** 用户入场生长结束后，空 Working 壳再等多久（有 assistant 则立刻挂，不等） */
 const EMPTY_WORKING_SHELL_EXTRA_DELAY_MS = 500
 const DEFAULT_BOTTOM_SPACER = 256
-const SESSION_CACHE_LIMIT = 16
-/** 每个会话最多保留这么多条真实高度：长会话只缓存靠底部的一段 */
-const SESSION_MEASUREMENT_LIMIT = 3000
 const EMPTY_QUEUE: QueuedUserPrompt[] = []
 const EMPTY_COMPACTIONS: QueuedCompaction[] = []
 
 const bottomSpacerHeight = (bottomPadding: number) => (bottomPadding > 0 ? bottomPadding + 48 : DEFAULT_BOTTOM_SPACER)
-
-/** 文本高度粗估：大致每行 56 字符，行高 24；上限避免单条异常长消息把估算拉爆 */
-function estimateTextHeight(text: string): number {
-  if (!text) return 0
-  return Math.min(2000, 24 + Math.ceil(text.length / 56) * 24)
-}
-
-const messageHeightCache = new WeakMap<SessionMessageInfo, number>()
-
-/**
- * 单条消息的初始高度估算。
- *
- * 只在消息还没被真实测量过时使用；历史消息的 reasoning 默认折叠，
- * 按 header 高度算，不能按全文长度算（否则初始位置会被大幅高估）。
- */
-function estimateMessageHeight(message: SessionMessageInfo): number {
-  const cached = messageHeightCache.get(message)
-  if (cached != null) return cached
-
-  let height: number
-  if (isAssistantMessage(message)) {
-    height = 64
-    for (const content of message.content) {
-      if (content.type === 'reasoning') height += 44
-      else if (content.type === 'text') height += estimateTextHeight(content.text)
-      else if (content.type === 'tool') height += 64
-    }
-    height = Math.min(2400, height)
-  } else if (isUserMessage(message)) {
-    // 用户消息默认折叠到 8 行预览
-    height = 80 + Math.min(8, Math.ceil(userMessageText(message).length / 48)) * 24
-  } else {
-    height = ROW_ESTIMATE
-  }
-
-  messageHeightCache.set(message, height)
-  return height
-}
-
-const timelineItemHeightCache = new WeakMap<ProcessTimelineItem, number>()
-
-function estimateTimelineItemSize(item: ProcessTimelineItem | undefined): number {
-  if (!item) return ROW_ESTIMATE
-  const cached = timelineItemHeightCache.get(item)
-  if (cached != null) return cached
-
-  let size: number
-  if (item.kind === 'message') {
-    size = estimateMessageHeight(item.message)
-  } else if (item.isActive) {
-    // 进行中默认展开：header + 壳内消息
-    const body = item.children.reduce((total, child) => total + estimateMessageHeight(child.message), 0)
-    size = PROCESS_SHELL_HEADER + Math.max(body, ROW_ESTIMATE)
-  } else {
-    // 结束后默认折叠：只估 header + 壳外 final
-    size = PROCESS_SHELL_HEADER + (item.finalMessage ? estimateMessageHeight(item.finalMessage) : 0)
-  }
-
-  timelineItemHeightCache.set(item, size)
-  return size
-}
-
-function sessionCacheKey(sessionId: string, processCollapseEnabled: boolean): string {
-  return `${sessionId}:${processCollapseEnabled ? 'process' : 'flat'}`
-}
 
 // ─── 接口定义（保持不变） ───────────────────────────────────────
 
@@ -421,10 +360,6 @@ const VirtualRow = memo(
     prev.onEntryGrowComplete === next.onEntryGrowComplete,
 )
 
-// ─── 会话缓存（LRU 16） ───────────────────────────────────────
-
-const sessionCache = new Map<string, { measurements: VirtualItem[] }>()
-
 // ─── ChatArea ────────────────────────────────────────────────
 
 export const ChatArea = memo(
@@ -507,16 +442,22 @@ export const ChatArea = memo(
         items?: ProcessTimelineItem[]
       }>({ processCollapseEnabled })
       const timeline = useMemo<ProcessTimelineItem[]>(() => {
-        const next = !processCollapseEnabled
-          ? buildFlatTimeline(visibleMessages, isStreaming, showTurnDiff)
-          : buildProcessTimeline(visibleMessages, {
-              turnDurationMap,
-              sessionIsStreaming: isStreaming,
-              messageHasProcess: messageHasProcessContent,
-              messageHasFinal: messageHasFinalContent,
-              isUserEntryReady: emptyShellGate.isReady,
-              turnDiff: showTurnDiff,
-            })
+        const next = measurePerf(
+          'chat.timeline',
+          () =>
+            !processCollapseEnabled
+              ? buildFlatTimeline(visibleMessages, isStreaming, showTurnDiff)
+              : buildProcessTimeline(visibleMessages, {
+                  turnDurationMap,
+                  sessionIsStreaming: isStreaming,
+                  messageHasProcess: messageHasProcessContent,
+                  messageHasFinal: messageHasFinalContent,
+                  isUserEntryReady: emptyShellGate.isReady,
+                  turnDiff: showTurnDiff,
+                }),
+          4,
+          `${visibleMessages.length} rows`,
+        )
         const previous =
           previousTimelineRef.current.processCollapseEnabled === processCollapseEnabled
             ? previousTimelineRef.current.items
@@ -625,14 +566,13 @@ export const ChatArea = memo(
       // parent key={sessionId} remount 后，这里只在 mount 时读一次 cache
       // cache key 必须带过程折叠模式：flat 与 process 的 item key/高度完全不同
       const cacheKey = sessionId ? sessionCacheKey(sessionId, processCollapseEnabled) : null
-      const initialCacheRef = useRef(cacheKey ? sessionCache.get(cacheKey)?.measurements : undefined)
-      const cachedSizeByKey = useMemo(() => {
-        const measurements = initialCacheRef.current
-        if (!measurements?.length) return null
-        return new Map(measurements.map(item => [item.key, item.size]))
+      const initialCacheRef = useRef(cacheKey ? readSessionMeasurements(cacheKey) : undefined)
+      const cachedSizeByKey = useMemo(
+        () => buildCachedSizeMap(initialCacheRef.current),
         // 只在 mount 读一次
         // eslint-disable-next-line react-hooks/exhaustive-deps
-      }, [])
+        [],
+      )
       const coldBottomMount = !initialCacheRef.current?.length
       const [renderOverscan, setRenderOverscan] = useState(initialCacheRef.current?.length || coldBottomMount ? 6 : 15)
       const resizePinnedRef = useRef<number[]>([])
@@ -644,34 +584,22 @@ export const ChatArea = memo(
 
       // 恢复上一次会话测量值时按当前 timeline 的 key 重新取：
       // 消息追加/删除后，旧快照里的绝对 start/end 已经不可信，只有 key→size 还有效。
-      const initialMeasurementsCache = useMemo(() => {
-        if (!cachedSizeByKey || timeline.length === 0) return undefined
-        const restored: VirtualItem[] = []
-        let start = 0
-        for (let index = 0; index < timeline.length; index += 1) {
-          const item = timeline[index]
-          const size = cachedSizeByKey.get(item.key)
-          if (size == null) continue
-          restored.push({ index, key: item.key, size, start, end: start + size, lane: 0 })
-          start += size
-        }
-        return restored.length > 0 ? restored : undefined
+      const initialMeasurementsCache = useMemo(
+        () => restoreMeasurements(initialCacheRef.current, timeline),
         // 只在 mount 恢复一次
         // eslint-disable-next-line react-hooks/exhaustive-deps
-      }, [])
+        [],
+      )
 
       // 冷启动估在底部：已知 key 用真实高度，新消息用估算值重新累加。
       // 直接用缓存最后一条的 end 会在「缓存之后又来了新消息」时把初始位置算低。
       // 不用 MAX_SAFE_INTEGER（单列 range 不会向前扩，只会渲染最后一项）。
-      const estimatedBottomOffset = useMemo(() => {
-        let total = 0
-        for (const item of timeline) {
-          total += cachedSizeByKey?.get(item.key) ?? estimateTimelineItemSize(item)
-        }
-        return Math.max(0, total + spacerHeight - 600)
+      const estimatedBottomOffset = useMemo(
+        () => Math.max(0, estimateTimelineTotalHeight(timeline, cachedSizeByKey) + spacerHeight - 600),
         // 只在 mount 用初始 count 估一次
         // eslint-disable-next-line react-hooks/exhaustive-deps
-      }, [])
+        [],
+      )
 
       const virtualizer = useVirtualizer<HTMLDivElement, HTMLDivElement>({
         count: timeline.length,
@@ -1042,16 +970,7 @@ export const ChatArea = memo(
           if (resizePinFrame.current !== undefined) cancelAnimationFrame(resizePinFrame.current)
           clearPrepend()
           if (!key) return
-          const snapshot = virtualizer.takeSnapshot()
-          // 只留靠底部的一段：长会话滚一通下来 itemSizeCache 可能有几万条，
-          // 恢复时底部才是第一屏真正需要的；尺寸按 key 生效，截断安全。
-          const measurements =
-            snapshot.length > SESSION_MEASUREMENT_LIMIT ? snapshot.slice(-SESSION_MEASUREMENT_LIMIT) : snapshot
-          sessionCache.delete(key)
-          sessionCache.set(key, { measurements })
-          while (sessionCache.size > SESSION_CACHE_LIMIT) {
-            sessionCache.delete(sessionCache.keys().next().value!)
-          }
+          writeSessionMeasurements(key, virtualizer.takeSnapshot())
         }
       }, [cacheKey, virtualizer, clearPrepend])
 
