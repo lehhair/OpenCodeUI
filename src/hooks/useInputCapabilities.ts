@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
 
-const CAN_HOVER_QUERY = '((hover: hover) and (pointer: fine)), ((any-hover: hover) and (any-pointer: fine))'
-const COARSE_POINTER_QUERY = '(pointer: coarse), (any-pointer: coarse)'
+// 只看主输入：any-hover / any-pointer 只要系统里存在精确指针就成立，
+// 会把带笔的手机判成桌面机。
+const CAN_HOVER_QUERY = '(hover: hover) and (pointer: fine)'
+const COARSE_POINTER_QUERY = '(pointer: coarse)'
 
 export interface InputCapabilities {
   canHover: boolean
@@ -18,11 +20,21 @@ function getMatchMediaMatches(query: string) {
   return window.matchMedia(query).matches
 }
 
+/** 手机/平板。移动端的媒体查询会被笔和外接指针带偏，UA 才是稳定信号。 */
+function isHandheldDevice() {
+  if (typeof navigator === 'undefined') return false
+  if (/Android|iPhone|iPod|iPad|Mobile/i.test(navigator.userAgent)) return true
+  // iPadOS 13+ 的 UA 伪装成桌面 Mac，只能靠触点数区分
+  return navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1
+}
+
 export function getInputCapabilities(): InputCapabilities {
+  const handheld = isHandheldDevice()
   const canHover = getMatchMediaMatches(CAN_HOVER_QUERY)
   const hasCoarsePointer = getMatchMediaMatches(COARSE_POINTER_QUERY)
-  const hasTouch = typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0
-  const preferTouchUi = (hasCoarsePointer || hasTouch) && !canHover
+  const hasTouch = handheld || (typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0)
+  // 手持设备一律触摸优先，不让媒体查询否决
+  const preferTouchUi = handheld || ((hasCoarsePointer || hasTouch) && !canHover)
 
   return {
     canHover,
