@@ -5,6 +5,7 @@ import { CopyButton } from '../ui'
 import { useTheme } from '../../hooks/useTheme'
 import { useInputCapabilities } from '../../hooks/useInputCapabilities'
 import { getCachedMermaidSvg, getOrRenderMermaidSvg } from '../mermaidRenderCache'
+import { reportRenderFailure } from '../../utils/renderDiagnostics'
 
 const MERMAID_MIN_SCALE = 0.5
 const MERMAID_MAX_SCALE = 3
@@ -275,9 +276,8 @@ export const MermaidBlock = memo(function MermaidBlock({ code, isIncomplete }: {
         const result = await getMermaidSvg(code, mermaidTheme, renderPrefix)
         if (!cancelled) setSvg(result)
       } catch (err) {
-        if (import.meta.env.DEV) {
-          console.warn('[Markdown] Mermaid render failed:', err)
-        }
+        // 渲染失败退化成源码块，属于降级；内容本身还在
+        reportRenderFailure('mermaid', 'degraded', err)
         if (!cancelled) {
           setSvg('')
           setError(err instanceof Error ? err.message : 'Failed to render Mermaid diagram')

@@ -2,6 +2,7 @@ import type { BundledTheme } from 'shiki/themes'
 import type { WorkerRequest, WorkerResponse, WorkerToken } from '../workers/shikiWorker'
 import type { HighlightTokens } from './highlightTypes'
 import { buildHighlightRequest } from './shikiStreamRequest'
+import { reportRenderFailure } from '../utils/renderDiagnostics'
 import {
   DEFAULT_CODE_BLOCK_THEME_DARK,
   DEFAULT_CODE_BLOCK_THEME_LIGHT,
@@ -73,6 +74,7 @@ function getWorker(): Worker {
     }
 
     if (msg.type === 'init-error') {
+      reportRenderFailure('highlight', 'terminal', msg.message)
       workerReadyPromiseReject?.(new Error(msg.message))
       workerReady = null
       workerReadyPromiseResolve = null
@@ -97,6 +99,7 @@ function getWorker(): Worker {
   }
 
   worker.onerror = error => {
+    reportRenderFailure('highlight', 'terminal', error)
     workerReadyPromiseReject?.(error)
     pendingRequests.forEach(pending => pending.reject(error))
     pendingRequests.clear()

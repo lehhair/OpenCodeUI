@@ -49,6 +49,7 @@ import {
 } from './chatPageModel'
 import { useTheme } from '../../hooks/useTheme'
 import { measurePerf } from '../../utils/perfTrace'
+import { createFrameSampler, reportFrameStats } from '../../utils/frameSampler'
 import { getStreamingHotIndexes, getTimelineRowYClass, mergeVirtualRangeIndexes } from './chatAreaUtils'
 import {
   buildCachedSizeMap,
@@ -581,6 +582,14 @@ export const ChatArea = memo(
       /** 流式热行 pin：ref 更新，不碰贴底/SSE 路径 */
       const hotPinnedRef = useRef<number[]>([])
       hotPinnedRef.current = getStreamingHotIndexes(timeline.length, isStreaming)
+
+      // 流式期间的掉帧采样：只在 dev 里跑，结束时只在指标确实差时打一条警告
+      useEffect(() => {
+        if (!import.meta.env.DEV || import.meta.env.MODE === 'test' || !isStreaming) return
+        const sampler = createFrameSampler()
+        sampler.start()
+        return () => reportFrameStats('chat.stream.jank', sampler.stop())
+      }, [isStreaming])
 
       // 恢复上一次会话测量值时按当前 timeline 的 key 重新取：
       // 消息追加/删除后，旧快照里的绝对 start/end 已经不可信，只有 key→size 还有效。

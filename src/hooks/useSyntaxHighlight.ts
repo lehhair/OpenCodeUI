@@ -13,6 +13,7 @@ import { BoundedCache } from '../utils/boundedCache'
 import { finishPerf, startPerf } from '../utils/perfTrace'
 import { THEME_SWITCH_DISABLE_MS } from '../constants'
 import { themeStore } from '../store/themeStore'
+import { reportRenderFailure } from '../utils/renderDiagnostics'
 
 export type { HighlightTokens } from '../lib/highlightTypes'
 export type { ShikiThemeInput } from '../lib/shikiTheme'
@@ -302,7 +303,7 @@ export function useStreamingSyntaxHighlight(
           setOutputState(prev => (prev?.code === chunk.code ? prev : { code: chunk.code, tokens }))
         } catch (err) {
           if (import.meta.env.DEV && err instanceof Error && err.message !== 'superseded') {
-            console.warn('[Syntax] streaming Shiki worker error:', err)
+            reportRenderFailure('highlight', 'degraded', err)
           }
         } finally {
           finishPerf('highlight.stream', startedAt, 80, `${request.code.length} chars`)
@@ -422,9 +423,7 @@ export function useSyntaxHighlight(code: string, options: HighlightOptions & { m
         const result = await highlightWithCache(code, normalizedLang, resolvedTheme.theme, resolvedTheme.key, mode)
         if (!cancelled) setOutputState({ key: outputKey, value: result })
       } catch (err) {
-        if (import.meta.env.DEV) {
-          console.warn('[Syntax] Shiki error:', err)
-        }
+        reportRenderFailure('highlight', 'degraded', err)
         if (!cancelled) setOutputState({ key: outputKey, value: null })
       } finally {
         if (!cancelled) setIsLoading(false)
@@ -532,9 +531,7 @@ export function useSyntaxHighlightRef(
           setVersion(v => v + 1)
         }
       } catch (err) {
-        if (import.meta.env.DEV) {
-          console.warn('[Syntax] Shiki error:', err)
-        }
+        reportRenderFailure('highlight', 'degraded', err)
         if (!cancelled) {
           tokensRef.current = null
           setVersion(v => v + 1)

@@ -1,4 +1,5 @@
 import type { MarkdownWorkerRequest, MarkdownWorkerResponse } from '../workers/markdownWorker'
+import { reportRenderFailure } from '../utils/renderDiagnostics'
 
 export type MarkdownParseResult =
   /** 解析成功；`src` 是这次解析的输入，调用方据此判断是否已经过期 */
@@ -69,7 +70,8 @@ function getWorker(): Worker | null {
 
   try {
     worker = new Worker(new URL('../workers/markdownWorker.ts', import.meta.url), { type: 'module' })
-  } catch {
+  } catch (error) {
+    reportRenderFailure('markdown', 'degraded', error)
     markUnavailable()
     return null
   }
@@ -83,12 +85,14 @@ function getWorker(): Worker | null {
       entry.resolve({ status: 'ok', src: entry.job.src, html: msg.html })
     } else {
       // 解析抛错：让调用方走同步路径，行为与以前一致
+      reportRenderFailure('markdown', 'degraded', msg.message)
       entry.resolve({ status: 'unavailable' })
     }
   }
 
   worker.onerror = event => {
     event.preventDefault?.()
+    reportRenderFailure('markdown', 'retryable', 'markdown worker crashed')
     failPending()
   }
 
