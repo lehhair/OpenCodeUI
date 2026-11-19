@@ -14,6 +14,7 @@ import { finishPerf, startPerf } from '../utils/perfTrace'
 import { THEME_SWITCH_DISABLE_MS } from '../constants'
 import { themeStore } from '../store/themeStore'
 import { reportRenderFailure } from '../utils/renderDiagnostics'
+import { isHighlightLanguageCoolingDown, markHighlightLanguageFailed } from '../lib/highlightCooldown'
 
 export type { HighlightTokens } from '../lib/highlightTypes'
 export type { ShikiThemeInput } from '../lib/shikiTheme'
@@ -131,6 +132,8 @@ async function highlightWithCache(
   themeKey: string,
   mode: 'html' | 'tokens',
 ): Promise<string | HighlightTokens | null> {
+  if (isHighlightLanguageCoolingDown(lang)) return null
+
   const cacheKey = getCacheKey(code, lang, themeKey)
   const cacheable = code.length <= MAX_CACHED_HIGHLIGHT_CHARS
 
@@ -147,7 +150,9 @@ async function highlightWithCache(
       })
       if (cacheable) htmlCache.set(cacheKey, html)
       return html
-    } catch {
+    } catch (err) {
+      reportRenderFailure('highlight', 'degraded', err)
+      if (!(err instanceof Error) || err.message !== 'superseded') markHighlightLanguageFailed(lang)
       return null
     }
   } else {
@@ -165,7 +170,9 @@ async function highlightWithCache(
       const tokens = splitTokensIntoLines(stable)
       if (cacheable) tokensCache.set(cacheKey, tokens)
       return tokens
-    } catch {
+    } catch (err) {
+      reportRenderFailure('highlight', 'degraded', err)
+      if (!(err instanceof Error) || err.message !== 'superseded') markHighlightLanguageFailed(lang)
       return null
     }
   }
@@ -249,7 +256,7 @@ export function useStreamingSyntaxHighlight(
     runRequestRef.current = () => {
       timerRef.current = null
       const request = latestRef.current
-      if (!request.enabled) {
+      if (!request.enabled || isHighlightLanguageCoolingDown(request.language)) {
         setIsLoading(false)
         return
       }
@@ -304,6 +311,10 @@ export function useStreamingSyntaxHighlight(
         } catch (err) {
           if (import.meta.env.DEV && err instanceof Error && err.message !== 'superseded') {
             reportRenderFailure('highlight', 'degraded', err)
+          }
+          // 语法/词法失败按语言冷却；superseded / 续传错位不是语法问题
+          if (!(err instanceof Error) || (err.message !== 'superseded' && err.message !== 'stream-desync')) {
+            markHighlightLanguageFailed(request.language)
           }
         } finally {
           finishPerf('highlight.stream', startedAt, 80, `${request.code.length} chars`)
