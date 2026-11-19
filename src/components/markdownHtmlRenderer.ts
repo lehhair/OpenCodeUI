@@ -354,10 +354,11 @@ function createMarkdownHtmlRenderer(isReasoning: boolean, renderHtml: boolean) {
   const renderer = new marked.Renderer()
 
   // 关闭 HTML 渲染时：markdown 里的裸 HTML（块级+内联）一律转义成文本源码，
-  // 不再活渲染（artifact/island 在 MarkdownRenderer 块级已被分流成代码块）
+  // 但 HTML 注释本身不该出现在正文里（模型常用它隐藏说明）。
   if (!renderHtml) {
     renderer.html = function ({ text }) {
-      return escapeHtml(text)
+      const source = text.trimStart().startsWith('<!--') && !text.includes('-->') ? '' : text
+      return escapeHtml(source.replace(/<!--[\s\S]*?-->/g, ''))
     }
   }
 
@@ -372,7 +373,7 @@ function createMarkdownHtmlRenderer(isReasoning: boolean, renderHtml: boolean) {
           : depth === 3
             ? 'text-[length:var(--fs-heading-3)] font-semibold text-text-100 mt-5 mb-2 first:mt-0 last:mb-0 tracking-tight'
             : 'text-[length:var(--fs-base)] font-semibold text-text-100 mt-4 mb-2 first:mt-0 last:mb-0 tracking-tight'
-    const tag = Math.min(Math.max(depth, 1), 4)
+    const tag = Math.min(Math.max(depth, 1), 6)
     return `<h${tag} class="${className}">${text}</h${tag}>`
   }
 
@@ -388,6 +389,22 @@ function createMarkdownHtmlRenderer(isReasoning: boolean, renderHtml: boolean) {
   renderer.text = function (this: any, { text, tokens }: any) {
     if (tokens && tokens.length > 0) return this.parser.parseInline(tokens)
     return renderSegmentsToHtml(scanTextSegments(text), isReasoning)
+  }
+
+  // 嵌在引用 / 列表里的表格：复用 raw HTML 表格的样式与列对齐
+  // （顶层表格会走 MarkdownStreamBlock 的 React 表格路径，不经过这里）
+  renderer.table = function ({ header, rows }) {
+    const parser = this.parser
+    const renderCell = (cell: Tokens.TableCell, tag: 'th' | 'td') => {
+      const content = cell.tokens ? parser.parseInline(cell.tokens) : escapeMarkdownText(cell.text)
+      const align = cell.align ? ` align="${escapeAttribute(cell.align)}"` : ''
+      return `<${tag}${align}>${content}</${tag}>`
+    }
+    const head = header.map(cell => renderCell(cell, 'th')).join('')
+    const body = rows
+      .map(row => `<tr>${row.map(cell => renderCell(cell, 'td')).join('')}</tr>`)
+      .join('')
+    return `<div class="markdown-html-table-scroll"><table class="markdown-html-table"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`
   }
 
   // 嵌在列表 / 引用里的代码块（顶层围栏由 CodeBlock / 流式块接管）

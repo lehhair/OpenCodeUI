@@ -584,6 +584,30 @@ body {
   list-style: none;
 }
 
+/* 嵌套列表换标记，跟参考的 unorderedMarkers/orderedMarkers 分层一致 */
+.markdown-content ul ul {
+  list-style-type: circle;
+}
+
+.markdown-content ul ul ul {
+  list-style-type: square;
+}
+
+.markdown-content ol ol {
+  list-style-type: lower-alpha;
+}
+
+.markdown-content ol ol ol {
+  list-style-type: lower-roman;
+}
+
+/* 链接的键盘焦点态：参考里链接有独立的 focus 样式 */
+.markdown-content a:focus-visible {
+  outline: 2px solid hsl(var(--accent-main-100) / 0.7);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
 /* 嵌在引用 / 列表里的代码块（顶层围栏走 CodeBlock，不经过这里） */
 .markdown-content .markdown-nested-code {
   margin: 1rem 0;

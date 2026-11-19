@@ -97,6 +97,21 @@ describe('MarkdownRenderer', () => {
     expect(codeEl.tagName).toBe('CODE')
   })
 
+  it('keeps h5/h6 semantics instead of collapsing them to h4', () => {
+    const { container } = render(<MarkdownRenderer content={'##### Five\n\n###### Six'} />)
+
+    expect(container.querySelector('h5')).toHaveTextContent('Five')
+    expect(container.querySelector('h6')).toHaveTextContent('Six')
+  })
+
+  it('drops raw HTML comments instead of showing them as text when HTML rendering is off', () => {
+    themeStore.setRenderHtmlContent(false)
+    const { container } = render(<MarkdownRenderer content={'before <!-- hidden note --> after'} />)
+
+    expect(container).toHaveTextContent('before after')
+    expect(container.textContent).not.toContain('hidden note')
+  })
+
   it('renders inline code as a muted monospace chip (no accent color)', () => {
     render(<MarkdownRenderer content={'Use `code` here'} />)
 
@@ -811,6 +826,16 @@ $$`
     const { container } = render(<MarkdownRenderer content={'Inline $x^2$ formula'} />)
 
     expect(container.querySelector('.katex [style*="top"]')).toBeInTheDocument()
+  })
+
+  it('renders tables nested inside blockquotes with the shared table style', () => {
+    const md = '> | A | B |\n> |:---|---:|\n> | 1 | 2 |'
+    const { container } = render(<MarkdownRenderer content={md} />)
+
+    const table = container.querySelector('.markdown-html-table')
+    expect(table).toBeInTheDocument()
+    expect(table?.querySelector('th')).toHaveTextContent('A')
+    expect(table?.querySelector('th[align="right"]')).toHaveTextContent('B')
   })
 
   it('styles raw HTML tables without losing merged-cell attributes', () => {
