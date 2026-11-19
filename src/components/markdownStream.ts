@@ -58,6 +58,16 @@ function getOpeningFence(raw: string) {
   return { char: match[1][0], size: match[1].length }
 }
 
+/**
+ * 围栏开头那一行是否已经换行。
+ *
+ * 没换行时语言名还在增长（` ```pytho` → ` ```python`），这一阶段必须重新切分；
+ * 走「未闭合 fence 纯追加」会把剩下的字符拼进代码内容，语言永远停在半截。
+ */
+function hasFenceOpeningLineBreak(raw: string): boolean {
+  return /^[ \t]{0,3}(?:`{3,}|~{3,})[^\n]*\n/.test(raw)
+}
+
 function hasOpenFence(raw: string) {
   return getTrailingOpenFenceStart(raw) === 0
 }
@@ -526,6 +536,10 @@ export function projectMarkdownStream(
     hasOpenFence(tail.raw) &&
     !suffixClosesOpenFence(tail.raw, suffix)
   ) {
+    // 开头围栏行还没换行 → 语言名可能还在长，重新切分
+    if (!hasFenceOpeningLineBreak(tail.raw)) {
+      return { text: markdown, blocks: splitMarkdownStream(markdown, isStreaming) }
+    }
     return {
       text: markdown,
       blocks: [

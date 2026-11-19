@@ -332,6 +332,23 @@ inside comment
     expect(next.blocks).toEqual(splitMarkdownStream('before\n\n```ts\nconst x = 1\n```', true))
   })
 
+  it('keeps re-splitting while the fence language is still growing', () => {
+    // 首拍只有半个语言名：不能被当成已打开的代码块做纯追加
+    const first = projectMarkdownStream(undefined, '```pytho', true)
+    const second = projectMarkdownStream(first, '```python', true)
+    const tail = second.blocks.at(-1)!
+
+    expect(tail.mode).toBe('code')
+    expect(tail.language).toBe('python')
+    expect(tail.src).toBe('')
+
+    // 换行之后语言定型，才允许把后续内容当代码追加
+    const third = projectMarkdownStream(second, '```python\nprint(1)', true)
+    const tailAfter = third.blocks.at(-1)!
+    expect(tailAfter.language).toBe('python')
+    expect(tailAfter.src).toContain('print(1)')
+  })
+
   it('projects pure live-tail append without rebuilding stable blocks', () => {
     const first = projectMarkdownStream(undefined, 'hello', true)
     const next = projectMarkdownStream(first, 'hello world', true)
