@@ -3,6 +3,7 @@ import type { WorkerRequest, WorkerResponse, WorkerToken } from '../workers/shik
 import type { HighlightTokens } from './highlightTypes'
 import { buildHighlightRequest } from './shikiStreamRequest'
 import { reportRenderFailure } from '../utils/renderDiagnostics'
+import { notePerf } from '../utils/perfTrace'
 import {
   DEFAULT_CODE_BLOCK_THEME_DARK,
   DEFAULT_CODE_BLOCK_THEME_LIGHT,
@@ -163,6 +164,11 @@ export function splitTokensIntoLines(tokens: WorkerToken[]): HighlightTokens {
   return lines
 }
 
+/** 单次高亮超过这个耗时就在 dev 打一条，用来找病态 grammar / 超大块 */
+const SLOW_HIGHLIGHT_MS = 120
+const SLOW_LOG_INTERVAL_MS = 5_000
+const slowLoggedAt = new Map<string, number>()
+
 async function workerHighlight(params: {
   key: string
   text: string
@@ -178,6 +184,7 @@ async function workerHighlight(params: {
   const w = getWorker()
   const state = stateFor(params.key)
   state.latestId = id
+  const startedAt = performance.now()
 
   const message = buildHighlightRequest(
     {
@@ -201,6 +208,15 @@ async function workerHighlight(params: {
     })
     // worker 顺序处理同一个 key，这条响应生效后流的位置就是本次请求的文本
     state.confirmedText = params.text
+    const elapsed = performance.now() - startedAt
+    if (elapsed >= SLOW_HIGHLIGHT_MS) {
+      const now = performance.now()
+      const last = slowLoggedAt.get(params.language) ?? 0
+      if (now - last >= SLOW_LOG_INTERVAL_MS) {
+        slowLoggedAt.set(params.language, now)
+        notePerf('highlight.slow', `${elapsed.toFixed(0)}ms ${params.language} ${params.text.length}chars`)
+      }
+    }
     return response
   } finally {
     state.inFlight = Math.max(0, state.inFlight - 1)

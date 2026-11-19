@@ -7,6 +7,9 @@ import { saveData } from '../../../utils/downloadUtils'
 import { exportSettingsBackup, importSettingsBackup, previewBackupMeta } from '../../../utils/settingsBackup'
 import { openExternalUrl } from '../../../utils/externalUrl'
 import { SettingsSection } from './SettingsUI'
+import { getRecentRenderFailures } from '../../../utils/renderDiagnostics'
+import { getLastFrameStats } from '../../../utils/frameSampler'
+import { messageStore } from '../../../store/messageStore'
 
 export function AboutSettings() {
   const { t } = useTranslation(['settings'])
@@ -149,6 +152,61 @@ export function AboutSettings() {
           </div>
         )}
       </SettingsSection>
+
+      {import.meta.env.DEV && <DiagnosticsSection />}
     </div>
+  )
+}
+
+/** 仅开发期：把已有的渲染失败、帧统计和持有量放在一个地方，排障不用翻 console */
+function DiagnosticsSection() {
+  const [refreshedAt, setRefreshedAt] = useState(() => Date.now())
+  const failures = getRecentRenderFailures()
+  const frame = getLastFrameStats()
+  const held = messageStore.getHeldChatSize()
+
+  return (
+    <SettingsSection title="诊断（仅开发期）" description="最近渲染失败、流式帧统计与会话持有量">
+      <div className="flex flex-wrap items-center gap-2">
+        <Button size="sm" variant="secondary" onClick={() => setRefreshedAt(Date.now())}>
+          <RetryIcon size={12} />
+          刷新
+        </Button>
+        <span className="text-[length:var(--fs-sm)] text-text-400">
+          {new Date(refreshedAt).toLocaleTimeString()}
+        </span>
+      </div>
+
+      <div className="rounded-lg bg-bg-200/40 border border-border-200/40 px-3.5 py-3 text-[length:var(--fs-sm)] text-text-300 leading-relaxed">
+        <div>
+          持有：{held.sessions.length} 个会话 / {held.totalMessages} 条消息 /{' '}
+          {(held.totalChars / 1024).toFixed(1)} KB
+        </div>
+        {frame ? (
+          <div>
+            最近流式帧：frames={frame.stats.frames} avg={frame.stats.avgFrameMs.toFixed(1)}ms p95=
+            {frame.stats.p95FrameMs}ms max={frame.stats.longestFrameMs.toFixed(1)}ms dropped=
+            {frame.stats.droppedFrames}
+          </div>
+        ) : (
+          <div className="text-text-500">还没有流式帧统计（跑一次流式对话后再看）</div>
+        )}
+      </div>
+
+      {failures.length === 0 ? (
+        <div className="text-[length:var(--fs-sm)] text-text-500">没有渲染失败记录</div>
+      ) : (
+        <ul className="flex max-h-64 flex-col gap-1 overflow-auto rounded-lg bg-bg-200/30 border border-border-200/40 px-3.5 py-2 text-[length:var(--fs-xxs)] font-mono leading-relaxed">
+          {failures
+            .slice(-12)
+            .reverse()
+            .map((failure, index) => (
+              <li key={`${failure.at}-${index}`} className="break-all text-text-400">
+                [{failure.kind}] {failure.scope}: {failure.reason}
+              </li>
+            ))}
+        </ul>
+      )}
+    </SettingsSection>
   )
 }

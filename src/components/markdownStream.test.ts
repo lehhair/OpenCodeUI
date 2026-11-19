@@ -408,6 +408,35 @@ inside comment
     expect(projection.blocks.at(-1)!.complete).toBe(true)
   })
 
+  it('tail re-split stays equivalent to a full split across a mixed document', () => {
+    const source = [
+      '# 标题',
+      '第一段普通文本，包含 **粗体** 和 `行内代码`。',
+      '- 列表一',
+      '- 列表二',
+      '```ts',
+      'const a = 1',
+      'const b = 2',
+      '```',
+      '| 列一 | 列二 |',
+      '| --- | --- |',
+      '| 1 | 2 |',
+      '结尾段落，带一个 [引用][ref]。',
+      '',
+      '[ref]: https://example.com',
+      '',
+      '最后一行。',
+    ].join('\n\n')
+
+    let text = ''
+    let projection: ReturnType<typeof projectMarkdownStream> | undefined
+    for (let index = 0; index < source.length; index += 7) {
+      text = source.slice(0, index + 7)
+      projection = projectMarkdownStream(projection, text, true)
+      expect(projection.blocks).toEqual(splitMarkdownStream(text, true))
+    }
+  })
+
   it('projects pure live-tail append without rebuilding stable blocks', () => {
     const first = projectMarkdownStream(undefined, 'hello', true)
     const next = projectMarkdownStream(first, 'hello world', true)
@@ -482,5 +511,35 @@ describe('Markdown 块组', () => {
     expect(blocks.some(block => block.mode === 'code')).toBe(true)
     const code = blocks.find(block => block.mode === 'code')
     expect(code?.src).toBe('const x = 1')
+  })
+})
+
+describe('尾部增量解析 · 逐字符', () => {
+  it('matches a full split for every single-character tick', () => {
+    const source = [
+      '# 标题',
+      '一段普通文本，**粗体**、`code`、[链接](https://example.com)。',
+      '- 列表一',
+      '- 列表二',
+      '```ts',
+      'const a = 1',
+      '',
+      'const b = 2',
+      '```',
+      '| a | b |',
+      '| - | - |',
+      '| 1 | 2 |',
+      '结尾 [引用][ref]。',
+      '',
+      '[ref]: https://example.com',
+    ].join('\n\n')
+
+    let text = ''
+    let projection: ReturnType<typeof projectMarkdownStream> | undefined
+    for (let index = 0; index < source.length; index += 1) {
+      text = source.slice(0, index + 1)
+      projection = projectMarkdownStream(projection, text, true)
+      expect(projection.blocks).toEqual(splitMarkdownStream(text, true))
+    }
   })
 })

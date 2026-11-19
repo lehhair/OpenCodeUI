@@ -115,8 +115,17 @@ export function createFrameSampler(): FrameSampler {
   }
 }
 
+let lastFrameReport: { label: string; stats: FrameStats; at: number } | null = null
+
+/** 最近一次流式帧统计（dev 诊断面板用） */
+export function getLastFrameStats(): { label: string; stats: FrameStats; at: number } | null {
+  return lastFrameReport
+}
+
 export function reportFrameStats(label: string, stats: FrameStats | null): void {
-  if (!stats || stats.frames < 10) return
+  if (!stats) return
+  lastFrameReport = { label, stats, at: Date.now() }
+  if (stats.frames < 10) return
   if (stats.longFrameRatio < 0.02 && stats.p95FrameMs < 32) return
   console.warn(
     `[perf] ${label} frames=${stats.frames} avg=${stats.avgFrameMs.toFixed(1)}ms ` +
