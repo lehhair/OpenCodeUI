@@ -25,7 +25,8 @@ import { usePacedStreamContent } from './streamPacing'
 import { appendStreamingTextWithFade, createStreamFadeState, resetStreamFade } from './streamFade'
 import { BoundedCache } from '../utils/boundedCache'
 import { measurePerf } from '../utils/perfTrace'
-import { renderMarkdownToHtml, renderKatexHtml } from './markdownHtmlRenderer'
+import { renderMarkdownToHtml, renderKatexHtml, sanitizeHtml } from './markdownHtmlRenderer'
+import { cancelMarkdownParse, parseMarkdownInWorker } from '../lib/markdownWorkerClient'
 import { getFootnoteId, scanTextSegments } from './markdownSegments'
 import { themeStore } from '../store/themeStore'
 
@@ -94,13 +95,13 @@ const htmlCache = new BoundedCache<string, string>({
 const HTML_CACHE_MAX_ENTRY_CHARS = 512 * 1024
 
 /**
- * 超大 live 块的重解析节流。
+ * 超大块的解析策略。
  *
- * Markdown 始终保留，只是不跟满 30fps：纯文本后缀仍然每拍直接追加，
- * 需要完整 parse+morph 的大块最多每 120ms 做一次。流结束（isLive=false）
- * 或内容回落时会立刻走完整解析，不会留下半截格式。
+ * 已经渲染过的块改用 worker 解析：主线程只做净化和 morph，流式期间不再重复占用
+ * 主线程跑 marked + KaTeX。首次挂载（还没有内容）仍走同步解析，避免空块造成高度
+ * 跳动；worker 不可用时退回同步路径，并按块大小限频。
  */
-const LARGE_LIVE_PARSE_MIN_CHARS = 32 * 1024
+const LARGE_BLOCK_WORKER_MIN_CHARS = 32 * 1024
 const LARGE_LIVE_PARSE_INTERVAL_MS = 120
 /** 超过 128KB 后按倍数拉长间隔，避免每次完整 parse 都长时间占住主线程 */
 const LARGE_LIVE_PARSE_SCALE_CHARS = 128 * 1024
@@ -112,9 +113,20 @@ const PREFIXED_BLOCK_HTML_SOURCE_PATTERN = /^\s*<(?:style|script)\b[\s\S]*<(?:ad
 const ARTIFACT_HTML_SOURCE_PATTERN = /(?:<!doctype\s+html\b|<html\b|<style\b|<script\b|<canvas\b|\son[a-z]+\s*=|(?:href|src)\s*=\s*["']?\s*javascript:)/i
 const STREAMING_HTML_CONTENT_PATTERN = /(?:```(?:html|htm|xhtml|xml|svg)\b|<(?:address|article|aside|blockquote|canvas|center|details|dialog|div|dl|fieldset|figure|footer|form|header|html|main|nav|ol|section|style|svg|table|ul)\b)/i
 
+function htmlCacheKey(src: string, isReasoning: boolean, renderHtml: boolean): string {
+  return `${isReasoning ? 'r' : 'd'}:${renderHtml ? 'h' : 'x'}:${src}`
+}
+
+function peekCachedHtml(src: string, isReasoning: boolean, renderHtml: boolean): string | undefined {
+  return htmlCache.get(htmlCacheKey(src, isReasoning, renderHtml))
+}
+
+function cacheHtml(src: string, isReasoning: boolean, renderHtml: boolean, html: string): void {
+  if (html.length <= HTML_CACHE_MAX_ENTRY_CHARS) htmlCache.set(htmlCacheKey(src, isReasoning, renderHtml), html)
+}
+
 function getCachedHtml(src: string, isReasoning: boolean, renderHtml: boolean): string {
-  const key = `${isReasoning ? 'r' : 'd'}:${renderHtml ? 'h' : 'x'}:${src}`
-  const cached = htmlCache.get(key)
+  const cached = peekCachedHtml(src, isReasoning, renderHtml)
   if (cached !== undefined) return cached
   const html = measurePerf(
     'markdown.parse',
@@ -122,7 +134,7 @@ function getCachedHtml(src: string, isReasoning: boolean, renderHtml: boolean): 
     8,
     `${src.length} chars`,
   )
-  if (html.length <= HTML_CACHE_MAX_ENTRY_CHARS) htmlCache.set(key, html)
+  cacheHtml(src, isReasoning, renderHtml, html)
   return html
 }
 
@@ -950,6 +962,9 @@ const MarkdownDomBlock = memo(function MarkdownDomBlock({
   const lastLiveTextRef = useRef<{ node: Text | null }>({ node: null })
   const fadeStateRef = useRef(createStreamFadeState())
   const lastFullParseAtRef = useRef(0)
+  const latestSrcRef = useRef(src)
+  // worker 里按块合并解析请求用的稳定 key
+  const parseKey = useId()
   // 上游已按节奏揭示文本，这里不再叠 useDeferredValue：
   // 双重延迟会让 React concurrent 每帧跑两轮协调（紧急+deferred），流式帧时长翻倍。
   const renderSrc = src
@@ -975,6 +990,29 @@ const MarkdownDomBlock = memo(function MarkdownDomBlock({
   useLayoutEffect(() => {
     const root = rootRef.current
     if (!root) return
+
+    latestSrcRef.current = renderSrc
+
+    const applyHtml = (html: string) => {
+      if (appliedHtmlRef.current === html) {
+        appliedSrcRef.current = renderSrc
+        return
+      }
+      appliedHtmlRef.current = html
+      appliedSrcRef.current = renderSrc
+      lastLiveTextRef.current.node = null
+      measurePerf('markdown.morph', () => applyMarkdownHtml(root, html), 6)
+    }
+
+    // 同步兜底用的限频：worker 不可用时，超大块不跟满每一拍
+    const canSyncParseLarge = () => {
+      const now = performance.now()
+      const interval =
+        LARGE_LIVE_PARSE_INTERVAL_MS * Math.max(1, Math.ceil(renderSrc.length / LARGE_LIVE_PARSE_SCALE_CHARS))
+      if (now - lastFullParseAtRef.current < interval) return false
+      lastFullParseAtRef.current = now
+      return true
+    }
 
     // live 纯文本追加：跳过 parse + morphdom，只改最后一个 Text 节点
     const prevSrc = appliedSrcRef.current
@@ -1002,18 +1040,38 @@ const MarkdownDomBlock = memo(function MarkdownDomBlock({
       }
     }
 
-    // 超大 live 块：完整 parse+morph 限频，但 Markdown 不降级。
-    // 简单文本后缀仍走上方的快速追加；等下一个节拍时一次性解析累积内容。
-    if (isLive && renderSrc.length > LARGE_LIVE_PARSE_MIN_CHARS) {
-      const now = performance.now()
-      const interval =
-        LARGE_LIVE_PARSE_INTERVAL_MS * Math.max(1, Math.ceil(renderSrc.length / LARGE_LIVE_PARSE_SCALE_CHARS))
-      if (now - lastFullParseAtRef.current < interval) return
-      lastFullParseAtRef.current = now
-    }
-
     // 全量 parse 会替换整个子树，先取消还没结算的淡入 span
     resetStreamFade(fadeStateRef.current)
+
+    if (renderSrc.length > LARGE_BLOCK_WORKER_MIN_CHARS) {
+      const cached = peekCachedHtml(renderSrc, isReasoning, renderHtml)
+      if (cached !== undefined) {
+        applyHtml(cached)
+        return
+      }
+
+      // 已经渲染过内容才交给 worker：首次挂载保持同步解析，避免空块造成高度跳动
+      if (root.hasChildNodes()) {
+        let cancelled = false
+        void parseMarkdownInWorker({ key: parseKey, src: renderSrc, isReasoning, renderHtml }).then(result => {
+          if (cancelled || latestSrcRef.current !== renderSrc) return
+          if (result.status === 'superseded') return
+          if (result.status === 'unavailable') {
+            if (isLive && !canSyncParseLarge()) return
+            applyHtml(getCachedHtml(renderSrc, isReasoning, renderHtml))
+            return
+          }
+          if (result.src !== renderSrc) return
+          const html = renderHtml ? sanitizeHtml(result.html) : result.html
+          if (!isLive) cacheHtml(renderSrc, isReasoning, renderHtml, html)
+          applyHtml(html)
+        })
+        return () => {
+          cancelled = true
+          cancelMarkdownParse(parseKey)
+        }
+      }
+    }
 
     // live 中间态不进 htmlCache（避免 64 槽被流式碎片挤爆）；稳定块才缓存
     const html = isLive
@@ -1024,15 +1082,8 @@ const MarkdownDomBlock = memo(function MarkdownDomBlock({
           `${renderSrc.length} chars`,
         )
       : getCachedHtml(renderSrc, isReasoning, renderHtml)
-    if (appliedHtmlRef.current === html) {
-      appliedSrcRef.current = renderSrc
-      return
-    }
-    appliedHtmlRef.current = html
-    appliedSrcRef.current = renderSrc
-    lastLiveTextRef.current.node = null
-    measurePerf('markdown.morph', () => applyMarkdownHtml(root, html), 6)
-  }, [renderSrc, isReasoning, isLive, renderHtml])
+    applyHtml(html)
+  }, [renderSrc, isReasoning, isLive, renderHtml, parseKey])
 
   const handleClick = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
     if (event.defaultPrevented) return
