@@ -4,6 +4,8 @@ import { getShikiTheme, useIsDarkMode } from '../lib/shikiTheme'
 import { disposeShikiWorkerKey, highlightHtmlInWorker, highlightTokensInWorker } from '../lib/shikiWorkerClient'
 import type { HighlightTokens } from '../lib/highlightTypes'
 import { normalizeLanguage } from '../utils/languageUtils'
+import { BoundedCache } from '../utils/boundedCache'
+import { finishPerf, startPerf } from '../utils/perfTrace'
 import { THEME_SWITCH_DISABLE_MS } from '../constants'
 import { themeStore } from '../store/themeStore'
 
@@ -34,83 +36,23 @@ type IdleWindowApi = {
 type HighlightTask = () => Promise<void>
 
 // ============================================
-// LRU 缓存层 - 避免重复高亮相同代码
+// 缓存层 - 避免重复高亮相同代码
 // ============================================
 
-interface CacheEntry<T> {
-  value: T
-  /** 估算成本（字符量 / token 数），用于按总量回收 */
-  cost: number
-}
-
-/**
- * 带成本预算的 LRU。
- *
- * 原来的实现只按条数回收：80 条 token 数组，赶上几个大文件就是几百 MB。
- * 现在同时受条数和总量限制，读命中也会移到队尾（真正的 LRU）。
- */
-class LRUCache<T> {
-  private cache = new Map<string, CacheEntry<T>>()
-  private totalCost = 0
-  private readonly maxSize: number
-  private readonly maxCost: number
-  private readonly costOf: (value: T) => number
-
-  constructor(maxSize: number, maxCost = Number.POSITIVE_INFINITY, costOf: (value: T) => number = () => 1) {
-    this.maxSize = maxSize
-    this.maxCost = maxCost
-    this.costOf = costOf
-  }
-
-  get(key: string): T | undefined {
-    const entry = this.cache.get(key)
-    if (!entry) return undefined
-    this.cache.delete(key)
-    this.cache.set(key, entry)
-    return entry.value
-  }
-
-  set(key: string, value: T): void {
-    const cost = this.costOf(value)
-    const existing = this.cache.get(key)
-    if (existing) {
-      this.totalCost -= existing.cost
-      existing.value = value
-      existing.cost = cost
-      this.cache.delete(key)
-      this.cache.set(key, existing)
-    } else {
-      this.cache.set(key, { value, cost })
-    }
-    this.totalCost += cost
-    this.trim()
-  }
-
-  private trim(): void {
-    while (this.cache.size > this.maxSize || this.totalCost > this.maxCost) {
-      const oldest = this.cache.keys().next().value
-      if (oldest === undefined) break
-      this.totalCost -= this.cache.get(oldest)?.cost ?? 0
-      this.cache.delete(oldest)
-    }
-  }
-
-  clear(): void {
-    this.cache.clear()
-    this.totalCost = 0
-  }
-
-  get size(): number {
-    return this.cache.size
-  }
-}
-
-const htmlCache = new LRUCache<string>(120, 4 * 1024 * 1024, html => html.length)
-const tokensCache = new LRUCache<HighlightTokens>(80, 8 * 1024 * 1024, tokens => {
-  // 字符量 + 每个 token 的对象开销，粗略但足够决定回收顺序
-  let cost = 0
-  for (const line of tokens) for (const token of line) cost += token.content.length + 24
-  return cost
+const htmlCache = new BoundedCache<string, string>({
+  maxEntries: 120,
+  maxCost: 4 * 1024 * 1024,
+  costOf: html => html.length,
+})
+const tokensCache = new BoundedCache<string, HighlightTokens>({
+  maxEntries: 80,
+  maxCost: 8 * 1024 * 1024,
+  costOf: tokens => {
+    // 字符量 + 每个 token 的对象开销，粗略但足够决定回收顺序
+    let cost = 0
+    for (const line of tokens) for (const token of line) cost += token.content.length + 24
+    return cost
+  },
 })
 
 /**
@@ -304,6 +246,7 @@ export function useStreamingSyntaxHighlight(
       }
       lastRequestAtRef.current = performance.now()
       setIsLoading(true)
+      const startedAt = startPerf()
       void highlightTokensInWorker({
         key: request.key,
         text: request.code,
@@ -320,6 +263,7 @@ export function useStreamingSyntaxHighlight(
           }
         })
         .finally(() => {
+          finishPerf('highlight.stream', startedAt, 80, `${request.code.length} chars`)
           if (latestRef.current.key !== request.key || !latestRef.current.enabled) return
           setIsLoading(false)
         })

@@ -11,6 +11,7 @@ import { useTranslation } from 'react-i18next'
 import { MarkdownRenderer } from '../../components/MarkdownRenderer'
 import { useDisclosureScrollLock } from '../../hooks'
 import { useUiDisclosureState } from '../../utils/uiDisclosureState'
+import { BoundedCache } from '../../utils/boundedCache'
 
 /** 默认预览 8 行 */
 const COLLAPSE_PREVIEW_LINES = 8
@@ -20,19 +21,7 @@ export const USER_HTML_ARTIFACT_PATTERN =
   /(?:```(?:html|htm)\b|<!doctype\s+html\b|<html\b|<style\b|<script\b|<canvas\b|\son[a-z]+\s*=)/i
 
 // 折叠状态缓存：消息是否溢出
-const overflowStateCache = new Map<string, boolean>()
-/** 长会话里每条用户消息都会留一个 key，给个上限避免跨会话无限增长 */
-const OVERFLOW_CACHE_LIMIT = 2000
-
-function rememberOverflow(key: string, value: boolean) {
-  overflowStateCache.delete(key)
-  overflowStateCache.set(key, value)
-  while (overflowStateCache.size > OVERFLOW_CACHE_LIMIT) {
-    const oldest = overflowStateCache.keys().next().value
-    if (oldest === undefined) break
-    overflowStateCache.delete(oldest)
-  }
-}
+const overflowStateCache = new BoundedCache<string, boolean>({ maxEntries: 2000 })
 
 export interface CollapsibleUserTextProps {
   text: string
@@ -78,7 +67,7 @@ export const CollapsibleUserText = memo(function CollapsibleUserText({
       if (!Number.isFinite(fsBase) || fsBase <= 0) return
       const collapsedHeight = fsBase * LEADING_RELAXED * COLLAPSE_PREVIEW_LINES
       const next = el.scrollHeight > collapsedHeight + 1
-      rememberOverflow(overflowCacheKey, next)
+      overflowStateCache.set(overflowCacheKey, next)
       setIsOverflow(prev => (prev === next ? prev : next))
     }
 

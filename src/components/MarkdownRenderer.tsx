@@ -22,6 +22,8 @@ import { marked } from 'marked'
 import type { Tokens } from 'marked'
 import { isMarkupPreviewLanguage, projectMarkdownStream, stripLeadingHtmlComments, type MarkdownStreamProjection } from './markdownStream'
 import { usePacedStreamContent } from './streamPacing'
+import { BoundedCache } from '../utils/boundedCache'
+import { measurePerf } from '../utils/perfTrace'
 import { renderMarkdownToHtml, renderKatexHtml } from './markdownHtmlRenderer'
 import { getFootnoteId, scanTextSegments } from './markdownSegments'
 import { themeStore } from '../store/themeStore'
@@ -69,37 +71,32 @@ type PinchGesture = {
 let mermaidRenderCounter = 0
 const markdownProjectionCache = new Map<string, MarkdownStreamProjection>()
 /** 非流式消息的分块结果：虚拟列表来回挂载时避免整段重新 lex */
-const staticProjectionCache = new Map<string, MarkdownStreamProjection>()
-const STATIC_PROJECTION_CACHE_MAX = 64
-const STATIC_PROJECTION_CACHE_MAX_CHARS = 4 * 1024 * 1024
-let staticProjectionChars = 0
+const staticProjectionCache = new BoundedCache<string, MarkdownStreamProjection>({
+  maxEntries: 64,
+  maxCost: 4 * 1024 * 1024,
+  costOf: projection => projection.text.length,
+})
 
 function getStaticProjection(content: string): MarkdownStreamProjection {
   const cached = staticProjectionCache.get(content)
-  if (cached) {
-    staticProjectionCache.delete(content)
-    staticProjectionCache.set(content, cached)
-    return cached
-  }
-  const projection = projectMarkdownStream(undefined, content, false)
+  if (cached) return cached
+  const projection = measurePerf(
+    'markdown.split',
+    () => projectMarkdownStream(undefined, content, false),
+    6,
+    `${content.length} chars`,
+  )
   staticProjectionCache.set(content, projection)
-  staticProjectionChars += content.length
-  while (staticProjectionCache.size > STATIC_PROJECTION_CACHE_MAX || staticProjectionChars > STATIC_PROJECTION_CACHE_MAX_CHARS) {
-    const oldestKey = staticProjectionCache.keys().next().value
-    if (oldestKey === undefined) break
-    staticProjectionCache.delete(oldestKey)
-    staticProjectionChars -= oldestKey.length
-    if (oldestKey === content) break
-  }
   return projection
 }
 
-const htmlCache = new Map<string, string>()
-const HTML_CACHE_MAX = 256
-const HTML_CACHE_MAX_CHARS = 4 * 1024 * 1024
+const htmlCache = new BoundedCache<string, string>({
+  maxEntries: 256,
+  maxCost: 4 * 1024 * 1024,
+  costOf: html => html.length,
+})
 /** 单块过大不进缓存：一个几百 KB 的表格/长段会挤掉几十个正常块 */
 const HTML_CACHE_MAX_ENTRY_CHARS = 512 * 1024
-let htmlCacheChars = 0
 
 /**
  * 超大 live 块的重解析节流。
@@ -123,25 +120,14 @@ const STREAMING_HTML_CONTENT_PATTERN = /(?:```(?:html|htm|xhtml|xml|svg)\b|<(?:a
 function getCachedHtml(src: string, isReasoning: boolean, renderHtml: boolean): string {
   const key = `${isReasoning ? 'r' : 'd'}:${renderHtml ? 'h' : 'x'}:${src}`
   const cached = htmlCache.get(key)
-  if (cached !== undefined) {
-    // 命中即移到队尾，真正的 LRU
-    htmlCache.delete(key)
-    htmlCache.set(key, cached)
-    return cached
-  }
-  const html = renderMarkdownToHtml(src, isReasoning, renderHtml)
-  if (html.length <= HTML_CACHE_MAX_ENTRY_CHARS) {
-    htmlCache.set(key, html)
-    htmlCacheChars += html.length
-    while (htmlCache.size > HTML_CACHE_MAX || htmlCacheChars > HTML_CACHE_MAX_CHARS) {
-      const oldestKey = htmlCache.keys().next().value
-      if (oldestKey === undefined) break
-      const oldestValue = htmlCache.get(oldestKey)
-      htmlCache.delete(oldestKey)
-      if (oldestValue !== undefined) htmlCacheChars -= oldestValue.length
-      if (oldestKey === key) break
-    }
-  }
+  if (cached !== undefined) return cached
+  const html = measurePerf(
+    'markdown.parse',
+    () => renderMarkdownToHtml(src, isReasoning, renderHtml),
+    8,
+    `${src.length} chars`,
+  )
+  if (html.length <= HTML_CACHE_MAX_ENTRY_CHARS) htmlCache.set(key, html)
   return html
 }
 
@@ -1388,7 +1374,12 @@ const MarkdownDomBlock = memo(function MarkdownDomBlock({
 
     // live 中间态不进 htmlCache（避免 64 槽被流式碎片挤爆）；稳定块才缓存
     const html = isLive
-      ? renderMarkdownToHtml(renderSrc, isReasoning, renderHtml)
+      ? measurePerf(
+          'markdown.parse.live',
+          () => renderMarkdownToHtml(renderSrc, isReasoning, renderHtml),
+          8,
+          `${renderSrc.length} chars`,
+        )
       : getCachedHtml(renderSrc, isReasoning, renderHtml)
     if (appliedHtmlRef.current === html) {
       appliedSrcRef.current = renderSrc
@@ -1397,7 +1388,7 @@ const MarkdownDomBlock = memo(function MarkdownDomBlock({
     appliedHtmlRef.current = html
     appliedSrcRef.current = renderSrc
     lastLiveTextRef.current.node = null
-    applyMarkdownHtml(root, html)
+    measurePerf('markdown.morph', () => applyMarkdownHtml(root, html), 6)
   }, [renderSrc, isReasoning, isLive, renderHtml])
 
   const handleClick = useCallback((event: React.MouseEvent<HTMLDivElement>) => {

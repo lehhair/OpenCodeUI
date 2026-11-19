@@ -1,4 +1,5 @@
 import { useMemo, useRef } from 'react'
+import { measurePerf } from '../../utils/perfTrace'
 import { isAssistantMessage, isUserMessage, userMessageText, type SessionMessageInfo } from '../../types/api/message'
 import { buildOutlineSourceEntries, type OutlineSourceEntry } from '../../components/outlineIndexModel'
 import {
@@ -282,7 +283,12 @@ export function buildChatPageViewModel(
 export function useChatPageViewModel(messages: SessionMessageInfo[], showNotices = false): ChatPageViewModel {
   const previousRef = useRef<ChatPageViewModel | undefined>(undefined)
   return useMemo(() => {
-    const viewModel = buildChatPageViewModel(messages, previousRef.current, showNotices)
+    const viewModel = measurePerf(
+      'chat.pageViewModel',
+      () => buildChatPageViewModel(messages, previousRef.current, showNotices),
+      4,
+      `${messages.length} msgs`,
+    )
     previousRef.current = viewModel
     return viewModel
   }, [messages, showNotices])

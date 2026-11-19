@@ -1,37 +1,23 @@
+import { BoundedCache } from '../utils/boundedCache'
+
 const MERMAID_CACHE_MAX = 64
 /** SVG 体积差很多，单纯按条数会留下几十张超大图 */
 const MERMAID_CACHE_MAX_CHARS = 4 * 1024 * 1024
 
-const svgCache = new Map<string, string>()
+const svgCache = new BoundedCache<string, string>({
+  maxEntries: MERMAID_CACHE_MAX,
+  maxCost: MERMAID_CACHE_MAX_CHARS,
+  costOf: svg => svg.length,
+})
 const pendingRenders = new Map<string, Promise<string>>()
-let svgCacheChars = 0
 let renderQueue: Promise<void> = Promise.resolve()
 
 export function getCachedMermaidSvg(key: string) {
-  const cached = svgCache.get(key)
-  if (cached === undefined) return undefined
-  // 命中即移到队尾
-  svgCache.delete(key)
-  svgCache.set(key, cached)
-  return cached
+  return svgCache.get(key)
 }
 
 function rememberSvg(key: string, svg: string) {
-  const existing = svgCache.get(key)
-  if (existing !== undefined) {
-    svgCacheChars -= existing.length
-    svgCache.delete(key)
-  }
   svgCache.set(key, svg)
-  svgCacheChars += svg.length
-  while (svgCache.size > MERMAID_CACHE_MAX || svgCacheChars > MERMAID_CACHE_MAX_CHARS) {
-    const oldestKey = svgCache.keys().next().value
-    if (oldestKey === undefined) break
-    const oldestValue = svgCache.get(oldestKey)
-    svgCache.delete(oldestKey)
-    if (oldestValue !== undefined) svgCacheChars -= oldestValue.length
-    if (oldestKey === key) break
-  }
 }
 
 export async function getOrRenderMermaidSvg(key: string, render: () => Promise<string>) {
@@ -60,6 +46,5 @@ export async function getOrRenderMermaidSvg(key: string, render: () => Promise<s
 
 export function clearMermaidRenderCache() {
   svgCache.clear()
-  svgCacheChars = 0
   pendingRenders.clear()
 }
