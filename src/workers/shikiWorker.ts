@@ -19,11 +19,18 @@ export type WorkerRequest =
       type: 'highlight'
       id: number
       key: string
-      text: string
+      /** 完整文本；续传时可以省略 */
+      text?: string
+      /** 续传：worker 已持有的前缀长度 */
+      baseLength?: number
+      /** 续传：本次新增的文本（避免每拍整段结构化拷贝） */
+      append?: string
       language: string
       theme: BundledTheme
       mode: 'tokens' | 'html'
       complete?: boolean
+      /** 客户端状态与 worker 不一致时要求重开流（重新全量排版一次） */
+      forceReset?: boolean
     }
   | { type: 'dispose'; key: string }
 
@@ -32,9 +39,11 @@ export type WorkerResponse =
       type: 'highlight'
       id: number
       key: string
-      code: string
       reset: boolean
+      /** 本次新增的 stable token；reset 时为全量 */
       stable: WorkerToken[]
+      /** 累积已发出的 stable token 数，客户端据此对齐，对不上就请求重开 */
+      stableTotal: number
       unstable: WorkerToken[]
       html?: string
     }
@@ -48,10 +57,20 @@ type Stream = {
   theme: BundledTheme
   source: string
   tokenizer: ShikiStreamTokenizer
+  /** tokensStable 中已经发给客户端的原始下标 */
+  sentRawStable: number
+  /** 已经发给客户端的 stable token 数（按过滤后计） */
+  sentStableCount: number
 }
 
 const streams = new Map<string, Stream>()
 const activeHighlights = new Set<string>()
+/**
+ * dispose 后仍可能有请求在 await 中，结束时不能再把流塞回 map；
+ * 记下已销毁的 key，等新请求进来时再清除。
+ */
+const disposedKeys = new Set<string>()
+const MAX_DISPOSED_KEYS = 2000
 const queuedHighlights = new Map<string, Extract<WorkerRequest, { type: 'highlight' }>>()
 let highlighter: Promise<HighlighterCore> | undefined
 let onigWasmPromise: Promise<ArrayBuffer> | null = null
@@ -146,29 +165,31 @@ async function highlight(request: Extract<WorkerRequest, { type: 'highlight' }>)
     if (!loaded) throw new Error(`Unsupported Shiki language: ${request.language}`)
 
     if (isPlainText) {
+      const text = resolveRequestText(request, streams.get(request.key))
       post({
         type: 'highlight',
         id: request.id,
         key: request.key,
-        code: request.text,
         reset: true,
-        stable: request.mode === 'html' ? [] : [[request.text, '']],
+        stable: request.mode === 'html' ? [] : [[text, '']],
+        stableTotal: request.mode === 'html' ? 0 : 1,
         unstable: [],
-        html: request.mode === 'html' ? plainTextHtml(request.text) : undefined,
+        html: request.mode === 'html' ? plainTextHtml(text) : undefined,
       })
       return
     }
 
     if (request.mode === 'html') {
-      const html = instance.codeToHtml(request.text, { lang: language, theme: request.theme })
+      const text = resolveRequestText(request, streams.get(request.key))
+      const html = instance.codeToHtml(text, { lang: language, theme: request.theme })
       streams.delete(request.key)
       post({
         type: 'highlight',
         id: request.id,
         key: request.key,
-        code: request.text,
         reset: true,
         stable: [],
+        stableTotal: 0,
         unstable: [],
         html,
       })
@@ -176,49 +197,112 @@ async function highlight(request: Extract<WorkerRequest, { type: 'highlight' }>)
     }
 
     if (request.complete) {
-      const result = instance.codeToTokens(request.text, { lang: language, theme: request.theme })
+      const text = resolveRequestText(request, streams.get(request.key))
+      const result = instance.codeToTokens(text, { lang: language, theme: request.theme })
       streams.delete(request.key)
+      const stable = result.tokens
+        .flatMap((line, index) =>
+          index === result.tokens.length - 1 ? line : [...line, { content: '\n', offset: 0 } as ThemedToken],
+        )
+        .map(toWorkerToken)
       post({
         type: 'highlight',
         id: request.id,
         key: request.key,
-        code: request.text,
         reset: true,
-        stable: result.tokens
-          .flatMap((line, index) =>
-            index === result.tokens.length - 1 ? line : [...line, { content: '\n', offset: 0 } as ThemedToken],
-          )
-          .map(toWorkerToken),
+        stable,
+        stableTotal: stable.length,
         unstable: [],
       })
       return
     }
 
     const previous = streams.get(request.key)
-    const reset = !previous || previous.language !== language || previous.theme !== request.theme || !request.text.startsWith(previous.source)
-    const stream = reset
-      ? { language, theme: request.theme, source: '', tokenizer: new ShikiStreamTokenizer({ highlighter: instance, lang: language, theme: request.theme }) }
-      : previous
-    const chunk = request.text.slice(stream.source.length)
+    const resetBase =
+      request.forceReset || !previous || previous.language !== language || previous.theme !== request.theme
+
+    let stream: Stream
+    let chunk: string
+    let reset: boolean
+
+    if (resetBase) {
+      if (request.text === undefined) throw new Error('stream-desync')
+      reset = true
+      stream = createStream(instance, language, request.theme)
+      chunk = request.text
+    } else if (request.text !== undefined) {
+      if (request.text.startsWith(previous!.source)) {
+        reset = false
+        stream = previous!
+        chunk = request.text.slice(stream.source.length)
+      } else {
+        reset = true
+        stream = createStream(instance, language, request.theme)
+        chunk = request.text
+      }
+    } else {
+      // 续传：只带了新增片段，worker 的流位置必须和客户端认为的一致
+      if (request.append === undefined || request.baseLength !== previous!.source.length) {
+        throw new Error('stream-desync')
+      }
+      reset = false
+      stream = previous!
+      chunk = request.append
+    }
+
     if (chunk) await stream.tokenizer.enqueue(chunk)
-    stream.source = request.text
-    streams.set(request.key, stream)
+    stream.source += chunk
+    if (!disposedKeys.has(request.key)) streams.set(request.key, stream)
+
+    // 只回传这一拍新稳定下来的 token。已稳定前缀不会回退，所以增量是安全的；
+    // 客户端按 stableTotal 对齐，对不上就带 forceReset 再要一次全量。
+    const rawStable = stream.tokenizer.tokensStable
+    const fresh = rawStable.slice(stream.sentRawStable)
+    stream.sentRawStable = rawStable.length
+    const freshTokens = fresh.filter(t => t.content.length > 0).map(toWorkerToken)
+    stream.sentStableCount += freshTokens.length
+
     post({
       type: 'highlight',
       id: request.id,
       key: request.key,
-      code: request.text,
       reset,
-      stable: stream.tokenizer.tokensStable.filter(t => t.content.length > 0).map(toWorkerToken),
+      stable: freshTokens,
+      stableTotal: stream.sentStableCount,
       unstable: stream.tokenizer.tokensUnstable.filter(t => t.content.length > 0).map(toWorkerToken),
     })
   } catch (error) {
+    // 出错时流状态可能已经半推进，直接丢掉；客户端下一次会带全量文本重开
+    streams.delete(request.key)
     post({ type: 'error', id: request.id, key: request.key, message: error instanceof Error ? error.message : String(error) })
   }
 }
 
 function post(response: WorkerResponse) {
   self.postMessage(response)
+}
+
+function createStream(instance: HighlighterCore, language: string, theme: BundledTheme): Stream {
+  return {
+    language,
+    theme,
+    source: '',
+    tokenizer: new ShikiStreamTokenizer({ highlighter: instance, lang: language, theme }),
+    sentRawStable: 0,
+    sentStableCount: 0,
+  }
+}
+
+/** 只有带 append 的续传请求会省略 text；此时必须能对上前缀 */
+function resolveRequestText(
+  request: Extract<WorkerRequest, { type: 'highlight' }>,
+  previous: Stream | undefined,
+): string {
+  if (request.text !== undefined) return request.text
+  if (!previous || request.append === undefined || request.baseLength !== previous.source.length) {
+    throw new Error('stream-desync')
+  }
+  return previous.source + request.append
 }
 
 function runQueuedHighlight(request: Extract<WorkerRequest, { type: 'highlight' }>) {
@@ -279,7 +363,15 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
     if (queued) post({ type: 'superseded', id: queued.id, key: queued.key })
     queuedHighlights.delete(msg.key)
     streams.delete(msg.key)
+    disposedKeys.delete(msg.key)
+    disposedKeys.add(msg.key)
+    while (disposedKeys.size > MAX_DISPOSED_KEYS) {
+      const oldest = disposedKeys.values().next().value
+      if (oldest === undefined) break
+      disposedKeys.delete(oldest)
+    }
     return
   }
+  disposedKeys.delete(msg.key)
   queueHighlight(msg)
 }

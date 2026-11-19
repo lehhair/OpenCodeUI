@@ -46,12 +46,16 @@ function renderIncrementalTokens(tokens: HighlightTokens, suffix: string) {
 
 type FlatHighlightToken = { content: string; color?: string }
 
+/** 共享换行节点，避免每次重排都给换行新造一个对象 */
+const NEWLINE_TOKEN: FlatHighlightToken = { content: '\n' }
+
 function flattenTokens(tokens: HighlightTokens, suffix: string): FlatHighlightToken[] {
   const result: FlatHighlightToken[] = []
-  tokens.forEach((line, lineIndex) => {
-    line.forEach(token => result.push({ content: token.content, color: token.color }))
-    if (lineIndex < tokens.length - 1) result.push({ content: '\n' })
-  })
+  for (let lineIndex = 0; lineIndex < tokens.length; lineIndex += 1) {
+    const line = tokens[lineIndex]
+    for (let tokenIndex = 0; tokenIndex < line.length; tokenIndex += 1) result.push(line[tokenIndex])
+    if (lineIndex < tokens.length - 1) result.push(NEWLINE_TOKEN)
+  }
   if (suffix) result.push({ content: suffix })
   return result
 }

@@ -1,6 +1,7 @@
 import type { BundledTheme } from 'shiki/themes'
 import type { WorkerRequest, WorkerResponse, WorkerToken } from '../workers/shikiWorker'
 import type { HighlightTokens } from './highlightTypes'
+import { buildHighlightRequest } from './shikiStreamRequest'
 import {
   DEFAULT_CODE_BLOCK_THEME_DARK,
   DEFAULT_CODE_BLOCK_THEME_LIGHT,
@@ -19,18 +20,43 @@ let workerReadyPromiseReject: ((error: unknown) => void) | null = null
 let nextId = 1
 
 const pendingRequests = new Map<number, PendingRequest>()
-/** 每个代码块实例一个 key；长会话里会一直累积，给个上限（只用于丢弃过期请求） */
-const latestRequestByKey = new Map<string, number>()
-const MAX_LATEST_REQUEST_KEYS = 800
 
-function rememberLatestRequest(key: string, id: number) {
-  latestRequestByKey.delete(key)
-  latestRequestByKey.set(key, id)
-  while (latestRequestByKey.size > MAX_LATEST_REQUEST_KEYS) {
-    const oldest = latestRequestByKey.keys().next().value
-    if (oldest === undefined) break
-    latestRequestByKey.delete(oldest)
+/**
+ * 每个流式代码块一个 key。记录 worker 里这条流的位置（confirmedText），
+ * 只有「没有在途请求且文本是前缀增长」时才发增量，否则发全量。
+ * 长会话里 key 会一直累积，给个上限（被淘汰只会退化成发全量，不影响正确性）。
+ */
+type KeyStreamState = {
+  latestId: number
+  confirmedText: string
+  inFlight: number
+}
+
+const keyStates = new Map<string, KeyStreamState>()
+const MAX_TRACKED_KEYS = 800
+
+function stateFor(key: string): KeyStreamState {
+  const existing = keyStates.get(key)
+  if (existing) {
+    // 顺带做 LRU：重新插到末尾
+    keyStates.delete(key)
+    keyStates.set(key, existing)
+    return existing
   }
+
+  const state: KeyStreamState = { latestId: 0, confirmedText: '', inFlight: 0 }
+  keyStates.set(key, state)
+  while (keyStates.size > MAX_TRACKED_KEYS) {
+    const oldest = keyStates.keys().next().value
+    if (oldest === undefined) break
+    keyStates.delete(oldest)
+  }
+  return state
+}
+
+function isSuperseded(key: string, id: number): boolean {
+  const latest = keyStates.get(key)?.latestId
+  return latest !== undefined && latest !== 0 && latest !== id
 }
 
 function getWorker(): Worker {
@@ -105,7 +131,7 @@ export function ensureShikiWorkerReady(): Promise<void> {
   return workerReady
 }
 
-function splitTokensIntoLines(tokens: WorkerToken[]): HighlightTokens {
+export function splitTokensIntoLines(tokens: WorkerToken[]): HighlightTokens {
   if (tokens.length === 0) return [[]]
 
   const lines: HighlightTokens = []
@@ -141,35 +167,75 @@ async function workerHighlight(params: {
   theme: BundledTheme
   mode: 'tokens' | 'html'
   complete?: boolean
+  forceReset?: boolean
 }): Promise<Extract<WorkerResponse, { type: 'highlight' }>> {
   await ensureShikiWorkerReady()
 
   const id = nextId++
   const w = getWorker()
-  rememberLatestRequest(params.key, id)
+  const state = stateFor(params.key)
+  state.latestId = id
 
-  return new Promise<Extract<WorkerResponse, { type: 'highlight' }>>((resolve, reject) => {
-    pendingRequests.set(id, {
-      resolve: resolve as (response: WorkerResponse) => void,
-      reject,
+  const message = buildHighlightRequest(
+    {
+      id,
+      key: params.key,
+      text: params.text,
+      language: params.language,
+      theme: params.theme,
+      mode: params.mode,
+      complete: params.complete,
+      forceReset: params.forceReset,
+    },
+    state,
+  )
+
+  state.inFlight += 1
+  try {
+    const response = await new Promise<Extract<WorkerResponse, { type: 'highlight' }>>((resolve, reject) => {
+      pendingRequests.set(id, { resolve: resolve as (response: WorkerResponse) => void, reject })
+      w.postMessage(message)
     })
-    w.postMessage({ type: 'highlight', id, ...params } satisfies WorkerRequest)
-  })
+    // worker 顺序处理同一个 key，这条响应生效后流的位置就是本次请求的文本
+    state.confirmedText = params.text
+    return response
+  } finally {
+    state.inFlight = Math.max(0, state.inFlight - 1)
+  }
 }
 
+export type HighlightTokensChunk = {
+  id: number
+  code: string
+  reset: boolean
+  stable: WorkerToken[]
+  stableTotal: number
+  unstable: WorkerToken[]
+}
+
+/**
+ * 流式高亮：返回增量片段，由调用方用 `applyHighlightChunk` 累积。
+ *
+ * 不再在这里抛 `superseded`：worker 对同一个 key 是顺序处理的，
+ * 迟到的响应也是流上一段合法前缀，丢给调用方按顺序应用即可；
+ * 真正的过期由调用方检查 key 决定是否采用。
+ */
 export async function highlightTokensInWorker(params: {
   key: string
   text: string
   language: string
   theme: BundledTheme
   complete?: boolean
-}): Promise<{ id: number; code: string; tokens: HighlightTokens }> {
+  forceReset?: boolean
+}): Promise<HighlightTokensChunk> {
   const result = await workerHighlight({ ...params, mode: 'tokens' })
-  if (isSuperseded(params.key, result.id)) throw new Error('superseded')
   return {
     id: result.id,
-    code: result.code,
-    tokens: splitTokensIntoLines([...result.stable, ...result.unstable]),
+    code: params.text,
+    reset: result.reset,
+    stable: result.stable,
+    stableTotal: result.stableTotal,
+    unstable: result.unstable,
   }
 }
 
@@ -184,18 +250,9 @@ export async function highlightHtmlInWorker(params: {
   return { id: result.id, html: result.html ?? '' }
 }
 
-/**
- * 键被 LRU 淘汰（`get` 为 undefined）时不能判成过期：
- * 那只是「这张表不记得了」，请求本身仍然有效。
- */
-function isSuperseded(key: string, id: number): boolean {
-  const latest = latestRequestByKey.get(key)
-  return latest !== undefined && latest !== id
-}
-
 export function disposeShikiWorkerKey(key: string) {
   if (!worker) return
 
   worker.postMessage({ type: 'dispose', key } satisfies WorkerRequest)
-  latestRequestByKey.delete(key)
+  keyStates.delete(key)
 }

@@ -1,8 +1,13 @@
 import { useState, useEffect, useMemo, useRef, useId, useSyncExternalStore, useCallback } from 'react'
 import type { ShikiThemeInput } from '../lib/shikiTheme'
 import { getShikiTheme, useIsDarkMode } from '../lib/shikiTheme'
-import { disposeShikiWorkerKey, highlightHtmlInWorker, highlightTokensInWorker } from '../lib/shikiWorkerClient'
+import { disposeShikiWorkerKey, highlightHtmlInWorker, highlightTokensInWorker, splitTokensIntoLines } from '../lib/shikiWorkerClient'
 import type { HighlightTokens } from '../lib/highlightTypes'
+import {
+  applyHighlightChunk,
+  createHighlightAccumulator,
+  type HighlightAccumulator,
+} from '../lib/highlightAccumulator'
 import { normalizeLanguage } from '../utils/languageUtils'
 import { BoundedCache } from '../utils/boundedCache'
 import { finishPerf, startPerf } from '../utils/perfTrace'
@@ -149,13 +154,14 @@ async function highlightWithCache(
     if (cached !== undefined) return cached
 
     try {
-      const { tokens } = await highlightTokensInWorker({
+      const { stable } = await highlightTokensInWorker({
         key: `tokens:${cacheKey}:${highlightRequestId++}`,
         text: code,
         language: lang,
         theme,
         complete: true,
       })
+      const tokens = splitTokensIntoLines(stable)
       if (cacheable) tokensCache.set(cacheKey, tokens)
       return tokens
     } catch {
@@ -212,6 +218,8 @@ export function useStreamingSyntaxHighlight(
   const [outputState, setOutputState] = useState<{ code: string; tokens: HighlightTokens } | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const workerKeyRef = useRef('')
+  /** 按 worker key 累积增量 token；换语言/主题时整体丢弃 */
+  const accumulatorRef = useRef<{ key: string; acc: HighlightAccumulator } | null>(null)
 
   const key = `${instanceId}:${normalizedLang}:${resolvedTheme.key}`
 
@@ -244,29 +252,63 @@ export function useStreamingSyntaxHighlight(
         setIsLoading(false)
         return
       }
+
+      const isCurrent = () => latestRef.current.key === request.key && latestRef.current.enabled
+      const currentAccumulator = accumulatorRef.current
+      if (!currentAccumulator || currentAccumulator.key !== request.key) {
+        accumulatorRef.current = { key: request.key, acc: createHighlightAccumulator() }
+      }
+
       lastRequestAtRef.current = performance.now()
       setIsLoading(true)
       const startedAt = startPerf()
-      void highlightTokensInWorker({
-        key: request.key,
-        text: request.code,
-        language: request.language,
-        theme: request.theme,
-      })
-        .then(result => {
-          if (latestRef.current.key !== request.key || !latestRef.current.enabled) return
-          setOutputState(prev => (prev?.code === result.code ? prev : { code: result.code, tokens: result.tokens }))
-        })
-        .catch(err => {
+
+      void (async () => {
+        try {
+          const highlight = (forceReset?: boolean) =>
+            highlightTokensInWorker({
+              key: request.key,
+              text: request.code,
+              language: request.language,
+              theme: request.theme,
+              forceReset,
+            })
+
+          let chunk
+          try {
+            chunk = await highlight()
+          } catch (err) {
+            // 续传的前缀对不上（worker 侧流被丢弃或重开过）：带全量文本重开一次
+            if (!(err instanceof Error) || err.message !== 'stream-desync') throw err
+            chunk = await highlight(true)
+          }
+          if (!isCurrent()) return
+
+          let state = accumulatorRef.current
+          if (!state || state.key !== request.key) return
+          let applied = applyHighlightChunk(state.acc, chunk)
+
+          // 累积状态和 worker 对不上（上一拍被合并、或流被重开）：要一次全量重排
+          if (!applied.ok) {
+            chunk = await highlight(true)
+            if (!isCurrent()) return
+            state = accumulatorRef.current
+            if (!state || state.key !== request.key) return
+            applied = applyHighlightChunk(state.acc, chunk)
+            if (!applied.ok) return
+          }
+
+          const tokens = applied.tokens
+          setOutputState(prev => (prev?.code === chunk.code ? prev : { code: chunk.code, tokens }))
+        } catch (err) {
           if (import.meta.env.DEV && err instanceof Error && err.message !== 'superseded') {
             console.warn('[Syntax] streaming Shiki worker error:', err)
           }
-        })
-        .finally(() => {
+        } finally {
           finishPerf('highlight.stream', startedAt, 80, `${request.code.length} chars`)
-          if (latestRef.current.key !== request.key || !latestRef.current.enabled) return
-          setIsLoading(false)
-        })
+          if (isCurrent()) setIsLoading(false)
+        }
+      })()
     }
 
     if (!enabled) {
@@ -274,6 +316,7 @@ export function useStreamingSyntaxHighlight(
         window.clearTimeout(timerRef.current)
         timerRef.current = null
       }
+      accumulatorRef.current = null
       if (workerKeyRef.current) {
         disposeShikiWorkerKey(workerKeyRef.current)
         workerKeyRef.current = ''
@@ -284,6 +327,7 @@ export function useStreamingSyntaxHighlight(
     const previousKey = workerKeyRef.current
     if (previousKey && previousKey !== key) {
       disposeShikiWorkerKey(previousKey)
+      accumulatorRef.current = null
       // 换语言/主题后旧 token 的颜色和语法都不对，先清掉等新结果
       // eslint-disable-next-line react-hooks/set-state-in-effect -- 与 worker 的旧输出解耦，属于外部状态同步
       setOutputState(null)
