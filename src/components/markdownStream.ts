@@ -75,8 +75,14 @@ function hasOpenFence(raw: string) {
 function suffixClosesOpenFence(raw: string, suffix: string) {
   const fence = getOpeningFence(raw)
   if (!fence) return suffix.includes('```') || suffix.includes('~~~')
-  const prefix = raw.slice(-(fence.size - 1))
-  return new RegExp(`^[\\s\\S]*(?:^|\\n)[ \\t]{0,3}${fence.char}{${fence.size},}[ \\t]*(?:\\n|$)`).test(prefix + suffix)
+  // 用「当前行 + 后缀」判断：闭合围栏可能被拆成多次到达，也可能带缩进，
+  // 只取末尾几个字符会丢掉行首和缩进信息。
+  const lineStart = raw.lastIndexOf('\n') + 1
+  const currentLine = raw.slice(lineStart)
+  const closePattern = new RegExp(
+    `(?:^|\\n)[ \\t]{0,3}${fence.char}{${fence.size},}[ \\t]*(?:\\n|$)`,
+  )
+  return closePattern.test(currentLine + suffix)
 }
 
 function getLanguage(value: string | undefined) {
@@ -499,18 +505,27 @@ export function splitMarkdownStream(markdown: string, isStreaming: boolean): Mar
   })
 }
 
-/** suffix 可能切出新块时必须全量 re-lex；宁可多 split，不可错并块 */
-function suffixBreaksLiveBlock(suffix: string): boolean {
-  if (!suffix) return false
-  if (suffix.includes('\n\n')) return true
-  if (suffix.includes('```') || suffix.includes('~~~')) return true
-  // 引用定义 / 脚注标号
-  if (suffix.includes(']:')) return true
-  // 行首块结构（heading / list / quote / table / hr）
-  if (/\n(?:#{1,6}\s|[-*+]\s|\d+\.\s|>\s?|\||-{3,}|\*{3,}|_{3,})/.test(suffix)) return true
-  // suffix 本身以块结构开头（上一帧刚好停在段落边界之后）
-  if (/^(?:#{1,6}\s|[-*+]\s|\d+\.\s|>\s?|\|)/.test(suffix)) return true
-  return false
+/**
+ * live 段能否纯追加。
+ *
+ * 块类型只可能在换行处改变，所以只放行「同一行内继续写」这一种情况：
+ * - 后缀里有换行 → 可能开始新的块，重新切分
+ * - 当前段已经停在行首 → 下一个字符可能开启块，重新切分
+ * - 当前行正在补围栏开头（``` / ~~~）→ 重新切分，让 launcher 尽早变成 code
+ *
+ * 同一行内的追加只影响行内语法，块渲染器会重新解析这一段，类型不会漂移。
+ */
+function canAppendToLiveTail(tail: MarkdownStreamBlock, suffix: string): boolean {
+  if (!suffix || suffix.includes('\n')) return false
+  if (!tail.src || tail.src.endsWith('\n')) return false
+
+  const lastLine = tail.src.slice(tail.src.lastIndexOf('\n') + 1)
+  // 已经是 3 个以上的围栏字符：这一段应该是代码块，不能继续当段落追加
+  if (/^[ \t]{0,3}(?:`{3,}|~{3,})/.test(lastLine)) return false
+  // 正在补齐围栏开头（例如两个反引号 + 新的反引号）
+  if (/^[ \t]{0,3}[`~]+$/.test(lastLine) && /^[ \t]*[`~]/.test(suffix)) return false
+
+  return true
 }
 
 export function projectMarkdownStream(
@@ -553,8 +568,8 @@ export function projectMarkdownStream(
     }
   }
 
-  // live 尾段纯追加：稳定块保持同一引用，只改 tail.src
-  if (tail?.mode === 'live' && !suffixBreaksLiveBlock(suffix)) {
+  // live 尾段纯追加：只在同一行内继续写时成立
+  if (tail?.mode === 'live' && canAppendToLiveTail(tail, suffix)) {
     return {
       text: markdown,
       blocks: [

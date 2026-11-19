@@ -349,6 +349,65 @@ inside comment
     expect(tailAfter.src).toContain('print(1)')
   })
 
+  it('never merges a new block started after a line break', () => {
+    // 换行后的列表项必须重新切分，不能被并进上一段
+    let text = 'para\n'
+    let projection = projectMarkdownStream(undefined, text, true)
+    text += '- item'
+    projection = projectMarkdownStream(projection, text, true)
+
+    expect(projection.blocks).toEqual(splitMarkdownStream(text, true))
+    expect(projection.blocks.at(-1)!.src).toContain('- item')
+  })
+
+  it('recognizes setext headings formed across ticks', () => {
+    let text = 'Title'
+    let projection = projectMarkdownStream(undefined, text, true)
+    for (const part of ['\n===', '\n']) {
+      text += part
+      projection = projectMarkdownStream(projection, text, true)
+    }
+
+    expect(projection.blocks).toEqual(splitMarkdownStream(text, true))
+  })
+
+  it('recognizes a fence opener arriving one character at a time', () => {
+    let text = 'para\n'
+    let projection = projectMarkdownStream(undefined, text, true)
+    for (const part of ['`', '`', '`', 'python', '\n', 'print(1)']) {
+      text += part
+      projection = projectMarkdownStream(projection, text, true)
+    }
+
+    const tail = projection.blocks.at(-1)!
+    expect(tail.mode).toBe('code')
+    expect(tail.language).toBe('python')
+    expect(tail.src).toContain('print(1)')
+  })
+
+  it('closes a fence arriving one character at a time', () => {
+    let text = '```ts\nx\n'
+    let projection = projectMarkdownStream(undefined, text, true)
+    for (const part of ['`', '`', '`']) {
+      text += part
+      projection = projectMarkdownStream(projection, text, true)
+    }
+
+    expect(projection.blocks).toEqual(splitMarkdownStream(text, true))
+    expect(projection.blocks.at(-1)!.complete).toBe(true)
+  })
+
+  it('closes an indented fence arriving one character at a time', () => {
+    let text = '```ts\nx\n'
+    let projection = projectMarkdownStream(undefined, text, true)
+    for (const part of [' ', ' ', '`', '`', '`']) {
+      text += part
+      projection = projectMarkdownStream(projection, text, true)
+    }
+
+    expect(projection.blocks.at(-1)!.complete).toBe(true)
+  })
+
   it('projects pure live-tail append without rebuilding stable blocks', () => {
     const first = projectMarkdownStream(undefined, 'hello', true)
     const next = projectMarkdownStream(first, 'hello world', true)
