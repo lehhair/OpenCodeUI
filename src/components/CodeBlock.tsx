@@ -111,6 +111,10 @@ interface CodeBlockProps {
   streamingHighlight?: boolean
   /** Persistent controls rendered beside the copy action. */
   headerActions?: ReactNode
+  /** 折叠态：配合 maxHeight 裁剪而不是滚动，用于长代码块 */
+  folded?: boolean
+  /** 面板底部附加操作（展开/收起） */
+  footer?: ReactNode
 }
 
 export const CodeBlock = memo(function CodeBlock({
@@ -125,6 +129,8 @@ export const CodeBlock = memo(function CodeBlock({
   forceHighlight = false,
   streamingHighlight = false,
   headerActions,
+  folded = false,
+  footer,
 }: CodeBlockProps) {
   const { codeWordWrap } = useSyncExternalStore(themeStore.subscribe, themeStore.getSnapshot)
   const { preferTouchUi } = useInputCapabilities()
@@ -282,9 +288,18 @@ export const CodeBlock = memo(function CodeBlock({
       )}
 
       {/* Scrollable content */}
-      <div className={scrollClasses} style={maxHeight ? { maxHeight } : undefined}>
-        {content}
+      <div className="relative">
+        <div
+          className={folded ? 'overflow-hidden' : scrollClasses}
+          style={maxHeight ? { maxHeight } : undefined}
+        >
+          {content}
+        </div>
+        {folded ? (
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-bg-200/80 via-bg-200/30 to-transparent" />
+        ) : null}
       </div>
+      {footer}
     </div>
   )
 })

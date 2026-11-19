@@ -16,6 +16,8 @@ import { CodeIcon, EyeIcon } from './Icons'
 import { CopyButton } from './ui'
 import { useTheme } from '../hooks/useTheme'
 import { useInputCapabilities } from '../hooks/useInputCapabilities'
+import { useResponsiveMaxHeight } from '../hooks/useResponsiveMaxHeight'
+import { useUiDisclosureState } from '../utils/uiDisclosureState'
 import { detectLanguage } from '../utils/languageUtils'
 import { isTauri } from '../utils/tauri'
 import { marked } from 'marked'
@@ -28,6 +30,8 @@ import { measurePerf, notePerf } from '../utils/perfTrace'
 import { renderMarkdownToHtml, renderKatexHtml, sanitizeHtml } from './markdownHtmlRenderer'
 import { cancelMarkdownParse, parseMarkdownInWorker } from '../lib/markdownWorkerClient'
 import { getFootnoteId, scanTextSegments } from './markdownSegments'
+import { trimUnstableInlineTail } from './markdownInlineLookahead'
+import { useTranslation } from 'react-i18next'
 import { themeStore } from '../store/themeStore'
 
 /** 只订阅 renderHtmlContent 布尔值（useTheme 全量订阅会让每条消息的 markdown 跟着任何设置变动重渲染） */
@@ -115,6 +119,13 @@ const STREAMING_HTML_CONTENT_PATTERN = /(?:```(?:html|htm|xhtml|xml|svg)\b|<(?:a
 
 function htmlCacheKey(src: string, isReasoning: boolean, renderHtml: boolean): string {
   return `${isReasoning ? 'r' : 'd'}:${renderHtml ? 'h' : 'x'}:${src}`
+}
+
+/** 代码块折叠状态的稳定 key（只看已定稿内容） */
+function markdownCodeStateKey(src: string): string {
+  let hash = 0
+  for (let index = 0; index < src.length; index += 1) hash = (hash * 31 + src.charCodeAt(index)) | 0
+  return `markdown-code:${src.length}:${hash}`
 }
 
 function peekCachedHtml(src: string, isReasoning: boolean, renderHtml: boolean): string | undefined {
@@ -1185,6 +1196,22 @@ const MarkdownStreamBlock = memo(function MarkdownStreamBlock({
   // 流式高亮/未完成态只对「未闭合 code」或 live 有意义；稳定 full 块 isStreaming 恒 false 以冻 memo
   const streamActive = isStreaming && (mode === 'live' || (mode === 'code' && !complete))
 
+  const { t } = useTranslation('common')
+  const responsiveMaxHeight = useResponsiveMaxHeight()
+  const isMermaidCode = language?.toLowerCase() === 'mermaid'
+  const isHtmlCode = renderHtml && isMarkupPreviewLanguage(language)
+  // 长代码块折叠：可见高度沿用工具块的响应式上限，超过两倍才折
+  const foldable = mode === 'code' && !isReasoning && !streamActive && !isMermaidCode && !isHtmlCode
+  const lineCount = useMemo(() => (foldable ? src.split('\n').length : 0), [foldable, src])
+  const foldThreshold = Math.max(20, Math.floor(responsiveMaxHeight / 24) * 2)
+  const canFold = foldable && lineCount > foldThreshold
+  const foldKey = useMemo(
+    () => (canFold ? markdownCodeStateKey(src) : 'markdown-code:off'),
+    [canFold, src],
+  )
+  const [folded, setFolded] = useUiDisclosureState(foldKey, true)
+  const displayFolded = canFold && folded
+
   if (mode === 'table') {
     return (
       <div className="markdown-stream-block">
@@ -1228,6 +1255,19 @@ const MarkdownStreamBlock = memo(function MarkdownStreamBlock({
               wordwrap={isReasoning}
               forceHighlight={streamActive}
               streamingHighlight={streamActive}
+              folded={displayFolded}
+              maxHeight={displayFolded ? responsiveMaxHeight : undefined}
+              footer={
+                canFold ? (
+                  <button
+                    type="button"
+                    onClick={() => setFolded(!folded)}
+                    className="flex w-full items-center justify-center border-t border-border-200/40 py-1.5 text-[length:var(--fs-xxs)] text-text-500 transition-colors hover:bg-bg-300/40 hover:text-text-300"
+                  >
+                    {folded ? t('expand') : t('collapse')}
+                  </button>
+                ) : undefined
+              }
             />
           </div>
         </div>
@@ -1309,7 +1349,12 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
     if (!isStreaming) return getStaticProjection(renderedContent).blocks
     const projection = projectMarkdownStream(markdownProjectionCache.get(projectionKey), renderedContent, true)
     markdownProjectionCache.set(projectionKey, projection)
-    return projection.blocks
+    // 行内语法没闭合时先不渲染最后那一段，避免 ** / ` / ~~ 闪一下字面量
+    return projection.blocks.map(block => {
+      if (block.mode !== 'live' || !block.src) return block
+      const trimmed = trimUnstableInlineTail(block.src)
+      return trimmed === block.src ? block : { ...block, src: trimmed }
+    })
   }, [projectionKey, renderedContent, isStreaming])
 
   useEffect(() => {

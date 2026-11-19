@@ -27,6 +27,7 @@ vi.mock('./CodeBlock', () => ({
     forceHighlight,
     streamingHighlight,
     headerActions,
+    footer,
   }: {
     code: string
     language?: string
@@ -35,6 +36,7 @@ vi.mock('./CodeBlock', () => ({
     forceHighlight?: boolean
     streamingHighlight?: boolean
     headerActions?: React.ReactNode
+    footer?: React.ReactNode
   }) => (
     <div
       data-testid="code-block"
@@ -46,6 +48,7 @@ vi.mock('./CodeBlock', () => ({
       {language}
       {headerActions}
       {`${language ?? 'text'}:${code}`}
+      {footer}
     </div>
   ),
 }))
@@ -1702,5 +1705,21 @@ describe('MarkdownRenderer HTML 渲染开关', () => {
     render(<MarkdownRenderer content={'<div><strong>Rendered HTML</strong></div>'} />)
 
     expect(screen.getByText('Rendered HTML').tagName).toBe('STRONG')
+  })
+})
+
+describe('长代码块折叠', () => {
+  it('超过阈值默认折叠，点击后展开', async () => {
+    const body = Array.from({ length: 40 }, (_, index) => `const line${index} = ${index}`).join('\n')
+    render(<MarkdownRenderer content={'```ts\n' + body + '\n```'} />)
+
+    const expand = await screen.findByRole('button', { name: /expand|展开/i })
+    fireEvent.click(expand)
+    expect(await screen.findByRole('button', { name: /collapse|收起/i })).toBeInTheDocument()
+  })
+
+  it('短代码块不出现折叠按钮', () => {
+    render(<MarkdownRenderer content={'```ts\nconst a = 1\n```'} />)
+    expect(screen.queryByRole('button', { name: /expand|展开/i })).toBeNull()
   })
 })
