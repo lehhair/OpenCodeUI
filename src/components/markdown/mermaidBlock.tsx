@@ -374,8 +374,10 @@ export const MermaidBlock = memo(function MermaidBlock({ code, isIncomplete }: {
           <RetryIcon />
         </button>
       </div>
+      {/* svg 不参与命中测试：触摸落在 <svg> 上会被浏览器当成受限滚动目标，
+          竖直滑动被反复拽回底部；摘出去后手势落回容器，按 touch-action 原生滚动。 */}
       <div
-        className={`mermaid-diagram min-h-40 min-w-fit select-none overflow-hidden p-1 [&_svg]:max-w-full [&_svg]:h-auto ${supportsTouchGestures && !isTouchPanEnabled ? 'cursor-default touch-pan-y' : 'cursor-grab touch-none active:cursor-grabbing'}`}
+        className={`mermaid-diagram min-h-40 min-w-fit select-none overflow-hidden p-1 [&_svg]:pointer-events-none [&_svg]:max-w-full [&_svg]:h-auto ${supportsTouchGestures && !isTouchPanEnabled ? 'cursor-default touch-pan-y' : 'cursor-grab touch-none active:cursor-grabbing'}`}
         role="img"
         aria-label="Mermaid diagram"
         onPointerDown={handlePointerDown}

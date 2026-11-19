@@ -1527,6 +1527,22 @@ $$`
     expect(diagram).toHaveStyle({ transform: 'translate(-50px, -30px) scale(2)' })
   })
 
+  it('keeps the diagram svg out of hit testing so page scrolling stays native', async () => {
+    useInputCapabilitiesMock.mockReturnValue({
+      canHover: false,
+      hasCoarsePointer: true,
+      hasTouch: true,
+      preferTouchUi: true,
+    })
+
+    render(<MarkdownRenderer content={'```mermaid\ngraph TD\n  A-->B\n```'} />)
+
+    const diagram = await screen.findByRole('img', { name: 'Mermaid diagram' })
+    // 触摸落在 <svg> 上会被当成受限滚动目标，竖直滑动被反复拽回底部；
+    // 子树不参与命中测试，手势才会落回容器按 touch-action 原生滚动。
+    expect(diagram.className).toContain('[&_svg]:pointer-events-none')
+  })
+
   it('renders markdown table with copy button in default mode', () => {
     const md = '| A | B |\n|---|---|\n| 1 | 2 |'
     render(<MarkdownRenderer content={md} />)
