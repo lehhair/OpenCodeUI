@@ -100,6 +100,18 @@ const HTML_CACHE_MAX_CHARS = 4 * 1024 * 1024
 /** 单块过大不进缓存：一个几百 KB 的表格/长段会挤掉几十个正常块 */
 const HTML_CACHE_MAX_ENTRY_CHARS = 512 * 1024
 let htmlCacheChars = 0
+
+/**
+ * 超大 live 块的重解析节流。
+ *
+ * Markdown 始终保留，只是不跟满 30fps：纯文本后缀仍然每拍直接追加，
+ * 需要完整 parse+morph 的大块最多每 120ms 做一次。流结束（isLive=false）
+ * 或内容回落时会立刻走完整解析，不会留下半截格式。
+ */
+const LARGE_LIVE_PARSE_MIN_CHARS = 32 * 1024
+const LARGE_LIVE_PARSE_INTERVAL_MS = 120
+/** 超过 128KB 后按倍数拉长间隔，避免每次完整 parse 都长时间占住主线程 */
+const LARGE_LIVE_PARSE_SCALE_CHARS = 128 * 1024
 const MARKDOWN_BLOCK_CONTENT_CLASS = 'space-y-4 whitespace-normal [&>*:first-child]:mt-0 [&>*:last-child]:mb-0'
 const MARKDOWN_USER_STATE_ATTRIBUTE = 'data-markdown-user-state'
 const HTML_SOURCE_BUTTON_CLASS = 'absolute right-2 top-2 z-10 inline-flex h-8 w-8 items-center justify-center rounded-md bg-bg-300/70 p-2 text-accent-main-100 opacity-0 shadow-sm backdrop-blur-md transition-all hover:bg-bg-300/90 hover:text-accent-main-100 group-hover/html-preview:opacity-100 group-focus-within/html-preview:opacity-100'
@@ -1322,6 +1334,7 @@ const MarkdownDomBlock = memo(function MarkdownDomBlock({
   const appliedHtmlRef = useRef<string | null>(null)
   const appliedSrcRef = useRef<string | null>(null)
   const lastLiveTextRef = useRef<{ node: Text | null }>({ node: null })
+  const lastFullParseAtRef = useRef(0)
   // 上游已按节奏揭示文本，这里不再叠 useDeferredValue：
   // 双重延迟会让 React concurrent 每帧跑两轮协调（紧急+deferred），流式帧时长翻倍。
   const renderSrc = src
@@ -1361,6 +1374,16 @@ const MarkdownDomBlock = memo(function MarkdownDomBlock({
         appliedHtmlRef.current = null
         return
       }
+    }
+
+    // 超大 live 块：完整 parse+morph 限频，但 Markdown 不降级。
+    // 简单文本后缀仍走上方的快速追加；等下一个节拍时一次性解析累积内容。
+    if (isLive && renderSrc.length > LARGE_LIVE_PARSE_MIN_CHARS) {
+      const now = performance.now()
+      const interval =
+        LARGE_LIVE_PARSE_INTERVAL_MS * Math.max(1, Math.ceil(renderSrc.length / LARGE_LIVE_PARSE_SCALE_CHARS))
+      if (now - lastFullParseAtRef.current < interval) return
+      lastFullParseAtRef.current = now
     }
 
     // live 中间态不进 htmlCache（避免 64 槽被流式碎片挤爆）；稳定块才缓存

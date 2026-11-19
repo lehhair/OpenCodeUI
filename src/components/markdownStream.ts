@@ -91,6 +91,41 @@ export function stripLeadingHtmlComments(source: string): string {
 
 type MarkdownSourceBlock = { start: number; raw: string; src: string; token?: Tokens.Generic }
 
+/** 相邻小段落合成块组的最小字符数：避免长回答被拆成几百个组件 */
+const MARKDOWN_GROUP_MIN_CHARS = 800
+/** 可以安全合并的 token：都是纯 Markdown 块；代码/表格/HTML artifact 必须保持独立 */
+const GROUPABLE_TOKEN_TYPES = new Set(['paragraph', 'heading', 'list', 'blockquote', 'hr'])
+
+function groupMarkdownBlocks(blocks: MarkdownSourceBlock[]): MarkdownSourceBlock[] {
+  const grouped: MarkdownSourceBlock[] = []
+  let buffer: MarkdownSourceBlock[] = []
+  let bufferRaw = ''
+
+  const flush = (force: boolean) => {
+    if (buffer.length === 0) return
+    if (buffer.length === 1 || (!force && bufferRaw.length < MARKDOWN_GROUP_MIN_CHARS)) {
+      grouped.push(...buffer)
+    } else {
+      grouped.push({ start: buffer[0].start, raw: bufferRaw, src: bufferRaw })
+    }
+    buffer = []
+    bufferRaw = ''
+  }
+
+  for (const block of blocks) {
+    if (!block.token || !GROUPABLE_TOKEN_TYPES.has(block.token.type)) {
+      flush(false)
+      grouped.push(block)
+      continue
+    }
+    buffer.push(block)
+    bufferRaw += block.raw
+    if (bufferRaw.length >= MARKDOWN_GROUP_MIN_CHARS) flush(true)
+  }
+  flush(false)
+  return grouped
+}
+
 const BLOCK_HTML_CONTAINERS = new Set([
   'address',
   'article',
@@ -378,7 +413,7 @@ export function splitMarkdownStream(markdown: string, isStreaming: boolean): Mar
     if (blocks.length === 1 && blocks[0]?.token?.type !== 'code' && blocks[0]?.token?.type !== 'table') {
       return [{ key: 'html:0', src: appendReferenceDefinitions(blocks[0]?.raw ?? markdown, referenceDefinitions), mode: 'full' }]
     }
-    return blocks.map(block => {
+    return groupMarkdownBlocks(blocks).map(block => {
       if (block.token?.type === 'code') {
         const language = getLanguage((block.token as Tokens.Code).lang)
         return {
@@ -417,7 +452,12 @@ export function splitMarkdownStream(markdown: string, isStreaming: boolean): Mar
     return [{ key: 'html:0', src: appendReferenceDefinitions(blocks[0]?.raw ?? markdown, referenceDefinitions), mode: 'live' }]
   }
 
-  return blocks.map(block => {
+  // 流式时最后一块永远是 live 尾，不能并进稳定块组
+  const groupedBlocks = groupMarkdownBlocks(blocks.slice(0, -1))
+  const liveTail = blocks[blocks.length - 1]
+  if (liveTail) groupedBlocks.push(liveTail)
+
+  return groupedBlocks.map(block => {
     const isLiveTail = block === blocks[blocks.length - 1] || (fenceStart != null && block.start >= fenceStart)
     if (block.token?.type === 'code') {
       const complete = fenceStart == null || block.start < fenceStart

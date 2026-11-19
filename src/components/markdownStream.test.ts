@@ -365,3 +365,46 @@ inside comment
     expect(next.blocks).toEqual(splitMarkdownStream('intro\n- item', true))
   })
 })
+
+describe('Markdown 块组', () => {
+  it('把达到阈值的一组相邻段落合并成单个块', () => {
+    const first = 'a'.repeat(400)
+    const second = 'b'.repeat(400)
+    const third = 'c'.repeat(300)
+    const blocks = splitMarkdownStream(`${first}\n\n${second}\n\n${third}`, false)
+
+    expect(blocks).toHaveLength(2)
+    expect(blocks[0]).toEqual(expect.objectContaining({ mode: 'full' }))
+    expect(blocks[0].src).toContain(first)
+    expect(blocks[0].src).toContain(second)
+    expect(blocks[0].src).not.toContain(third)
+    expect(blocks[1].src).toContain(third)
+  })
+
+  it('流式时最后一块始终独立，并保持稳定 key', () => {
+    const first = 'a'.repeat(400)
+    const second = 'b'.repeat(400)
+    const live = 'c'.repeat(40)
+    const md = `${first}\n\n${second}\n\n${live}`
+    const blocks = splitMarkdownStream(md, true)
+
+    expect(blocks).toHaveLength(2)
+    expect(blocks[0].mode).toBe('full')
+    expect(blocks[1].mode).toBe('live')
+    expect(blocks[1].src).toContain(live)
+
+    const next = splitMarkdownStream(`${md}${'d'.repeat(20)}`, true)
+    expect(next[0].key).toBe(blocks[0].key)
+    expect(next[1].key).toBe(blocks[1].key)
+    expect(next[1].src).toContain('c'.repeat(40) + 'd'.repeat(20))
+  })
+
+  it('不把代码块卷进块组', () => {
+    const md = `${'a'.repeat(400)}\n\n\`\`\`ts\nconst x = 1\n\`\`\`\n\n${'b'.repeat(400)}`
+    const blocks = splitMarkdownStream(md, false)
+
+    expect(blocks.some(block => block.mode === 'code')).toBe(true)
+    const code = blocks.find(block => block.mode === 'code')
+    expect(code?.src).toBe('const x = 1')
+  })
+})
