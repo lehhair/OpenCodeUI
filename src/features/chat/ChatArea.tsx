@@ -50,7 +50,13 @@ import {
 import { useTheme } from '../../hooks/useTheme'
 import { measurePerf } from '../../utils/perfTrace'
 import { createFrameSampler, reportFrameStats } from '../../utils/frameSampler'
-import { getStreamingHotIndexes, getTimelineRowYClass, mergeVirtualRangeIndexes } from './chatAreaUtils'
+import {
+  getStreamingHotIndexes,
+  getTimelineRowYClass,
+  mergeVirtualRangeIndexes,
+  nextPrependAdjustment,
+  pickPrependAnchor,
+} from './chatAreaUtils'
 import {
   buildCachedSizeMap,
   estimateTimelineItemSize,
@@ -733,32 +739,35 @@ export const ChatArea = memo(
         const root = scrollRef.current
         if (!root) return
         const view = root.getBoundingClientRect()
-        const anchor = [...root.querySelectorAll<HTMLElement>('[data-timeline-key]')]
-          .map(el => ({ el, rect: el.getBoundingClientRect() }))
-          .filter(x => x.rect.bottom > view.top && x.rect.top < view.bottom)
-          .sort((a, b) => a.rect.top - b.rect.top)[0]
-        if (anchor?.el.dataset.timelineKey) {
-          prependAnchor.current = { key: anchor.el.dataset.timelineKey, offset: anchor.rect.top - view.top }
-        }
+        // 只遍历已挂载的行（虚拟列表里就十来行），单次取最靠上的可见行
+        const rows: Array<{ key?: string; top: number; bottom: number }> = []
+        root.querySelectorAll<HTMLElement>('[data-timeline-key]').forEach(el => {
+          const rect = el.getBoundingClientRect()
+          rows.push({ key: el.dataset.timelineKey, top: rect.top, bottom: rect.bottom })
+        })
+        const next = pickPrependAnchor(rows, view.top, view.bottom)
+        if (next) prependAnchor.current = next
       }, [])
 
       const applyPrependAnchor = useCallback(() => {
         const root = scrollRef.current
         if (!root || !prependAnchor.current) return
         if (prependFrame.current !== undefined) cancelAnimationFrame(prependFrame.current)
-        let frames = 0,
-          stable = 0
+
+        let state = { frames: 0, stable: 0, expectedScrollTop: undefined as number | undefined }
         const apply = () => {
           prependFrame.current = undefined
           const a = prependAnchor.current
           if (!a) return
+
           const el = root.querySelector<HTMLElement>(`[data-timeline-key="${CSS.escape(a.key)}"]`)
           const delta = el ? el.getBoundingClientRect().top - root.getBoundingClientRect().top - a.offset : undefined
-          if (delta !== undefined && Math.abs(delta) > 0.5) {
-            root.scrollTop += delta
-            stable = 0
-          } else stable++
-          if (++frames >= 180 || stable >= 30) {
+          const decision = nextPrependAdjustment(state, { scrollTop: root.scrollTop, delta })
+
+          if (decision.delta !== 0) root.scrollTop += decision.delta
+          state = { frames: decision.frames, stable: decision.stable, expectedScrollTop: root.scrollTop }
+
+          if (decision.stop) {
             if (!prependLoading.current) prependAnchor.current = undefined
             return
           }

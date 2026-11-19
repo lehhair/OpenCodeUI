@@ -52,3 +52,84 @@ export function mergeVirtualRangeIndexes(base: number[], ...pinnedGroups: number
   if (pinned.length === 0) return base
   return [...new Set([...pinned, ...base])].sort((a, b) => a - b)
 }
+
+export type PrependAnchor = { key: string; offset: number }
+
+export type PrependRowRect = {
+  key?: string
+  top: number
+  bottom: number
+}
+
+/**
+ * 选历史前插的锚点：视口内最靠上的那一行。
+ *
+ * 行 key 必须跨插入保持稳定（这里用 message.id）。锚点只记 key 和它相对视口顶的
+ * 偏移，插入完成后按实测位移补偿 scrollTop——不依赖上方占位高度是多少。
+ */
+export function pickPrependAnchor(
+  rows: readonly PrependRowRect[],
+  viewTop: number,
+  viewBottom: number,
+): PrependAnchor | undefined {
+  let best: PrependRowRect | undefined
+  for (const row of rows) {
+    if (!row.key) continue
+    if (row.bottom <= viewTop || row.top >= viewBottom) continue
+    if (!best || row.top < best.top) best = row
+  }
+  return best?.key ? { key: best.key, offset: best.top - viewTop } : undefined
+}
+
+export type PrependAdjustState = {
+  frames: number
+  stable: number
+  /** 上一帧写入后读回的 scrollTop；第一帧没有 */
+  expectedScrollTop?: number
+}
+
+export type PrependAdjustDecision = {
+  /** 放弃锚点：视口被用户/其它补偿接管，或者已经稳定 */
+  stop: boolean
+  /** 本帧要写进 scrollTop 的增量 */
+  delta: number
+  frames: number
+  stable: number
+}
+
+/**
+ * prepend 锚点校正的每帧决策。
+ *
+ * 两条规则：
+ * - 视口位置不是我们上一帧写下的那个（用户滚动、virtualizer 自己补偿过）→ 立即让位，
+ *   绝不把人拽回旧位置；
+ * - 位移连续稳定若干帧或跑满上限 → 结束（图片/字体/异步 markdown 会让高度继续变）。
+ *
+ * 位移本身是实测值，重复应用是幂等的，所以第一帧不判断漂移。
+ */
+export function nextPrependAdjustment(
+  state: PrependAdjustState,
+  sample: { scrollTop: number; delta: number | undefined },
+  limits: { maxFrames?: number; stableFrames?: number; driftTolerance?: number } = {},
+): PrependAdjustDecision {
+  const maxFrames = limits.maxFrames ?? 180
+  const stableFrames = limits.stableFrames ?? 30
+  const driftTolerance = limits.driftTolerance ?? 1
+  const frames = state.frames + 1
+
+  if (
+    state.expectedScrollTop !== undefined &&
+    Math.abs(sample.scrollTop - state.expectedScrollTop) > driftTolerance
+  ) {
+    return { stop: true, delta: 0, frames, stable: state.stable }
+  }
+
+  const moving = sample.delta !== undefined && Math.abs(sample.delta) > 0.5
+  const stable = moving ? 0 : state.stable + 1
+  return {
+    stop: frames >= maxFrames || stable >= stableFrames,
+    delta: moving ? (sample.delta as number) : 0,
+    frames,
+    stable,
+  }
+}

@@ -24,7 +24,7 @@ import { isMarkupPreviewLanguage, projectMarkdownStream, stripLeadingHtmlComment
 import { usePacedStreamContent } from './streamPacing'
 import { appendStreamingTextWithFade, createStreamFadeState, resetStreamFade } from './streamFade'
 import { BoundedCache } from '../utils/boundedCache'
-import { measurePerf } from '../utils/perfTrace'
+import { measurePerf, notePerf } from '../utils/perfTrace'
 import { renderMarkdownToHtml, renderKatexHtml, sanitizeHtml } from './markdownHtmlRenderer'
 import { cancelMarkdownParse, parseMarkdownInWorker } from '../lib/markdownWorkerClient'
 import { getFootnoteId, scanTextSegments } from './markdownSegments'
@@ -963,6 +963,9 @@ const MarkdownDomBlock = memo(function MarkdownDomBlock({
   const fadeStateRef = useRef(createStreamFadeState())
   const lastFullParseAtRef = useRef(0)
   const latestSrcRef = useRef(src)
+  const largeBlockNoteRef = useRef(false)
+  /** 跳屏渲染只在块真实渲染过一次之后启用，避免用估高参与测量 */
+  const windowizedRef = useRef(false)
   // worker 里按块合并解析请求用的稳定 key
   const parseKey = useId()
   // 上游已按节奏揭示文本，这里不再叠 useDeferredValue：
@@ -993,15 +996,31 @@ const MarkdownDomBlock = memo(function MarkdownDomBlock({
 
     latestSrcRef.current = renderSrc
 
+    // 诊断：单块长到几百 KB 才值得考虑行级窗口化，平时不必为此增加复杂度
+    if (!largeBlockNoteRef.current && renderSrc.length > LARGE_BLOCK_WORKER_MIN_CHARS * 4) {
+      largeBlockNoteRef.current = true
+      notePerf('markdown.block.large', `${renderSrc.length} chars`)
+    }
+
     const applyHtml = (html: string) => {
-      if (appliedHtmlRef.current === html) {
-        appliedSrcRef.current = renderSrc
-        return
+      if (appliedHtmlRef.current !== html) {
+        appliedHtmlRef.current = html
+        lastLiveTextRef.current.node = null
+        measurePerf('markdown.morph', () => applyMarkdownHtml(root, html), 6)
       }
-      appliedHtmlRef.current = html
       appliedSrcRef.current = renderSrc
-      lastLiveTextRef.current.node = null
-      measurePerf('markdown.morph', () => applyMarkdownHtml(root, html), 6)
+
+      // 稳定块先按真实内容完成一次布局和绘制，之后才允许跳屏渲染：
+      // 这样 content-visibility 用的是记住的真实尺寸，而不是 contain-intrinsic-size 的估算值。
+      // 必须等过一帧的绘制（rAF 在绘制前执行，单层 rAF 还不够）。
+      if (!isLive && !windowizedRef.current) {
+        windowizedRef.current = true
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            if (root.isConnected) root.dataset.markdownWindowized = 'true'
+          })
+        })
+      }
     }
 
     // 同步兜底用的限频：worker 不可用时，超大块不跟满每一拍

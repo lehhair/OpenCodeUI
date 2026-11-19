@@ -580,9 +580,10 @@ body {
 }
 
 /* 长消息里的块级可见性窗口化：屏幕外的 Markdown 块跳过渲染与布局。
- * 跳过时先占位（记住上次渲染高度，没渲染过按 120px 估），滚动回来立刻恢复；
- * 虚拟列表仍然只挂可见消息，这里解决的是「一条消息内部太长」的情况。 */
-.markdown-content .markdown-stream-block {
+ * 只在块真实渲染过一次之后启用（MarkdownRenderer 打 data-markdown-windowized），
+ * 这样跳过时用的是浏览器记住的真实高度，不会拿估算值参与行高测量；
+ * 流式尾部（isLive）永远不启用。 */
+.markdown-content [data-markdown-windowized='true'] {
   content-visibility: auto;
   contain-intrinsic-size: auto 120px;
 }
