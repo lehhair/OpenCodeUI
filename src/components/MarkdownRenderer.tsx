@@ -1257,17 +1257,8 @@ const MarkdownStreamBlock = memo(function MarkdownStreamBlock({
               streamingHighlight={streamActive}
               folded={displayFolded}
               maxHeight={displayFolded ? responsiveMaxHeight : undefined}
-              footer={
-                canFold ? (
-                  <button
-                    type="button"
-                    onClick={() => setFolded(!folded)}
-                    className="flex w-full items-center justify-center border-t border-border-200/40 py-1.5 text-[length:var(--fs-xxs)] text-text-500 transition-colors hover:bg-bg-300/40 hover:text-text-300"
-                  >
-                    {folded ? t('expand') : t('collapse')}
-                  </button>
-                ) : undefined
-              }
+              onToggleFold={canFold ? () => setFolded(!folded) : undefined}
+              foldLabel={{ expand: t('expand'), collapse: t('collapse') }}
             />
           </div>
         </div>

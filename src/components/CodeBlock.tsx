@@ -3,6 +3,7 @@ import { useInputCapabilities } from '../hooks/useInputCapabilities'
 import { useSyntaxHighlight, useStreamingSyntaxHighlight, type HighlightTokens } from '../hooks/useSyntaxHighlight'
 import { themeStore } from '../store/themeStore'
 import { CopyButton } from './ui'
+import { ChevronDownIcon, ChevronUpIcon } from './Icons'
 import { useNearViewport } from '../hooks/useInView'
 
 /** Languages that carry no useful information — hide the label */
@@ -113,8 +114,9 @@ interface CodeBlockProps {
   headerActions?: ReactNode
   /** 折叠态：配合 maxHeight 裁剪而不是滚动，用于长代码块 */
   folded?: boolean
-  /** 面板底部附加操作（展开/收起） */
-  footer?: ReactNode
+  /** 展开/收起回调；提供时在 header 或悬浮操作区显示对应按钮 */
+  onToggleFold?: () => void
+  foldLabel?: { expand: string; collapse: string }
 }
 
 export const CodeBlock = memo(function CodeBlock({
@@ -130,7 +132,8 @@ export const CodeBlock = memo(function CodeBlock({
   streamingHighlight = false,
   headerActions,
   folded = false,
-  footer,
+  onToggleFold,
+  foldLabel,
 }: CodeBlockProps) {
   const { codeWordWrap } = useSyncExternalStore(themeStore.subscribe, themeStore.getSnapshot)
   const { preferTouchUi } = useInputCapabilities()
@@ -220,6 +223,28 @@ export const CodeBlock = memo(function CodeBlock({
   const lineHeight = isReasoning ? 'leading-5' : 'leading-6'
   const textColor = isReasoning ? 'text-text-300' : 'text-text-200'
 
+  const foldActionLabel = folded ? foldLabel?.collapse : foldLabel?.expand
+  const renderFoldAction = (compact: boolean) =>
+    onToggleFold ? (
+      <button
+        type="button"
+        onClick={event => {
+          event.stopPropagation()
+          onToggleFold()
+        }}
+        title={foldActionLabel}
+        aria-label={foldActionLabel}
+        aria-expanded={!folded}
+        className={
+          compact
+            ? 'inline-flex h-8 w-8 items-center justify-center rounded-md bg-bg-300/70 p-2 text-text-400 backdrop-blur-md transition-colors hover:bg-bg-300/90 hover:text-text-200'
+            : 'inline-flex h-8 w-8 items-center justify-center rounded-md p-2 text-text-400 transition-colors hover:bg-bg-300/60 hover:text-text-200'
+        }
+      >
+        {folded ? <ChevronDownIcon size={14} /> : <ChevronUpIcon size={14} />}
+      </button>
+    ) : null
+
   const content = displayedHighlight ? (
     <pre
       className={`shiki-wrapper m-0 font-mono select-text ${textColor} ${fontSize} ${lineHeight} ${contentPad} ${
@@ -271,6 +296,7 @@ export const CodeBlock = memo(function CodeBlock({
             <span className="truncate">{language}</span>
           </div>
           <div className="inline-flex h-8 shrink-0 items-center gap-0.5 pr-2 opacity-0 group-hover/code:opacity-100 group-focus-within/code:opacity-100 [@media(hover:none)]:opacity-100 transition-opacity">
+            {renderFoldAction(false)}
             {headerActions}
             <CopyButton text={code} position="static" className="!h-8 !w-8 !p-2" />
           </div>
@@ -279,6 +305,8 @@ export const CodeBlock = memo(function CodeBlock({
         <div
           className={`absolute top-2 right-2 z-10 opacity-0 group-hover/code:opacity-100 group-focus-within/code:opacity-100 ${requireTapToRevealCopy ? '[@media(hover:none)]:opacity-0' : '[@media(hover:none)]:opacity-100'} transition-opacity`}
         >
+          {renderFoldAction(true)}
+          {headerActions}
           <CopyButton
             text={code}
             position="static"
@@ -287,19 +315,10 @@ export const CodeBlock = memo(function CodeBlock({
         </div>
       )}
 
-      {/* Scrollable content */}
-      <div className="relative">
-        <div
-          className={folded ? 'overflow-hidden' : scrollClasses}
-          style={maxHeight ? { maxHeight } : undefined}
-        >
-          {content}
-        </div>
-        {folded ? (
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-bg-200/80 via-bg-200/30 to-transparent" />
-        ) : null}
+      {/* Scrollable content：折叠态就是限高滚动，不裁切、不渐隐 */}
+      <div className={scrollClasses} style={maxHeight ? { maxHeight } : undefined}>
+        {content}
       </div>
-      {footer}
     </div>
   )
 })

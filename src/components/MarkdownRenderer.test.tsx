@@ -27,7 +27,9 @@ vi.mock('./CodeBlock', () => ({
     forceHighlight,
     streamingHighlight,
     headerActions,
-    footer,
+    folded,
+    onToggleFold,
+    foldLabel,
   }: {
     code: string
     language?: string
@@ -36,7 +38,9 @@ vi.mock('./CodeBlock', () => ({
     forceHighlight?: boolean
     streamingHighlight?: boolean
     headerActions?: React.ReactNode
-    footer?: React.ReactNode
+    folded?: boolean
+    onToggleFold?: () => void
+    foldLabel?: { expand: string; collapse: string }
   }) => (
     <div
       data-testid="code-block"
@@ -48,7 +52,11 @@ vi.mock('./CodeBlock', () => ({
       {language}
       {headerActions}
       {`${language ?? 'text'}:${code}`}
-      {footer}
+      {onToggleFold ? (
+        <button type="button" onClick={onToggleFold}>
+          {folded ? foldLabel?.expand : foldLabel?.collapse}
+        </button>
+      ) : null}
     </div>
   ),
 }))
