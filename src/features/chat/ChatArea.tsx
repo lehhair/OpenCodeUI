@@ -20,7 +20,7 @@ import {
   useMemo,
   useState,
 } from 'react'
-import { useVirtualizer, elementScroll, defaultRangeExtractor, type VirtualItem } from '@tanstack/react-virtual'
+import { useVirtualizer, elementScroll, type VirtualItem } from '@tanstack/react-virtual'
 import { useTranslation } from 'react-i18next'
 import { MessageRenderer, ProcessCollapseBlock, messageHasFinalContent, messageHasProcessContent } from '../message'
 import { MessageErrorView } from '../message/parts'
@@ -501,6 +501,18 @@ export const ChatArea = memo(
       // ── Refs（避免闭包过期） ──
       const scrollRef = useRef<HTMLDivElement | null>(null)
       const contentRef = useRef<HTMLDivElement | null>(null)
+      /** 已写入容器的总高度，避免重复写同一个值 */
+      const appliedContentHeightRef = useRef(-1)
+      /**
+       * 容器总高 = 全部条目之和（含未渲染条目的估算）。
+       * 必须跟着尺寸/条数变化同步：只在 scrollToFn 里写会让 scrollHeight 停在旧值，
+       * 贴底时算出的 max 偏小，滚动条长度也不对。
+       */
+      const writeContentHeight = useCallback((height: number) => {
+        if (Math.abs(height - appliedContentHeightRef.current) < 0.5) return
+        appliedContentHeightRef.current = height
+        if (contentRef.current) contentRef.current.style.height = `${height}px`
+      }, [])
       const sessionIdRef = useRef(sessionId)
       sessionIdRef.current = sessionId
       const onLoadMoreRef = useRef(onLoadMore)
@@ -580,11 +592,23 @@ export const ChatArea = memo(
         // eslint-disable-next-line react-hooks/exhaustive-deps
         [],
       )
-      const coldBottomMount = !initialCacheRef.current?.length
-      const [renderOverscan, setRenderOverscan] = useState(initialCacheRef.current?.length || coldBottomMount ? 6 : 15)
+      /**
+       * 视口外预渲染的高度预算，按视口高度的倍数算，而不是按行数。
+       *
+       * 按行数会让短消息只预渲染不到一屏、长消息预渲染好几屏；按像素才能保证
+       * 用户感知到的始终是「上下各两屏已经画好了」。首帧用小预算，两帧后放大，
+       * 避免冷启动一次挂太多。
+       */
+      const RENDER_BUFFER_RATIO = 2
+      const RENDER_BUFFER_RATIO_FIRST_PAINT = 0.5
+      const [renderBufferRatio, setRenderBufferRatio] = useState(RENDER_BUFFER_RATIO_FIRST_PAINT)
+      /** rangeExtractor 可能在 virtualizer 赋值前就被调用，用 holder 拿测量值避免暂时性死区 */
+      const measurementsHolder = useRef<Array<{ size?: number } | undefined> | null>(null)
       const resizePinnedRef = useRef<number[]>([])
       const resizePinFrame = useRef<number | undefined>(undefined)
       const resizeAnchorScheduled = useRef(false)
+      /** dev：上方行从估算修正为实测的累计幅度，用来判断估算模型够不够准 */
+      const sizeDriftRef = useRef({ count: 0, px: 0, lastLog: 0 })
       /** 流式热行 pin：ref 更新，不碰贴底/SSE 路径 */
       const hotPinnedRef = useRef<number[]>([])
       hotPinnedRef.current = getStreamingHotIndexes(timeline.length, isStreaming)
@@ -632,6 +656,13 @@ export const ChatArea = memo(
           if (box) {
             return Math.round(instance.options.horizontal ? box.inlineSize : box.blockSize)
           }
+          // 向上滚动时不重读 DOM：读尺寸会触发重排和位置补偿，是「向上滚一顿一顿」
+          // 的常见来源（TanStack virtual #659）。条目已经量过，直接回退缓存值。
+          if (instance.scrollDirection === 'backward') {
+            const key = el.dataset.timelineKey
+            const cached = key ? (instance as unknown as { itemSizeCache?: Map<string, number> }).itemSizeCache?.get(key) : undefined
+            if (typeof cached === 'number') return cached
+          }
           return instance.options.horizontal ? el.offsetWidth : el.offsetHeight
         },
         // 输入框占位放在消息区外（retry/error 之后），避免重试提示被压到输入框下面
@@ -639,7 +670,7 @@ export const ChatArea = memo(
         scrollEndThreshold: 80,
         // 预写 total height，避免浏览器把新 offset clamp 到旧高度（oc 同款）
         scrollToFn: (offset, options, instance) => {
-          if (contentRef.current) contentRef.current.style.height = `${instance.getTotalSize()}px`
+          writeContentHeight(instance.getTotalSize())
           autoMarkAuto(scrollRef.current)
           elementScroll(offset, options, instance)
         },
@@ -649,12 +680,33 @@ export const ChatArea = memo(
         directDomUpdates: true,
         directDomUpdatesMode: 'transform',
         rangeExtractor: range => {
-          const indexes = defaultRangeExtractor({ ...range, overscan: renderOverscan })
+          // 从可见范围向两侧按估算/实测高度累加，直到覆盖预算
+          const viewport = scrollRef.current?.clientHeight || 800
+          const budget = viewport * renderBufferRatio
+          const measurements = measurementsHolder.current
+
+          let start = range.startIndex
+          let accumulated = 0
+          while (start > 0 && accumulated < budget) {
+            start -= 1
+            accumulated += measurements?.[start]?.size ?? 200
+          }
+
+          let end = range.endIndex
+          accumulated = 0
+          while (end < range.count - 1 && accumulated < budget) {
+            end += 1
+            accumulated += measurements?.[end]?.size ?? 200
+          }
+
+          const indexes: number[] = []
+          for (let index = start; index <= end; index += 1) indexes.push(index)
           return mergeVirtualRangeIndexes(indexes, resizePinnedRef.current, hotPinnedRef.current)
         },
       })
 
       // 一次性 overrides（resizeItem + shouldAdjust）——对齐 oc
+      measurementsHolder.current = (virtualizer as any).measurementsCache
       const overridesApplied = useRef(false)
       if (!overridesApplied.current) {
         const origResize = virtualizer.resizeItem
@@ -662,6 +714,24 @@ export const ChatArea = memo(
           const item = (virtualizer as any).measurementsCache[index]
           const prev = item ? ((virtualizer as any).itemSizeCache.get(item.key) ?? item.size) : undefined
           const root = scrollRef.current
+
+          // dev 诊断：只看视口上方的行——它们的尺寸修正才会引发位置补偿
+          if (import.meta.env.DEV && item && prev !== undefined && root) {
+            const drift = Math.abs(size - prev)
+            const offset = (virtualizer as any).getScrollOffset?.() ?? 0
+            if (drift > 4 && item.end <= offset) {
+              const stats = sizeDriftRef.current
+              stats.count += 1
+              stats.px += drift
+              const now = performance.now()
+              if (now - stats.lastLog > 2000) {
+                console.warn(`[perf] chat.rowResize count=${stats.count} px=${Math.round(stats.px)}`)
+                stats.count = 0
+                stats.px = 0
+                stats.lastLog = now
+              }
+            }
+          }
           if (root && prev !== undefined && Math.abs(size - prev) > root.clientHeight) {
             const view = root.getBoundingClientRect()
             const container = contentRef.current
@@ -699,6 +769,8 @@ export const ChatArea = memo(
             origResize(index, size)
             opts.anchorTo = origAnchor
           }
+          // 尺寸变了总高就变了：同步容器高度，贴底取 max 和滚动条才跟得上
+          writeContentHeight(virtualizer.getTotalSize())
           // 跟随中的贴底：绝对写底，不做 isAtEnd 门槛——shouldAnchorBottom()
           // 已经表达了跟随意图，>80px 的单帧突增（图片/代码块渲染）也必须追回。
           if (root && shouldAnchorBottom() && !resizeAnchorScheduled.current) {
@@ -716,10 +788,23 @@ export const ChatArea = memo(
         }
         virtualizer.shouldAdjustScrollPositionOnItemSizeChange = (item: VirtualItem, _delta: number, instance: any) => {
           if (shouldAnchorBottom()) return false
-          return item.end <= (instance.getScrollOffset?.() ?? 0) + (instance.scrollAdjustments ?? 0)
+          const offset = instance.getScrollOffset?.() ?? 0
+          // 只补偿完全在视口上方的行：跨过顶边的行自身变高不会推动下面的内容
+          if (item.end > offset + (instance.scrollAdjustments ?? 0)) return false
+          // 首次测量（还没有缓存尺寸）无论往哪滚都要补偿——否则估算和实测的
+          // 差额会一直留在那里；只有「重新测量」在向上滚时跳过，避免
+          // 一圈接一圈的尺寸修正把滚动顶得一跳一跳。
+          const sized = instance.itemSizeCache?.has?.(item.key) ?? false
+          return !sized || instance.scrollDirection !== 'backward'
         }
         overridesApplied.current = true
       }
+
+      // 条数/结构变化（追加、前插、切换视图）都会改变总高，先同步一次；
+      // 单行尺寸变化走 resizeItem
+      useLayoutEffect(() => {
+        writeContentHeight(virtualizer.getTotalSize())
+      }, [writeContentHeight, virtualizer, timeline])
 
       // ── 历史加载（prepend 锚点） ──
       const prependAnchor = useRef<{ key: string; offset: number } | undefined>(undefined)
@@ -925,7 +1010,7 @@ export const ChatArea = memo(
           if (shouldAnchorBottom()) pinToBottom()
           inner = requestAnimationFrame(() => {
             if (cancelled) return
-            if (renderOverscan < 15) setRenderOverscan(15)
+            if (renderBufferRatio < RENDER_BUFFER_RATIO) setRenderBufferRatio(RENDER_BUFFER_RATIO)
             if (shouldAnchorBottom()) pinToBottom()
           })
         })

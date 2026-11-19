@@ -8,6 +8,7 @@ class IntersectionObserverMock {
   callback: IntersectionObserverCallback
   options: IntersectionObserverInit | undefined
   observed: Element[] = []
+  unobserved: Element[] = []
   disconnected = false
 
   constructor(callback: IntersectionObserverCallback, options?: IntersectionObserverInit) {
@@ -20,7 +21,9 @@ class IntersectionObserverMock {
   observe(target: Element) {
     this.observed.push(target)
   }
-  unobserve() {}
+  unobserve(target: Element) {
+    this.unobserved.push(target)
+  }
   disconnect() {
     this.disconnected = true
   }
@@ -146,5 +149,53 @@ describe('useNearViewport', () => {
     const observer = IntersectionObserverMock.instance!
     unmount()
     expect(observer.disconnected).toBe(true)
+  })
+})
+
+function OnceHarness() {
+  const { ref, near } = useNearViewport({ rootMargin: '200% 0px', triggerOnce: true })
+  return (
+    <div>
+      <div ref={ref} data-testid="target" />
+      <span data-testid="state">{String(near)}</span>
+    </div>
+  )
+}
+
+describe('useNearViewport（一次性）', () => {
+  const originalObserver = globalThis.IntersectionObserver
+
+  beforeEach(() => {
+    IntersectionObserverMock.instance = null
+    IntersectionObserverMock.instances = []
+    vi.stubGlobal('IntersectionObserver', IntersectionObserverMock as unknown as typeof IntersectionObserver)
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    globalThis.IntersectionObserver = originalObserver
+  })
+
+  it('命中一次后保持 true，并停止观察', () => {
+    render(<OnceHarness />)
+    const observer = IntersectionObserverMock.instance!
+    const target = screen.getByTestId('target')
+
+    act(() => {
+      observer.callback(
+        [{ isIntersecting: true, target } as unknown as IntersectionObserverEntry],
+        {} as IntersectionObserver,
+      )
+    })
+    expect(screen.getByTestId('state')).toHaveTextContent('true')
+    expect(observer.unobserved).toContain(target)
+
+    act(() => {
+      observer.callback(
+        [{ isIntersecting: false, target } as unknown as IntersectionObserverEntry],
+        {} as IntersectionObserver,
+      )
+    })
+    expect(screen.getByTestId('state')).toHaveTextContent('true')
   })
 })

@@ -964,8 +964,6 @@ const MarkdownDomBlock = memo(function MarkdownDomBlock({
   const lastFullParseAtRef = useRef(0)
   const latestSrcRef = useRef(src)
   const largeBlockNoteRef = useRef(false)
-  /** 跳屏渲染只在块真实渲染过一次之后启用，避免用估高参与测量 */
-  const windowizedRef = useRef(false)
   // worker 里按块合并解析请求用的稳定 key
   const parseKey = useId()
   // 上游已按节奏揭示文本，这里不再叠 useDeferredValue：
@@ -1009,18 +1007,6 @@ const MarkdownDomBlock = memo(function MarkdownDomBlock({
         measurePerf('markdown.morph', () => applyMarkdownHtml(root, html), 6)
       }
       appliedSrcRef.current = renderSrc
-
-      // 稳定块先按真实内容完成一次布局和绘制，之后才允许跳屏渲染：
-      // 这样 content-visibility 用的是记住的真实尺寸，而不是 contain-intrinsic-size 的估算值。
-      // 必须等过一帧的绘制（rAF 在绘制前执行，单层 rAF 还不够）。
-      if (!isLive && !windowizedRef.current) {
-        windowizedRef.current = true
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            if (root.isConnected) root.dataset.markdownWindowized = 'true'
-          })
-        })
-      }
     }
 
     // 同步兜底用的限频：worker 不可用时，超大块不跟满每一拍

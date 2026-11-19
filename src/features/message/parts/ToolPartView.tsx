@@ -165,7 +165,8 @@ export const ToolPartView = memo(function ToolPartView({
   const { rootRef, headerRef, withScrollLock } = useDisclosureScrollLock()
   // 长工具组（几十上百条命令）展开时，body 只挂视口附近的：
   // 93 张卡同时挂 100KB 输出会让渲染进程直接卡死/崩溃。
-  const { ref: nearRef, near } = useNearViewport('1000px 0px', lazyBody)
+  // 提前量取 2 屏，和虚拟列表预渲染窗口对齐，滚到时输出已经挂好了。
+  const { ref: nearRef, near } = useNearViewport('200% 0px', lazyBody)
   const setRootRef = useCallback(
     (node: HTMLDivElement | null) => {
       rootRef(node)

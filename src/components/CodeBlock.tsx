@@ -3,7 +3,7 @@ import { useInputCapabilities } from '../hooks/useInputCapabilities'
 import { useSyntaxHighlight, useStreamingSyntaxHighlight, type HighlightTokens } from '../hooks/useSyntaxHighlight'
 import { themeStore } from '../store/themeStore'
 import { CopyButton } from './ui'
-import { useInView } from '../hooks/useInView'
+import { useNearViewport } from '../hooks/useInView'
 
 /** Languages that carry no useful information — hide the label */
 const HIDDEN_LANGS = new Set(['text', 'plain', 'txt', 'plaintext'])
@@ -133,7 +133,10 @@ export const CodeBlock = memo(function CodeBlock({
   const highlightCode = code
 
   // Lazy load highlighting when close to viewport
-  const { ref, inView } = useInView({ triggerOnce: true, rootMargin: '200px' })
+  // 高亮要赶在可见之前做完：2 屏的提前量，和虚拟列表的预渲染窗口对齐。
+  // 用 useNearViewport 而不是 useInView —— 后者 root 取视口，会被聊天滚动容器裁掉，
+  // 提前量实际不生效，滚到才高亮会看到一段纯文本。
+  const { ref, near } = useNearViewport({ rootMargin: '200% 0px', enabled: !deferHighlight, triggerOnce: true })
 
   // Auto-detect tree structure if language is missing or text
   const effectiveLanguage = useMemo(() => {
@@ -151,7 +154,7 @@ export const CodeBlock = memo(function CodeBlock({
     return language || 'text'
   }, [highlightCode, language])
 
-  const shouldHighlight = !deferHighlight && (inView || forceHighlight)
+  const shouldHighlight = !deferHighlight && (near || forceHighlight)
   const shouldStreamHighlight = shouldHighlight && streamingHighlight
 
   const { output: highlightedTokens } = useSyntaxHighlight(highlightCode, {

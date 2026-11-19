@@ -579,15 +579,6 @@ body {
   margin-bottom: 0.5rem;
 }
 
-/* 长消息里的块级可见性窗口化：屏幕外的 Markdown 块跳过渲染与布局。
- * 只在块真实渲染过一次之后启用（MarkdownRenderer 打 data-markdown-windowized），
- * 这样跳过时用的是浏览器记住的真实高度，不会拿估算值参与行高测量；
- * 流式尾部（isLive）永远不启用。 */
-.markdown-content [data-markdown-windowized='true'] {
-  content-visibility: auto;
-  contain-intrinsic-size: auto 120px;
-}
-
 /* GFM 任务列表：符号让位给勾选框，避免每行同时出现圆点和复选框 */
 .markdown-content li.task-list-item {
   list-style: none;

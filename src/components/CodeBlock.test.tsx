@@ -19,7 +19,7 @@ const useStreamingSyntaxHighlightMock = vi.fn(
     output: null,
   }),
 )
-const useInViewMock = vi.fn(() => ({ ref: vi.fn(), inView: false }))
+const useNearViewportMock = vi.fn(() => ({ ref: vi.fn(), near: false }))
 const themeSnapshot = { codeWordWrap: false }
 
 vi.mock('../hooks/useInputCapabilities', () => ({
@@ -32,7 +32,7 @@ vi.mock('../hooks/useSyntaxHighlight', () => ({
 }))
 
 vi.mock('../hooks/useInView', () => ({
-  useInView: () => useInViewMock(),
+  useNearViewport: () => useNearViewportMock(),
 }))
 
 vi.mock('../store/themeStore', () => ({
@@ -63,8 +63,8 @@ describe('CodeBlock', () => {
     useSyntaxHighlightMock.mockReturnValue({ output: [[{ content: 'highlighted', color: '#fff' }]] })
     useStreamingSyntaxHighlightMock.mockClear()
     useStreamingSyntaxHighlightMock.mockReturnValue({ output: null })
-    useInViewMock.mockReset()
-    useInViewMock.mockReturnValue({ ref: vi.fn(), inView: false })
+    useNearViewportMock.mockReset()
+    useNearViewportMock.mockReturnValue({ ref: vi.fn(), near: false })
   })
 
   it('requires tap-to-reveal copy button for unlabeled touch-ui code blocks', () => {
@@ -125,7 +125,7 @@ describe('CodeBlock', () => {
   })
 
   it('renders highlighted tokens as selectable plain pre content', () => {
-    useInViewMock.mockReturnValue({ ref: vi.fn(), inView: true })
+    useNearViewportMock.mockReturnValue({ ref: vi.fn(), near: true })
 
     const { container } = render(<CodeBlock code="const value = 1" language="ts" />)
 
@@ -140,7 +140,7 @@ describe('CodeBlock', () => {
   })
 
   it('keeps highlighted prefix while streaming suffix waits for new tokens', () => {
-    useInViewMock.mockReturnValue({ ref: vi.fn(), inView: true })
+    useNearViewportMock.mockReturnValue({ ref: vi.fn(), near: true })
     useSyntaxHighlightMock.mockImplementation((highlightCode: string): HighlightMockOutput => {
       if (highlightCode === 'const') return { output: [[{ content: 'const', color: '#fff' }]] }
       return { output: null }
@@ -156,7 +156,7 @@ describe('CodeBlock', () => {
   })
 
   it('enables highlighting when visible', () => {
-    useInViewMock.mockReturnValue({ ref: vi.fn(), inView: true })
+    useNearViewportMock.mockReturnValue({ ref: vi.fn(), near: true })
 
     render(<CodeBlock code="const value = 1" language="ts" />)
 

@@ -71,9 +71,28 @@ function observerKey(root: Element | null, rootMargin: string): string {
   return `root:${id}|${rootMargin}`
 }
 
-export function useNearViewport(rootMargin = '1000px 0px', enabled = true) {
+export type NearViewportOptions = {
+  rootMargin?: string
+  enabled?: boolean
+  /** 进入范围一次后保持 true：代码高亮这类只做一次、不能来回卸载的工作 */
+  triggerOnce?: boolean
+}
+
+export function useNearViewport(
+  rootMarginOrOptions: string | NearViewportOptions = '1000px 0px',
+  enabledOption = true,
+) {
+  const options: NearViewportOptions =
+    typeof rootMarginOrOptions === 'string'
+      ? { rootMargin: rootMarginOrOptions, enabled: enabledOption }
+      : rootMarginOrOptions
+  const rootMargin = options.rootMargin ?? '1000px 0px'
+  const enabled = options.enabled ?? true
+  const triggerOnce = options.triggerOnce ?? false
+
   const [near, setNear] = useState(false)
   const [element, setElement] = useState<Element | null>(null)
+  const triggeredRef = useRef(false)
   const supported = typeof IntersectionObserver !== 'undefined'
 
   const ref = useCallback(
@@ -85,6 +104,7 @@ export function useNearViewport(rootMargin = '1000px 0px', enabled = true) {
 
   useEffect(() => {
     if (!enabled || !element || !supported) return
+    if (triggerOnce && triggeredRef.current) return
 
     // 聊天区是内部滚动容器：root 取视口时，rootMargin 只会扩大视口，
     // 祖先滚动容器的裁切不受影响，1000px 提前量等于没写。
@@ -106,7 +126,18 @@ export function useNearViewport(rootMargin = '1000px 0px', enabled = true) {
     }
 
     const current = shared
-    current.listeners.set(element, setNear)
+    const listener: NearListener = value => {
+      if (value && triggerOnce) {
+        // 一次性的观察：命中后立刻摘掉，别让它跟着来回触发
+        triggeredRef.current = true
+        current.observer.unobserve(element)
+        current.listeners.delete(element)
+        setNear(true)
+        return
+      }
+      setNear(value)
+    }
+    current.listeners.set(element, listener)
     current.observer.observe(element)
 
     return () => {
@@ -117,7 +148,7 @@ export function useNearViewport(rootMargin = '1000px 0px', enabled = true) {
         sharedNearObservers.delete(key)
       }
     }
-  }, [element, enabled, rootMargin, supported])
+  }, [element, enabled, rootMargin, supported, triggerOnce])
 
   // 关闭门控或没有 IntersectionObserver 的环境（测试 / 老浏览器）都当「在视口内」
   return { ref, near: !enabled || !supported || near }
