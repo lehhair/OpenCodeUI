@@ -391,4 +391,3 @@ export const MermaidBlock = memo(function MermaidBlock({ code, isIncomplete }: {
     </div>
   )
 })
-
