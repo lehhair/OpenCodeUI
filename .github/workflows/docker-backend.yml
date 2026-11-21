@@ -6,6 +6,8 @@ on:
     paths:
       - 'docker/Dockerfile.backend'
       - 'docker/backend-entrypoint.sh'
+      - 'docker/opencode-release.sh'
+      - 'docker/resolve-opencode-release.sh'
       - '.github/workflows/docker-backend.yml'
   schedule:
     # 每天自动重建，跟进 opencode 最新版本
@@ -44,17 +46,11 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # 版本号进 build-arg，既能锁住本次构建装的是哪个 opencode，
-      # 也让 BuildKit 在发新版时丢掉旧的二进制层（否则层缓存会一直
-      # 复用第一次装的那版，日志看着每天重组，实际纹丝不动）。
-      - name: Resolve OpenCode version
+      # 只读取一次 latest，将版本、各架构下载地址和摘要一起固定。
+      # 清单进入 build-arg，既避免构建时再次读取 latest 的竞态，也使缓存随之更新。
+      - name: Resolve OpenCode release
         id: opencode
-        run: |
-          version="$(curl -fsSL --retry 3 --retry-delay 2 \
-            https://opencode.ai/update/api/latest/cli/opencode | jq -r '.version')"
-          test -n "$version"
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "OpenCode $version"
+        run: bash docker/resolve-opencode-release.sh >> "$GITHUB_OUTPUT"
 
       - name: Docker metadata
         id: meta
@@ -77,5 +73,6 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             OPENCODE_VERSION=${{ steps.opencode.outputs.version }}
+            OPENCODE_MANIFEST_BASE64=${{ steps.opencode.outputs.manifest }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

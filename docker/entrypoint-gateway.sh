@@ -1,6 +1,9 @@
 #!/bin/sh
 # Start both processes and exit the container if either one dies.
 
+: "${ROUTER_PASSWORD:?ROUTER_PASSWORD must be set to a non-empty password}"
+: "${ROUTER_USERNAME:?ROUTER_USERNAME must be set to a non-empty username}"
+
 cleanup() {
     kill "$ROUTER_PID" "$CADDY_PID" 2>/dev/null
     wait "$ROUTER_PID" "$CADDY_PID" 2>/dev/null

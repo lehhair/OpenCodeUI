@@ -14,6 +14,14 @@ async fn main() {
     env_logger::init();
 
     let config = Arc::new(Config::from_env());
+    if config.router_password().is_empty() {
+        log::error!("ROUTER_PASSWORD must be set to a non-empty password");
+        std::process::exit(1);
+    }
+    if config.router_username().is_empty() {
+        log::error!("ROUTER_USERNAME must be set to a non-empty username");
+        std::process::exit(1);
+    }
     let state = Arc::new(AppState::new(config));
 
     state.initialize().await;

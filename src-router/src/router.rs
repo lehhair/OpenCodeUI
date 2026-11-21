@@ -323,8 +323,8 @@ async fn post_preview_set(
 }
 
 fn check_basic_auth(headers: &HeaderMap, config: &Config) -> bool {
-    if config.router_password().is_empty() {
-        return true;
+    if config.router_username().is_empty() || config.router_password().is_empty() {
+        return false;
     }
 
     let Some(auth_header) = headers.get(header::AUTHORIZATION) else {

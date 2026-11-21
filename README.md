@@ -139,14 +139,14 @@ mkdir OpenCodeUI && cd OpenCodeUI
 curl -fsSLO https://raw.githubusercontent.com/lehhair/OpenCodeUI/main/docker-compose.yml
 curl -fsSLO https://raw.githubusercontent.com/lehhair/OpenCodeUI/main/.env.example
 
-# 复制并编辑环境变量，至少填写一个 LLM API Key
+# 复制并编辑环境变量，填写 OPENCODE_PASSWORD 和至少一个 LLM API Key
 cp .env.example .env
 
 # 启动
 docker compose up -d
 ```
 
-访问 `http://localhost:6658`。
+访问 `http://localhost:6658`。完整 Compose 部署的用户名固定为 `opencode`，必须设置非空的 `OPENCODE_PASSWORD`（优先）或旧变量 `OPENCODE_SERVER_PASSWORD`；两者都为空时 gateway/backend 容器拒绝启动。`docker compose config` 仅展开配置，密码由容器入口校验；兼容 Compose v2 和 v5。独立运行 gateway 或路由进程时，还必须设置非空的 `ROUTER_USERNAME` 和 `ROUTER_PASSWORD`。
 
 如果你的环境没有 `curl`，也可以直接从 GitHub 下载 `docker-compose.yml` 和 `.env.example` 放到同一个目录。
 
@@ -177,7 +177,7 @@ docker compose -f docker-compose.yml -f docker-compose.host.yml up -d
 git clone https://github.com/lehhair/OpenCodeUI.git
 cd OpenCodeUI
 
-# 复制并编辑环境变量，至少填写一个 LLM API Key
+# 复制并编辑环境变量，填写 OPENCODE_PASSWORD 和至少一个 LLM API Key
 cp .env.example .env
 
 # 构建并启动全部服务
@@ -194,7 +194,7 @@ docker compose -f docker-compose.yml -f docker-compose.build.yml -f docker-compo
 
 默认后端只保留一个核心持久化卷：`opencode-home`（挂载到 `/root`）。
 
-后端入口脚本会在启动时自动校验并补齐 `opencode` / `mise`，并在首次启动时写入 npm / pip 镜像配置。语言运行时不预装，按需用 `mise` 安装到持久化的 `/root`。
+后端入口脚本会在启动时自动校验并补齐 `opencode` / `mise`，并在首次启动时写入 npm / pip 镜像配置。服务及补装均使用镜像锁定的 OpenCode 版本，升级时需更新后端镜像。语言运行时不预装，按需用 `mise` 安装到持久化的 `/root`。
 
 - OpenCode 配置与会话缓存
 - npm / cargo / pip 等用户态缓存
@@ -230,10 +230,9 @@ PREVIEW_PORT=6659
 # 工作目录（挂载到容器 /workspace）
 WORKSPACE=./workspace
 
-# 公网部署务必设置（opencode v2：用户名固定 opencode，密码可用
-# OPENCODE_PASSWORD，旧名 OPENCODE_SERVER_PASSWORD 也认）
-OPENCODE_SERVER_USERNAME=opencode
-OPENCODE_SERVER_PASSWORD=your-strong-password
+# 必填：gateway 和 backend 用户名均固定 opencode
+# 新变量非空时优先，否则使用旧变量 OPENCODE_SERVER_PASSWORD
+OPENCODE_PASSWORD=your-strong-password
 
 # 路由服务
 ROUTER_SCAN_INTERVAL=5
